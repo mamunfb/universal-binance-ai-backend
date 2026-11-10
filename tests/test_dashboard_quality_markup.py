@@ -39,3 +39,7 @@ def test_dashboard_shows_collector_last_cycle_results_and_errors():
     assert "escapeHtml(result.error_type)" in html
     assert "CONNECTED:'status-good'" in html
     assert "DISCONNECTED:'status-warn'" in html
+
+def test_dashboard_displays_actual_source_period_when_reported():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "x.period?'<p><b>Stored period:</b> '+escapeHtml(x.period)" in html
