@@ -349,6 +349,19 @@ async def cross_chain_token_intelligence(
     for flow in flows["chains"]:
         key = (flow["chain_id"], flow.get("contract_address", "").lower())
         cohort = cohort_by_chain.get(key)
+        config = next((item for item in configs
+                       if item["chain_id"] == flow["chain_id"]
+                       and item["contract_address"].lower() == key[1]), None)
+        try:
+            registry = load_wallet_registry(settings.evm_wallet_registry, flow["chain_id"])
+            entity_flows = evm_transfer_store.verified_label_flows(
+                flow["chain_id"], flow["contract_address"], from_block, to_block,
+                decimals, registry,
+            ) if config else {"verified_label_flows": {}, "warning": "No matching chain configuration."}
+            entity_flow_status = "COMPLETED" if config else "UNAVAILABLE"
+        except Exception as exc:
+            entity_flows = {"error": f"{type(exc).__name__}: {str(exc)[:200]}"}
+            entity_flow_status = "FAILED"
         chains.append({
             "chain_id": flow["chain_id"],
             "chain_name": flow.get("chain_name"),
@@ -357,12 +370,17 @@ async def cross_chain_token_intelligence(
                 "COMPLETED"
                 if flow["status"] == "COMPLETED"
                 and cohort is not None and cohort["status"] == "COMPLETED"
+                and entity_flow_status == "COMPLETED"
                 else "INCOMPLETE"
             ),
             "address_flows": flow,
             "verified_smart_money": cohort or {
                 "status": "UNAVAILABLE",
                 "warning": "No matching cohort result for this chain and contract.",
+            },
+            "verified_entity_flows": {
+                "status": entity_flow_status,
+                **entity_flows,
             },
         })
     return {
