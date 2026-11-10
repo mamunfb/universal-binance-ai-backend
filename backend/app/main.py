@@ -10,6 +10,7 @@ from app.providers.binance_futures import BinanceFuturesProvider
 from app.services.market_scanner import scan_spot_markets
 from app.services.futures_scanner import scan_futures_markets
 from app.services.derivatives_intelligence import get_derivatives_intelligence
+from app.services.multi_timeframe import analyze_multiple_timeframes, analyze_btc_market_condition
 
 app = FastAPI(
     title=settings.app_name,
@@ -159,6 +160,16 @@ async def spot_technical_analysis(
         "indicators": indicators,
         "warning": "Indicators describe historical data and are not guaranteed trading signals.",
     }
+
+
+@app.get("/api/v1/analysis/spot/multi-timeframe/{symbol}", tags=["analysis"])
+async def spot_multi_timeframe_analysis(symbol: str) -> dict:
+    return await analyze_multiple_timeframes(get_spot_provider(), symbol)
+
+
+@app.get("/api/v1/analysis/market/btc-condition", tags=["analysis"])
+async def btc_market_condition() -> dict:
+    return await analyze_btc_market_condition(get_spot_provider())
 
 
 @app.get("/api/v1/markets/spot/klines/{symbol}", tags=["markets"])
