@@ -33,6 +33,7 @@ from app.services.onchain_intelligence import analyze_erc20_activity, get_evm_wa
 from app.services.evm_transfer_store import EVMTransferStore, index_erc20_transfer_history
 from app.services.historical_klines import HistoricalKlineStore
 from app.services.historical_coverage import HistoricalCoverageEngine
+from app.services.historical_collector import HistoricalKlineCollector
 from app.services.wallet_attribution import load_wallet_registry, annotate_wallet_addresses
 from app.services.cross_chain_wallets import parse_chain_rpc_configs, cross_chain_native_wallet_snapshot
 from app.services.cross_chain_tokens import parse_chain_token_configs, cross_chain_erc20_snapshot
@@ -43,15 +44,30 @@ liquidation_collector = LiquidationCollector(liquidation_store)
 news_provider = RSSNewsProvider(settings.http_timeout_seconds)
 evm_transfer_store = EVMTransferStore(settings.evm_transfer_database_path)
 historical_kline_store = HistoricalKlineStore(settings.historical_kline_database_path)
+historical_collector: HistoricalKlineCollector | None = None
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    global historical_collector
     if settings.liquidation_collector_enabled:
         liquidation_collector.start()
+    if settings.historical_collector_enabled:
+        historical_collector = HistoricalKlineCollector(
+            store=historical_kline_store,
+            spot_provider_factory=get_spot_provider,
+            futures_provider_factory=get_futures_provider,
+            jobs_json=settings.historical_collector_jobs,
+            poll_seconds=settings.historical_collector_poll_seconds,
+            initial_limit=settings.historical_collector_initial_limit,
+        )
+        historical_collector.start()
     try:
         yield
     finally:
+        if settings.historical_collector_enabled and historical_collector is not None:
+            await historical_collector.stop()
+            historical_collector = None
         if settings.liquidation_collector_enabled:
             await liquidation_collector.stop()
 
@@ -1263,6 +1279,19 @@ async def recent_liquidations(
         "events": rows,
         "coverage_warning": "Binance sends at most the latest liquidation snapshot per symbol per 1000ms. This is not a complete liquidation tape or historical exchange archive.",
     }
+
+
+@app.get("/api/v1/history/collector/status", tags=["history"])
+async def historical_collector_status() -> dict:
+    if not settings.historical_collector_enabled:
+        return {
+            "status": "DISABLED",
+            "enabled": False,
+            "message": "Set HISTORICAL_COLLECTOR_ENABLED=true and configure HISTORICAL_COLLECTOR_JOBS to enable scheduled collection.",
+        }
+    if historical_collector is None:
+        return {"status": "STARTING", "enabled": True}
+    return historical_collector.status()
 
 
 @app.post("/api/v1/history/klines/{market}/{symbol}/collect", tags=["history"])
