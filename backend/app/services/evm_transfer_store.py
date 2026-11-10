@@ -135,6 +135,9 @@ class EVMTransferStore:
         scale = 10 ** decimals
         flows = [{
             "address": address,
+            "sent_raw": str(values["sent"]),
+            "received_raw": str(values["received"]),
+            "net_received_raw": str(values["received"] - values["sent"]),
             "sent_tokens": values["sent"] / scale,
             "received_tokens": values["received"] / scale,
             "net_received_tokens": (values["received"] - values["sent"]) / scale,
