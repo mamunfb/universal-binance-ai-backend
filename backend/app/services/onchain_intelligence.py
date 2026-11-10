@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import math
 from typing import Any
 from app.providers.evm_rpc import EVMRPCProvider, TRANSFER_TOPIC
 
@@ -42,7 +43,7 @@ async def analyze_erc20_activity(provider: EVMRPCProvider, contract: str, from_b
         raise ValueError("decimals must be an integer between 0 and 36")
     if (isinstance(whale_threshold_tokens, bool) or
             not isinstance(whale_threshold_tokens, (int, float)) or
-            not __import__("math").isfinite(whale_threshold_tokens) or whale_threshold_tokens < 0):
+            not math.isfinite(whale_threshold_tokens) or whale_threshold_tokens < 0):
         raise ValueError("whale_threshold_tokens must be a finite non-negative number")
     if from_block < 0 or to_block < from_block:
         raise ValueError("Invalid block range")
