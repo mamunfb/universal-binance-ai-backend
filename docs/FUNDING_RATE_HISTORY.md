@@ -10,7 +10,20 @@ This first version supports USD-M only. COIN-M funding history is not enabled he
 
 ```env
 FUNDING_RATE_DATABASE_PATH=data/funding_rates.sqlite3
+DERIVATIVES_COLLECTOR_ENABLED=false
+DERIVATIVES_COLLECTOR_JOBS=[]
+DERIVATIVES_COLLECTOR_POLL_SECONDS=60
+DERIVATIVES_COLLECTOR_FUNDING_LIMIT=1000
 ```
+
+To poll a funding series automatically, add an allow-listed job and explicitly enable the collector:
+
+```env
+DERIVATIVES_COLLECTOR_ENABLED=true
+DERIVATIVES_COLLECTOR_JOBS=[{"type":"FUNDING_RATE","symbol":"BTCUSDT"}]
+```
+
+Use one persistent application process and persistent disk for SQLite. The collector resumes from the newest stored funding timestamp inclusively, so each poll overlaps the previous event and safely upserts it.
 
 The SQLite database directory is created automatically.
 
