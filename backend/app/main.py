@@ -32,6 +32,7 @@ from app.providers.evm_rpc import EVMRPCProvider
 from app.services.onchain_intelligence import analyze_erc20_activity, get_evm_wallet_snapshot, get_erc20_token_snapshot
 from app.services.evm_transfer_store import EVMTransferStore, index_erc20_transfer_history
 from app.services.historical_klines import HistoricalKlineStore
+from app.services.historical_coverage import HistoricalCoverageEngine
 from app.services.wallet_attribution import load_wallet_registry, annotate_wallet_addresses
 from app.services.cross_chain_wallets import parse_chain_rpc_configs, cross_chain_native_wallet_snapshot
 from app.services.cross_chain_tokens import parse_chain_token_configs, cross_chain_erc20_snapshot
@@ -1284,6 +1285,23 @@ async def collect_historical_klines(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail={"status": "FAILED", "error": "HISTORICAL_KLINE_COLLECTION_UNAVAILABLE", "error_type": type(exc).__name__}) from exc
+
+
+@app.get("/api/v1/history/klines/{market}/{symbol}/coverage", tags=["history"])
+async def inspect_historical_kline_coverage(
+    market: Literal["SPOT", "USD_M", "COIN_M"],
+    symbol: str,
+    interval: Literal["1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d", "3d", "1w", "1M"] = "1h",
+    start_time_ms: int = Query(..., ge=0),
+    end_time_ms: int = Query(..., ge=0),
+) -> dict:
+    engine = HistoricalCoverageEngine(settings.historical_kline_database_path)
+    try:
+        return await asyncio.to_thread(
+            engine.inspect, market, symbol, interval, start_time_ms, end_time_ms
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @app.get("/api/v1/history/klines/{market}/{symbol}", tags=["history"])
