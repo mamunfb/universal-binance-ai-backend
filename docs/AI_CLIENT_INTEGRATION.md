@@ -200,6 +200,7 @@ Available tools:
 - `inspect_historical_kline_coverage`
 - `get_historical_collector_status`
 - `get_stored_funding_rate_history`
+- `get_stored_open_interest_history`
 - `get_liquidation_collector_status`
 
 All tools are read-only. No order, signing, withdrawal, or trade execution tool is exposed. MCP tool access remains subject to the backend's API authentication and route availability.
