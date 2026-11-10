@@ -6,7 +6,9 @@ from fastapi import FastAPI, HTTPException, Query
 from app.config import settings
 from app.indicators import calculate_indicators
 from app.providers.binance_spot import BinanceSpotProvider
+from app.providers.binance_futures import BinanceFuturesProvider
 from app.services.market_scanner import scan_spot_markets
+from app.services.futures_scanner import scan_futures_markets
 
 app = FastAPI(
     title=settings.app_name,
@@ -43,6 +45,72 @@ async def spot_market_scan(
     if result["status"] == "FAILED":
         raise HTTPException(status_code=502, detail=result)
     return result
+
+
+def get_futures_provider(market: str) -> BinanceFuturesProvider:
+    return BinanceFuturesProvider(market, timeout_seconds=settings.http_timeout_seconds)
+
+
+@app.get("/api/v1/markets/futures/usdm/scan", tags=["markets"])
+async def usdm_market_scan(
+    quote_asset: str = Query(default="USDT", min_length=2, max_length=12),
+    min_quote_volume: float = Query(default=0.0, ge=0.0),
+    perpetual_only: bool = True,
+) -> dict:
+    result = await scan_futures_markets(
+        get_futures_provider("USD_M"), quote_asset, min_quote_volume, perpetual_only
+    )
+    if result["status"] == "FAILED":
+        raise HTTPException(status_code=502, detail=result)
+    return result
+
+
+@app.get("/api/v1/markets/futures/coinm/scan", tags=["markets"])
+async def coinm_market_scan(
+    quote_asset: str = Query(default="USD", min_length=2, max_length=12),
+    min_quote_volume: float = Query(default=0.0, ge=0.0),
+    perpetual_only: bool = True,
+) -> dict:
+    result = await scan_futures_markets(
+        get_futures_provider("COIN_M"), quote_asset, min_quote_volume, perpetual_only
+    )
+    if result["status"] == "FAILED":
+        raise HTTPException(status_code=502, detail=result)
+    return result
+
+
+@app.get("/api/v1/markets/futures/usdm/klines/{symbol}", tags=["markets"])
+async def usdm_klines(
+    symbol: str,
+    interval: Literal[
+        "1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h",
+        "6h", "8h", "12h", "1d", "3d", "1w", "1M"
+    ] = "1h",
+    limit: int = Query(default=500, ge=1, le=1500),
+) -> dict:
+    try:
+        rows = await get_futures_provider("USD_M").klines(symbol, interval, limit)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
+    return {"status": "COMPLETED", "source": "Binance USD-M Futures public REST API",
+            "symbol": symbol.upper(), "interval": interval, "count": len(rows), "klines": rows}
+
+
+@app.get("/api/v1/markets/futures/coinm/klines/{symbol}", tags=["markets"])
+async def coinm_klines(
+    symbol: str,
+    interval: Literal[
+        "1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h",
+        "6h", "8h", "12h", "1d", "3d", "1w", "1M"
+    ] = "1h",
+    limit: int = Query(default=500, ge=1, le=1500),
+) -> dict:
+    try:
+        rows = await get_futures_provider("COIN_M").klines(symbol, interval, limit)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
+    return {"status": "COMPLETED", "source": "Binance COIN-M Futures public REST API",
+            "symbol": symbol.upper(), "interval": interval, "count": len(rows), "klines": rows}
 
 
 @app.get("/api/v1/analysis/spot/technical/{symbol}", tags=["analysis"])
