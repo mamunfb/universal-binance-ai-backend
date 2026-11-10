@@ -33,7 +33,7 @@ def analyze_multi_timeframe_order_flow(
 
     analyses = []
     for period in normalized:
-        start_time_ms = end_time_ms - PERIOD_MINUTES[period] * 60_000
+        start_time_ms = max(0, end_time_ms - PERIOD_MINUTES[period] * 60_000)
         result = analyze_order_flow(
             trades, market, symbol, start_time_ms, end_time_ms,
             bin_size_bps, value_area_pct,
