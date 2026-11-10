@@ -98,13 +98,13 @@ async def test_erc20_snapshot_reports_tracked_share_not_full_distribution():
             return 1700000000
         async def eth_call(self, contract, data, block="latest"):
             assert block == "0x315"
-            if data == "0x18160ddd": return hex(1_000_000 * 10**6)
-            if data == "0x313ce567": return hex(6)
+            if data == "0x18160ddd": return "0x" + (1_000_000 * 10**6).to_bytes(32, "big").hex()
+            if data == "0x313ce567": return "0x" + (6).to_bytes(32, "big").hex()
             if data == "0x95d89b41":
                 return "0x" + (32).to_bytes(32, "big").hex() + (3).to_bytes(32, "big").hex() + b"ABC".ljust(32, b"\x00").hex()
             if data == "0x06fdde03":
                 return "0x" + (32).to_bytes(32, "big").hex() + (7).to_bytes(32, "big").hex() + b"Example".ljust(32, b"\x00").hex()
-            if data.endswith(ADDRESS_A[2:].rjust(64, "0")): return hex(250_000 * 10**6)
+            if data.endswith(ADDRESS_A[2:].rjust(64, "0")): return "0x" + (250_000 * 10**6).to_bytes(32, "big").hex()
             raise AssertionError(data)
     result = await get_erc20_token_snapshot(FakeProvider(), CONTRACT, {"wallet-a": ADDRESS_A})
     assert result["snapshot_block"] == 789
