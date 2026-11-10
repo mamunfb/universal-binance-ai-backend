@@ -87,3 +87,17 @@ def test_database_schema_error_is_unknown_not_no_data(tmp_path):
     ).inspect("SPOT", "BTCUSDT", "1m", lookback_hours=1, now_ms=1_700_000_100_000)
     assert result["sources"]["historical_klines"]["status"] == "UNKNOWN"
     assert result["sources"]["historical_klines"]["freshness"] == "UNKNOWN"
+
+def test_current_open_candle_is_in_progress_not_stale(tmp_path):
+    db = str(tmp_path / "klines.sqlite3")
+    store = HistoricalKlineStore(db)
+    start = 1_700_000_040_000
+    store.save_klines("SPOT", "BTCUSDT", "1m", [candle(start)])
+    now = start + 30_000
+    result = engine(tmp_path).inspect(
+        "SPOT", "BTCUSDT", "1m", lookback_hours=1, now_ms=now
+    )
+    source = result["sources"]["historical_klines"]
+    assert source["freshness"] == "IN_PROGRESS"
+    assert source["status"] == "HEALTHY"
+    assert source["time_until_close_ms"] == 29_999
