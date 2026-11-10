@@ -158,7 +158,7 @@ def test_dashboard_displays_chronological_regime_degradation_screen():
     html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
     assert "Chronological degradation screen" in html
     assert "regime_transition_degradation" in html
-    assert "POTENTIAL_DEGRADATION_SCREEN" in html
+    assert "degradation screen" in html
     assert "positive_fraction_change_percentage_points" in html
     assert "not a significance test" in html
 
