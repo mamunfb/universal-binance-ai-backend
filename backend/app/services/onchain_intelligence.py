@@ -131,8 +131,12 @@ async def get_evm_wallet_snapshot(provider: EVMRPCProvider, addresses: list[str]
         "status": "COMPLETED" if balances and all(x["status"] == "COMPLETED" for x in balances) else "INCOMPLETE",
         "generated_at": datetime.now(timezone.utc).isoformat(), "chain_id": chain_id,
         "block_number": block,
+        "snapshot_block": block,
+        "snapshot_block_number": block,
         "block_timestamp": block_timestamp,
+        "snapshot_block_timestamp": block_timestamp,
         "timestamp_status": timestamp_status,
+        "snapshot_timestamp_status": timestamp_status,
         "block_time": (
             datetime.fromtimestamp(block_timestamp, timezone.utc).isoformat()
             if block_timestamp is not None else None
