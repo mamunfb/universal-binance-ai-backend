@@ -89,6 +89,10 @@ The `details` field is optional and can be a list or object. Validation details 
 
 Common codes include `VALIDATION_ERROR`, `NOT_FOUND`, `UNAUTHORIZED`, `FORBIDDEN`, `RATE_LIMITED`, `UPSTREAM_ERROR`, `UPSTREAM_TIMEOUT`, `SERVICE_UNAVAILABLE`, and `INTERNAL_SERVER_ERROR`. Not every deployment enables authentication or rate limiting; the presence of an error code does not mean the feature is configured.
 
+## MCP adapter response handling
+
+The local MCP adapter preserves successful JSON objects exactly, including source, generated timestamps, freshness, coverage, missing-data, and warning fields. For HTTP failures it returns a normalized object with `status: FAILED`, `http_status`, a stable `error.code`, a safe message, and a `retryable` flag. It also carries the API `request_id` when supplied. Connection failures use `UPSTREAM_CONNECTION_ERROR`; invalid or non-object success JSON uses `UPSTREAM_INVALID_RESPONSE`. These normalized MCP errors are adapter output and do not change the canonical REST API error contract. Retry only when `retryable` is true and apply bounded backoff; do not retry authentication or validation failures unchanged.
+
 ## Retry guidance
 
 - Do not automatically retry 400, 401, 403, 404, or 422 without changing the request or credentials.
