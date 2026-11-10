@@ -26,7 +26,7 @@ async def scan_spot_markets(
     quote = quote_asset.strip().upper() if quote_asset and quote_asset.strip() else None
 
     try:
-        exchange_info, tickers = await _fetch_inputs(provider)
+        exchange_info, tickers, book_tickers, book_error = await _fetch_inputs(provider)
     except Exception as exc:
         return {
             "status": "FAILED", "phase_status": "FAILED", "generated_at": generated_at,
@@ -43,7 +43,7 @@ async def scan_spot_markets(
         if isinstance(item, dict) and item.get("symbol")
     }
     book_by_symbol = {
-        item.get("symbol"): item for item in getattr(provider, "_last_book_tickers", [])
+        item.get("symbol"): item for item in book_tickers
         if isinstance(item, dict) and item.get("symbol")
     }
     btc_change = _number(ticker_by_symbol.get("BTCUSDT", {}).get("priceChangePercent"))
@@ -162,6 +162,7 @@ async def scan_spot_markets(
             "market_cap": "NOT_COLLECTED",
         },
         "stage1_missing_metrics": ["order_book_depth", "volume_surge_vs_recent_average", "market_cap"],
+        "book_ticker_error": book_error,
         "coverage_warning": (
             "This is a complete eligible-symbol/ticker pass only. Full Stage 1 remains INCOMPLETE: "
             "depth, recent-average volume surge and market-cap enrichment are not collected for every pair. "
@@ -170,11 +171,11 @@ async def scan_spot_markets(
     }
 
 
-async def _fetch_inputs(provider: BinanceSpotProvider) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+async def _fetch_inputs(provider: BinanceSpotProvider) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]], str | None]:
     import asyncio
     exchange_info, tickers = await asyncio.gather(provider.exchange_info(), provider.all_24h_tickers())
     try:
-        provider._last_book_tickers = await provider.all_book_tickers()
-    except (AttributeError, Exception):
-        provider._last_book_tickers = []
-    return exchange_info, tickers
+        books = await provider.all_book_tickers()
+        return exchange_info, tickers, books, None
+    except Exception as exc:
+        return exchange_info, tickers, [], type(exc).__name__
