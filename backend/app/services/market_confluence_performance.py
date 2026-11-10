@@ -190,6 +190,30 @@ class MarketConfluencePerformance:
                         ),
                         "coverage_complete_count": sum(row["future_candle_coverage_complete"] for row in group_rows),
                     }
+            regime_bias_breakdown = {}
+            for dimension in ("market_regime", "volatility_regime", "structure_regime"):
+                dimension_groups = {}
+                for row in outcomes:
+                    dimension_groups.setdefault(row[dimension], []).append(row)
+                regime_bias_breakdown[dimension] = {}
+                for regime_label, regime_rows in sorted(dimension_groups.items()):
+                    regime_bias_breakdown[dimension][regime_label] = {}
+                    for bias_name in ("BULLISH", "BEARISH", "MIXED", "UNKNOWN"):
+                        group = [row for row in regime_rows if row["bias"] == bias_name]
+                        directional_group = [row for row in group if row["directional_positive"] is not None]
+                        positives = sum(row["directional_positive"] for row in directional_group)
+                        regime_bias_breakdown[dimension][regime_label][bias_name] = {
+                            "sample_size": len(group),
+                            "directional_sample_size": len(directional_group),
+                            "positive_count": positives,
+                            "negative_count": len(directional_group) - positives,
+                            "positive_fraction": positives / len(directional_group) if directional_group else None,
+                            "mean_directional_return_percent": (
+                                sum(row["directional_return_percent"] for row in directional_group) / len(directional_group)
+                                if directional_group else None
+                            ),
+                            "coverage_complete_count": sum(row["future_candle_coverage_complete"] for row in group),
+                        }
             summaries[str(hours)] = {
                 "label": self.HORIZON_LABELS[hours],
                 "horizon_hours": hours,
@@ -199,6 +223,7 @@ class MarketConfluencePerformance:
                 "directional_sample_size": len(directional),
                 "bias_breakdown": bias_breakdown,
                 "regime_breakdown": regime_breakdown,
+                "regime_bias_breakdown": regime_bias_breakdown,
                 "pending_or_not_matured": pending,
                 "missing_reference_price": missing_reference,
                 "coverage_complete_count": sum(row["future_candle_coverage_complete"] for row in outcomes),
