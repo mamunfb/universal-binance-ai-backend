@@ -163,6 +163,79 @@ class MarketConfluencePerformance:
             test_outcomes = [row for row in outcomes if row["snapshot_id"] in test_ids]
             train_directional = [row for row in training_outcomes if row["directional_positive"] is not None]
             test_directional = [row for row in test_outcomes if row["directional_positive"] is not None]
+            # Expanding-window walk-forward evaluation of saved outputs (no model fitting).
+            walk_forward_folds = []
+            if len(ordered_snapshots) >= 4:
+                initial_train_count = max(1, len(ordered_snapshots) // 2)
+                remaining = ordered_snapshots[initial_train_count:]
+                fold_count = min(3, len(remaining))
+                base_size, extra = divmod(len(remaining), fold_count)
+                cursor = 0
+                for fold_index in range(fold_count):
+                    block_size = base_size + (1 if fold_index < extra else 0)
+                    test_block = remaining[cursor:cursor + block_size]
+                    cursor += block_size
+                    prior_test_count = sum(len(fold["test_snapshot_ids"]) for fold in walk_forward_folds)
+                    train_block = ordered_snapshots[:initial_train_count + prior_test_count]
+                    next_fold_start = (
+                        int(remaining[cursor]["analyzed_at_ms"]) if cursor < len(remaining) else None
+                    )
+                    block_ids = {item["snapshot_id"] for item in test_block}
+                    fold_rows = [
+                        row for row in outcomes
+                        if row["snapshot_id"] in block_ids
+                        and (next_fold_start is None or row["outcome_close_time_ms"] < next_fold_start)
+                    ]
+                    fold_directional = [row for row in fold_rows if row["directional_positive"] is not None]
+                    positives = sum(row["directional_positive"] for row in fold_directional)
+                    walk_forward_folds.append({
+                        "fold": fold_index + 1,
+                        "training_snapshot_count": len(train_block),
+                        "test_snapshot_count": len(test_block),
+                        "test_start_ms": int(test_block[0]["analyzed_at_ms"]),
+                        "test_end_ms": int(test_block[-1]["analyzed_at_ms"]),
+                        "outcome_cutoff_exclusive_ms": next_fold_start,
+                        "test_snapshot_ids": [item["snapshot_id"] for item in test_block],
+                        "test_matured_outcome_count": len(fold_rows),
+                        "test_directional_sample_size": len(fold_directional),
+                        "test_positive_count": positives,
+                        "test_negative_count": len(fold_directional) - positives,
+                        "test_directional_positive_fraction": positives / len(fold_directional) if fold_directional else None,
+                        "test_mean_directional_return_percent": (
+                            sum(row["directional_return_percent"] for row in fold_directional) / len(fold_directional)
+                            if fold_directional else None
+                        ),
+                        "test_coverage_complete_count": sum(row["future_candle_coverage_complete"] for row in fold_rows),
+                    })
+            walk_forward_rows = [
+                row for fold in walk_forward_folds for row in outcomes
+                if row["snapshot_id"] in set(fold["test_snapshot_ids"])
+                and (fold["outcome_cutoff_exclusive_ms"] is None
+                     or row["outcome_close_time_ms"] < fold["outcome_cutoff_exclusive_ms"])
+            ]
+            walk_forward_directional = [row for row in walk_forward_rows if row["directional_positive"] is not None]
+            walk_forward_positive = sum(row["directional_positive"] for row in walk_forward_directional)
+            walk_forward = {
+                "method": "Expanding-window walk-forward evaluation of saved confluence outputs. Each fold trains only on earlier snapshot history; no model fitting or tuning is performed. Outcomes crossing the next test-fold boundary are excluded.",
+                "status": (
+                    "INSUFFICIENT_SNAPSHOTS" if len(ordered_snapshots) < 4
+                    else "COMPLETED" if walk_forward_rows else "INSUFFICIENT_MATURED_TEST_OUTCOMES"
+                ),
+                "initial_training_snapshot_count": max(1, len(ordered_snapshots) // 2) if len(ordered_snapshots) >= 4 else 0,
+                "fold_count": len(walk_forward_folds),
+                "test_snapshot_count": sum(fold["test_snapshot_count"] for fold in walk_forward_folds),
+                "test_matured_outcome_count": len(walk_forward_rows),
+                "test_directional_sample_size": len(walk_forward_directional),
+                "test_positive_count": walk_forward_positive,
+                "test_negative_count": len(walk_forward_directional) - walk_forward_positive,
+                "test_directional_positive_fraction": walk_forward_positive / len(walk_forward_directional) if walk_forward_directional else None,
+                "test_mean_directional_return_percent": (
+                    sum(row["directional_return_percent"] for row in walk_forward_directional)
+                    / len(walk_forward_directional) if walk_forward_directional else None
+                ),
+                "test_coverage_complete_count": sum(row["future_candle_coverage_complete"] for row in walk_forward_rows),
+                "folds": walk_forward_folds,
+            }
             out_of_sample = {
                 "method": "Chronological holdout: earliest 70% of saved snapshots are the training period; latest 30% are the test period. No fitting or tuning is performed by this evaluator.",
                 "status": (
@@ -271,6 +344,7 @@ class MarketConfluencePerformance:
                 "regime_breakdown": regime_breakdown,
                 "regime_bias_breakdown": regime_bias_breakdown,
                 "out_of_sample": out_of_sample,
+                "walk_forward": walk_forward,
                 "pending_or_not_matured": pending,
                 "missing_reference_price": missing_reference,
                 "coverage_complete_count": sum(row["future_candle_coverage_complete"] for row in outcomes),
@@ -313,6 +387,7 @@ class MarketConfluencePerformance:
                 "mixed_unknown": "Retained in raw outcomes but excluded from directional aggregates.",
                 "regime_stratification": "Groups outcomes by saved market, volatility and structure regime labels; missing labels are UNCLASSIFIED. Groups are descriptive and may have small samples.",
                 "out_of_sample": "Chronological 70/30 holdout by snapshot analysis time. This is a temporal evaluation split, not a trained or tuned predictive model.",
+                "walk_forward": "Expanding-window temporal folds evaluate saved confluence outputs; no predictive model is trained or tuned. Outcomes crossing the next test fold boundary are excluded.",
                 "mfe_mae": "Directional high/low excursion; not a stop/target simulation.",
                 "coverage": "Every outcome reports whether the local candle sequence is continuous from the first expected candle through its endpoint.",
             },
