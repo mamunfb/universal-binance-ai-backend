@@ -13,6 +13,7 @@ from app.services.futures_scanner import scan_futures_markets
 from app.services.derivatives_intelligence import get_derivatives_intelligence
 from app.services.multi_timeframe import analyze_multiple_timeframes, analyze_btc_market_condition
 from app.services.liquidation_collector import LiquidationCollector, LiquidationStore
+from app.services.price_levels import analyze_support_resistance, calculate_fibonacci_levels
 
 liquidation_store = LiquidationStore(settings.liquidation_database_path)
 liquidation_collector = LiquidationCollector(liquidation_store)
@@ -188,6 +189,40 @@ async def spot_multi_timeframe_analysis(symbol: str) -> dict:
 @app.get("/api/v1/analysis/market/btc-condition", tags=["analysis"])
 async def btc_market_condition() -> dict:
     return await analyze_btc_market_condition(get_spot_provider())
+
+
+@app.get("/api/v1/analysis/spot/price-levels/{symbol}", tags=["analysis"])
+async def spot_price_levels(
+    symbol: str,
+    interval: Literal["15m", "1h", "4h", "1d"] = "1h",
+    limit: int = Query(default=300, ge=20, le=1000),
+    pivot_left: int = Query(default=3, ge=1, le=20),
+    pivot_right: int = Query(default=3, ge=1, le=20),
+    tolerance_pct: float = Query(default=0.003, gt=0, le=0.05),
+) -> dict:
+    try:
+        rows = await get_spot_provider().klines(symbol, interval, limit)
+        support_resistance = analyze_support_resistance(
+            rows, pivot_left=pivot_left, pivot_right=pivot_right,
+            tolerance_pct=tolerance_pct,
+        )
+        fibonacci = calculate_fibonacci_levels(
+            rows, pivot_left=pivot_left, pivot_right=pivot_right
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
+    return {
+        "status": "COMPLETED" if support_resistance["status"] == "COMPLETED" else "INCOMPLETE",
+        "source": "Binance Spot public REST klines",
+        "symbol": symbol.upper(),
+        "interval": interval,
+        "candle_count": len(rows),
+        "support_resistance": support_resistance,
+        "fibonacci": fibonacci,
+        "warning": "Technical reference calculations only; not trading signals or guaranteed support/resistance.",
+    }
 
 
 @app.get("/api/v1/analysis/futures/liquidations/status", tags=["analysis"])
