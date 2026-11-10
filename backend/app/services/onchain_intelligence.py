@@ -268,7 +268,8 @@ async def get_erc20_token_snapshot(provider: EVMRPCProvider, contract: str,
         except Exception as exc:
             holders.append({
                 "label": label, "address": address.lower(), "status": "FAILED",
-                "error": f"{type(exc).__name__}: {str(exc)[:250]}",
+                "error": "BALANCE_UNAVAILABLE",
+                "error_type": type(exc).__name__,
             })
     successful = [row for row in holders if row["status"] == "COMPLETED"]
     tracked_raw = sum(int(row["balance_raw"]) for row in successful)
