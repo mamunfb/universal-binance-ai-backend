@@ -21,7 +21,8 @@ from app.services.news_verification import parse_domain_list
 from app.services.catalyst_analysis import analyze_catalysts
 from app.providers.evm_rpc import EVMRPCProvider
 from app.services.onchain_intelligence import analyze_erc20_activity, get_evm_wallet_snapshot, get_erc20_token_snapshot
-from app.services.evm_transfer_store import EVMTransferStore, index_erc20_transfer_history\nfrom app.services.wallet_attribution import load_wallet_registry, annotate_wallet_addresses
+from app.services.evm_transfer_store import EVMTransferStore, index_erc20_transfer_history
+from app.services.wallet_attribution import load_wallet_registry, annotate_wallet_addresses
 
 liquidation_store = LiquidationStore(settings.liquidation_database_path)
 liquidation_collector = LiquidationCollector(liquidation_store)
