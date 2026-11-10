@@ -1,6 +1,45 @@
-# AI Client Integration and API Operations
+# Personal AI Client Integration
 
-This backend exposes a REST API and an OpenAPI document so different AI clients can inspect the same machine-readable contract.
+## Scope
+
+This is a private, single-owner project for the repository owner. The only AI clients in scope are:
+
+1. ChatGPT
+2. Google Gemini
+3. Manus
+
+Do not build a public SaaS, customer registration, subscription, billing, tenant management, or public API marketplace for this project. Do not add integrations for other AI products unless the owner explicitly changes this scope.
+
+The three AI clients share one canonical backend and one research-only crypto intelligence engine. They do not each get separate market-data or on-chain implementations.
+
+## Shared architecture
+
+```text
+Binance public data + configured EVM RPC providers
+                    |
+          Provider / analysis services
+                    |
+        Personal Crypto Intelligence Engine
+                    |
+             Canonical REST API
+                    |
+        +-----------+-----------+
+        |           |           |
+     ChatGPT      Gemini      Manus
+     adapter      adapter     adapter
+        |           |           |
+        +------ Owner-only access ------+
+```
+
+REST/OpenAPI is the canonical API contract. MCP may be used as a shared tool interface where a target client supports the required MCP transport and authentication. Client-specific adapters should remain thin: translate tool calls and arguments, call the same REST services, and return the same structured evidence and limitations.
+
+## Client integration policy
+
+- **ChatGPT:** use an OpenAPI-based custom action or another supported private tool connection when available. Expose only required read-only operations.
+- **Google Gemini:** use function/tool declarations or a supported connector that calls the same private REST API. Keep provider credentials on the backend.
+- **Manus:** use a supported MCP or HTTP/API integration if available in the selected Manus environment. Confirm the actual supported transport and authentication before implementing its adapter; do not assume every Manus plan or workspace exposes the same integration features.
+
+Platform capabilities and plan availability can change. A platform is not considered integrated until a real end-to-end connection test succeeds in the owner's account.
 
 ## API discovery
 
@@ -8,22 +47,22 @@ This backend exposes a REST API and an OpenAPI document so different AI clients 
 - Interactive Swagger UI: `GET /docs`
 - ReDoc: `GET /redoc`
 
-For a hosted deployment, replace `BASE_URL` below with the HTTPS origin of that deployment. Do not expose a development server directly to the public internet.
+For a hosted deployment, use its HTTPS origin. Do not expose a development server directly to the public internet.
 
 ## Minimal client flow
 
-1. Fetch `/openapi.json` and inspect the operation, query parameters, defaults, and bounds before calling an endpoint.
-2. Call only the required read-only endpoint. Public market endpoints do not need a Binance API secret.
-3. Parse the JSON response and inspect its `status`, source, timestamps, coverage, and warning fields where present.
-4. Treat `INCOMPLETE`, `UNKNOWN`, empty results, and missing coverage as uncertainty—not as zero activity or confirmation that no event occurred.
-5. Preserve the response's `X-Request-ID` header for troubleshooting. Error bodies also include `request_id`.
+1. Discover the operation and parameter bounds from `/openapi.json`.
+2. Call only the necessary read-only endpoint.
+3. Inspect `status`, source, generated time, snapshot block, freshness, indexed coverage, and warning fields where present.
+4. Treat `INCOMPLETE`, `UNKNOWN`, empty results, and missing coverage as uncertainty—not as zero activity or proof that no event occurred.
+5. Preserve `X-Request-ID` for troubleshooting. Error bodies also include `request_id`.
 
 Example:
 
 ```bash
 curl --fail-with-body -sS \
   -H 'Accept: application/json' \
-  'https://YOUR_API_HOST/api/v1/markets/spot/klines/BTCUSDT?interval=1h&limit=100'
+  'https://YOUR_PRIVATE_API_HOST/api/v1/markets/spot/klines/BTCUSDT?interval=1h&limit=100'
 ```
 
 ## Error contract
@@ -42,36 +81,49 @@ Errors use this envelope:
 }
 ```
 
-The `details` field is optional and can be a list or object. Validation details deliberately omit submitted input values. Clients should branch on the HTTP status and stable `error.code`, not parse human-readable message text. A generic 500 response does not reveal internal exception details.
+The `details` field is optional and can be a list or object. Validation details omit submitted input values. Clients should branch on HTTP status and stable `error.code`, not parse human-readable message text. Generic 500 responses do not expose internal exception text.
 
-Common codes include `VALIDATION_ERROR`, `NOT_FOUND`, `UNAUTHORIZED`, `FORBIDDEN`, `RATE_LIMITED`, `UPSTREAM_ERROR`, `UPSTREAM_TIMEOUT`, `SERVICE_UNAVAILABLE`, and `INTERNAL_SERVER_ERROR`. Not every deployment enables authentication or rate limiting; the presence of a code does not imply that a feature is configured.
+Common codes include `VALIDATION_ERROR`, `NOT_FOUND`, `UNAUTHORIZED`, `FORBIDDEN`, `RATE_LIMITED`, `UPSTREAM_ERROR`, `UPSTREAM_TIMEOUT`, `SERVICE_UNAVAILABLE`, and `INTERNAL_SERVER_ERROR`. Not every deployment enables authentication or rate limiting; the presence of an error code does not mean the feature is configured.
 
 ## Retry guidance
 
 - Do not automatically retry 400, 401, 403, 404, or 422 without changing the request or credentials.
-- For 429, honor `Retry-After` when the deployment supplies it; otherwise use exponential backoff with jitter and a bounded retry count.
-- For 502, 503, and 504, retry only idempotent GET requests, with a bounded backoff. Do not assume a failed upstream request means the upstream operation did not occur.
-- Do not blindly retry POST requests such as historical indexing unless the endpoint's documented idempotency and retry behavior has been reviewed. The ERC-20 indexer is designed to safely replay already indexed ranges, but callers must still respect range limits.
-- Avoid parallel request bursts. Cache responses only for a duration appropriate to the endpoint's freshness and purpose.
+- For 429, honor `Retry-After` when supplied; otherwise use bounded exponential backoff with jitter.
+- For 502, 503, and 504, retry only idempotent GET requests with bounded backoff.
+- Do not blindly retry POST requests. The ERC-20 indexer supports safe replay of already indexed ranges, but callers must respect documented range limits.
+- Avoid parallel request bursts. Cache only according to the endpoint's freshness requirements.
+
+## Private access and security
+
+- The intended user is one owner. Do not create public sign-up or multi-customer account flows.
+- Protect the private API with server-side authentication before exposing it beyond localhost/private network.
+- Use separate, revocable credentials for each of the three AI integrations where the chosen gateway supports it. Store only credential hashes where feasible; never commit raw credentials.
+- Do not put private API credentials, RPC provider secrets, Binance secrets, wallet seed phrases, or signing keys in prompts or client-side code.
+- Prefer HTTPS. Restrict network access at the deployment boundary where possible.
+- Keep request logs free of Authorization headers, API keys, and sensitive query values.
 
 ## Rate limiting and deployment boundary
 
-This application currently standardizes the 429 error code but does not implement a distributed application-level rate limiter. Do not interpret the error handler as proof that rate limiting is active.
+The application standardizes the 429 error code but does not yet implement a distributed application-level rate limiter. Do not interpret the error handler as proof that rate limiting is active.
 
-For a public deployment, configure request limits at a trusted edge proxy or API gateway (for example, a reverse proxy or managed gateway) and apply limits by client identity where authentication exists. Configure separate limits for expensive RPC/indexing routes and lightweight read routes. Ensure the proxy overwrites or safely validates forwarded client-IP headers; do not trust arbitrary client-supplied forwarding headers. If multiple application replicas are used, use a shared limiter at the gateway or a shared store rather than a per-process in-memory counter.
+For a private deployment, configure limits at a trusted reverse proxy or gateway. Apply separate limits to expensive RPC/indexing routes and lightweight reads. If multiple application replicas are used, use a shared gateway/store rather than a per-process in-memory counter. Trust only proxy-controlled client identity headers.
 
-Set and publish operational limits based on measured provider quotas and load tests. No universal requests-per-minute value is specified here because it depends on the chosen host, upstream provider plan, route cost, and deployment topology.
+Do not choose a fixed requests-per-minute limit until the deployment, upstream quotas, and actual workload are known.
 
-## AI-client safety and interpretation
+## Research-only constraints
 
-- The API is research-only. It does not place orders, withdraw assets, or execute trades.
-- Do not provide private exchange keys, wallet seed phrases, or signing keys to an AI client or this service.
-- Use HTTPS for deployed endpoints.
-- Keep RPC provider credentials in server-side environment variables; never put them in prompts, client-side code, or public repository files.
-- AI clients should preserve source, generated time, snapshot block, freshness, indexed coverage, and limitations when summarizing results.
-- Net transfer flow is not equivalent to buying/selling, wallet balance, or intent. Registry labels are operator-managed and only as reliable as their evidence.
-- A generated analysis is not a probability, guarantee, or financial recommendation.
+- No order placement, withdrawals, signing, or trading execution.
+- Public market data does not require a Binance API secret.
+- Net token transfer flow is not equivalent to buying/selling, wallet balance, or intent.
+- Registry labels are operator-managed and only as reliable as their evidence.
+- AI summaries must retain source, timestamps, coverage, freshness, and limitations.
+- Do not present unvalidated scores as probabilities, guarantees, or financial recommendations.
 
-## Compatibility boundary
+## Completion criteria
 
-OpenAPI describes the HTTP contract, not a guarantee that every AI product can call arbitrary URLs directly. A client may need an HTTP tool, connector, custom action, or a separately configured MCP adapter. The repository's REST API remains the canonical interface; do not assume an MCP server is deployed unless it is separately configured and documented.
+A ChatGPT, Gemini, or Manus adapter is complete only after:
+1. Its exact supported connection method is confirmed in the target account/environment.
+2. It authenticates to the private backend without exposing credentials in prompts or client code.
+3. It can discover/call a small set of read-only tools.
+4. It preserves structured errors, request IDs, timestamps, and data-quality metadata.
+5. End-to-end tests pass for success, validation failure, authentication failure, and unavailable upstream data.
