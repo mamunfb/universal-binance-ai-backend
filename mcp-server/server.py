@@ -401,6 +401,25 @@ def analyze_historical_market_regime(
 
 
 @mcp.tool()
+def evaluate_historical_signal_performance(
+    symbol: str, period: str = "1h", price_interval: str = "1h",
+    limit: int = 500, round_trip_cost_bps: float = 0.0,
+) -> dict:
+    """Evaluate forward price outcomes of stored descriptive snapshots; not a strategy backtest."""
+    if period not in {"5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "1d"}:
+        raise ValueError("Unsupported derivatives period")
+    if not 1 <= limit <= 1000:
+        raise ValueError("limit must be between 1 and 1000")
+    if not 0 <= round_trip_cost_bps <= 500:
+        raise ValueError("round_trip_cost_bps must be between 0 and 500")
+    return _get(
+        f"/api/v1/analysis/derivatives/signal-performance/{quote(symbol.upper(), safe='')}",
+        {"period": period, "price_interval": price_interval,
+         "limit": limit, "round_trip_cost_bps": round_trip_cost_bps},
+    )
+
+
+@mcp.tool()
 def analyze_liquidation_clusters(
     symbol: str, start_time_ms: int | None = None,
     end_time_ms: int | None = None, limit: int = 5000,
