@@ -212,6 +212,7 @@ Available tools:
 - `analyze_smart_money_market_structure`
 - `analyze_order_book_liquidity`
 - `analyze_liquidity_sweep_confirmation`
+- `analyze_market_structure_confluence`
 - `get_liquidation_collector_status`
 
 All tools are read-only. No order, signing, withdrawal, or trade execution tool is exposed. MCP tool access remains subject to the backend's API authentication and route availability.
@@ -292,3 +293,14 @@ nearest timestamp-aligned USD-M OI/funding context. Missing or stale
 derivatives observations remain null; they are not forward-filled. The
 evidence labels are heuristic classifications, not probabilities or
 validated trade signals. See `docs/LIQUIDITY_SWEEP_CONFIRMATION.md`.
+
+
+### Market structure + order flow confluence
+
+The read-only MCP tool `analyze_market_structure_confluence` calls
+`GET /api/v1/analysis/market-structure-confluence/{market}/{symbol}`.
+It summarizes local market structure, market regime, one-hour CVD,
+multi-timeframe flow and liquidity-sweep evidence. It reports agreement,
+conflicts and coverage; missing or neutral sources do not vote against
+available directional evidence. The output is descriptive, not a probability
+or trading recommendation. See `docs/MARKET_STRUCTURE_CONFLUENCE.md`.
