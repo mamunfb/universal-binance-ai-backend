@@ -109,3 +109,12 @@ The dashboard displays the market-regime-by-bias table separately for every hori
 Every horizon now includes an `out_of_sample` section. Saved snapshots are sorted by `analyzed_at_ms`; the earliest 70% form the training period and the latest 30% form the test period, with at least one snapshot on each side when at least two snapshots exist. Only matured outcomes from the later test snapshots contribute to test directional-positive fraction, mean directional return and coverage counts. Pending or missing-reference snapshots remain reflected in split snapshot counts but are not counted as completed test outcomes.
 
 This endpoint does not fit, tune, or select a predictive model. It provides a chronological holdout view of already-saved confluence biases, not a complete machine-learning validation protocol. A single temporal split can still be sensitive to market regime changes and small sample sizes; do not treat the reported fraction as a guaranteed future hit rate. The dashboard shows training/test counts and test-only metrics separately for each horizon.
+
+
+## Expanding-window walk-forward evaluation
+
+Each performance horizon now includes `walk_forward`. With at least four chronologically ordered snapshots, the evaluator uses the earliest half as the initial training history and partitions the remaining snapshots into up to three consecutive, non-overlapping test blocks. The training window expands before each later fold; a fold never trains on snapshots from its own or a later test block.
+
+For each fold, the API reports training/test snapshot counts, test time bounds, matured outcomes, directional sample counts, positive fraction, mean directional return and complete candle coverage. To prevent a test outcome from spilling into the next fold's time window, outcomes whose endpoint candle closes at or after the next fold's first snapshot time are excluded from that fold. The final fold has no later-fold cutoff. Aggregate walk-forward metrics are computed only from the retained fold test outcomes.
+
+This is a walk-forward temporal evaluation of already-saved confluence outputs, not model training, parameter tuning, or a full trading strategy backtest. Folds may have few matured outcomes, especially for long horizons; insufficient samples and coverage gaps must be treated as limitations, not evidence of zero performance. The dashboard shows fold-level and aggregate test-only metrics.
