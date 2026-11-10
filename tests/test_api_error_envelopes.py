@@ -122,3 +122,23 @@ def test_unknown_ai_client_key_is_rejected(monkeypatch):
         headers={"Authorization": "Bearer unknown-client-key"},
     )
     assert response.status_code == 401
+
+
+def test_evm_wallet_route_sanitizes_provider_exception(monkeypatch):
+    import asyncio
+    from app import main
+
+    class FakeProvider:
+        async def chain_id(self):
+            raise RuntimeError("https://rpc.example/key=secret-token")
+
+    monkeypatch.setattr(main, "get_evm_provider", lambda: FakeProvider())
+    try:
+        asyncio.run(main.evm_wallet_snapshots("0x" + "1" * 40))
+    except Exception as exc:
+        assert getattr(exc, "status_code", None) == 502
+        detail = str(getattr(exc, "detail", ""))
+        assert "ONCHAIN_PROVIDER_UNAVAILABLE" in detail
+        assert "secret-token" not in detail
+    else:
+        raise AssertionError("Expected sanitized HTTP 502")
