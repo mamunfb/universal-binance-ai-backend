@@ -57,6 +57,45 @@ def _directional_statistics(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 
+def _reliability_assessment(stats: dict[str, Any]) -> dict[str, Any]:
+    """Expose transparent uncertainty diagnostics; this is not a predictive reliability score."""
+    sample_size = int(stats.get("directional_sample_size") or 0)
+    fraction = stats.get("positive_fraction")
+    ci = stats.get("positive_fraction_ci_95_wilson")
+    ci_width = float(ci["upper"]) - float(ci["lower"]) if ci is not None else None
+    non_overlap_fraction = stats.get("non_overlapping_positive_fraction")
+    overlap_gap = (
+        abs(float(fraction) - float(non_overlap_fraction))
+        if fraction is not None and non_overlap_fraction is not None else None
+    )
+    total = int(stats.get("sample_size") or 0)
+    coverage_count = int(stats.get("coverage_complete_count") or 0)
+    coverage_fraction = coverage_count / total if total else None
+    if sample_size < 30 or ci is None or fraction is None:
+        classification = "INSUFFICIENT_EVIDENCE"
+    elif float(ci["lower"]) <= 0.5 <= float(ci["upper"]):
+        classification = "INTERVAL_INCLUDES_50_PERCENT"
+    elif float(ci["lower"]) > 0.5:
+        classification = "INTERVAL_ABOVE_50_PERCENT"
+    else:
+        classification = "INTERVAL_BELOW_50_PERCENT"
+    return {
+        "classification": classification,
+        "directional_sample_size": sample_size,
+        "minimum_sample_size_reporting_threshold": 30,
+        "positive_fraction_ci_95_wilson_width": ci_width,
+        "overlap_sensitivity_absolute_gap": overlap_gap,
+        "coverage_complete_fraction": coverage_fraction,
+        "coverage_complete_count": coverage_count,
+        "total_outcome_count": total,
+        "interpretation": (
+            "Descriptive diagnostics only. The nominal Wilson interval assumes independent observations "
+            "and does not adjust for serial dependence; the 30-sample threshold is not a guarantee of adequacy."
+        ),
+    }
+
+
+
 def _non_overlapping_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Select a maximum-cardinality set of non-overlapping forward outcome windows."""
     selected = []
@@ -630,7 +669,9 @@ class MarketConfluencePerformance:
                                 "non_overlapping_positive_fraction_ci_95_wilson": stats["non_overlapping_positive_fraction_ci_95_wilson"],
                                 "overlap_excluded_count": stats["overlap_excluded_count"],
                                 "sample_size_status": stats["sample_size_status"],
+                                "coverage_complete_count": stats["coverage_complete_count"],
                             })
+                            records[-1]["reliability_assessment"] = _reliability_assessment(records[-1])
                 metric_definitions = (
                     ("positive_fraction", "Directional positive fraction", "directional_sample_size", "positive_fraction_ci_95_wilson"),
                     ("mean_directional_return_percent", "Mean directional return", "directional_sample_size", None),
@@ -664,6 +705,7 @@ class MarketConfluencePerformance:
                                 "positive_fraction": record["positive_fraction"],
                                 "non_overlapping_positive_fraction": record["non_overlapping_positive_fraction"],
                                 "overlap_excluded_count": record["overlap_excluded_count"],
+                                "reliability_assessment": record["reliability_assessment"],
                             })
                     eligible.sort(key=lambda row: (-row["value"], row["regime"], row["bias"], row["alignment"]))
                     ranked = []
@@ -684,6 +726,25 @@ class MarketConfluencePerformance:
                     "horizon": horizon_data["label"],
                     "horizon_hours": horizon_data["horizon_hours"],
                     "rankings": metric_rankings,
+                    "reliability_summary": {
+                        "group_count": len(records),
+                        "insufficient_evidence_group_count": sum(
+                            row["reliability_assessment"]["classification"] == "INSUFFICIENT_EVIDENCE"
+                            for row in records
+                        ),
+                        "interval_includes_50_percent_group_count": sum(
+                            row["reliability_assessment"]["classification"] == "INTERVAL_INCLUDES_50_PERCENT"
+                            for row in records
+                        ),
+                        "interval_above_50_percent_group_count": sum(
+                            row["reliability_assessment"]["classification"] == "INTERVAL_ABOVE_50_PERCENT"
+                            for row in records
+                        ),
+                        "interval_below_50_percent_group_count": sum(
+                            row["reliability_assessment"]["classification"] == "INTERVAL_BELOW_50_PERCENT"
+                            for row in records
+                        ),
+                    },
                 }
 
         return {
