@@ -25,6 +25,7 @@ from app.services.evm_transfer_store import EVMTransferStore, index_erc20_transf
 from app.services.wallet_attribution import load_wallet_registry, annotate_wallet_addresses
 from app.services.cross_chain_wallets import parse_chain_rpc_configs, cross_chain_native_wallet_snapshot
 from app.services.cross_chain_tokens import parse_chain_token_configs, cross_chain_erc20_snapshot
+from app.services.cross_chain_smart_money import cross_chain_verified_wallet_flows
 
 liquidation_store = LiquidationStore(settings.liquidation_database_path)
 liquidation_collector = LiquidationCollector(liquidation_store)
@@ -292,6 +293,25 @@ async def cross_chain_token_flows(
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "warning": "Flows are computed only from locally indexed ERC-20 logs. Inspect per-chain coverage before interpreting results. decimals must be correct for each configured contract; a shared asset_id does not prove economic equivalence. Net transfer flow is not wallet balance, trading intent, or price prediction.",
         }
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.get("/api/v1/onchain/evm/cross-chain/token/{asset_id}/smart-money", tags=["on-chain"])
+async def cross_chain_smart_money(
+    asset_id: str,
+    from_block: int = Query(..., ge=0),
+    to_block: int = Query(..., ge=0),
+    decimals: int = Query(..., ge=0, le=36),
+    limit: int = Query(default=50, ge=1, le=200),
+) -> dict:
+    try:
+        configs = parse_chain_token_configs(settings.evm_chain_token_contracts)
+        return await cross_chain_verified_wallet_flows(
+            configs, asset_id, from_block, to_block, decimals,
+            settings.evm_wallet_registry, evm_transfer_store,
+            settings.http_timeout_seconds, limit,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
