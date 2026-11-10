@@ -54,7 +54,7 @@ python -m venv .venv
 pip install -r requirements.txt
 uvicorn app.main:app --app-dir backend --reload
 ```
-Open `/docs` for the interactive API documentation.
+Open `/docs` for the interactive API documentation. See [AI client integration](docs/AI_CLIENT_INTEGRATION.md) for OpenAPI discovery, error handling, retry guidance, and deployment rate-limit considerations.
 
 ## Disclaimer
 This software is for research and education. It does not provide guaranteed predictions or financial advice. Crypto assets are volatile; users are responsible for their own decisions.
