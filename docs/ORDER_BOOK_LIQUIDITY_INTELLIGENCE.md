@@ -91,4 +91,4 @@ Each sample includes event/update identifiers, best bid/ask, midpoint, spread bp
 
 - [Binance Spot WebSocket diff-depth stream and local-book synchronization](https://github.com/binance/binance-spot-api-docs/blob/master/web-socket-streams.md)
 - [Binance USD-M Futures Public diff-depth stream](https://developers.binance.info/en/docs/catalog/core-trading-derivatives-trading-usd-s-m-futures/api/ws-streams/public)
-- [Binance COIN-M Futures depth stream](https://developers.binance.com/docs/derivatives/coin-margined-futures/websocket-market-streams)
+- [Binance COIN-M Futures depth stream](https://developers.binance.info/en/docs/catalog/core-trading-derivatives-trading-coin-m-futures/api/ws-streams)
