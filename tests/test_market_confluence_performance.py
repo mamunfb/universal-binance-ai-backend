@@ -460,6 +460,14 @@ def test_horizon_comparison_ranks_only_metrics_with_at_least_30_samples():
         SnapshotStore(rows), KlineStore(),
     ).evaluate("USD_M", "BTCUSDT", "1h", "1h", 50)
 
+    signal_quality = result["horizons"]["1"]["signal_quality"]
+    assert signal_quality["prediction_sample_size"] == 30
+    assert signal_quality["status"] in {"LOW_SAMPLE_SIZE", "DESCRIPTIVE_CLASSIFICATION_METRICS"}
+    assert signal_quality["confusion_matrix"]["true_positive"] + signal_quality["confusion_matrix"]["false_positive"] == 30
+    assert set(result["horizons"]["1"]["signal_quality_by_regime"]) == {
+        "market_regime", "volatility_regime", "structure_regime",
+    }
+
     comparison = result["horizon_comparison"]
     assert comparison["status"] == "DESCRIPTIVE_ONLY"
     assert comparison["minimum_sample_size"] == 30
