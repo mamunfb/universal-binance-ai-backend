@@ -1,0 +1,70 @@
+import json
+import sqlite3
+
+import pytest
+
+from app.services.order_book_stream import (
+    OrderBookHistoryStore,
+    OrderBookStreamCollector,
+    depth_stream_url,
+)
+
+
+def test_depth_stream_urls_for_all_markets():
+    assert "stream.binance.com" in depth_stream_url("SPOT", "BTCUSDT")
+    assert "fstream.binance.com" in depth_stream_url("USD_M", "BTCUSDT")
+    assert "dstream.binance.com" in depth_stream_url("COIN_M", "BTCUSD_PERP")
+    with pytest.raises(ValueError):
+        depth_stream_url("UNKNOWN", "BTCUSDT")
+
+
+def test_history_store_is_idempotent_and_filters(tmp_path):
+    store = OrderBookHistoryStore(str(tmp_path / "book.sqlite3"))
+    row = {
+        "market": "USD_M", "symbol": "BTCUSDT", "event_time_ms": 1000,
+        "transaction_time_ms": 1000, "update_id": 12, "sampled_at": "2026-01-01T00:00:00+00:00",
+        "best_bid": 99.0, "best_ask": 101.0, "mid_price": 100.0,
+        "spread_bps": 200.0, "bid_notional": 990.0, "ask_notional": 101.0,
+        "depth_imbalance": 0.8, "bids": [[99.0, 10.0]], "asks": [[101.0, 1.0]],
+    }
+    store.insert(row)
+    store.insert(row)
+    assert store.count() == 1
+    result = store.recent("USD_M", "btcusdt", 10)
+    assert len(result) == 1
+    assert result[0]["bids"] == [[99.0, 10.0]]
+    assert store.recent("SPOT", "BTCUSDT", 10) == []
+
+
+def test_collector_job_validation_and_book_delta_application(tmp_path):
+    store = OrderBookHistoryStore(str(tmp_path / "book.sqlite3"))
+    collector = OrderBookStreamCollector(
+        store, lambda: None, lambda market: None,
+        jobs_json=json.dumps([{"market": "USD_M", "symbol": "BTCUSDT"}]),
+    )
+    jobs = collector._jobs()
+    assert jobs == [{"market": "USD_M", "symbol": "BTCUSDT"}]
+    bids, asks = {100.0: 2.0}, {101.0: 3.0}
+    collector._apply({"b": [["100", "0"], ["99.5", "4"]], "a": [["101", "5"]]}, bids, asks)
+    assert bids == {99.5: 4.0}
+    assert asks == {101.0: 5.0}
+    with pytest.raises(ValueError):
+        OrderBookStreamCollector(
+            store, lambda: None, lambda market: None, jobs_json="not-json"
+        )._jobs()
+
+
+def test_sample_calculates_spread_and_depth(tmp_path):
+    collector = OrderBookStreamCollector(
+        OrderBookHistoryStore(str(tmp_path / "book.sqlite3")),
+        lambda: None, lambda market: None, stored_levels=2,
+    )
+    row = collector._sample(
+        "SPOT", "BTCUSDT", {"E": 10, "T": 9}, 15,
+        {100.0: 2.0, 99.0: 3.0}, {101.0: 1.0, 102.0: 4.0},
+    )
+    assert row is not None
+    assert row["best_bid"] == 100.0
+    assert row["best_ask"] == 101.0
+    assert row["spread_bps"] > 0
+    assert row["depth_imbalance"] > 0
