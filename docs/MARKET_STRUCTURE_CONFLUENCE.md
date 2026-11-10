@@ -95,3 +95,10 @@ The forward-performance response now includes `regime_breakdown` for each horizo
 Each group reports total and directional sample sizes, positive and negative directional outcomes, directional-positive fraction, mean directional return, and complete candle-coverage count. MIXED and UNKNOWN biases remain in the total sample but are excluded from directional aggregates.
 
 These are descriptive historical summaries, not calibrated probabilities, validated strategy hit rates, or evidence that a regime causes an outcome. Read sample sizes and candle-coverage counts alongside every fraction; small groups can be unstable. The dashboard currently displays the market-regime dimension, while the API also exposes volatility- and structure-regime breakdowns.
+
+ 
+## Combined regime, bias and horizon analysis
+
+Each forward horizon now also returns `regime_bias_breakdown`. For each of the three saved regime dimensions, outcomes are grouped by regime label and then by BULLISH, BEARISH, MIXED or UNKNOWN bias. Each cell includes sample size, directional sample size, positive and negative counts, positive fraction, mean directional return, and complete candle-coverage count. Empty combinations remain visible with zero samples and null directional metrics.
+
+The dashboard displays the market-regime-by-bias table separately for every horizon. The API includes equivalent nested breakdowns for volatility and structure regimes. Cross-groups can be very small; compare counts and coverage before interpreting percentages. These are retrospective descriptive statistics, not predictive probabilities.
