@@ -197,3 +197,40 @@ def test_combined_market_regime_and_bias_breakdown_is_separate_per_horizon():
     assert grouped["TRENDING"]["BEARISH"]["positive_fraction"] == 0.0
     assert grouped["RANGING"]["BULLISH"]["sample_size"] == 1
     assert grouped["RANGING"]["BEARISH"]["sample_size"] == 0
+
+
+def test_chronological_out_of_sample_holdout_uses_latest_snapshots_only():
+    first = snapshot("BULLISH")
+    first["snapshot_id"] = "first"
+    first["analyzed_at_ms"] = 1_000_000
+    second = snapshot("BEARISH")
+    second["snapshot_id"] = "second"
+    second["analyzed_at_ms"] = 2_000_000
+    third = snapshot("BULLISH")
+    third["snapshot_id"] = "third"
+    third["analyzed_at_ms"] = 3_000_000
+    fourth = snapshot("BEARISH")
+    fourth["snapshot_id"] = "fourth"
+    fourth["analyzed_at_ms"] = 4_000_000
+    evaluator = MarketConfluencePerformance(
+        SnapshotStore([fourth, second, first, third]), KlineStore(),
+    )
+    result = evaluator.evaluate("USD_M", "BTCUSDT", "1h", "1h", 10)
+    holdout = result["horizons"]["1"]["out_of_sample"]
+    assert holdout["status"] == "COMPLETED"
+    assert holdout["training_snapshot_count"] == 2
+    assert holdout["test_snapshot_count"] == 2
+    assert holdout["split_timestamp_ms"] == 2_000_000
+    assert [row["snapshot_id"] for row in holdout["test_outcomes"]] == ["third", "fourth"]
+    assert holdout["test_directional_sample_size"] == 2
+    assert holdout["test_directional_positive_fraction"] == 0.0
+
+
+def test_out_of_sample_requires_at_least_two_snapshots():
+    evaluator = MarketConfluencePerformance(SnapshotStore([snapshot("BULLISH")]), KlineStore())
+    result = evaluator.evaluate("USD_M", "BTCUSDT", "1h", "1h", 10)
+    holdout = result["horizons"]["1"]["out_of_sample"]
+    assert holdout["status"] == "INSUFFICIENT_SNAPSHOTS"
+    assert holdout["training_snapshot_count"] == 0
+    assert holdout["test_snapshot_count"] == 1
+    assert holdout["test_directional_positive_fraction"] is None
