@@ -137,6 +137,20 @@ class HistoricalKlineStore:
             "storage": "SQLITE_IDEMPOTENT",
         }
 
+    def latest_open_time(self, market: str, symbol: str, interval: str) -> int | None:
+        """Return the newest locally stored candle open time for one series."""
+        if market.upper() not in {"SPOT", "USD_M", "COIN_M"}:
+            raise ValueError("market must be SPOT, USD_M, or COIN_M")
+        if not symbol.strip() or not interval.strip():
+            raise ValueError("symbol and interval must not be empty")
+        with sqlite3.connect(self.database_path) as connection:
+            row = connection.execute(
+                """SELECT MAX(open_time_ms) FROM historical_klines
+                   WHERE market=? AND symbol=? AND interval=?""",
+                (market.upper(), symbol.upper(), interval),
+            ).fetchone()
+        return int(row[0]) if row and row[0] is not None else None
+
     def history(
         self, market: str, symbol: str, interval: str,
         start_time_ms: int | None = None, end_time_ms: int | None = None,
