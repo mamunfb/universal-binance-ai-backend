@@ -33,3 +33,12 @@ The first implementation supports RSS 2.0 and Atom. It normalizes titles, URLs, 
 ## Source policy
 
 Prefer primary sources: official project blogs, official exchange announcements, protocol governance posts, and regulator releases. Add reputable independent reporting as a separate source for corroboration. Verification evidence preserves the matching source domains, URLs, timestamps, and heuristic match scores. Read NEWS_VERIFICATION.md for configuration and limitations. Never treat automated corroboration as proof that every claim is true.
+
+
+## Catalyst endpoint
+
+`GET /api/v1/news/catalysts?symbols=BTC,ETH&hours=72&limit=100`
+
+This endpoint runs the news collection and verification pipeline, then applies transparent keyword-based catalyst rules. It reports catalyst categories, heuristic direction, coarse impact level, broad horizon, matched terms, heuristic score, and eligibility for later signal review. Read [CATALYST_ANALYSIS.md](./CATALYST_ANALYSIS.md) for limitations.
+
+A `CONFIRMED` source-class match plus a catalyst keyword only makes an item eligible for later signal review. It is not a BUY/SELL signal and does not prove a price reaction.
