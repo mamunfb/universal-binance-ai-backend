@@ -63,6 +63,11 @@ def test_unified_intelligence_adds_verified_wallet_balance_concentration(monkeyp
     assert quality["balance_snapshot_age_seconds"] >= 0
     assert quality["balance_wallets_succeeded"] == 1
     assert quality["chain_result_status"] == "COMPLETED"
+    assert quality["component_status"]["indexed_address_flows"] == "COMPLETED"
+    assert quality["component_status"]["verified_smart_money"] == "COMPLETED"
+    assert quality["component_status"]["verified_entity_flows"] == "COMPLETED"
+    assert quality["component_status"]["verified_wallet_concentration"] == "COMPLETED"
+    assert quality["incomplete_reasons"] == []
     assert "age is calculated from the chain block timestamp" in quality["freshness_note"]
     assert result["data_quality_summary"]["chains_with_successful_balance_snapshot"] == 1
     envelope = result["data_quality"]
