@@ -15,6 +15,8 @@ def parse_chain_rpc_configs(raw: str) -> list[dict[str, Any]]:
         raise ValueError("EVM_CHAIN_RPC_URLS must be valid JSON") from exc
     if not isinstance(entries, list):
         raise ValueError("EVM_CHAIN_RPC_URLS must be a JSON array")
+    if len(entries) > 20:
+        raise ValueError("At most 20 chain RPC configs are supported")
     result = []
     seen = set()
     for entry in entries:
@@ -36,8 +38,8 @@ def parse_chain_rpc_configs(raw: str) -> list[dict[str, Any]]:
 async def cross_chain_native_wallet_snapshot(configs: list[dict[str, Any]],
                                               addresses: list[str],
                                               timeout_seconds: float = 15.0) -> dict[str, Any]:
-    if len(addresses) > 50:
-        raise ValueError("At most 50 wallet addresses are supported")
+    if not isinstance(addresses, list) or len(addresses) > 50:
+        raise ValueError("addresses must be a list containing at most 50 wallet addresses")
     normalized = []
     for address in addresses:
         if not isinstance(address, str) or len(address) != 42 or not address.startswith("0x"):
@@ -71,7 +73,8 @@ async def cross_chain_native_wallet_snapshot(configs: list[dict[str, Any]],
             for address, value in zip(normalized, snapshot):
                 if isinstance(value, Exception):
                     wallets.append({"address": address, "status": "FAILED",
-                                    "error": f"{type(value).__name__}: {str(value)[:200]}"})
+                                    "error": "BALANCE_UNAVAILABLE",
+                                    "error_type": type(value).__name__})
                 else:
                     wallets.append({"address": address, "status": "COMPLETED",
                                     "native_balance_wei": str(value),
@@ -95,7 +98,8 @@ async def cross_chain_native_wallet_snapshot(configs: list[dict[str, Any]],
         except Exception as exc:
             return {"status": "FAILED", "chain_id": config["chain_id"],
                     "chain_name": config["chain_name"],
-                    "error": f"{type(exc).__name__}: {str(exc)[:250]}"}
+                    "error": "CHAIN_SNAPSHOT_UNAVAILABLE",
+                    "error_type": type(exc).__name__}
 
     results = await asyncio.gather(*(inspect(config) for config in configs))
     return {
