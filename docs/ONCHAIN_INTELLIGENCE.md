@@ -140,3 +140,10 @@ The endpoint validates each RPC's reported chain ID, reads token name/symbol/dec
 GET /api/v1/onchain/evm/cross-chain/token/{asset_id}/flows?from_block=...&to_block=...&decimals=18&limit=50
 
 Uses the chain-specific contracts configured in `EVM_CHAIN_TOKEN_CONTRACTS` and aggregates locally indexed ERC-20 Transfer logs independently for each chain. Returns top net receivers/senders, requested block range, and indexed coverage gaps per chain. The overall response is INCOMPLETE if any configured chain has a coverage gap or RPC chain-ID mismatch. Index each chain/contract range first with the existing per-chain history index endpoint. The `decimals` query parameter is applied to every contract selected by the asset_id; only group contracts with matching decimals, or the displayed token quantities will be wrong. The endpoint does not fetch missing logs automatically and does not infer cross-chain transfers, wallet ownership, or token equivalence. A net transfer flow is not a wallet balance or proof of buying/selling.
+
+
+### Cross-chain verified wallet cohort flows
+
+GET /api/v1/onchain/evm/cross-chain/token/{asset_id}/smart-money?from_block=...&to_block=...&decimals=18&limit=50
+
+Combines locally indexed ERC-20 transfer flows for the configured contracts under an asset_id, separately by chain, and filters wallet activity using the operator registry for each chain. Included labels are verified entries with labels smart_money, fund, market_maker, protocol_treasury, or whale. Entries pending review, unverified, rejected, or labeled exchange/unknown are excluded. The response reports per-chain coverage and becomes INCOMPLETE if any selected chain has missing indexed blocks. Configure registry entries with the matching chain_id and evidence for that chain; do not assume the same address is the same entity on every chain. The service does not independently authenticate registry evidence. The decimals parameter is applied to all selected contracts and must be correct and consistent. Activity and cohort net flow are transfer-flow summaries, not wallet holdings, trading intent, profitability, or a price forecast.
