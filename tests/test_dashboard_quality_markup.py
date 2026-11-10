@@ -111,3 +111,12 @@ def test_dashboard_displays_walk_forward_fold_consistency():
     assert "eligible_fold_count" in html
     assert "insufficient_fold_count" in html
     assert "folds_with_interval_including_50_percent" in html or "positive_fraction_range" in html
+
+
+def test_dashboard_displays_historical_vs_walk_forward_comparison():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "Historical versus walk-forward comparison" in html
+    assert "historical_vs_walk_forward" in html
+    assert "positive_fraction_difference_percentage_points" in html
+    assert "nominal_confidence_intervals_overlap" in html
+    assert "not a formal significance test" in html
