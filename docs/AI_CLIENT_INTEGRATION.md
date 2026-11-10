@@ -159,3 +159,37 @@ A ChatGPT, Gemini, Manus, Claude, or Perplexity adapter is complete only after:
 3. It can discover/call a small set of read-only tools.
 4. It preserves structured errors, request IDs, timestamps, and data-quality metadata.
 5. End-to-end tests pass for success, validation failure, authentication failure, and unavailable upstream data.
+
+
+## Private MCP stdio adapter
+
+A first shared MCP adapter is available at `mcp-server/server.py`. It exposes a small, read-only set of tools that call the canonical REST API; it does not duplicate market or on-chain analysis logic.
+
+Install dependencies with `pip install -r requirements.txt`. Run a separate local MCP process for each AI client, setting these environment variables in that client's MCP server configuration:
+
+```env
+PERSONAL_API_BASE_URL=https://YOUR_PRIVATE_API_HOST
+MCP_CLIENT_NAME=chatgpt
+AI_CLIENT_API_KEYS={"chatgpt":"YOUR_CHATGPT_SECRET","gemini":"YOUR_GEMINI_SECRET","manus":"YOUR_MANUS_SECRET","claude":"YOUR_CLAUDE_SECRET","perplexity":"YOUR_PERPLEXITY_SECRET"}
+APP_ENV=production
+```
+
+Change `MCP_CLIENT_NAME` to `gemini`, `manus`, `claude`, or `perplexity` for the other local processes. The process selects only its matching key and sends it as a Bearer token. Do not paste secrets into prompts, commit them, or place them in a shared public configuration. Use the client's secure local environment/secret facility.
+
+Example local command:
+
+```bash
+python mcp-server/server.py
+```
+
+The adapter uses MCP stdio transport, so the AI client must support launching a local MCP server process. A remote-only client cannot use this stdio process directly; use a separately secured remote MCP gateway only after validating that client's supported transport. The presence of this adapter does not establish that any of the five AI accounts is already connected.
+
+Available tools:
+- `get_spot_klines`
+- `get_spot_technical_analysis`
+- `get_futures_derivatives`
+- `get_news_intelligence`
+- `get_cross_chain_token_intelligence`
+- `get_liquidation_collector_status`
+
+All tools are read-only. No order, signing, withdrawal, or trade execution tool is exposed. MCP tool access remains subject to the backend's API authentication and route availability.
