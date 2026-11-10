@@ -357,3 +357,35 @@ def test_performance_reports_raw_and_non_overlapping_statistics():
     )
     assert "non_overlapping_directional_sample_size" in horizon["walk_forward"]
     assert "non_overlapping_directional_sample_size" in horizon["out_of_sample"]
+
+
+def test_regime_bias_breakdown_reports_confidence_and_overlap_reliability():
+    rows = []
+    for index, bias in enumerate(
+        ["BULLISH", "BEARISH", "BULLISH", "BEARISH", "BULLISH", "BEARISH"],
+        start=1,
+    ):
+        item = snapshot(bias)
+        item["snapshot_id"] = f"reliability-{index}"
+        item["analyzed_at_ms"] = index * 1_000_000
+        item["payload"] = {"evidence": [{
+            "source": "MARKET_REGIME",
+            "detail": {"regime": "TREND"},
+        }]}
+        rows.append(item)
+
+    result = MarketConfluencePerformance(
+        SnapshotStore(rows), KlineStore(),
+    ).evaluate("USD_M", "BTCUSDT", "1h", "1h", 10)
+    group = result["horizons"]["1"]["regime_bias_breakdown"]["market_regime"]["TREND"]["BULLISH"]
+
+    assert group["sample_size"] == 3
+    assert group["directional_sample_size"] == 3
+    assert group["positive_fraction"] == 1.0
+    assert group["positive_fraction_ci_95_wilson"]["method"] == "Wilson score interval, nominal 95%"
+    assert group["minimum_directional_sample_size"] == 30
+    assert group["sample_size_status"] == "LOW_SAMPLE_SIZE"
+    assert group["non_overlapping_directional_sample_size"] <= group["directional_sample_size"]
+    assert group["overlap_excluded_count"] == (
+        group["directional_sample_size"] - group["non_overlapping_directional_sample_size"]
+    )
