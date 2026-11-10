@@ -1,13 +1,13 @@
 # Universal Binance AI Backend
 
-A research-only backend for collecting public cryptocurrency market data, computing transparent technical indicators, and exposing structured analysis data to AI clients.
+A private, single-owner, research-only backend for collecting public cryptocurrency market data, computing transparent technical indicators, and exposing structured analysis to ChatGPT, Google Gemini, and Manus.
 
 ## Project goals
 - Scan eligible Binance Spot, USDⓈ-M Futures, and COIN-M Futures markets where public endpoints support the requested data.
 - Normalize market data and report coverage, timestamps, failures, and missing fields.
 - Provide technical indicators and multi-timeframe market context.
 - Add external news feeds only after source and license review; on-chain and tokenomics providers remain planned.
-- Expose a stable REST API first; add MCP and AI-client adapters after the core API is tested.
+- Expose one canonical REST/OpenAPI API for the owner's private use; build thin ChatGPT, Gemini, and Manus adapters around the same intelligence engine.
 - Keep this project research-only: no order placement, withdrawals, or trading execution.
 
 ## Safety and data integrity
@@ -54,7 +54,7 @@ python -m venv .venv
 pip install -r requirements.txt
 uvicorn app.main:app --app-dir backend --reload
 ```
-Open `/docs` for the interactive API documentation. See [AI client integration](docs/AI_CLIENT_INTEGRATION.md) for OpenAPI discovery, error handling, retry guidance, and deployment rate-limit considerations.
+Open `/docs` for the interactive API documentation. See [personal AI client integration](docs/AI_CLIENT_INTEGRATION.md) for the ChatGPT, Gemini, and Manus-only scope, private access, OpenAPI discovery, error handling, and deployment guidance.
 
 ## Disclaimer
 This software is for research and education. It does not provide guaranteed predictions or financial advice. Crypto assets are volatile; users are responsible for their own decisions.
