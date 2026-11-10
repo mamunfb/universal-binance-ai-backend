@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     funding_rate_database_path: str = "data/funding_rates.sqlite3"
     open_interest_database_path: str = "data/open_interest.sqlite3"
     derivatives_signal_database_path: str = "data/derivatives_signals.sqlite3"
+    derivatives_ratio_database_path: str = "data/derivatives_ratios.sqlite3"
     derivatives_collector_enabled: bool = False
     derivatives_collector_jobs: str = "[]"
     derivatives_collector_poll_seconds: int = 60
