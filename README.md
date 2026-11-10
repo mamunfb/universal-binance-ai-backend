@@ -96,7 +96,7 @@ Open `/docs` for the interactive API documentation. See [personal AI client inte
 
 ## Market structure + order flow confluence
 
-`GET /api/v1/analysis/market-structure-confluence/{market}/{symbol}` summarizes local market structure, market regime, one-hour CVD, multi-timeframe order flow and liquidity-sweep evidence. It reports directional agreement, conflicts and source coverage without treating missing data as opposing evidence. These are descriptive heuristics, not probabilities or trade recommendations. See [Market Structure Confluence](docs/MARKET_STRUCTURE_CONFLUENCE.md).
+`GET /api/v1/analysis/market-structure-confluence/{market}/{symbol}` summarizes local market structure, market regime, one-hour CVD, multi-timeframe order flow and liquidity-sweep evidence. It reports directional agreement, conflicts and source coverage without treating missing data as opposing evidence. The response preserves source-level swing/BOS-CHoCH detail, regime metrics, CVD divergence, POC/VAH/VAL and per-timeframe profile context for auditability. These are descriptive heuristics, not probabilities or trade recommendations. See [Market Structure Confluence](docs/MARKET_STRUCTURE_CONFLUENCE.md).
 
 ## Liquidity sweep confirmation
 
