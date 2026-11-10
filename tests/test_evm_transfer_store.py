@@ -99,3 +99,33 @@ def test_address_flow_summary_uses_exact_raw_integer_totals(tmp_path):
     receivers = {row["address"]: row for row in result["top_net_receivers"]}
     assert receivers[SENDER]["net_received_raw"] == str(100 - huge)
     assert receivers[RECIPIENT]["net_received_raw"] == str(huge - 100)
+
+
+def test_range_coverage_detects_gaps_and_merges_overlaps(tmp_path):
+    store = EVMTransferStore(str(tmp_path / "history.sqlite3"))
+    store.save_chunk(1, CONTRACT, 100, 109, [])
+    store.save_chunk(1, CONTRACT, 110, 119, [])
+    complete = store.range_coverage(1, CONTRACT, 103, 117)
+    assert complete["complete"] is True
+    assert complete["gaps"] == []
+    incomplete = store.range_coverage(1, CONTRACT, 100, 125)
+    assert incomplete["complete"] is False
+    assert incomplete["gaps"] == [{"from": 120, "to": 125}]
+
+
+def test_smart_money_activity_only_includes_verified_registry_addresses(tmp_path):
+    from app.services.wallet_attribution import load_wallet_registry
+
+    store = EVMTransferStore(str(tmp_path / "history.sqlite3"))
+    registry_json = '[{"address":"' + SENDER + '","label":"smart_money","entity_name":"Reviewed wallet","verification_status":"verified","evidence_url":"https://example.org/proof","evidence_note":"Operator reviewed public disclosure"}]'
+    registry = load_wallet_registry(registry_json, 1)
+    log = {
+        "topics": ["0x" + "0" * 64, _topic(SENDER), _topic(RECIPIENT)],
+        "data": hex(10**18), "transactionHash": "0x" + "f" * 64,
+        "blockNumber": "0x64", "logIndex": "0x0",
+    }
+    store.save_chunk(1, CONTRACT, 100, 100, [log])
+    result = store.smart_money_activity(1, CONTRACT, 100, 100, 18, registry)
+    assert result["verified_smart_money_wallets_found"] == 1
+    assert result["wallets"][0]["net_received_raw"] == str(-(10**18))
+    assert result["wallets"][0]["flow_direction"] == "NET_OUTFLOW"
