@@ -236,6 +236,26 @@ def get_stored_funding_rate_history(
 
 
 @mcp.tool()
+def get_stored_derivatives_ratio_history(
+    symbol: str, ratio_type: str, period: str = "1h",
+    start_time_ms: int | None = None, end_time_ms: int | None = None,
+    limit: int = 200,
+) -> dict:
+    """Read locally stored USD-M global account or taker buy/sell ratio observations."""
+    if ratio_type not in {"GLOBAL_LONG_SHORT", "TAKER_BUY_SELL"}:
+        raise ValueError("ratio_type must be GLOBAL_LONG_SHORT or TAKER_BUY_SELL")
+    if period not in {"5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "1d"}:
+        raise ValueError("Unsupported ratio period")
+    if not 1 <= limit <= 500:
+        raise ValueError("limit must be between 1 and 500")
+    return _get(
+        f"/api/v1/history/derivatives-ratios/USD_M/{ratio_type}/{quote(symbol.upper(), safe='')}",
+        {"period": period, "start_time_ms": start_time_ms,
+         "end_time_ms": end_time_ms, "limit": limit},
+    )
+
+
+@mcp.tool()
 def analyze_multi_timeframe_derivatives(
     symbol: str, periods: str = "5m,15m,1h,4h,1d", limit: int = 48,
 ) -> dict:
