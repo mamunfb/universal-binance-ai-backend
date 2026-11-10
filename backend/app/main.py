@@ -24,6 +24,7 @@ from app.services.onchain_intelligence import analyze_erc20_activity, get_evm_wa
 from app.services.evm_transfer_store import EVMTransferStore, index_erc20_transfer_history
 from app.services.wallet_attribution import load_wallet_registry, annotate_wallet_addresses
 from app.services.cross_chain_wallets import parse_chain_rpc_configs, cross_chain_native_wallet_snapshot
+from app.services.cross_chain_tokens import parse_chain_token_configs, cross_chain_erc20_snapshot
 
 liquidation_store = LiquidationStore(settings.liquidation_database_path)
 liquidation_collector = LiquidationCollector(liquidation_store)
@@ -215,6 +216,20 @@ async def cross_chain_wallets(addresses: str = Query(..., description="Comma-sep
         )
         result["generated_at"] = datetime.now(timezone.utc).isoformat()
         return result
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)[:300]}) from exc
+
+
+@app.get("/api/v1/onchain/evm/cross-chain/token/{asset_id}", tags=["on-chain"])
+async def cross_chain_token_snapshot(asset_id: str, addresses: str = Query(..., description="Comma-separated EVM wallet addresses")) -> dict:
+    try:
+        requested = [value.strip() for value in addresses.split(",") if value.strip()]
+        configs = parse_chain_token_configs(settings.evm_chain_token_contracts)
+        if not configs:
+            raise HTTPException(status_code=503, detail={"status": "BLOCKED", "message": "Configure EVM_CHAIN_TOKEN_CONTRACTS with chain-specific asset contracts and HTTPS RPC URLs."})
+        return await cross_chain_erc20_snapshot(configs, asset_id, requested, settings.http_timeout_seconds)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
