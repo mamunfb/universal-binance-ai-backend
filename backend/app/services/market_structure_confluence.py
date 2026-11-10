@@ -28,13 +28,22 @@ def analyze_market_structure_confluence(
         "source": "MARKET_STRUCTURE",
         "status": structure.get("status"),
         "direction": structure_dir,
-        "detail": structure.get("structure"),
+        "detail": {
+            "classification": structure.get("structure"),
+            "current_close": structure.get("current_close"),
+            "latest_swing_high": (structure.get("swing_points") or {}).get("latest_high"),
+            "latest_swing_low": (structure.get("swing_points") or {}).get("latest_low"),
+        },
     })
     evidence.append({
         "source": "STRUCTURE_BREAK",
         "status": "CONFIRMED_BY_CLOSE" if break_data.get("confirmed_by_close") else break_data.get("type"),
         "direction": break_dir,
-        "detail": break_data.get("type"),
+        "detail": {
+            "type": break_data.get("type"),
+            "broken_level": break_data.get("broken_level"),
+            "confirmed_by_close": break_data.get("confirmed_by_close"),
+        },
     })
 
     regime_dir = _direction((market_regime.get("directional_context")))
@@ -42,7 +51,12 @@ def analyze_market_structure_confluence(
         "source": "MARKET_REGIME",
         "status": market_regime.get("status"),
         "direction": regime_dir,
-        "detail": market_regime.get("market_regime"),
+        "detail": {
+            "regime": market_regime.get("market_regime"),
+            "volatility_regime": market_regime.get("volatility_regime"),
+            "structure_regime": market_regime.get("structure_regime"),
+            "metrics": market_regime.get("metrics"),
+        },
     })
 
     flow_dir = None
@@ -56,7 +70,14 @@ def analyze_market_structure_confluence(
         "source": "ORDER_FLOW_CVD",
         "status": order_flow.get("status"),
         "direction": flow_dir,
-        "detail": {"net_cvd_quantity": cvd, "trade_count": order_flow.get("trade_count")},
+        "detail": {
+            "net_cvd_quantity": cvd,
+            "trade_count": order_flow.get("trade_count"),
+            "divergence": (order_flow.get("price_cvd_divergence") or {}).get("classification"),
+            "poc": (order_flow.get("volume_profile") or {}).get("poc"),
+            "value_area": (order_flow.get("volume_profile") or {}).get("value_area"),
+            "coverage": order_flow.get("coverage"),
+        },
     })
 
     mtf_dir = _direction(multi_timeframe_flow.get("cvd_agreement"))
@@ -64,7 +85,23 @@ def analyze_market_structure_confluence(
         "source": "MULTI_TIMEFRAME_CVD",
         "status": multi_timeframe_flow.get("status"),
         "direction": mtf_dir,
-        "detail": multi_timeframe_flow.get("cvd_agreement"),
+        "detail": {
+            "cvd_agreement": multi_timeframe_flow.get("cvd_agreement"),
+            "completed_timeframe_count": multi_timeframe_flow.get("completed_timeframe_count"),
+            "timeframe_count": multi_timeframe_flow.get("timeframe_count"),
+            "timeframes": [
+                {
+                    "period": item.get("period"),
+                    "status": item.get("status"),
+                    "net_cvd_quantity": item.get("net_cvd_quantity"),
+                    "price_cvd_divergence": item.get("price_cvd_divergence"),
+                    "poc": item.get("poc"),
+                    "value_area": item.get("value_area"),
+                    "coverage": item.get("coverage"),
+                }
+                for item in (multi_timeframe_flow.get("timeframes") or [])
+            ],
+        },
     })
 
     sweep_candidates = liquidity_sweep.get("sweep_candidates") or []
@@ -84,6 +121,10 @@ def analyze_market_structure_confluence(
             "sweep_type": latest_sweep.get("sweep_type") if latest_sweep else None,
             "sweep_time_ms": latest_sweep.get("sweep_time_ms") if latest_sweep else None,
             "evidence_count": latest_sweep.get("evidence_count") if latest_sweep else 0,
+            "aggressor_flow": latest_sweep.get("aggressor_flow") if latest_sweep else None,
+            "volume_profile": latest_sweep.get("volume_profile") if latest_sweep else None,
+            "order_book_context": latest_sweep.get("order_book_context") if latest_sweep else None,
+            "derivatives_context": latest_sweep.get("derivatives_context") if latest_sweep else None,
         },
     })
 
