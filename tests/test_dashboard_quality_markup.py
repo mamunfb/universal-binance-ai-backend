@@ -120,3 +120,13 @@ def test_dashboard_displays_historical_vs_walk_forward_comparison():
     assert "positive_fraction_difference_percentage_points" in html
     assert "nominal_confidence_intervals_overlap" in html
     assert "not a formal significance test" in html
+
+
+def test_dashboard_displays_data_quality_and_selection_risk_warnings():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "Data quality &amp; selection-risk warnings" in html or "Data quality & selection-risk warnings" in html
+    assert "data_quality_risk_assessment" in html
+    assert "overfitting_assessment" in html
+    assert "INCOMPLETE_FUTURE_CANDLE_COVERAGE" not in html or "q.flags" in html
+    assert "no multiple-comparison correction is applied" in html
+    assert "do not estimate overfitting probability" in html
