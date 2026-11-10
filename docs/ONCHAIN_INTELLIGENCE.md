@@ -165,9 +165,9 @@ The unified response's `verified_wallet_concentration` section now queries balan
 
 ### Unified intelligence data quality metadata
 
-The unified endpoint now returns a top-level `data_quality_summary` with counts of completed/incomplete chains, chains with complete indexed ERC-20 coverage, chains with complete smart-money coverage, and chains with successful balance snapshots. Each chain includes a `data_quality` object with coverage-gap counts, snapshot block, successful/failed wallet balance counts, verified registry wallet count, and chain result status.
+The unified endpoint now returns a top-level `data_quality_summary` with counts of completed/incomplete chains, chains with complete indexed ERC-20 coverage, chains with complete smart-money coverage, and chains with successful balance snapshots. Each chain includes a `data_quality` object with coverage-gap counts, snapshot block and canonical block-number alias, optional block timestamp, timestamp status, UTC block time and age, successful/failed wallet balance counts, verified registry wallet count, and chain result status. The balance snapshot freshness fields mirror `verified_wallet_concentration`; timestamp-derived values are null when the RPC cannot provide block metadata.
 
-The endpoint reports the observed snapshot block height but does not fetch block timestamps, so it cannot assert wall-clock freshness or age. A completed result means the configured checks completed for that chain; it does not certify registry identity, full holder coverage, or investment conclusions.
+A completed result means the configured checks completed for that chain; it does not certify registry identity, full holder coverage, or investment conclusions. Age is measured against the chain block timestamp at API response time and does not establish finality or market-data validity.
 
 
 ### Snapshot block time and freshness
