@@ -210,7 +210,7 @@ def test_cross_chain_intelligence_sanitizes_provider_exception(monkeypatch):
 
     async def fake_flows(*args, **kwargs):
         return {"chains": [{
-            "chain_id": 1, "contract_address": "0x" + "1" * 40,
+            "chain_id": 1, "contract_address": "0x" + "1" * 40, "status": "COMPLETED",
             "coverage": {"complete": True, "gaps": []},
         }]}
 
