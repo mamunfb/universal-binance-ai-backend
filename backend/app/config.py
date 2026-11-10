@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     evm_max_log_block_span: int = 2000
     evm_transfer_database_path: str = "data/evm_transfers.sqlite3"
     evm_index_max_total_blocks: int = 10000
+    evm_wallet_registry: str = "[]"
 
     model_config = SettingsConfigDict(
         env_file=".env",
