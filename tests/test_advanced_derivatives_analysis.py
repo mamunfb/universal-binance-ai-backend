@@ -62,6 +62,8 @@ def test_advanced_analysis_detects_oi_spike_divergence_and_funding_extreme(tmp_p
     assert result["trend"]["acceleration_state"] == "ACCELERATING_UP"
     assert result["oi_spike"]["status"] == "SPIKE_CANDIDATE"
     assert result["price_oi_divergence"]["classification"] == "NO_DIVERGENCE_DETECTED"
+    assert result["positioning_context"]["classification"] == "PRICE_UP_OI_UP_BUILDUP_CANDIDATE"
+    assert result["positioning_context"]["directional_long_short_identification"] == "NOT_POSSIBLE_FROM_AGGREGATE_OPEN_INTEREST"
     assert result["funding_extreme"]["is_extreme_by_configured_threshold"] is True
     assert result["liquidation_context"]["stored_events_in_window"] == 1
     assert result["liquidation_context"]["by_force_order_side"]["SELL"]["count"] == 1
