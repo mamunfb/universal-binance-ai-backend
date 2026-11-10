@@ -56,3 +56,84 @@ async def test_futures_scanner_volume_filter():
         FakeFuturesProvider(), quote_asset="USDT", min_quote_volume=1_000_000
     )
     assert result["matched_symbols"] == 0
+
+
+class IncompleteFuturesProvider:
+    market = "USD_M"
+
+    async def exchange_info(self):
+        return {"symbols": [
+            {
+                "symbol": "AAAUSDT",
+                "baseAsset": "AAA",
+                "quoteAsset": "USDT",
+                "contractType": "PERPETUAL",
+                "status": "TRADING",
+            },
+            {
+                "symbol": "BBBUSDT",
+                "baseAsset": "BBB",
+                "quoteAsset": "USDT",
+                "contractType": "PERPETUAL",
+                "status": "TRADING",
+            },
+        ]}
+
+    async def all_24h_tickers(self):
+        return [
+            {
+                "symbol": "AAAUSDT",
+                "lastPrice": "NaN",
+                "priceChangePercent": "2.0",
+                "quoteVolume": "1000",
+            }
+        ]
+
+
+async def test_futures_scanner_marks_missing_and_non_finite_tickers_incomplete():
+    result = await scan_futures_markets(IncompleteFuturesProvider())
+    assert result["status"] == "INCOMPLETE"
+    assert result["eligible_symbols"] == 2
+    assert result["scanned_symbols"] == 0
+    assert result["failed_symbols"] == 2
+    assert result["matched_symbols"] == 0
+
+
+class FailingFuturesProvider:
+    market = "USD_M"
+
+    async def exchange_info(self):
+        raise RuntimeError("private host or credential detail")
+
+    async def all_24h_tickers(self):
+        return []
+
+
+async def test_futures_scanner_sanitizes_upstream_failure():
+    result = await scan_futures_markets(FailingFuturesProvider())
+    assert result["status"] == "FAILED"
+    assert result["error_code"] == "UPSTREAM_UNAVAILABLE"
+    assert "credential detail" not in result["error"]
+    assert result["results"] == []
+
+
+async def test_futures_scanner_rejects_negative_minimum_volume():
+    result = await scan_futures_markets(FakeFuturesProvider(), min_quote_volume=-1)
+    assert result["status"] == "FAILED"
+    assert result["error_code"] == "INVALID_FILTER"
+
+
+async def test_futures_scanner_rejects_malformed_upstream_shape():
+    class MalformedProvider:
+        market = "USD_M"
+
+        async def exchange_info(self):
+            return {"symbols": None}
+
+        async def all_24h_tickers(self):
+            return []
+
+    result = await scan_futures_markets(MalformedProvider())
+    assert result["status"] == "FAILED"
+    assert result["error_code"] == "UPSTREAM_INVALID_RESPONSE"
+    assert result["results"] == []
