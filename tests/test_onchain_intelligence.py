@@ -3,7 +3,7 @@ import httpx
 import pytest
 
 from app.providers.evm_rpc import EVMRPCProvider, TRANSFER_TOPIC
-from app.services.onchain_intelligence import analyze_erc20_activity, get_evm_wallet_snapshot, get_erc20_token_snapshot
+from app.services.onchain_intelligence import analyze_erc20_activity, get_evm_wallet_snapshot, get_erc20_token_snapshot, _decode_abi_text
 
 ADDRESS_A = "0x" + "1" * 40
 ADDRESS_B = "0x" + "2" * 40
@@ -146,3 +146,18 @@ def test_transfer_activity_marks_malformed_logs_incomplete():
     assert result["status"] == "INCOMPLETE"
     assert result["malformed_log_count"] == 3
     assert result["transfer_count"] == 0
+
+
+@pytest.mark.parametrize("value", ["0x0", "0x" + "zz" * 32, "0x" + "00" * 31 + "0g"])
+def test_abi_text_decoder_returns_none_for_malformed_hex(value):
+    assert _decode_abi_text(value) is None
+
+
+def test_abi_text_decoder_supports_bytes32_and_trims_null_bytes():
+    encoded = "0x" + b"USDC".ljust(32, b"\\x00").hex()
+    assert _decode_abi_text(encoded) == "USDC"
+
+
+def test_abi_text_decoder_rejects_out_of_bounds_dynamic_string():
+    encoded = "0x" + (32).to_bytes(32, "big").hex() + (999).to_bytes(32, "big").hex()
+    assert _decode_abi_text(encoded) is None
