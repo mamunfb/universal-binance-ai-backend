@@ -264,6 +264,7 @@ async def evm_token_smart_money_activity(
     to_block: int = Query(..., ge=0),
     decimals: int = Query(..., ge=0, le=36),
     limit: int = Query(default=100, ge=1, le=200),
+    window_blocks: int = Query(default=1000, ge=1, le=1000000),
 ) -> dict:
     if to_block < from_block:
         raise HTTPException(status_code=422, detail="to_block must be >= from_block")
@@ -274,12 +275,16 @@ async def evm_token_smart_money_activity(
         activity = evm_transfer_store.smart_money_activity(
             chain_id, contract, from_block, to_block, decimals, registry, limit
         )
+        trend = evm_transfer_store.smart_money_accumulation_trend(
+            chain_id, contract, from_block, to_block, decimals, registry, window_blocks
+        )
         return {
             "status": "COMPLETED" if coverage["complete"] else "INCOMPLETE",
             "chain_id": chain_id, "contract_address": contract.lower(),
             "requested_range": {"from": from_block, "to": to_block},
             "coverage": coverage,
             "smart_money_activity": activity,
+            "accumulation_trend": trend,
             "registry_status": registry["status"],
             "warning": "Only verified registry labels are treated as smart_money. Incomplete indexed coverage means missing transfers may change these results.",
         }
