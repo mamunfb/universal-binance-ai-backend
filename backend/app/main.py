@@ -423,7 +423,33 @@ async def cross_chain_token_intelligence(
             entity_flow_status = "FAILED"
             concentration = {"status": "FAILED", "error": f"{type(exc).__name__}: {str(exc)[:200]}"}
             concentration_status = "FAILED"
+        flow_coverage = flow.get("coverage", {})
+        cohort_coverage = (cohort or {}).get("coverage", {})
+        concentration_wallets = concentration.get("wallets", [])
         chains.append({
+            "data_quality": {
+                "indexed_flow_coverage_complete": flow_coverage.get("complete", False),
+                "indexed_flow_gap_count": len(flow_coverage.get("gaps", [])),
+                "smart_money_coverage_complete": cohort_coverage.get("complete", False),
+                "smart_money_gap_count": len(cohort_coverage.get("gaps", [])),
+                "balance_snapshot_block": concentration.get("snapshot_block"),
+                "balance_snapshot_status": concentration_status,
+                "balance_wallets_queried": concentration.get("queried_wallet_count", 0),
+                "balance_wallets_succeeded": concentration.get("successful_wallet_count", 0),
+                "balance_wallets_failed": sum(
+                    1 for item in concentration_wallets if item.get("status") == "FAILED"
+                ),
+                "verified_registry_wallet_count": concentration.get("verified_wallet_count", 0),
+                "chain_result_status": (
+                    "COMPLETED"
+                    if flow["status"] == "COMPLETED"
+                    and cohort is not None and cohort["status"] == "COMPLETED"
+                    and entity_flow_status == "COMPLETED"
+                    and concentration_status in {"COMPLETED", "EMPTY"}
+                    else "INCOMPLETE"
+                ),
+                "freshness_note": "Snapshot block height is reported; wall-clock age cannot be determined because block timestamps are not fetched by this endpoint.",
+            },
             "chain_id": flow["chain_id"],
             "chain_name": flow.get("chain_name"),
             "contract_address": flow.get("contract_address"),
@@ -446,7 +472,21 @@ async def cross_chain_token_intelligence(
             },
             "verified_wallet_concentration": concentration,
         })
+    quality_counts = {
+        "completed_chains": sum(1 for item in chains if item["status"] == "COMPLETED"),
+        "incomplete_chains": sum(1 for item in chains if item["status"] != "COMPLETED"),
+        "chains_with_complete_indexed_flow_coverage": sum(
+            1 for item in chains if item["data_quality"]["indexed_flow_coverage_complete"]
+        ),
+        "chains_with_complete_smart_money_coverage": sum(
+            1 for item in chains if item["data_quality"]["smart_money_coverage_complete"]
+        ),
+        "chains_with_successful_balance_snapshot": sum(
+            1 for item in chains if item["data_quality"]["balance_snapshot_status"] == "COMPLETED"
+        ),
+    }
     return {
+        "data_quality_summary": quality_counts,
         "status": "COMPLETED" if chains and all(
             item["status"] == "COMPLETED" for item in chains
         ) else "INCOMPLETE",
@@ -458,11 +498,11 @@ async def cross_chain_token_intelligence(
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "warning": (
             "Research-only composite of locally indexed ERC-20 transfers and "
-            "operator-verified smart_money registry flows. Coverage gaps or RPC "
+            "operator-verified registry flows and tracked-wallet balance snapshots. Coverage gaps or RPC "
             "failures make results incomplete. Token transfers do not prove trades, "
-            "wallet ownership, or investment intent. This endpoint does not "
-            "measure holder concentration or live balances; cross-chain block "
-            "numbers and token decimals must be interpreted per chain."
+            "wallet ownership, or investment intent. Concentration covers only configured "
+            "verified wallets, not every token holder. Balance snapshot block heights "
+            "and token decimals must be interpreted per chain."
         ),
     }
 
