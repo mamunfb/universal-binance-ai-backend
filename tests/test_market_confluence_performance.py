@@ -314,3 +314,46 @@ def test_walk_forward_and_holdout_include_wilson_intervals():
     assert horizon["walk_forward"]["test_directional_positive_fraction_ci_95_wilson"] is not None
     assert horizon["walk_forward"]["sample_size_status"] == "LOW_SAMPLE_SIZE"
     assert horizon["out_of_sample"]["test_directional_positive_fraction_ci_95_wilson"] is not None
+
+
+def test_non_overlapping_selector_keeps_maximum_non_overlapping_outcome_windows():
+    from app.services.market_confluence_performance import _non_overlapping_rows
+
+    rows = [
+        {"snapshot_id": "long", "analyzed_at_ms": 0, "outcome_close_time_ms": 100,
+         "directional_positive": True},
+        {"snapshot_id": "short-a", "analyzed_at_ms": 1, "outcome_close_time_ms": 40,
+         "directional_positive": False},
+        {"snapshot_id": "short-b", "analyzed_at_ms": 41, "outcome_close_time_ms": 80,
+         "directional_positive": True},
+        {"snapshot_id": "short-c", "analyzed_at_ms": 81, "outcome_close_time_ms": 120,
+         "directional_positive": False},
+    ]
+    selected = _non_overlapping_rows(rows)
+    assert [row["snapshot_id"] for row in selected] == ["short-a", "short-b", "short-c"]
+    assert all(
+        selected[index]["analyzed_at_ms"] > selected[index - 1]["outcome_close_time_ms"]
+        for index in range(1, len(selected))
+    )
+
+
+def test_performance_reports_raw_and_non_overlapping_statistics():
+    rows = []
+    for index, bias in enumerate(
+        ["BULLISH", "BEARISH", "BULLISH", "BEARISH", "BULLISH", "BEARISH"], start=1
+    ):
+        item = snapshot(bias)
+        item["snapshot_id"] = f"overlap-{index}"
+        item["analyzed_at_ms"] = index * 1_000_000
+        rows.append(item)
+    result = MarketConfluencePerformance(SnapshotStore(rows), KlineStore()).evaluate(
+        "USD_M", "BTCUSDT", "1h", "1h", 10
+    )
+    horizon = result["horizons"]["1"]
+    adjusted = horizon["dependence_adjusted"]
+    assert adjusted["directional_sample_size"] <= horizon["directional_sample_size"]
+    assert adjusted["overlap_excluded_count"] == (
+        horizon["directional_sample_size"] - adjusted["directional_sample_size"]
+    )
+    assert "non_overlapping_directional_sample_size" in horizon["walk_forward"]
+    assert "non_overlapping_directional_sample_size" in horizon["out_of_sample"]
