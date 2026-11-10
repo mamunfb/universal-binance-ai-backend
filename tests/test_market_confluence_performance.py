@@ -720,3 +720,48 @@ def test_out_of_sample_training_outcomes_are_purged_at_holdout_boundary():
     assert set(holdout["test_regime_stability"]["dimensions"]) == {
         "market_regime", "volatility_regime", "structure_regime",
     }
+
+
+def test_regime_transition_degradation_screens_late_period_decline_without_claiming_causality():
+    from app.services.market_confluence_performance import _regime_transition_degradation
+
+    rows = []
+    for index in range(60):
+        early = index < 30
+        positive = index % 10 < (8 if early else 4)
+        rows.append({
+            "analyzed_at_ms": index * 3_600_000,
+            "market_regime": "TREND",
+            "volatility_regime": "HIGH",
+            "structure_regime": "EXPANSION",
+            "directional_positive": positive,
+            "directional_return_percent": 1.0 if positive else -1.0,
+        })
+    result = _regime_transition_degradation(rows)
+    assert result["status"] == "COMPLETED"
+    assert result["overall"]["early"]["directional_sample_size"] == 30
+    assert result["overall"]["late"]["directional_sample_size"] == 30
+    assert result["overall"]["positive_fraction_change_percentage_points"] == -40.0
+    assert result["overall"]["status"] == "POTENTIAL_DEGRADATION_SCREEN"
+    trend = result["dimensions"]["market_regime"]["TREND"]
+    assert trend["status"] == "POTENTIAL_DEGRADATION_SCREEN"
+    assert "not a statistical test" in result["method"]
+
+
+def test_regime_transition_degradation_withholds_screen_when_period_samples_are_small():
+    from app.services.market_confluence_performance import _regime_transition_degradation
+
+    rows = [
+        {
+            "analyzed_at_ms": index * 3_600_000,
+            "market_regime": "RANGE",
+            "volatility_regime": "LOW",
+            "structure_regime": "COMPRESSION",
+            "directional_positive": index % 2 == 0,
+            "directional_return_percent": 1.0 if index % 2 == 0 else -1.0,
+        }
+        for index in range(12)
+    ]
+    result = _regime_transition_degradation(rows)
+    assert result["overall"]["status"] == "INSUFFICIENT_PERIOD_SAMPLES"
+    assert result["dimensions"]["market_regime"]["RANGE"]["status"] == "INSUFFICIENT_PERIOD_SAMPLES"
