@@ -149,3 +149,8 @@ Optional aggregate trade streams can be stored locally and compared with sampled
 ## Aggregate trade order flow intelligence
 
 `GET /api/v1/analysis/order-flow/{market}/{symbol}?lookback_minutes=60&bin_size_bps=5&value_area_pct=70` calculates a local aggregate-trade volume profile (POC, VAH, VAL), window-relative CVD, and price/CVD divergence candidates. It reads locally collected trades only; the collector is opt-in, does not backfill, and the result is not a trade signal. COIN-M notional remains a raw price-times-contract-quantity proxy. See [Order Flow Intelligence](docs/ORDER_FLOW_INTELLIGENCE.md). The MCP tool is `analyze_order_flow_intelligence`.
+
+
+## Private Market Research Dashboard
+
+After deployment, open `/dashboard` on the same private API origin. The dashboard runs confluence analysis, explicitly saves selected snapshots, reads saved history and evaluates forward 1h/4h/24h outcomes. It requires authentication and should not be exposed publicly without a secure deployment boundary.
