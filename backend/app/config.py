@@ -13,6 +13,10 @@ class Settings(BaseSettings):
     news_primary_source_domains: str = ""
     news_independent_source_domains: str = ""
     news_stale_after_hours: int = 168
+    evm_rpc_url: str = ""
+    evm_chain_name: str = ""
+    evm_exchange_addresses: str = ""
+    evm_max_log_block_span: int = 2000
 
     model_config = SettingsConfigDict(
         env_file=".env",
