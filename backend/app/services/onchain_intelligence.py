@@ -176,19 +176,27 @@ async def get_erc20_token_snapshot(provider: EVMRPCProvider, contract: str,
                                   watch_addresses: dict[str, str]) -> dict[str, Any]:
     if len(watch_addresses) > 50:
         raise ValueError("At most 50 tracked addresses are supported per request")
-    total_raw = _decode_abi_uint(await provider.eth_call(contract, "0x18160ddd"))
-    decimals = _decode_abi_uint(await provider.eth_call(contract, "0x313ce567"))
+    block = await provider.block_number()
+    try:
+        block_timestamp = await provider.block_timestamp(block)
+        timestamp_status = "AVAILABLE"
+    except Exception:
+        block_timestamp = None
+        timestamp_status = "UNAVAILABLE"
+    block_tag = hex(block)
+    total_raw = _decode_abi_uint(await provider.eth_call(contract, "0x18160ddd", block_tag))
+    decimals = _decode_abi_uint(await provider.eth_call(contract, "0x313ce567", block_tag))
     if decimals > 36:
         raise ValueError("Token decimals outside supported range 0..36")
-    symbol = _decode_abi_text(await provider.eth_call(contract, "0x95d89b41"))
-    name = _decode_abi_text(await provider.eth_call(contract, "0x06fdde03"))
+    symbol = _decode_abi_text(await provider.eth_call(contract, "0x95d89b41", block_tag))
+    name = _decode_abi_text(await provider.eth_call(contract, "0x06fdde03", block_tag))
     scale = 10 ** decimals
     holders = []
     for label, address in watch_addresses.items():
         _validate_evm_address(address)
         data = "0x70a08231" + address[2:].lower().rjust(64, "0")
         try:
-            raw = _decode_abi_uint(await provider.eth_call(contract, data))
+            raw = _decode_abi_uint(await provider.eth_call(contract, data, block_tag))
             holders.append({
                 "label": label, "address": address.lower(), "balance_raw": str(raw),
                 "balance_tokens": raw / scale,
@@ -207,6 +215,17 @@ async def get_erc20_token_snapshot(provider: EVMRPCProvider, contract: str,
         "status": "COMPLETED" if len(successful) == len(holders) else "INCOMPLETE",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "contract_address": contract.lower(),
+        "snapshot_block": block, "snapshot_block_tag": block_tag,
+        "snapshot_block_timestamp": block_timestamp,
+        "snapshot_timestamp_status": timestamp_status,
+        "snapshot_block_time": (
+            datetime.fromtimestamp(block_timestamp, timezone.utc).isoformat()
+            if block_timestamp is not None else None
+        ),
+        "snapshot_age_seconds": (
+            max(0, int(datetime.now(timezone.utc).timestamp()) - block_timestamp)
+            if block_timestamp is not None else None
+        ),
         "token": {"name": name, "symbol": symbol, "decimals": decimals,
                   "total_supply_raw": str(total_raw), "total_supply_tokens": total_raw / scale},
         "tracked_address_count": len(watch_addresses),
