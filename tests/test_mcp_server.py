@@ -10,6 +10,10 @@ MODULE = "mcp_server.server"
 SERVER_PATH = Path(__file__).resolve().parents[1] / "mcp-server" / "server.py"
 
 
+def _execute_server_module():
+    return _execute_server_module()
+
+
 def _load_server(monkeypatch, client_name="chatgpt", base_url="https://api.example.test"):
     keys = {
         name: f"{name}-" + ("x" * 40)
@@ -49,7 +53,7 @@ def test_rejects_unknown_client(monkeypatch):
     monkeypatch.setenv("APP_ENV", "production")
     sys.modules.pop(MODULE, None)
     with pytest.raises(RuntimeError, match="MCP_CLIENT_NAME"):
-        importlib.import_module(MODULE)
+        _execute_server_module()
 
 
 def test_rejects_weak_client_key(monkeypatch):
