@@ -236,6 +236,66 @@ async def cross_chain_token_snapshot(asset_id: str, addresses: str = Query(..., 
         raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)[:300]}) from exc
 
 
+@app.get("/api/v1/onchain/evm/cross-chain/token/{asset_id}/flows", tags=["on-chain"])
+async def cross_chain_token_flows(
+    asset_id: str,
+    from_block: int = Query(..., ge=0),
+    to_block: int = Query(..., ge=0),
+    decimals: int = Query(..., ge=0, le=36, description="Token decimals; must match the configured asset contracts on every selected chain"),
+    limit: int = Query(default=50, ge=1, le=200),
+) -> dict:
+    if to_block < from_block:
+        raise HTTPException(status_code=422, detail="to_block must be >= from_block")
+    try:
+        configs = parse_chain_token_configs(settings.evm_chain_token_contracts)
+        selected = [item for item in configs if item["asset_id"] == asset_id.lower()]
+        if not selected:
+            raise HTTPException(status_code=404, detail="No configured contracts for this asset_id")
+        results = []
+        for item in selected:
+            try:
+                provider = EVMRPCProvider(item["rpc_url"], settings.http_timeout_seconds)
+                actual_chain_id = await provider.chain_id()
+                if actual_chain_id != item["chain_id"]:
+                    results.append({
+                        "status": "FAILED", "chain_id": actual_chain_id,
+                        "expected_chain_id": item["chain_id"], "chain_name": item["chain_name"],
+                        "contract_address": item["contract_address"],
+                        "error": "RPC chain_id does not match configured chain_id",
+                    })
+                    continue
+                coverage = evm_transfer_store.range_coverage(
+                    actual_chain_id, item["contract_address"], from_block, to_block
+                )
+                flows = evm_transfer_store.address_flow_summary(
+                    actual_chain_id, item["contract_address"], from_block, to_block,
+                    decimals, limit,
+                )
+                results.append({
+                    "status": "COMPLETED" if coverage["complete"] else "INCOMPLETE",
+                    "chain_id": actual_chain_id, "chain_name": item["chain_name"],
+                    "asset_id": item["asset_id"], "contract_address": item["contract_address"],
+                    "requested_range": {"from": from_block, "to": to_block},
+                    "coverage": coverage, "flow_summary": flows,
+                })
+            except Exception as exc:
+                results.append({
+                    "status": "FAILED", "chain_id": item["chain_id"],
+                    "chain_name": item["chain_name"], "contract_address": item["contract_address"],
+                    "error": f"{type(exc).__name__}: {str(exc)[:250]}",
+                })
+        return {
+            "status": "COMPLETED" if results and all(x["status"] == "COMPLETED" for x in results) else "INCOMPLETE",
+            "asset_id": asset_id.lower(), "decimals_used": decimals,
+            "requested_range": {"from": from_block, "to": to_block},
+            "chain_count": len(results), "chains": results,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "warning": "Flows are computed only from locally indexed ERC-20 logs. Inspect per-chain coverage before interpreting results. decimals must be correct for each configured contract; a shared asset_id does not prove economic equivalence. Net transfer flow is not wallet balance, trading intent, or price prediction.",
+        }
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
 @app.get("/api/v1/onchain/evm/token/{contract}/concentration", tags=["on-chain"])
 async def evm_token_concentration(contract: str) -> dict:
     try:
