@@ -61,6 +61,12 @@ GET /api/v1/analysis/derivatives/funding-open-interest/{symbol}?period=1h&price_
 
 The result reports open-interest and price changes, funding-rate context, and cautious co-movement descriptions. It does not infer individual trader positions or label a rise in open interest as a confirmed long or short signal. Data is local-only; collect and store the required series first. The equivalent MCP tool is `analyze_funding_open_interest`.
 
+## Advanced derivatives trend and signal history
+
+The read-only endpoint `GET /api/v1/analysis/derivatives/advanced/{symbol}` evaluates stored USD-M open-interest changes, short-term acceleration, robust MAD-based spike candidates, price/OI divergence candidates, configurable funding-rate extremes, and locally captured force-order context. The configured funding threshold is a user-supplied parameter, not an empirically calibrated universal threshold. Spike detection is withheld when the baseline MAD is zero or insufficient.
+
+Completed snapshots are stored idempotently in `DERIVATIVES_SIGNAL_DATABASE_PATH` and can be read through `GET /api/v1/history/derivatives-signals/{symbol}`. The MCP tools are `analyze_advanced_derivatives` and `get_derivatives_signal_history`. Liquidation context is incomplete: Binance's force-order stream is not a complete liquidation tape, and absence of stored events does not establish that no liquidations occurred. These outputs are descriptive research evidence, not trade instructions.
+
 ## Run locally
 ```bash
 python -m venv .venv
