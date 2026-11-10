@@ -41,6 +41,7 @@ from app.services.liquidation_clusters import LiquidationClusterAnalysis
 from app.services.historical_signal_performance import HistoricalSignalPerformance
 from app.services.smart_money_structure import SmartMoneyMarketStructure
 from app.services.order_book_intelligence import analyze_order_book
+from app.services.order_book_stream import OrderBookHistoryStore, OrderBookStreamCollector
 from app.services.derivatives_collector import DerivativesHistoryCollector
 from app.services.funding_open_interest_analysis import FundingOpenInterestAnalysis
 from app.services.advanced_derivatives_analysis import AdvancedDerivativesAnalysis, DerivativesSignalStore
@@ -54,6 +55,8 @@ from app.services.cross_chain_smart_money import cross_chain_verified_wallet_flo
 
 liquidation_store = LiquidationStore(settings.liquidation_database_path)
 liquidation_collector = LiquidationCollector(liquidation_store)
+order_book_history_store = OrderBookHistoryStore(settings.order_book_database_path)
+order_book_collector: OrderBookStreamCollector | None = None
 news_provider = RSSNewsProvider(settings.http_timeout_seconds)
 evm_transfer_store = EVMTransferStore(settings.evm_transfer_database_path)
 historical_kline_store = HistoricalKlineStore(settings.historical_kline_database_path)
@@ -67,9 +70,20 @@ derivatives_collector: DerivativesHistoryCollector | None = None
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    global historical_collector, derivatives_collector
+    global historical_collector, derivatives_collector, order_book_collector
     if settings.liquidation_collector_enabled:
         liquidation_collector.start()
+    if settings.order_book_collector_enabled:
+        order_book_collector = OrderBookStreamCollector(
+            store=order_book_history_store,
+            spot_provider_factory=get_spot_provider,
+            futures_provider_factory=get_futures_provider,
+            jobs_json=settings.order_book_collector_jobs,
+            sample_interval_seconds=settings.order_book_sample_interval_seconds,
+            snapshot_limit=settings.order_book_snapshot_limit,
+            stored_levels=settings.order_book_stored_levels,
+        )
+        order_book_collector.start()
     if settings.derivatives_collector_enabled:
         derivatives_collector = DerivativesHistoryCollector(
             funding_store=funding_rate_store,
@@ -94,6 +108,9 @@ async def lifespan(_: FastAPI):
     try:
         yield
     finally:
+        if order_book_collector is not None:
+            await order_book_collector.stop()
+            order_book_collector = None
         if derivatives_collector is not None:
             await derivatives_collector.stop()
             derivatives_collector = None
@@ -1076,6 +1093,38 @@ async def coinm_klines(
         raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
     return {"status": "COMPLETED", "source": "Binance COIN-M Futures public REST API",
             "symbol": symbol.upper(), "interval": interval, "count": len(rows), "klines": rows}
+
+
+@app.get("/api/v1/history/order-book/status", tags=["history"])
+async def order_book_stream_status() -> dict:
+    if not settings.order_book_collector_enabled:
+        return {
+            "status": "DISABLED", "enabled": False,
+            "stored_sample_count": order_book_history_store.count(),
+            "message": "Set ORDER_BOOK_COLLECTOR_ENABLED=true and configure ORDER_BOOK_COLLECTOR_JOBS on a persistent single-process deployment.",
+        }
+    if order_book_collector is None:
+        return {"status": "STARTING", "enabled": True}
+    return {"status": "RUNNING", **order_book_collector.status()}
+
+
+@app.get("/api/v1/history/order-book/{market}/{symbol}", tags=["history"])
+async def stored_order_book_history(
+    market: Literal["SPOT", "USD_M", "COIN_M"], symbol: str,
+    limit: int = Query(default=100, ge=1, le=1000),
+    start_time_ms: int | None = Query(default=None, ge=0),
+    end_time_ms: int | None = Query(default=None, ge=0),
+) -> dict:
+    if start_time_ms is not None and end_time_ms is not None and end_time_ms < start_time_ms:
+        raise HTTPException(status_code=422, detail="end_time_ms must be >= start_time_ms")
+    rows = await asyncio.to_thread(
+        order_book_history_store.recent, market, symbol, limit, start_time_ms, end_time_ms
+    )
+    return {
+        "status": "COMPLETED", "market": market, "symbol": symbol.upper(),
+        "returned_count": len(rows), "samples": rows,
+        "coverage_warning": "Only locally captured, sequence-synchronized samples are returned. No historical backfill is available.",
+    }
 
 
 @app.get("/api/v1/analysis/order-book/{market}/{symbol}", tags=["analysis"])
