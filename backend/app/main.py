@@ -30,6 +30,7 @@ from app.services.news_intelligence import collect_news_intelligence
 from app.services.news_verification import parse_domain_list
 from app.services.catalyst_analysis import analyze_catalysts
 from app.services.trade_risk import build_trade_risk_plan
+from app.services.signal_lifecycle import build_signal_lifecycle
 from app.providers.evm_rpc import EVMRPCProvider
 from app.services.onchain_intelligence import analyze_erc20_activity, get_evm_wallet_snapshot, get_erc20_token_snapshot
 from app.services.evm_transfer_store import EVMTransferStore, index_erc20_transfer_history
@@ -1855,6 +1856,14 @@ async def market_evidence_snapshot(symbol: str) -> dict:
     return build_market_evidence_snapshot(
         normalized, multi, basis, derivatives, volume, catalysts
     )
+
+
+@app.post("/api/v1/analysis/signal-lifecycle", tags=["analysis"])
+async def signal_lifecycle(payload: dict[str, Any] = Body(...)) -> dict:
+    try:
+        return build_signal_lifecycle(**payload)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @app.post("/api/v1/analysis/trade-risk-plan", tags=["analysis"])
