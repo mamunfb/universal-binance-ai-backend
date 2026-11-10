@@ -12,7 +12,7 @@ The report reads local SQLite databases only. It does not call Binance or backfi
 
 - **Historical klines:** record count, latest candle open/close timestamp, freshness against a two-candle operational threshold, and expected UTC candle-open coverage over the requested lookback ending at the latest stored candle. A currently forming candle is labeled `IN_PROGRESS`, not stale. SQLite's primary key prevents duplicate candle keys.
 - **Funding rates:** stored event count and latest funding timestamp. A 24-hour freshness threshold is an operational warning only; funding events are not treated as a fixed continuous stream.
-- **Open interest:** stored count and latest timestamp for the selected period. Freshness threshold is three periods (at least one hour).
+- **Open interest:** stored count and latest timestamp for the selected period. For candle intervals not supported by the OI history store (such as 1m or 3m), the report explicitly falls back to `1h` and returns `period: 1h`. Freshness threshold is three actual stored periods.
 - **Derivatives ratios:** latest timestamp and count across locally stored USD-M ratio records. A three-hour freshness threshold is used; different ratio types are not assumed synchronized.
 - **Aggregate trades and order-book samples:** local record count and latest event timestamp. Ten minutes is used as an operational freshness threshold.
 
