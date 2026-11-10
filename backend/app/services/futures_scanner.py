@@ -128,7 +128,11 @@ async def scan_futures_markets(
             "base_asset": info.get("baseAsset"), "quote_asset": info.get("quoteAsset"),
             "margin_asset": info.get("marginAsset"), "contract_type": info.get("contractType"),
             "delivery_date": info.get("deliveryDate"),
-            "onboard_date": info.get("onboardDate"),
+            "onboard_date_ms": info.get("onboardDate"),
+            "onboard_date": (
+                datetime.fromtimestamp(_number(info.get("onboardDate")) / 1000, timezone.utc).isoformat()
+                if _number(info.get("onboardDate")) and _number(info.get("onboardDate")) > 0 else None
+            ),
             "last_price": last_price, "price_change_percent_24h": change_pct,
             "quote_volume_24h": quote_volume, "quote_volume_method": quote_volume_method,
             "best_bid": bid, "best_ask": ask, "spread_bps": spread_bps,
@@ -147,6 +151,14 @@ async def scan_futures_markets(
          "margin_asset": row["margin_asset"], "quote_volume_24h": row["quote_volume_24h"]}
         for base, row in sorted(primary.items())
     ]
+    now_ms = datetime.now(timezone.utc).timestamp() * 1000
+    newly_listed_contracts = [
+        {"symbol": row["symbol"], "market": row["market"], "contract_type": row["contract_type"],
+         "onboard_date": row["onboard_date"]}
+        for row in results
+        if row.get("onboard_date")
+        and 0 <= now_ms - datetime.fromisoformat(row["onboard_date"]).timestamp() * 1000 <= 30 * 24 * 60 * 60 * 1000
+    ]
     eligible_count = len(eligible)
     failed_status = "COMPLETED" if failed == 0 else "INCOMPLETE"
     return {
@@ -157,6 +169,8 @@ async def scan_futures_markets(
         "eligible_symbols": eligible_count, "scanned_symbols": eligible_count - failed,
         "matched_symbols": len(results), "failed_symbols": failed,
         "excluded_contract_counts": excluded, "min_quote_volume": minimum_volume,
+        "newly_listed_contracts_30d": newly_listed_contracts,
+        "risk_tag_coverage": "UNAVAILABLE_FROM_THIS_EXCHANGE_INFO_SCAN",
         "unique_underlying_count": len(unique), "unique_underlyings": unique,
         "results": results,
         "stage1_metrics": {
