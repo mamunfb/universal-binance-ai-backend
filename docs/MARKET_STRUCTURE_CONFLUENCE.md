@@ -87,3 +87,11 @@ The endpoint returns future candles, percentage change from the stored reference
 ## Bias-specific historical accuracy
 
 The forward performance endpoint reports a `bias_breakdown` for every horizon (1h, 4h, 24h, 48h, 72h, 15d and 30d). BULLISH and BEARISH snapshots have separate sample counts, directional-positive fraction, mean directional return and complete-candle-coverage count. MIXED and UNKNOWN snapshots remain visible in the sample breakdown but do not receive a directional accuracy percentage. These are descriptive historical outcomes for the locally stored snapshots and candles, not a validated prediction hit rate or strategy profitability estimate. Interpret the percentages together with sample size and coverage completeness.
+
+## Regime-stratified historical outcomes
+
+The forward-performance response now includes `regime_breakdown` for each horizon. It groups completed snapshot outcomes independently by the saved `market_regime`, `volatility_regime`, and `structure_regime` labels found in the `MARKET_REGIME` evidence item. A missing label is reported as `UNCLASSIFIED`; the evaluator does not infer a regime from price outcomes.
+
+Each group reports total and directional sample sizes, positive and negative directional outcomes, directional-positive fraction, mean directional return, and complete candle-coverage count. MIXED and UNKNOWN biases remain in the total sample but are excluded from directional aggregates.
+
+These are descriptive historical summaries, not calibrated probabilities, validated strategy hit rates, or evidence that a regime causes an outcome. Read sample sizes and candle-coverage counts alongside every fraction; small groups can be unstable. The dashboard currently displays the market-regime dimension, while the API also exposes volatility- and structure-regime breakdowns.
