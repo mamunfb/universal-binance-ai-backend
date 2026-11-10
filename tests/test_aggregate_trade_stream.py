@@ -31,13 +31,13 @@ def test_aggregate_trade_store_is_idempotent_and_filters(tmp_path):
     store.insert(row)
     store.insert(row)
     assert store.count() == 1
-    result = store.recent("SPOT", "BTCUSDT", 10, 100, 200)
+    result = store.recent("SPOT", "BTCUSDT", 10, 1_700_000_000_000, 1_700_000_001_000)
     assert len(result) == 1
     assert result[0]["buyer_is_maker"] is False
     assert store.recent("USD_M", "BTCUSDT") == []
 
 
 def test_aggregate_trade_stream_urls():
-    assert "stream.binance.com:9443/ws/btcusdt@aggTrade" == aggregate_trade_stream_url("SPOT", "BTCUSDT")
-    assert "fstream.binance.com/market/ws/btcusdt@aggTrade" == aggregate_trade_stream_url("USD_M", "BTCUSDT")
-    assert "dstream.binance.com/ws/btcusd_perp@aggTrade" == aggregate_trade_stream_url("COIN_M", "BTCUSD_PERP")
+    assert "wss://stream.binance.com:9443/ws/btcusdt@aggTrade" == aggregate_trade_stream_url("SPOT", "BTCUSDT")
+    assert "wss://fstream.binance.com/market/ws/btcusdt@aggTrade" == aggregate_trade_stream_url("USD_M", "BTCUSDT")
+    assert "wss://dstream.binance.com/ws/btcusd_perp@aggTrade" == aggregate_trade_stream_url("COIN_M", "BTCUSD_PERP")
