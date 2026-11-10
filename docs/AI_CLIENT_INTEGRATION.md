@@ -199,6 +199,7 @@ Available tools:
 - `get_stored_historical_klines`
 - `inspect_historical_kline_coverage`
 - `get_historical_collector_status`
+- `get_derivatives_collector_status`
 - `get_stored_funding_rate_history`
 - `get_stored_open_interest_history`
 - `get_liquidation_collector_status`
