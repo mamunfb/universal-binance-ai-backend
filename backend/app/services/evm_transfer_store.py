@@ -119,31 +119,27 @@ class EVMTransferStore:
         with sqlite3.connect(self.database_path) as connection:
             connection.row_factory = sqlite3.Row
             rows = connection.execute("""
-                SELECT address, SUM(sent_raw) AS sent_raw, SUM(received_raw) AS received_raw,
-                       SUM(transfer_count) AS transfer_count
-                FROM (
-                    SELECT from_address AS address, SUM(CAST(amount_raw AS INTEGER)) AS sent_raw,
-                           0 AS received_raw, COUNT(*) AS transfer_count
-                    FROM evm_transfer_logs
-                    WHERE chain_id=? AND contract_address=? AND block_number BETWEEN ? AND ? AND removed=0
-                    GROUP BY from_address
-                    UNION ALL
-                    SELECT to_address AS address, 0 AS sent_raw,
-                           SUM(CAST(amount_raw AS INTEGER)) AS received_raw, COUNT(*) AS transfer_count
-                    FROM evm_transfer_logs
-                    WHERE chain_id=? AND contract_address=? AND block_number BETWEEN ? AND ? AND removed=0
-                    GROUP BY to_address
-                ) GROUP BY address
-            """, (chain_id, contract.lower(), from_block, to_block,
-                  chain_id, contract.lower(), from_block, to_block)).fetchall()
+                SELECT from_address, to_address, amount_raw
+                FROM evm_transfer_logs
+                WHERE chain_id=? AND contract_address=? AND block_number BETWEEN ? AND ? AND removed=0
+            """, (chain_id, contract.lower(), from_block, to_block)).fetchall()
+        aggregates: dict[str, dict[str, int]] = {}
+        for row in rows:
+            raw = int(row["amount_raw"])
+            sender = aggregates.setdefault(row["from_address"], {"sent": 0, "received": 0, "count": 0})
+            recipient = aggregates.setdefault(row["to_address"], {"sent": 0, "received": 0, "count": 0})
+            sender["sent"] += raw
+            sender["count"] += 1
+            recipient["received"] += raw
+            recipient["count"] += 1
         scale = 10 ** decimals
         flows = [{
-            "address": row["address"],
-            "sent_tokens": int(row["sent_raw"] or 0) / scale,
-            "received_tokens": int(row["received_raw"] or 0) / scale,
-            "net_received_tokens": (int(row["received_raw"] or 0) - int(row["sent_raw"] or 0)) / scale,
-            "transfer_count": int(row["transfer_count"] or 0),
-        } for row in rows]
+            "address": address,
+            "sent_tokens": values["sent"] / scale,
+            "received_tokens": values["received"] / scale,
+            "net_received_tokens": (values["received"] - values["sent"]) / scale,
+            "transfer_count": values["count"],
+        } for address, values in aggregates.items()]
         flows.sort(key=lambda item: item["net_received_tokens"], reverse=True)
         return {
             "transfer_counted_address_count": len(flows),
