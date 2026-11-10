@@ -3,6 +3,7 @@ from typing import Literal
 from fastapi import FastAPI, HTTPException, Query
 
 from app.config import settings
+from app.indicators import calculate_indicators
 from app.providers.binance_spot import BinanceSpotProvider
 from app.services.market_scanner import scan_spot_markets
 
@@ -41,6 +42,32 @@ async def spot_market_scan(
     if result["status"] == "FAILED":
         raise HTTPException(status_code=502, detail=result)
     return result
+
+
+@app.get("/api/v1/analysis/spot/technical/{symbol}", tags=["analysis"])
+async def spot_technical_analysis(
+    symbol: str,
+    interval: Literal[
+        "1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h",
+        "6h", "8h", "12h", "1d", "3d", "1w", "1M"
+    ] = "1h",
+    limit: int = Query(default=500, ge=2, le=1000),
+) -> dict:
+    try:
+        rows = await get_spot_provider().klines(symbol, interval, limit)
+        closes = [float(row[4]) for row in rows]
+        indicators = calculate_indicators(closes)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
+    return {
+        "status": "COMPLETED",
+        "source": "Binance Spot public REST API",
+        "symbol": symbol.upper(),
+        "interval": interval,
+        "generated_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
+        "indicators": indicators,
+        "warning": "Indicators describe historical data and are not guaranteed trading signals.",
+    }
 
 
 @app.get("/api/v1/markets/spot/klines/{symbol}", tags=["markets"])
