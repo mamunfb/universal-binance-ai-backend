@@ -152,3 +152,26 @@ def test_evaluate_returns_summary_and_bias_specific_accuracy_breakdown():
     assert breakdown["BEARISH"]["positive_fraction"] == 0.0
     assert breakdown["MIXED"]["sample_size"] == 1
     assert breakdown["MIXED"]["positive_fraction"] is None
+
+
+def test_regime_breakdown_uses_saved_evidence_and_unclassified_fallback():
+    bullish = snapshot("BULLISH")
+    bullish["payload"] = {"evidence": [{"source": "MARKET_REGIME", "detail": {
+        "regime": "TRENDING", "volatility_regime": "HIGH", "structure_regime": "EXPANSION",
+    }}]}
+    bearish = snapshot("BEARISH")
+    bearish["payload"] = {"evidence": [{"source": "MARKET_REGIME", "detail": {
+        "regime": "RANGING", "volatility_regime": "LOW", "structure_regime": "COMPRESSION",
+    }}]}
+    unknown = snapshot("MIXED")
+    unknown["payload"] = {"evidence": []}
+    evaluator = MarketConfluencePerformance(SnapshotStore([bullish, bearish, unknown]), KlineStore())
+    result = evaluator.evaluate("USD_M", "BTCUSDT", "1h", "1h", 10)
+    one_hour = result["horizons"]["1"]
+    regimes = one_hour["regime_breakdown"]["market_regime"]
+    assert regimes["TRENDING"]["sample_size"] == 1
+    assert regimes["TRENDING"]["positive_fraction"] == 1.0
+    assert regimes["RANGING"]["positive_fraction"] == 0.0
+    assert regimes["UNCLASSIFIED"]["sample_size"] == 1
+    assert regimes["UNCLASSIFIED"]["positive_fraction"] is None
+    assert one_hour["regime_breakdown"]["volatility_regime"]["HIGH"]["sample_size"] == 1
