@@ -76,7 +76,7 @@ def test_cross_chain_token_uint_decoder_rejects_malformed_words():
 
 def test_cross_chain_token_text_decoder_supports_bytes32_and_rejects_bad_offsets():
     from app.services.cross_chain_tokens import _text
-    assert _text("0x" + b"USDC".ljust(32, b"\\x00").hex()) == "USDC"
+    assert _text("0x" + b"USDC".ljust(32, b"\x00").hex()) == "USDC"
     malformed = "0x" + (32).to_bytes(32, "big").hex() + (999).to_bytes(32, "big").hex()
     assert _text(malformed) is None
 
