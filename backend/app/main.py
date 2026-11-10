@@ -1829,8 +1829,20 @@ async def spot_technical_analysis(
         indicators = calculate_indicators(closes)
     except Exception as exc:
         raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
+    required_indicator_paths = {
+        "ema_20": indicators.get("ema_20"),
+        "ema_50": indicators.get("ema_50"),
+        "ema_100": indicators.get("ema_100"),
+        "ema_200": indicators.get("ema_200"),
+        "rsi_14_wilder": indicators.get("rsi_14_wilder"),
+        "macd_12_26": indicators.get("macd_12_26"),
+        "macd_signal_9": indicators.get("macd_signal_9"),
+        "bollinger_20_2": indicators.get("bollinger_20_2", {}).get("middle"),
+    }
+    missing_indicators = [name for name, value in required_indicator_paths.items() if value is None]
     return {
-        "status": "COMPLETED",
+        "status": "COMPLETED" if not missing_indicators else "INCOMPLETE",
+        "missing_indicators": missing_indicators,
         "source": "Binance Spot public REST API",
         "symbol": symbol.upper(),
         "interval": interval,
