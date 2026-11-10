@@ -55,7 +55,7 @@ Read-only MCP tool: `analyze_market_structure_confluence`. It calls the REST end
 
 - Save a selected analysis: `POST /api/v1/history/market-confluence/snapshots` with the complete analysis response.
 - Read snapshots: `GET /api/v1/history/market-confluence/{market}/{symbol}?interval=1h&limit=100`.
-- Evaluate forward outcomes: `GET /api/v1/analysis/market-confluence-performance/{market}/{symbol}?interval=1h&price_interval=1m&limit=200`.
+- Evaluate forward outcomes: `GET /api/v1/analysis/market-confluence-performance/{market}/{symbol}?interval=1h&price_interval=1h&limit=200`.
 - The analysis response includes `analyzed_at_ms` and a reference close only when the candle was fully closed at analysis time.
 - Future evaluation uses candles with `open_time_ms > analyzed_at_ms`; absent future observations remain pending.
 - MIXED/UNKNOWN snapshots are retained but excluded from directional aggregates. Directional-positive fraction is descriptive, not a validated strategy hit rate.
@@ -64,3 +64,12 @@ Read-only MCP tool: `analyze_market_structure_confluence`. It calls the REST end
 ## Dashboard
 
 The same-origin dashboard is served at `/dashboard`. Use HTTPS and a strong private API key. Do not put credentials in prompts or public client-side source.
+
+
+### Forward comparison horizons
+
+The performance endpoint now evaluates seven fixed horizons from each saved snapshot: 1 hour, 4 hours, 24 hours, 48 hours, 72 hours, 15 days (360 hours), and 30 days (720 hours). The 30-day horizon is a fixed 720-hour period, not a calendar month.
+
+The default comparison candle is 1h, so the endpoint compares the market using hourly OHLC candles. Optional resolutions are 15m, 30m, 2h, 4h, 6h, 8h, 12h and 1d. 1m, 3m and 5m are intentionally excluded because a 30-day query would exceed the local 5,000-candle history query limit and could silently truncate the early part of the comparison window.
+
+Each horizon reports sample count, pending observations, missing reference prices, directional-positive fraction, average directional return, favorable/adverse excursion, and candle continuity coverage. A horizon is not a completed observation until a local candle closes at or after its target time. Partial or gapped candle sequences are flagged and are not silently filled.
