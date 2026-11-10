@@ -235,3 +235,9 @@ coverage and limitations. It does not collect events. See
 ## Historical signal performance evaluation
 
 The read-only endpoint `GET /api/v1/analysis/derivatives/signal-performance/{symbol}` evaluates forward 1h/4h/24h price outcomes for locally stored completed descriptive snapshots. It reports sample sizes, gross/hypothetical net returns and favorable/adverse excursions. It does not calculate directional accuracy or claim a strategy win rate because the stored classifications do not define validated directional entries. The MCP tool is `evaluate_historical_signal_performance`. See `docs/HISTORICAL_SIGNAL_PERFORMANCE.md` for the method and coverage caveats.
+
+
+### Smart Money market structure
+
+The read-only MCP tool `analyze_smart_money_market_structure` calls
+`GET /api/v1/analysis/smart-money-structure/{market}/{symbol}`. It analyzes locally stored OHLCV candles for swing points, BOS/CHoCH, liquidity-sweep candidates, FVG candidates, order-block candidates and sample-range premium/discount. All are heuristic candidates rather than verified institutional order flow. See `docs/SMART_MONEY_MARKET_STRUCTURE.md`.
