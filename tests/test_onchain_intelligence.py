@@ -108,6 +108,7 @@ async def test_erc20_snapshot_reports_tracked_share_not_full_distribution():
             raise AssertionError(data)
     result = await get_erc20_token_snapshot(FakeProvider(), CONTRACT, {"wallet-a": ADDRESS_A})
     assert result["snapshot_block"] == 789
+    assert result["snapshot_block_number"] == 789
     assert result["snapshot_block_timestamp"] == 1700000000
     assert result["snapshot_timestamp_status"] == "AVAILABLE"
     assert result["snapshot_age_seconds"] >= 0
