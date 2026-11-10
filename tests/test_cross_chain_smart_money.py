@@ -20,6 +20,9 @@ def test_cross_chain_verified_wallet_flows_only_uses_verified_registry(monkeypat
             assert [w["address"] for w in registry["wallets"]] == [ADDRESS]
             return {"verified_smart_money_wallets_found": 1, "wallets": [],
                     "cohort_summary": {"direction": "NET_INFLOW"}}
+        def smart_money_accumulation_trend(self, chain_id, contract, start, end, decimals, registry, window):
+            assert window == 250
+            return {"window_blocks": window, "windows": [{"direction": "ACCUMULATION"}]}
 
     monkeypatch.setattr("app.services.cross_chain_smart_money.EVMRPCProvider", FakeProvider)
     configs = [{"chain_id": 1, "asset_id": "sample", "contract_address": CONTRACT,
@@ -30,9 +33,10 @@ def test_cross_chain_verified_wallet_flows_only_uses_verified_registry(monkeypat
         '{"address":"0x' + '3' * 40 + '","label":"smart_money","verification_status":"pending_review"}]'
     )
     result = asyncio.run(cross_chain_verified_wallet_flows(
-        configs, "sample", 10, 20, 18, registry, FakeStore()))
+        configs, "sample", 10, 20, 18, registry, FakeStore(), window_blocks=250))
     assert result["status"] == "COMPLETED"
     assert result["chains"][0]["verified_registry_wallet_count"] == 1
+    assert result["chains"][0]["accumulation_trend"]["window_blocks"] == 250
 
 
 def test_cross_chain_smart_money_reports_incomplete_coverage(monkeypatch):
@@ -47,6 +51,8 @@ def test_cross_chain_smart_money_reports_incomplete_coverage(monkeypatch):
             return {"complete": False, "gaps": [{"from": 10, "to": 20}]}
         def smart_money_activity(self, *args):
             return {"verified_smart_money_wallets_found": 0, "wallets": []}
+        def smart_money_accumulation_trend(self, *args):
+            return {"window_blocks": 1000, "windows": []}
 
     monkeypatch.setattr("app.services.cross_chain_smart_money.EVMRPCProvider", FakeProvider)
     configs = [{"chain_id": 1, "asset_id": "sample", "contract_address": CONTRACT,
