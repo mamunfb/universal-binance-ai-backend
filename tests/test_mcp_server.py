@@ -114,6 +114,29 @@ def test_stored_open_interest_history_tool_uses_read_only_api_route(monkeypatch)
     }
 
 
+def test_combined_derivatives_intelligence_mcp_tool_calls_fixed_route(monkeypatch):
+    server = _load_server(monkeypatch)
+    calls = []
+    monkeypatch.setattr(
+        server, "_get",
+        lambda path, params=None: calls.append((path, params)) or {"status": "COMPLETED"},
+    )
+    result = server.analyze_combined_derivatives_intelligence("btcusdt", "4h", 50)
+    assert result["status"] == "COMPLETED"
+    assert calls == [(
+        "/api/v1/analysis/derivatives/combined/BTCUSDT",
+        {"period": "4h", "limit": 50},
+    )]
+
+
+def test_combined_derivatives_intelligence_mcp_rejects_bad_inputs(monkeypatch):
+    server = _load_server(monkeypatch)
+    with pytest.raises(ValueError, match="period"):
+        server.analyze_combined_derivatives_intelligence("BTCUSDT", "2w")
+    with pytest.raises(ValueError, match="limit"):
+        server.analyze_combined_derivatives_intelligence("BTCUSDT", "1h", 1)
+
+
 def test_stored_derivatives_ratio_mcp_tool_calls_fixed_history_route(monkeypatch):
     server = _load_server(monkeypatch)
     calls = []
