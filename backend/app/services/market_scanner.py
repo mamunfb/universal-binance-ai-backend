@@ -17,7 +17,7 @@ async def scan_spot_markets(
     quote_asset: str | None = None,
     min_quote_volume: float = 0.0,
 ) -> dict[str, Any]:
-    """Scan every returned eligible Spot symbol; an omitted quote scans all quote assets."""
+    """Scan all eligible Spot symbols; omitted quote_asset means all quote assets."""
     generated_at = datetime.now(timezone.utc).isoformat()
     quote = quote_asset.strip().upper() if quote_asset and quote_asset.strip() else None
 
@@ -25,7 +25,7 @@ async def scan_spot_markets(
         exchange_info, tickers = await _fetch_inputs(provider)
     except Exception as exc:
         return {
-            "status": "FAILED", "generated_at": generated_at,
+            "status": "FAILED", "phase_status": "FAILED", "generated_at": generated_at,
             "source": "Binance Spot public REST API", "market": "SPOT",
             "quote_asset_filter": quote, "total_available_pairs": 0,
             "eligible_symbols": 0, "scanned_symbols": 0, "matched_symbols": 0,
@@ -38,6 +38,11 @@ async def scan_spot_markets(
         item.get("symbol"): item for item in tickers
         if isinstance(item, dict) and item.get("symbol")
     }
+    book_by_symbol = {
+        item.get("symbol"): item for item in getattr(provider, "_last_book_tickers", [])
+        if isinstance(item, dict) and item.get("symbol")
+    }
+    btc_change = _number(ticker_by_symbol.get("BTCUSDT", {}).get("priceChangePercent"))
     excluded: dict[str, int] = {}
     eligible: list[dict[str, Any]] = []
     for item in symbols:
@@ -67,20 +72,27 @@ async def scan_spot_markets(
         quote_volume = _number(ticker.get("quoteVolume"))
         last_price = _number(ticker.get("lastPrice"))
         change_pct = _number(ticker.get("priceChangePercent"))
+        high_price = _number(ticker.get("highPrice"))
+        low_price = _number(ticker.get("lowPrice"))
+        book = book_by_symbol.get(symbol)
+        bid = _number(book.get("bidPrice")) if book else None
+        ask = _number(book.get("askPrice")) if book else None
+        mid = (bid + ask) / 2 if bid is not None and ask is not None and bid > 0 and ask >= bid else None
+        spread_bps = ((ask - bid) / mid * 10000) if mid else None
+        range_24h_pct = ((high_price - low_price) / last_price * 100) if high_price is not None and low_price is not None and last_price else None
         if quote_volume is None or quote_volume < 0 or last_price is None or last_price <= 0 or change_pct is None:
             failed += 1
             continue
         if quote_volume < min_quote_volume:
             continue
         results.append({
-            "symbol": symbol,
-            "base_asset": info.get("baseAsset"),
-            "quote_asset": info.get("quoteAsset"),
-            "last_price": last_price,
-            "price_change_percent_24h": change_pct,
-            "quote_volume_24h": quote_volume,
-            "status": info.get("status"),
-            "allowed_order_types": info.get("orderTypes", []),
+            "symbol": symbol, "base_asset": info.get("baseAsset"),
+            "quote_asset": info.get("quoteAsset"), "last_price": last_price,
+            "price_change_percent_24h": change_pct, "quote_volume_24h": quote_volume,
+            "best_bid": bid, "best_ask": ask, "spread_bps": spread_bps,
+            "range_24h_pct": range_24h_pct,
+            "relative_strength_vs_btc_24h_pp": change_pct - btc_change if btc_change is not None else None,
+            "status": info.get("status"), "allowed_order_types": info.get("orderTypes", []),
             "filters": info.get("filters", []),
         })
 
@@ -91,33 +103,43 @@ async def scan_spot_markets(
     unique_coins = [
         {"base_asset": base, "primary_symbol": row["symbol"],
          "primary_quote_asset": row["quote_asset"],
-         "primary_quote_volume_24h": row["quote_volume_24h"]}
+         "primary_quote_volume_24h": row["quote_volume_24h"],
+         "primary_selection_status": "PROVISIONAL_RAW_QUOTE_VOLUME_ONLY"}
         for base, row in sorted(primary_by_base.items())
     ]
     scanned = len(eligible)
     return {
         "status": "COMPLETED" if failed == 0 else "INCOMPLETE",
-        "generated_at": generated_at,
-        "source": "Binance Spot public REST API",
-        "market": "SPOT",
-        "quote_asset_filter": quote,
-        "total_available_pairs": len(symbols),
-        "eligible_symbols": scanned,
-        "scanned_symbols": scanned - failed,
-        "matched_symbols": len(results),
-        "failed_symbols": failed,
-        "excluded_pair_counts": excluded,
-        "min_quote_volume": min_quote_volume,
-        "unique_coin_count": len(unique_coins),
-        "unique_coins": unique_coins,
-        "results": results,
+        "phase_status": "INCOMPLETE",
+        "generated_at": generated_at, "source": "Binance Spot public REST API",
+        "market": "SPOT", "quote_asset_filter": quote,
+        "total_available_pairs": len(symbols), "eligible_symbols": scanned,
+        "scanned_symbols": scanned - failed, "matched_symbols": len(results),
+        "failed_symbols": failed, "excluded_pair_counts": excluded,
+        "min_quote_volume": min_quote_volume, "unique_coin_count": len(unique_coins),
+        "unique_coins": unique_coins, "results": results,
+        "stage1_metrics": {
+            "best_bid_ask_spread": "AVAILABLE_FOR_RETURNED_BOOK_TICKERS" if book_by_symbol else "UNAVAILABLE",
+            "24h_high_low_range_proxy": "AVAILABLE" if any(row["range_24h_pct"] is not None for row in results) else "UNAVAILABLE",
+            "relative_strength_vs_btc_24h": "AVAILABLE" if btc_change is not None else "UNAVAILABLE",
+            "order_book_depth": "NOT_COLLECTED_FOR_ALL_PAIRS",
+            "volume_surge_vs_recent_average": "NOT_COLLECTED",
+            "market_cap": "NOT_COLLECTED",
+        },
+        "stage1_missing_metrics": ["order_book_depth", "volume_surge_vs_recent_average", "market_cap"],
         "coverage_warning": (
-            "All eligible symbols returned by exchangeInfo were checked against the bulk 24-hour ticker response. "
-            "This scan does not yet enrich every pair with order-book depth, spread, volatility, or recent-average volume."
+            "This is a complete eligible-symbol/ticker pass only. Full Stage 1 remains INCOMPLETE: "
+            "depth, recent-average volume surge and market-cap enrichment are not collected for every pair. "
+            "Unique-pair choice is provisional because raw quote volumes across different quote assets are not comparable."
         ),
     }
 
 
 async def _fetch_inputs(provider: BinanceSpotProvider) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     import asyncio
-    return await asyncio.gather(provider.exchange_info(), provider.all_24h_tickers())
+    exchange_info, tickers = await asyncio.gather(provider.exchange_info(), provider.all_24h_tickers())
+    try:
+        provider._last_book_tickers = await provider.all_book_tickers()
+    except (AttributeError, Exception):
+        provider._last_book_tickers = []
+    return exchange_info, tickers
