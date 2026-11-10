@@ -38,6 +38,7 @@ from app.services.derivatives_ratio_store import DerivativesRatioStore
 from app.services.combined_derivatives_intelligence import CombinedDerivativesIntelligence
 from app.services.market_regime import MarketRegimeAnalysis
 from app.services.liquidation_clusters import LiquidationClusterAnalysis
+from app.services.historical_signal_performance import HistoricalSignalPerformance
 from app.services.derivatives_collector import DerivativesHistoryCollector
 from app.services.funding_open_interest_analysis import FundingOpenInterestAnalysis
 from app.services.advanced_derivatives_analysis import AdvancedDerivativesAnalysis, DerivativesSignalStore
@@ -1552,6 +1553,23 @@ async def get_derivatives_signal_history(
         return await asyncio.to_thread(
             derivatives_signal_store.history, symbol, period,
             start_time_ms, end_time_ms, limit,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.get("/api/v1/analysis/derivatives/signal-performance/{symbol}", tags=["analysis"])
+async def evaluate_historical_signal_performance(
+    symbol: str,
+    period: Literal["5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "1d"] = "1h",
+    price_interval: Literal["1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d", "3d", "1w", "1M"] = "1h",
+    limit: int = Query(default=500, ge=1, le=1000),
+    round_trip_cost_bps: float = Query(default=0.0, ge=0, le=500),
+) -> dict:
+    try:
+        engine = HistoricalSignalPerformance(derivatives_signal_store, historical_kline_store)
+        return await asyncio.to_thread(
+            engine.evaluate, symbol, period, price_interval, limit, round_trip_cost_bps,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
