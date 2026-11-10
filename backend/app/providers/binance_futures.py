@@ -100,9 +100,9 @@ class BinanceFuturesProvider:
         return data
 
     async def open_interest(self, symbol: str) -> dict[str, Any]:
-        if self.market != "USD_M":
-            raise NotImplementedError("Open interest adapter is currently enabled for USD_M only")
-        data = await self._get("/fapi/v1/openInterest", {"symbol": symbol.upper()})
+        if not symbol or not symbol.strip():
+            raise ValueError("symbol must not be empty")
+        data = await self._get(f"{self.prefix}/openInterest", {"symbol": symbol.upper()})
         if not isinstance(data, dict):
             raise ValueError("Unexpected open interest response")
         return data
@@ -110,9 +110,8 @@ class BinanceFuturesProvider:
     async def open_interest_history(
         self, symbol: str, period: str = "1h", limit: int = 30,
         start_time_ms: int | None = None, end_time_ms: int | None = None,
+        pair: str | None = None, contract_type: str | None = None,
     ) -> list[dict[str, Any]]:
-        if self.market != "USD_M":
-            raise NotImplementedError("Open interest history is currently enabled for USD_M only")
         if not symbol or not symbol.strip():
             raise ValueError("symbol must not be empty")
         if period not in {"5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "1d"}:
@@ -125,9 +124,19 @@ class BinanceFuturesProvider:
             raise ValueError("end_time_ms must be non-negative")
         if start_time_ms is not None and end_time_ms is not None and end_time_ms < start_time_ms:
             raise ValueError("end_time_ms must be >= start_time_ms")
-        params: dict[str, Any] = {
-            "symbol": symbol.upper(), "period": period, "limit": limit,
-        }
+        if self.market == "COIN_M":
+            normalized_pair = (pair or symbol.upper().rsplit("_", 1)[0]).strip().upper()
+            if not normalized_pair:
+                raise ValueError("pair must not be empty for COIN-M open-interest history")
+            params: dict[str, Any] = {
+                "pair": normalized_pair, "period": period, "limit": limit,
+            }
+            if contract_type is not None:
+                if contract_type not in {"PERPETUAL", "CURRENT_QUARTER", "NEXT_QUARTER"}:
+                    raise ValueError("Unsupported COIN-M contract_type")
+                params["contractType"] = contract_type
+        else:
+            params = {"symbol": symbol.upper(), "period": period, "limit": limit}
         if start_time_ms is not None:
             params["startTime"] = start_time_ms
         if end_time_ms is not None:
