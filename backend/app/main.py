@@ -524,11 +524,12 @@ async def cross_chain_token_intelligence(
         "freshness": {
             "balance_snapshots_with_timestamp": sum(
                 1 for item in chains
-                if item["data_quality"]["balance_snapshot_timestamp_status"] == "AVAILABLE"
+                if item["data_quality"]["balance_snapshot_block"] is not None
+                and item["data_quality"]["balance_snapshot_timestamp_status"] == "AVAILABLE"
             ),
             "balance_snapshots_without_timestamp": sum(
                 1 for item in chains
-                if item["data_quality"]["balance_snapshot_status"] in {"COMPLETED", "EMPTY"}
+                if item["data_quality"]["balance_snapshot_block"] is not None
                 and item["data_quality"]["balance_snapshot_timestamp_status"] != "AVAILABLE"
             ),
             "chain_snapshots": [
