@@ -87,7 +87,13 @@ async def test_rpc_provider_json_rpc_contract():
 
 async def test_erc20_snapshot_reports_tracked_share_not_full_distribution():
     class FakeProvider:
-        async def eth_call(self, contract, data):
+        async def block_number(self):
+            return 789
+        async def block_timestamp(self, block_number):
+            assert block_number == 789
+            return 1700000000
+        async def eth_call(self, contract, data, block="latest"):
+            assert block == "0x315"
             if data == "0x18160ddd": return hex(1_000_000 * 10**6)
             if data == "0x313ce567": return hex(6)
             if data == "0x95d89b41":
@@ -97,6 +103,10 @@ async def test_erc20_snapshot_reports_tracked_share_not_full_distribution():
             if data.endswith(ADDRESS_A[2:].rjust(64, "0")): return hex(250_000 * 10**6)
             raise AssertionError(data)
     result = await get_erc20_token_snapshot(FakeProvider(), CONTRACT, {"wallet-a": ADDRESS_A})
+    assert result["snapshot_block"] == 789
+    assert result["snapshot_block_timestamp"] == 1700000000
+    assert result["snapshot_timestamp_status"] == "AVAILABLE"
+    assert result["snapshot_age_seconds"] >= 0
     assert result["token"]["symbol"] == "ABC"
     assert result["token"]["name"] == "Example"
     assert result["tracked_balances"][0]["balance_tokens"] == 250_000
