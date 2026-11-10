@@ -219,3 +219,9 @@ For each market-specific phase record:
 - Remaining audit items include provider rate-limit/retry policy, full per-symbol/per-contract failure reasons, all-eligible depth coverage, source-specific timestamps/freshness, review of all existing routes/services, static/security tooling and deployment/runtime verification.
 - The MCP adapter contains a local SQLite snapshot-save POST tool; its compatibility with the literal final read-only MCP acceptance requirement needs an explicit architecture decision.
 - Pre-Coding Full Audit remains INCOMPLETE. SPOT/FUTURES Phase 01 remain IN_PROGRESS; combined Phase 01 INCOMPLETE; Phase 02 LOCKED.
+
+
+## 12. Security and static-analysis checkpoint — 2026-11-11
+- Sanitized raw provider exception disclosure in Spot/Futures market-data API routes, cross-chain token intelligence and RSS feed failures; added regression tests.
+- A broad Ruff check identified 289 existing diagnostics. CI now runs core Ruff correctness rules (`E4,E7,E9,F`) pending verification; full lint debt remains documented in the implementation audit.
+- Latest combined test/lint CI verification is pending. Pre-Coding Full Audit remains INCOMPLETE; no Phase 01 feature implementation has started.
