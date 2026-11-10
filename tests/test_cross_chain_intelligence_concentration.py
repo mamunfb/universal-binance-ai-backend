@@ -113,3 +113,6 @@ def test_unified_intelligence_refuses_biased_partial_wallet_snapshot(monkeypatch
     assert concentration["status"] == "INCOMPLETE"
     assert concentration["queried_wallet_count"] == 0
     assert result["status"] == "INCOMPLETE"
+    quality = result["chains"][0]["data_quality"]
+    assert quality["chain_result_status"] == "INCOMPLETE"
+    assert any("coverage" in reason.lower() for reason in quality["incomplete_reasons"])
