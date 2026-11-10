@@ -48,3 +48,13 @@ def test_dashboard_displays_future_clock_skew_separately_from_age():
     html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
     assert "Future clock skew (ms):" in html
     assert "x.future_skew_ms??'—'" in html
+
+
+def test_dashboard_displays_regime_bias_confidence_and_overlap_metrics():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "Market-regime × bias reliability" in html
+    assert "x.positive_fraction_ci_95_wilson.lower" in html
+    assert "x.sample_size_status" in html
+    assert "x.non_overlapping_directional_sample_size" in html
+    assert "x.overlap_excluded_count" in html
+    assert "30-sample flag is a caution threshold" in html
