@@ -17,7 +17,7 @@ def test_support_resistance_detects_pivot_clusters():
     assert result["resistance"][0]["touches"] >= 2
 
 
-def test_fibonacci_up_swing_levels():
+def test_fibonacci_latest_up_swing_levels():
     values = [
         candle(10, 8), candle(11, 9), candle(12, 10), candle(11, 9),
         candle(10, 8), candle(11, 9), candle(13, 10), candle(12, 9),
@@ -25,7 +25,7 @@ def test_fibonacci_up_swing_levels():
     ]
     result = calculate_fibonacci_levels(values, pivot_left=1, pivot_right=1)
     assert result["status"] == "COMPLETED"
-    assert result["swing"]["direction"] == "DOWN"
+    assert result["swing"]["direction"] == "UP"
     assert "0.618" in result["retracement_levels"]
 
 
