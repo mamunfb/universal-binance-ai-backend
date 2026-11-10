@@ -54,3 +54,18 @@ def test_research_preflight_marks_unreachable_binance_market_partial(monkeypatch
     assert payload["capabilities"]["binance_live_market_data"] == "PARTIAL"
     assert payload["market_data"]["coinm"]["status"] == "UNAVAILABLE"
     assert payload["capabilities"]["news_sources"] == "UNAVAILABLE"
+
+
+def test_phase_readiness_exposes_all_twenty_without_claiming_execution(monkeypatch):
+    monkeypatch.setattr(main.settings, "news_rss_feeds", "")
+    monkeypatch.setattr(main.settings, "evm_rpc_url", "")
+    monkeypatch.setattr(main.settings, "evm_chain_rpc_urls", "[]")
+    response = client.get("/api/v1/research/phase-readiness")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["phase_count"] == 20
+    assert payload["completed_phase_count"] == 0
+    assert payload["execution_claim"] is False
+    assert payload["phases"][0]["readiness"] == "INCOMPLETE"
+    assert payload["phases"][14]["readiness"] == "BLOCKED"
+    assert payload["phases"][19]["readiness"] == "BLOCKED"
