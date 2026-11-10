@@ -588,6 +588,36 @@ def analyze_order_flow_intelligence(
 
 
 @mcp.tool()
+def analyze_market_structure_confluence(
+    market: str, symbol: str, interval: str = "1h", limit: int = 300,
+    periods: str = "15m,1h,4h,1d",
+    bin_size_bps: float = 5.0, value_area_pct: float = 70.0,
+) -> dict:
+    """Summarize local market structure, regime, CVD, multi-timeframe flow and sweep evidence."""
+    if market not in {"SPOT", "USD_M", "COIN_M"}:
+        raise ValueError("market must be SPOT, USD_M or COIN_M")
+    if interval not in {"1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d"}:
+        raise ValueError("Unsupported candle interval")
+    if not 40 <= limit <= 1000:
+        raise ValueError("limit must be between 40 and 1000")
+    selected = [item.strip() for item in periods.split(",") if item.strip()]
+    allowed = {"5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "1d"}
+    if not selected or len(selected) > 9 or len(set(selected)) != len(selected):
+        raise ValueError("Select 1 to 9 unique timeframes")
+    if any(item not in allowed for item in selected):
+        raise ValueError("Unsupported order-flow timeframe")
+    if not 0.1 <= bin_size_bps <= 500:
+        raise ValueError("bin_size_bps must be between 0.1 and 500")
+    if not 50 <= value_area_pct <= 99:
+        raise ValueError("value_area_pct must be between 50 and 99")
+    return _get(
+        f"/api/v1/analysis/market-structure-confluence/{market}/{quote(symbol.upper(), safe='')}",
+        {"interval": interval, "limit": limit, "periods": ",".join(selected),
+         "bin_size_bps": bin_size_bps, "value_area_pct": value_area_pct},
+    )
+
+
+@mcp.tool()
 def analyze_liquidity_sweep_confirmation(
     market: str, symbol: str, interval: str = "5m", limit: int = 300,
     equal_level_tolerance_bps: float = 8.0,
