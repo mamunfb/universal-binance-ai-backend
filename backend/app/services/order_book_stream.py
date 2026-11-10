@@ -20,7 +20,7 @@ def depth_stream_url(market: str, symbol: str) -> str:
     if market == "SPOT":
         return f"wss://stream.binance.com:9443/ws/{quote(symbol, safe='')}@depth@100ms"
     if market == "USD_M":
-        return f"wss://fstream.binance.com/ws/{quote(symbol, safe='')}@depth@100ms"
+        return f"wss://fstream.binance.com/public/ws/{quote(symbol, safe='')}@depth@100ms"
     if market == "COIN_M":
         return f"wss://dstream.binance.com/ws/{quote(symbol, safe='')}@depth@100ms"
     raise ValueError("market must be SPOT, USD_M or COIN_M")
