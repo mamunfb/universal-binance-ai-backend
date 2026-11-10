@@ -551,3 +551,58 @@ def test_historical_walk_forward_comparison_reports_interval_overlap_and_sample_
     walk_forward["test_directional_sample_size"] = 12
     low_sample = _historical_walk_forward_comparison(historical, walk_forward)
     assert low_sample["status"] == "LOW_SAMPLE_SIZE"
+
+
+def test_data_quality_risk_assessment_flags_weak_coverage_overlap_and_selection_risk():
+    from app.services.market_confluence_performance import _data_quality_risk_assessment
+
+    assessment = _data_quality_risk_assessment({
+        "sample_size": 40,
+        "directional_sample_size": 36,
+        "coverage_complete_count": 30,
+        "coverage_partial_count": 10,
+        "dependence_adjusted": {"overlap_excluded_count": 20},
+        "walk_forward": {
+            "consistency_assessment": {
+                "eligible_fold_count": 1,
+                "total_fold_count": 3,
+                "status": "MIXED_DIRECTIONAL_RESULTS",
+            },
+        },
+        "historical_vs_walk_forward": {
+            "status": "NOMINAL_INTERVALS_DO_NOT_OVERLAP",
+        },
+    })
+    codes = {flag["code"] for flag in assessment["flags"]}
+    assert assessment["status"] == "WARNINGS_PRESENT"
+    assert assessment["coverage_complete_fraction"] == 0.75
+    assert assessment["overlap_excluded_fraction_of_directional"] == 20 / 36
+    assert {
+        "INCOMPLETE_FUTURE_CANDLE_COVERAGE",
+        "OVERLAPPING_OUTCOME_WINDOWS",
+        "INSUFFICIENT_WALK_FORWARD_FOLD_SAMPLES",
+        "MIXED_WALK_FORWARD_FOLD_RESULTS",
+        "HISTORICAL_AND_WALK_FORWARD_INTERVALS_DIFFER",
+    }.issubset(codes)
+    assert assessment["overfitting_assessment"]["status"] == "NOT_DIRECTLY_TESTED"
+    assert assessment["overfitting_assessment"]["selection_bias_risk"] == "PRESENT_WHEN_SELECTING_TOP_GROUPS"
+
+
+def test_data_quality_risk_assessment_marks_small_samples_and_does_not_claim_clean_data():
+    from app.services.market_confluence_performance import _data_quality_risk_assessment
+
+    assessment = _data_quality_risk_assessment({
+        "sample_size": 5,
+        "directional_sample_size": 4,
+        "coverage_complete_count": 5,
+        "coverage_partial_count": 0,
+        "dependence_adjusted": {"overlap_excluded_count": 0},
+        "walk_forward": {"consistency_assessment": {
+            "eligible_fold_count": 0, "total_fold_count": 0,
+            "status": "INSUFFICIENT_FOLD_EVIDENCE",
+        }},
+        "historical_vs_walk_forward": {"status": "LOW_SAMPLE_SIZE"},
+    })
+    assert assessment["status"] == "WARNINGS_PRESENT"
+    assert assessment["flags"][0]["code"] == "LOW_DIRECTIONAL_SAMPLE_SIZE"
+    assert assessment["overfitting_assessment"]["status"] == "NOT_DIRECTLY_TESTED"
