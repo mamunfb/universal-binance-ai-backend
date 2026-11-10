@@ -688,9 +688,9 @@ async def cross_chain_token_intelligence(
                 }
             concentration_status = concentration["status"]
         except Exception as exc:
-            entity_flows = {"error": f"{type(exc).__name__}: {str(exc)[:200]}"}
+            entity_flows = {"error": "UPSTREAM_UNAVAILABLE"}
             entity_flow_status = "FAILED"
-            concentration = {"status": "FAILED", "error": f"{type(exc).__name__}: {str(exc)[:200]}"}
+            concentration = {"status": "FAILED", "error": "UPSTREAM_UNAVAILABLE"}
             concentration_status = "FAILED"
         flow_coverage = flow.get("coverage", {})
         cohort_coverage = (cohort or {}).get("coverage", {})
