@@ -11,7 +11,14 @@ SERVER_PATH = Path(__file__).resolve().parents[1] / "mcp-server" / "server.py"
 
 
 def _execute_server_module():
-    return _execute_server_module()
+    sys.modules.pop(MODULE, None)
+    spec = importlib.util.spec_from_file_location(MODULE, SERVER_PATH)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Unable to load MCP adapter from {SERVER_PATH}")
+    server = importlib.util.module_from_spec(spec)
+    sys.modules[MODULE] = server
+    spec.loader.exec_module(server)
+    return server
 
 
 def _load_server(monkeypatch, client_name="chatgpt", base_url="https://api.example.test"):
@@ -23,14 +30,7 @@ def _load_server(monkeypatch, client_name="chatgpt", base_url="https://api.examp
     monkeypatch.setenv("MCP_CLIENT_NAME", client_name)
     monkeypatch.setenv("AI_CLIENT_API_KEYS", json.dumps(keys))
     monkeypatch.setenv("APP_ENV", "production")
-    sys.modules.pop(MODULE, None)
-    spec = importlib.util.spec_from_file_location(MODULE, SERVER_PATH)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"Unable to load MCP adapter from {SERVER_PATH}")
-    server = importlib.util.module_from_spec(spec)
-    sys.modules[MODULE] = server
-    spec.loader.exec_module(server)
-    return server
+    return _execute_server_module()
 
 
 def test_mcp_registers_only_read_only_tool_surface(monkeypatch):
@@ -63,7 +63,7 @@ def test_rejects_weak_client_key(monkeypatch):
     monkeypatch.setenv("APP_ENV", "production")
     sys.modules.pop(MODULE, None)
     with pytest.raises(RuntimeError, match="strong API key"):
-        importlib.import_module(MODULE)
+        _execute_server_module()
 
 
 def test_rejects_insecure_production_url(monkeypatch):
