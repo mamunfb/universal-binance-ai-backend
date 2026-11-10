@@ -3,6 +3,8 @@ from __future__ import annotations
 import math
 from typing import Any
 
+from app.services.order_flow_intelligence import analyze_order_flow
+
 
 def _finite(value: Any) -> float | None:
     try:
@@ -194,6 +196,11 @@ def analyze_liquidity_sweep_confirmation(
             elif side == "SELL":
                 sell_qty += quantity
         net_qty = buy_qty - sell_qty
+        flow_analysis = analyze_order_flow(
+            interval_trades, normalized_market, normalized_symbol,
+            timestamp, end, 5.0, 70.0,
+        )
+        profile = flow_analysis.get("volume_profile", {})
         expected = "BUY" if candidate["direction"].startswith("BULLISH") else "SELL"
         trade_confirmation = (
             "ALIGNED_AGGRESSOR_FLOW" if interval_trades and net_qty > 0 and expected == "BUY"
@@ -240,6 +247,14 @@ def analyze_liquidity_sweep_confirmation(
             "trade_count": len(interval_trades), "buy_quantity": buy_qty,
             "sell_quantity": sell_qty, "net_cvd_quantity": net_qty,
             "confirmation": trade_confirmation, "window_end_time_ms": end,
+        }
+        candidate["volume_profile"] = {
+            "status": flow_analysis.get("status"),
+            "poc": profile.get("poc"),
+            "value_area": profile.get("value_area"),
+            "bin_size_bps": profile.get("bin_size_bps"),
+            "value_area_pct": profile.get("value_area_pct"),
+            "interpretation": "Profile is calculated only from locally stored trades in the post-sweep confirmation window.",
         }
         candidate["order_book_context"] = {
             "status": book_status, "before_event_time_ms": before.get("event_time_ms") if before else None,
