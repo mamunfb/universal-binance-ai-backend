@@ -206,6 +206,7 @@ Available tools:
 - `analyze_advanced_derivatives`
 - `analyze_multi_timeframe_derivatives`
 - `get_stored_derivatives_ratio_history`
+- `analyze_combined_derivatives_intelligence`
 - `get_derivatives_signal_history`
 - `get_liquidation_collector_status`
 
