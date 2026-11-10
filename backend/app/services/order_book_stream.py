@@ -128,6 +128,12 @@ class OrderBookStreamCollector:
         self.jobs_json = jobs_json
         self.sample_interval_seconds = sample_interval_seconds
         self.snapshot_limit = snapshot_limit
+        if sample_interval_seconds <= 0:
+            raise ValueError("sample_interval_seconds must be positive")
+        if not 1 <= snapshot_limit <= 1000:
+            raise ValueError("snapshot_limit must be between 1 and 1000")
+        if not 1 <= stored_levels <= snapshot_limit:
+            raise ValueError("stored_levels must be between 1 and snapshot_limit")
         self.stored_levels = stored_levels
         self.tasks: list[asyncio.Task] = []
         self.states: dict[str, dict[str, Any]] = {}
@@ -177,8 +183,11 @@ class OrderBookStreamCollector:
         return self.spot_provider_factory() if market == "SPOT" else self.futures_provider_factory(market)
 
     async def _reader(self, socket: Any, queue: asyncio.Queue) -> None:
-        async for raw in socket:
-            await queue.put(json.loads(raw))
+        try:
+            async for raw in socket:
+                await queue.put(json.loads(raw))
+        finally:
+            await queue.put(None)
 
     async def _run_job(self, job: dict[str, str]) -> None:
         market, symbol = job["market"], job["symbol"]
@@ -201,32 +210,36 @@ class OrderBookStreamCollector:
                         last_id = int(snapshot["lastUpdateId"])
                         bids = {float(p): float(q) for p, q in snapshot["bids"] if float(q) > 0}
                         asks = {float(p): float(q) for p, q in snapshot["asks"] if float(q) > 0}
-                        # Drop buffered events fully covered by the REST snapshot.
+                        first_event = True
+                        # Discard stale buffered updates, then bridge the snapshot update ID.
                         while not queue.empty():
                             event = queue.get_nowait()
+                            if event is None:
+                                raise RuntimeError("DEPTH_STREAM_CLOSED_DURING_SYNC")
                             if int(event.get("u", 0)) <= last_id:
                                 continue
-                            if int(event.get("U", 0)) > last_id + 1:
-                                raise RuntimeError("DEPTH_SEQUENCE_GAP_DURING_INITIAL_SYNC")
+                            self._validate_sequence(market, event, last_id, first_event)
                             self._apply(event, bids, asks)
+                            self._trim_book(bids, asks)
                             last_id = int(event["u"])
-                        state["synchronized"] = True
+                            first_event = False
+                        state["synchronized"] = not first_event
                         delay = 1
                         last_sample = 0.0
                         import time
                         while not self._stop.is_set():
                             event = await queue.get()
-                            first_id, final_id = int(event.get("U", 0)), int(event.get("u", 0))
+                            if event is None:
+                                raise RuntimeError("DEPTH_STREAM_CLOSED")
+                            final_id = int(event.get("u", 0))
                             if final_id <= last_id:
                                 continue
-                            if market in {"USD_M", "COIN_M"}:
-                                previous_id = event.get("pu")
-                                if previous_id is not None and int(previous_id) != last_id:
-                                    raise RuntimeError("DEPTH_SEQUENCE_GAP")
-                            elif not (first_id <= last_id + 1 <= final_id):
-                                raise RuntimeError("DEPTH_SEQUENCE_GAP")
+                            self._validate_sequence(market, event, last_id, first_event)
                             self._apply(event, bids, asks)
+                            self._trim_book(bids, asks)
                             last_id = final_id
+                            first_event = False
+                            state["synchronized"] = True
                             state["last_event_at"] = datetime.now(timezone.utc).isoformat()
                             now = time.monotonic()
                             if now - last_sample >= self.sample_interval_seconds:
@@ -250,6 +263,27 @@ class OrderBookStreamCollector:
                 state["connected"] = False
                 state["synchronized"] = False
 
+    @staticmethod
+    def _validate_sequence(market: str, event: dict[str, Any], last_id: int, first_event: bool) -> None:
+        first_id, final_id = int(event.get("U", 0)), int(event.get("u", 0))
+        if first_event:
+            if not (first_id <= last_id + 1 <= final_id):
+                raise RuntimeError("DEPTH_INITIAL_SEQUENCE_GAP")
+            return
+        if market in {"USD_M", "COIN_M"}:
+            previous_id = event.get("pu")
+            if previous_id is None or int(previous_id) != last_id:
+                raise RuntimeError("DEPTH_SEQUENCE_GAP")
+        elif first_id > last_id + 1:
+            raise RuntimeError("DEPTH_SEQUENCE_GAP")
+
+    def _trim_book(self, bids: dict[float, float], asks: dict[float, float]) -> None:
+        if len(bids) > self.snapshot_limit:
+            for price in sorted(bids)[:-self.snapshot_limit]:
+                bids.pop(price, None)
+        if len(asks) > self.snapshot_limit:
+            for price in sorted(asks, reverse=True)[:-self.snapshot_limit]:
+                asks.pop(price, None)
     @staticmethod
     def _apply(event: dict[str, Any], bids: dict[float, float], asks: dict[float, float]) -> None:
         for key, book_side in (("b", bids), ("a", asks)):
