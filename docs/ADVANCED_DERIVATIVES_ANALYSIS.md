@@ -13,6 +13,7 @@ The analysis requires at least six locally stored Open Interest records. It repo
 
 - OI acceleration is the difference between the latest and previous sequential OI percentage changes, in percentage points.
 - OI spike candidate uses the previous OI percentage changes as baseline and the modified Z score `0.6745 * (latest - median) / MAD`. The default multiplier is 3.5 and can be supplied by the caller. A zero MAD or insufficient baseline does not produce a spike classification.
+- Positioning context labels price-up/OI-up, price-down/OI-up, and OI-contraction co-movements as candidates only. It does not identify the long or short side.
 - Price/OI divergence candidate means the latest observed price return and latest OI percentage change have opposite signs. It is not a confirmed reversal.
 - Funding extreme is evaluated against the explicitly supplied absolute rate threshold. The default 0.001 is a configurable starting value, not a market-wide calibrated threshold.
 - Liquidation rows are drawn from the latest 1,000 locally stored events for the symbol. SELL and BUY force-order sides are reported separately; no claim is made about complete liquidation volume or trader positioning.
