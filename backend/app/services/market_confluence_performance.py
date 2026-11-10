@@ -521,6 +521,81 @@ class MarketConfluencePerformance:
             }
 
 
+        minimum_ranking_sample_size = 30
+        ranking_definitions = {
+            "directional_positive_fraction": {
+                "label": "Directional positive fraction",
+                "sample_field": "directional_sample_size",
+                "ci_field": "positive_fraction_ci_95_wilson",
+            },
+            "mean_directional_return_percent": {
+                "label": "Mean directional return",
+                "sample_field": "directional_sample_size",
+                "ci_field": None,
+            },
+            "non_overlapping_positive_fraction": {
+                "label": "Non-overlapping positive fraction",
+                "sample_field": "dependence_adjusted.directional_sample_size",
+                "ci_field": "dependence_adjusted.positive_fraction_ci_95_wilson",
+            },
+        }
+        horizon_rankings = {}
+        for metric, definition in ranking_definitions.items():
+            eligible = []
+            excluded = []
+            for horizon_key, horizon_data in summaries.items():
+                sample_field = definition["sample_field"]
+                if "." in sample_field:
+                    parent, child = sample_field.split(".", 1)
+                    sample_size = (horizon_data.get(parent) or {}).get(child, 0)
+                else:
+                    sample_size = horizon_data.get(sample_field, 0)
+                if metric == "non_overlapping_positive_fraction":
+                    value = (horizon_data.get("dependence_adjusted") or {}).get("positive_fraction")
+                    ci = (horizon_data.get("dependence_adjusted") or {}).get("positive_fraction_ci_95_wilson")
+                else:
+                    value = horizon_data.get(metric)
+                    ci_field = definition["ci_field"]
+                    ci = horizon_data.get(ci_field) if ci_field else None
+                if sample_size < minimum_ranking_sample_size:
+                    excluded.append({
+                        "horizon": horizon_data["label"],
+                        "horizon_hours": horizon_data["horizon_hours"],
+                        "sample_size": sample_size,
+                        "reason": "BELOW_MINIMUM_SAMPLE_SIZE",
+                    })
+                elif value is None or not math.isfinite(float(value)):
+                    excluded.append({
+                        "horizon": horizon_data["label"],
+                        "horizon_hours": horizon_data["horizon_hours"],
+                        "sample_size": sample_size,
+                        "reason": "METRIC_UNAVAILABLE",
+                    })
+                else:
+                    eligible.append({
+                        "horizon": horizon_data["label"],
+                        "horizon_hours": horizon_data["horizon_hours"],
+                        "sample_size": sample_size,
+                        "value": value,
+                        "confidence_interval_95_wilson": ci,
+                    })
+            eligible.sort(key=lambda row: (-row["value"], row["horizon_hours"]))
+            ranked = []
+            previous_value = None
+            current_rank = 0
+            for index, row in enumerate(eligible, start=1):
+                if previous_value is None or row["value"] != previous_value:
+                    current_rank = index
+                ranked.append({"rank": current_rank, **row})
+                previous_value = row["value"]
+            horizon_rankings[metric] = {
+                "label": definition["label"],
+                "higher_is_better": True,
+                "minimum_sample_size": minimum_ranking_sample_size,
+                "ranked": ranked,
+                "excluded": excluded,
+            }
+
         return {
             "status": "COMPLETED" if history["snapshots"] else "NO_STORED_SNAPSHOTS",
             "market": market.upper(),
@@ -530,6 +605,12 @@ class MarketConfluencePerformance:
             "snapshot_count": history["returned_count"],
             "horizon_count": len(self.HORIZONS_HOURS),
             "horizons": summaries,
+            "horizon_comparison": {
+                "status": "DESCRIPTIVE_ONLY",
+                "minimum_sample_size": minimum_ranking_sample_size,
+                "rankings": horizon_rankings,
+                "method": "Separate metric rankings only; no composite score. Horizons below the minimum sample size or without a metric are excluded, not assigned a rank. Rankings do not establish predictive validity or profitability.",
+            },
             "method": {
                 "baseline": "Saved close of the last local candle fully closed at or before snapshot time.",
                 "future_data": "Only candles whose open_time_ms is strictly later than analyzed_at_ms are eligible.",
