@@ -106,3 +106,8 @@ A descriptive endpoint classifies locally stored OHLC candles by relative volati
 ## Historical liquidation clusters
 
 Observed locally stored USD-M force-order snapshots can be grouped into configurable logarithmic price buckets. Coverage limits and partial-stream caveats are returned with each analysis. This is descriptive only, not a prediction of future liquidation levels. See [Liquidation Cluster Analysis](docs/LIQUIDATION_CLUSTER_ANALYSIS.md).
+
+
+## Historical signal performance evaluation
+
+`GET /api/v1/analysis/derivatives/signal-performance/{symbol}?period=1h&price_interval=1h&limit=500&round_trip_cost_bps=0` evaluates subsequent 1h, 4h and 24h price outcomes for locally stored completed derivatives snapshots. It reports gross and cost-assumption-adjusted hypothetical returns, favorable/adverse excursions, sample size and coverage limitations. It deliberately does not report directional accuracy or strategy win rate because the stored descriptive classifications are not validated directional entry signals. See [Historical Signal Performance](docs/HISTORICAL_SIGNAL_PERFORMANCE.md). The MCP tool is `evaluate_historical_signal_performance`.
