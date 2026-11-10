@@ -25,7 +25,7 @@ POST /api/v1/history/funding-rates/USD_M/{symbol}/collect?start_time_ms=...&end_
 - If no time bounds are supplied, Binance returns its latest available events up to the requested limit.
 - Empty upstream responses return `NO_NEW_DATA`; no rows are written.
 
-The API currently performs one bounded request per call. It does not yet run an automatic funding collector or paginate an arbitrarily long date range.
+The API performs one bounded request per manual call. An optional scheduled derivatives collector can poll configured Funding Rate series; it is disabled by default and does not paginate an arbitrarily long historical date range.
 
 ## Read stored events
 
