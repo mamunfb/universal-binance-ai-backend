@@ -52,23 +52,27 @@ class EVMTransferStore:
         now = datetime.now(timezone.utc).isoformat()
         rows = []
         for log in logs:
+            if not isinstance(log, dict):
+                raise ValueError("RPC returned a non-object log; refusing to mark this block range complete")
             topics = log.get("topics") or []
             tx_hash = log.get("transactionHash")
-            if len(topics) < 3 or not isinstance(tx_hash, str):
-                continue
+            if len(topics) < 3 or not isinstance(tx_hash, str) or len(tx_hash) != 66 or not tx_hash.startswith("0x"):
+                raise ValueError("RPC returned a malformed Transfer log; refusing to mark this block range complete")
             block_hex, index_hex, data = log.get("blockNumber"), log.get("logIndex"), log.get("data")
             if not all(isinstance(value, str) and value.startswith("0x")
                        for value in (block_hex, index_hex, data)):
-                continue
+                raise ValueError("RPC Transfer log is missing blockNumber, logIndex, or data")
             try:
                 block_number, log_index, raw_value = int(block_hex, 16), int(index_hex, 16), int(data, 16)
-                sender, recipient = "0x" + topics[1][-40:].lower(), "0x" + topics[2][-40:].lower()
                 if len(topics[1]) != 66 or len(topics[2]) != 66:
-                    continue
-                if not (start <= block_number <= end) or raw_value < 0:
-                    continue
-            except (ValueError, TypeError):
-                continue
+                    raise ValueError("Transfer log contains malformed indexed address topics")
+                sender, recipient = "0x" + topics[1][-40:].lower(), "0x" + topics[2][-40:].lower()
+                int(sender[2:], 16)
+                int(recipient[2:], 16)
+            except (ValueError, TypeError) as exc:
+                raise ValueError("RPC returned an invalid Transfer log; refusing to mark this block range complete") from exc
+            if not (start <= block_number <= end) or raw_value < 0:
+                raise ValueError("RPC Transfer log falls outside the requested range or has a negative amount")
             rows.append((chain_id, contract.lower(), tx_hash.lower(), log_index, block_number,
                          sender, recipient, str(raw_value), int(bool(log.get("removed"))), now))
         with sqlite3.connect(self.database_path) as connection:
