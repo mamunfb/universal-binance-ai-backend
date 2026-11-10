@@ -90,3 +90,5 @@ Configuration uses `EVM_WALLET_REGISTRY`, a JSON array. Example (replace the ill
 Allowed labels: exchange, fund, market_maker, protocol_treasury, smart_money, whale, unknown. Allowed statuses: unverified, pending_review, verified, rejected. Entries marked verified must include an HTTPS evidence URL and a non-empty evidence note. The application validates provenance fields but does not independently authenticate the source. Never mark a wallet verified solely because it sends tokens to an exchange or has a large balance. Do not add guessed addresses or unreferenced social-media claims.
 
 The registry endpoint is read-only. Populate it through controlled deployment configuration; do not expose public write access for attribution labels. No exchange or smart-money wallet list is bundled by default.
+
+The historical `/history/flows` response also attaches matching registry attribution to each listed address. Missing registry matches are explicitly returned as `unknown` / `unverified`; this is not an automated smart-money classifier.
