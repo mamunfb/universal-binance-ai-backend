@@ -564,6 +564,29 @@ def analyze_liquidation_clusters(
 
 
 
+@mcp.tool()
+def analyze_order_flow_intelligence(
+    market: str, symbol: str, lookback_minutes: int = 60,
+    bin_size_bps: float = 5.0, value_area_pct: float = 70.0,
+) -> dict:
+    """Analyze locally stored aggregate trades for volume profile, CVD and divergence candidates."""
+    if market not in {"SPOT", "USD_M", "COIN_M"}:
+        raise ValueError("market must be SPOT, USD_M or COIN_M")
+    if not 1 <= lookback_minutes <= 1440:
+        raise ValueError("lookback_minutes must be between 1 and 1440")
+    if not 0.1 <= bin_size_bps <= 500:
+        raise ValueError("bin_size_bps must be between 0.1 and 500")
+    if not 50 <= value_area_pct <= 99:
+        raise ValueError("value_area_pct must be between 50 and 99")
+    return _get(
+        f"/api/v1/analysis/order-flow/{market}/{quote(symbol.upper(), safe='')}",
+        {"lookback_minutes": lookback_minutes, "bin_size_bps": bin_size_bps,
+         "value_area_pct": value_area_pct},
+    )
+
+
+
+
 if __name__ == "__main__":
     # stdio transport keeps the adapter local to its configured AI client process.
     mcp.run(transport="stdio")
