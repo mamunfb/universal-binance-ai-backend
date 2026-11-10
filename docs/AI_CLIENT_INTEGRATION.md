@@ -253,3 +253,11 @@ REST snapshot and calculates spread, visible depth, imbalance, microprice,
 near-mid bands and relative large-order candidates. It is not a sequence-aware
 WebSocket stream or historical liquidity tracker. See
 `docs/ORDER_BOOK_LIQUIDITY_INTELLIGENCE.md`.
+
+
+### Stored order-book liquidity history
+
+- `get_order_book_stream_status` reports whether the optional local depth collector is enabled and synchronized.
+- `get_stored_order_book_history` reads locally captured samples by market and symbol.
+- The collector is disabled by default. Enable it only on a persistent, single-process deployment with explicit `ORDER_BOOK_COLLECTOR_JOBS`.
+- History begins at deployment/enablement and is sampled periodically; it is not exchange-wide historical backfill.
