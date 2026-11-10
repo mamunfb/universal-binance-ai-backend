@@ -152,7 +152,9 @@ def test_smart_money_accumulation_trend_groups_net_flows_by_block_window(tmp_pat
     result = store.smart_money_accumulation_trend(1, CONTRACT, 100, 110, 18, registry, 10)
     assert result["window_count_with_activity"] == 2
     assert result["windows"][0]["net_flow_tokens"] == 5
+    assert result["windows"][0]["direction"] == "NET_INFLOW"
     assert result["windows"][1]["net_flow_tokens"] == -2
+    assert result["windows"][1]["direction"] == "NET_OUTFLOW"
     assert result["windows"][1]["cumulative_net_flow_tokens"] == 3
 
 
@@ -163,3 +165,27 @@ def test_smart_money_accumulation_trend_rejects_invalid_window(tmp_path):
     registry = load_wallet_registry("[]", 1)
     with pytest.raises(ValueError, match="window_blocks"):
         store.smart_money_accumulation_trend(1, CONTRACT, 100, 110, 18, registry, 0)
+
+
+
+def test_smart_money_trend_cancels_transfers_between_cohort_wallets(tmp_path):
+    from app.services.wallet_attribution import load_wallet_registry
+
+    second = "0x" + "3" * 40
+    store = EVMTransferStore(str(tmp_path / "history.sqlite3"))
+    registry_json = (
+        '[{"address":"' + SENDER + '","label":"smart_money","verification_status":"verified",'
+        '"evidence_url":"https://example.org/a","evidence_note":"Reviewed disclosure"},'
+        '{"address":"' + second + '","label":"smart_money","verification_status":"verified",'
+        '"evidence_url":"https://example.org/b","evidence_note":"Reviewed disclosure"}]'
+    )
+    registry = load_wallet_registry(registry_json, 1)
+    log = {
+        "topics": ["0x" + "0" * 64, _topic(SENDER), _topic(second)],
+        "data": hex(7 * 10**18), "transactionHash": "0x" + "c" * 64,
+        "blockNumber": "0x64", "logIndex": "0x0",
+    }
+    store.save_chunk(1, CONTRACT, 100, 100, [log])
+    result = store.smart_money_accumulation_trend(1, CONTRACT, 100, 100, 18, registry, 10)
+    assert result["windows"] == []
+    assert result["window_count_with_activity"] == 0
