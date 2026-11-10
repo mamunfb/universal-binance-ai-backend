@@ -462,6 +462,24 @@ async def cross_chain_token_intelligence(
                     1 for item in concentration_wallets if item.get("status") == "FAILED"
                 ),
                 "verified_registry_wallet_count": concentration.get("verified_wallet_count", 0),
+                "component_status": {
+                    "indexed_address_flows": flow.get("status", "UNAVAILABLE"),
+                    "verified_smart_money": (
+                        cohort.get("status", "UNAVAILABLE") if cohort is not None else "UNAVAILABLE"
+                    ),
+                    "verified_entity_flows": entity_flow_status,
+                    "verified_wallet_concentration": concentration_status,
+                },
+                "incomplete_reasons": [
+                    reason for condition, reason in [
+                        (flow.get("status") != "COMPLETED", "Indexed address flows are not complete."),
+                        (cohort is None or cohort.get("status") != "COMPLETED", "Verified smart-money flow data is unavailable or incomplete."),
+                        (entity_flow_status != "COMPLETED", "Verified entity flow data is unavailable or incomplete."),
+                        (concentration_status not in {"COMPLETED", "EMPTY"}, "Verified wallet balance snapshot is incomplete or unavailable."),
+                        (not flow_coverage.get("complete", False), "Indexed address-flow coverage has gaps or is not confirmed complete."),
+                        (not cohort_coverage.get("complete", False), "Smart-money indexed coverage has gaps or is not confirmed complete."),
+                    ] if condition
+                ],
                 "chain_result_status": (
                     "COMPLETED"
                     if flow["status"] == "COMPLETED"
