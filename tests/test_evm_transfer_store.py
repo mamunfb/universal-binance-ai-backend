@@ -69,3 +69,15 @@ def test_indexer_rejects_oversized_range_before_rpc(tmp_path):
         assert "exceeds maximum" in str(exc)
     else:
         raise AssertionError("Expected range guard")
+
+
+def test_malformed_log_does_not_create_coverage(tmp_path):
+    store = EVMTransferStore(str(tmp_path / "history.sqlite3"))
+    malformed = {"topics": [], "transactionHash": "0x" + "c" * 64}
+    try:
+        store.save_chunk(1, CONTRACT, 200, 205, [malformed])
+    except ValueError as exc:
+        assert "malformed Transfer log" in str(exc)
+    else:
+        raise AssertionError("Malformed log must not be accepted")
+    assert store.coverage(1, CONTRACT) == []
