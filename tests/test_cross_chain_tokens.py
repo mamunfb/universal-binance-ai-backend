@@ -34,12 +34,12 @@ def test_cross_chain_erc20_snapshot_pins_calls_to_observed_block(monkeypatch):
         async def eth_call(self, contract, data, block="latest"):
             calls.append((data[:10], block))
             if data == "0x18160ddd":
-                return hex(1000)
+                return "0x" + (1000).to_bytes(32, "big").hex()
             if data == "0x313ce567":
-                return hex(2)
+                return "0x" + (2).to_bytes(32, "big").hex()
             if data in ("0x95d89b41", "0x06fdde03"):
                 return "0x" + (64).to_bytes(32, "big").hex() + (3).to_bytes(32, "big").hex() + "555344" + "00" * 29
-            return hex(250)
+            return "0x" + (250).to_bytes(32, "big").hex()
 
     monkeypatch.setattr("app.services.cross_chain_tokens.EVMRPCProvider", FakeProvider)
     config = [{"chain_id": 1, "asset_id": "usd-coin", "contract_address": CONTRACT,
@@ -64,3 +64,41 @@ def test_cross_chain_erc20_rejects_unknown_asset_and_bad_address():
             [{"chain_id": 1, "asset_id": "x", "contract_address": CONTRACT,
               "rpc_url": "https://rpc.example", "chain_name": "Ethereum"}],
             "x", ["bad"]))
+
+
+def test_cross_chain_token_uint_decoder_rejects_malformed_words():
+    from app.services.cross_chain_tokens import _uint
+    for value in ("0x1", "0x" + "00" * 31, "0x" + "zz" * 32):
+        with pytest.raises(ValueError):
+            _uint(value)
+    assert _uint("0x" + (123).to_bytes(32, "big").hex()) == 123
+
+
+def test_cross_chain_token_text_decoder_supports_bytes32_and_rejects_bad_offsets():
+    from app.services.cross_chain_tokens import _text
+    assert _text("0x" + b"USDC".ljust(32, b"\\x00").hex()) == "USDC"
+    malformed = "0x" + (32).to_bytes(32, "big").hex() + (999).to_bytes(32, "big").hex()
+    assert _text(malformed) is None
+
+
+def test_parse_chain_token_configs_caps_entries():
+    raw = '[{"chain_id":1,"asset_id":"asset-' + 'a' + '","contract_address":"' + CONTRACT + '","rpc_url":"https://rpc.example"}]'
+    entry = raw[1:-1]
+    with pytest.raises(ValueError, match="20"):
+        parse_chain_token_configs("[" + ",".join([entry] * 21) + "]")
+
+
+def test_cross_chain_token_snapshot_sanitizes_provider_errors(monkeypatch):
+    class FakeProvider:
+        def __init__(self, url, timeout):
+            pass
+        async def chain_id(self):
+            raise RuntimeError("https://rpc.example/key=secret-token")
+
+    monkeypatch.setattr("app.services.cross_chain_tokens.EVMRPCProvider", FakeProvider)
+    config = [{"chain_id": 1, "asset_id": "usd-coin", "contract_address": CONTRACT,
+               "rpc_url": "https://rpc.example", "chain_name": "Ethereum"}]
+    result = asyncio.run(cross_chain_erc20_snapshot(config, "usd-coin", [ADDRESS]))
+    assert result["status"] == "INCOMPLETE"
+    assert result["chains"][0]["error"] == "CHAIN_SNAPSHOT_UNAVAILABLE"
+    assert "secret-token" not in str(result)
