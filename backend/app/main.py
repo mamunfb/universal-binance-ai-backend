@@ -23,6 +23,7 @@ from app.providers.evm_rpc import EVMRPCProvider
 from app.services.onchain_intelligence import analyze_erc20_activity, get_evm_wallet_snapshot, get_erc20_token_snapshot
 from app.services.evm_transfer_store import EVMTransferStore, index_erc20_transfer_history
 from app.services.wallet_attribution import load_wallet_registry, annotate_wallet_addresses
+from app.services.cross_chain_wallets import parse_chain_rpc_configs, cross_chain_native_wallet_snapshot
 
 liquidation_store = LiquidationStore(settings.liquidation_database_path)
 liquidation_collector = LiquidationCollector(liquidation_store)
@@ -195,6 +196,29 @@ async def get_evm_token_history(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
+
+
+@app.get("/api/v1/onchain/evm/cross-chain/wallets", tags=["on-chain"])
+async def cross_chain_wallets(addresses: str = Query(..., description="Comma-separated EVM wallet addresses")) -> dict:
+    try:
+        requested = [value.strip() for value in addresses.split(",") if value.strip()]
+        if not requested:
+            raise ValueError("At least one wallet address is required")
+        configs = parse_chain_rpc_configs(settings.evm_chain_rpc_urls)
+        if not configs:
+            raise HTTPException(status_code=503, detail={
+                "status": "BLOCKED",
+                "message": "Configure EVM_CHAIN_RPC_URLS with one or more HTTPS RPC endpoints."
+            })
+        result = await cross_chain_native_wallet_snapshot(
+            configs, requested, settings.http_timeout_seconds
+        )
+        result["generated_at"] = datetime.now(timezone.utc).isoformat()
+        return result
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)[:300]}) from exc
 
 
 @app.get("/api/v1/onchain/evm/token/{contract}/concentration", tags=["on-chain"])
