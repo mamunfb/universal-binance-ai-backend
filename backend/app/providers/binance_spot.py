@@ -23,6 +23,14 @@ class BinanceSpotProvider:
             response.raise_for_status()
             return response.json()
 
+    async def price_ticker(self, symbol: str) -> dict[str, Any]:
+        if not symbol or not symbol.strip():
+            raise ValueError("symbol must not be empty")
+        data = await self._get("/api/v3/ticker/price", {"symbol": symbol.upper()})
+        if not isinstance(data, dict):
+            raise ValueError("Unexpected Binance Spot price ticker response")
+        return data
+
     async def exchange_info(self) -> dict[str, Any]:
         data = await self._get("/api/v3/exchangeInfo")
         if not isinstance(data, dict) or "symbols" not in data:
