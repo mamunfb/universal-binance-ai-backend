@@ -47,6 +47,7 @@ def test_unified_intelligence_adds_verified_wallet_balance_concentration(monkeyp
     concentration = result["chains"][0]["verified_wallet_concentration"]
     assert result["status"] == "COMPLETED"
     assert concentration["snapshot_block"] == 500
+    assert concentration["snapshot_block_number"] == 500
     assert concentration["snapshot_block_timestamp"] == 1700000000
     assert concentration["snapshot_timestamp_status"] == "AVAILABLE"
     assert concentration["snapshot_block_time"] is not None
