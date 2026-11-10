@@ -83,7 +83,7 @@ def _text(result: str) -> str | None:
                 return raw[offset + 32:offset + 32 + length].decode("utf-8")
             return None
         if len(raw) == 32:
-            return raw.split(b"\\x00", 1)[0].decode("utf-8")
+            return raw.split(b"\x00", 1)[0].decode("utf-8")
         return None
     except (ValueError, UnicodeDecodeError):
         return None
