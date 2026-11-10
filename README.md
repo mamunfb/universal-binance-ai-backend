@@ -26,13 +26,14 @@ Binance public APIs -> provider adapters and normalization -> analysis services 
 - Binance USDⓈ-M Futures: perpetual contract scanner and klines.
 - Binance COIN-M Futures: perpetual contract scanner and klines.
 - Binance USDⓈ-M derivatives: funding history, open interest, global long/short account ratio, taker buy/sell ratio, and order-book snapshot summary.
-- Spot/ USDⓈ-M Futures comparison: latest price basis (premium/discount) plus latest funding-rate context; see docs/SPOT_FUTURES_BASIS_API.md.
+- Spot/USDⓈ-M Futures comparison: latest price basis (premium/discount) plus latest funding-rate context; see docs/SPOT_FUTURES_BASIS_API.md.
+- Unified research-only Market Evidence Snapshot combining multi-timeframe trend, Spot/Futures basis, derivatives, approximate volume structure, and configured news catalyst triage; it explicitly emits no Buy/Sell signal or probability. See docs/MARKET_EVIDENCE_API.md.
 - Multi-timeframe Spot analysis (15m/1h/4h/1d) and a limited BTC/ETH market context endpoint.
 - Optional Binance USDⓈ-M force-order WebSocket snapshot collector with SQLite persistence; disabled by default and explicitly documented as incomplete snapshot coverage.
 - Spot pivot-based support/resistance clusters and Fibonacci retracement/extension levels.
 - Anchored VWAP, OHLCV-approximated Volume Profile (POC/VAH/VAL), and rule-based BOS/CHoCH/liquidity-sweep candidates.
 
-Futures coverage is based on exchangeInfo symbols marked TRADING and the selected quote asset. Scanner responses include coverage counts and data failures. See docs/FUTURES_API.md, docs/DERIVATIVES_API.md, docs/SPOT_FUTURES_BASIS_API.md, docs/MULTI_TIMEFRAME_API.md, docs/LIQUIDATION_COLLECTOR.md, docs/PRICE_LEVELS_API.md, and docs/VOLUME_STRUCTURE_API.md.
+Futures coverage is based on exchangeInfo symbols marked TRADING and the selected quote asset. Scanner responses include coverage counts and data failures. See docs/FUTURES_API.md, docs/DERIVATIVES_API.md, docs/SPOT_FUTURES_BASIS_API.md, docs/MARKET_EVIDENCE_API.md, docs/MULTI_TIMEFRAME_API.md, docs/LIQUIDATION_COLLECTOR.md, docs/PRICE_LEVELS_API.md, and docs/VOLUME_STRUCTURE_API.md.
 
 ## Repository layout
 - backend/ — API and application services
@@ -47,7 +48,7 @@ Futures coverage is based on exchangeInfo symbols marked TRADING and the selecte
 Upstream projects will be evaluated and integrated individually. They will not be blindly copied into this repository. Each source must have its license, maintenance status, security posture, and relevance reviewed first. See docs/REPOSITORY_IMPORT_PLAN.md.
 
 ## Current status
-The repository includes Spot and Futures scanners/klines, Spot technical indicators, USDⓈ-M derivatives snapshots, Spot/Futures basis and funding comparison, multi-timeframe Spot analysis, a limited BTC/ETH context endpoint, and an opt-in liquidation snapshot collector. News RSS/Atom ingestion, conservative cross-source corroboration, and keyword-based catalyst triage are implemented. The EVM JSON-RPC layer provides native wallet balance snapshots, bounded ERC-20 Transfer-log analysis, token metadata/total supply, configured holder-watchlist balances, and cross-chain token/wallet/smart-money intelligence for explicitly configured EVM networks. A private read-only MCP stdio adapter is implemented with tools for the five intended AI clients; actual connection in each owner's account remains unverified until end-to-end tests are performed there. Non-EVM chains, indexed holder distributions, validated forecasting/backtesting, and production database operations remain future work. Upstream source code has NOT been copied into this repository; see docs/REPOSITORY_IMPORT_PLAN.md and docs/THIRD_PARTY_NOTICES.md.
+The repository includes Spot and Futures scanners/klines, Spot technical indicators, USDⓈ-M derivatives snapshots, Spot/Futures basis and funding comparison, a unified research-only Market Evidence Snapshot, multi-timeframe Spot analysis, a limited BTC/ETH context endpoint, and an opt-in liquidation snapshot collector. News RSS/Atom ingestion, conservative cross-source corroboration, and keyword-based catalyst triage are implemented. The EVM JSON-RPC layer provides native wallet balance snapshots, bounded ERC-20 Transfer-log analysis, token metadata/total supply, configured holder-watchlist balances, and cross-chain token/wallet/smart-money intelligence for explicitly configured EVM networks. A private read-only MCP stdio adapter is implemented with tools for the five intended AI clients; actual connection in each owner's account remains unverified until end-to-end tests are performed there. Non-EVM chains, indexed holder distributions, validated forecasting/backtesting, and production database operations remain future work. Upstream source code has NOT been copied into this repository; see docs/REPOSITORY_IMPORT_PLAN.md and docs/THIRD_PARTY_NOTICES.md.
 
 ## Run locally
 ```bash
