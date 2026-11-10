@@ -66,3 +66,12 @@ def test_dashboard_displays_regime_bias_alignment_breakdown():
     assert "regime_bias_alignment_breakdown" in html
     assert "x.positive_fraction_ci_95_wilson.lower" in html
     assert "escapeHtml(alignment)" in html
+
+def test_dashboard_displays_alignment_breakdowns_for_all_regime_dimensions():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "market_regime'" in html
+    assert "volatility_regime'" in html
+    assert "structure_regime'" in html
+    assert "Volatility regime" in html
+    assert "Structure regime" in html
+    assert "(h.regime_bias_alignment_breakdown||{})[dimension]||{}" in html
