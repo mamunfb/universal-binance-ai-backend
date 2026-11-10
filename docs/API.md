@@ -48,3 +48,8 @@ This first version only covers Binance Spot public endpoints. USDⓈ-M Futures, 
 ## Futures market data
 
 See [FUTURES_API.md](./FUTURES_API.md) for USDⓈ-M and COIN-M market scanner and kline endpoints.
+
+
+## Derivatives and liquidity
+
+See [DERIVATIVES_API.md](./DERIVATIVES_API.md) for the USDⓈ-M Futures derivatives endpoint and data interpretation limitations.
