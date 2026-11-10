@@ -41,3 +41,11 @@ def test_multi_timeframe_order_flow_api_rejects_unknown_period():
         params={"periods": "5m,2d"},
     )
     assert response.status_code == 422
+
+
+def test_multi_timeframe_order_flow_api_rejects_duplicate_periods():
+    response = client.get(
+        "/api/v1/analysis/order-flow/multi-timeframe/SPOT/BTCUSDT",
+        params={"periods": "5m,5m"},
+    )
+    assert response.status_code == 422
