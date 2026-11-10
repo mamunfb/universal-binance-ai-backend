@@ -20,6 +20,12 @@ Reads ERC-20 Transfer event logs for one contract and bounded block interval. Th
 
 Optional EVM_EXCHANGE_ADDRESSES uses comma-separated Label=0xAddress entries. Only manually configured addresses are counted in exchange flow.
 
+### Token supply and tracked holder watchlist
+
+GET /api/v1/onchain/evm/token/{contract}/snapshot?addresses=0x...,0x...
+
+Reads ERC-20 name, symbol, decimals, total supply, and balances for supplied addresses plus configured exchange addresses. Reports each tracked address's share of total supply and the combined tracked share. Maximum 50 addresses. This is a watchlist snapshot, not complete holder distribution or top-holder discovery.
+
 ## What is not claimed
 
 - Not a cross-chain scan. This first adapter supports EVM JSON-RPC only.
