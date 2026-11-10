@@ -102,3 +102,19 @@ async def test_derivatives_intelligence_sanitizes_upstream_error():
     assert result["status"] == "INCOMPLETE"
     assert section["error"] == "UPSTREAM_UNAVAILABLE"
     assert "do-not-leak" not in str(result)
+
+
+class CrossedBookProvider(FakeProvider):
+    async def order_book(self, symbol, limit):
+        return {
+            "lastUpdateId": 8,
+            "bids": [["102", "1"]],
+            "asks": [["101", "1"]],
+        }
+
+
+async def test_invalid_order_book_makes_derivatives_result_incomplete():
+    result = await get_derivatives_intelligence(CrossedBookProvider(), "btcusdt")
+    assert result["status"] == "INCOMPLETE"
+    assert "order_book" in result["failed_sections"]
+    assert result["sections"]["order_book"]["status"] == "INCOMPLETE"
