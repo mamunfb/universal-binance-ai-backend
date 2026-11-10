@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from datetime import datetime, timezone
 from typing import Any
 
 from app.providers.evm_rpc import EVMRPCProvider
@@ -55,8 +56,15 @@ async def cross_chain_native_wallet_snapshot(configs: list[dict[str, Any]],
                 return {"status": "FAILED", "expected_chain_id": config["chain_id"],
                         "actual_chain_id": actual_chain_id, "chain_name": config["chain_name"],
                         "error": "RPC chain_id does not match configured chain_id"}
+            block = await provider.block_number()
+            try:
+                block_timestamp = await provider.block_timestamp(block)
+                timestamp_status = "AVAILABLE"
+            except Exception:
+                block_timestamp = None
+                timestamp_status = "UNAVAILABLE"
             snapshot = await asyncio.gather(
-                *(provider.native_balance(address) for address in normalized),
+                *(provider.native_balance(address, hex(block)) for address in normalized),
                 return_exceptions=True,
             )
             wallets = []
@@ -68,8 +76,21 @@ async def cross_chain_native_wallet_snapshot(configs: list[dict[str, Any]],
                     wallets.append({"address": address, "status": "COMPLETED",
                                     "native_balance_wei": str(value),
                                     "native_balance": value / 10**18})
-            return {"status": "COMPLETED" if all(w["status"] == "COMPLETED" for w in wallets) else "INCOMPLETE",
-                    "chain_id": actual_chain_id, "chain_name": config["chain_name"], "wallets": wallets}
+            return {
+                "status": "COMPLETED" if all(w["status"] == "COMPLETED" for w in wallets) else "INCOMPLETE",
+                "chain_id": actual_chain_id, "chain_name": config["chain_name"],
+                "snapshot_block": block, "snapshot_block_timestamp": block_timestamp,
+                "snapshot_timestamp_status": timestamp_status,
+                "snapshot_block_time": (
+                    datetime.fromtimestamp(block_timestamp, timezone.utc).isoformat()
+                    if block_timestamp is not None else None
+                ),
+                "snapshot_age_seconds": (
+                    max(0, int(datetime.now(timezone.utc).timestamp()) - block_timestamp)
+                    if block_timestamp is not None else None
+                ),
+                "wallets": wallets,
+            }
         except Exception as exc:
             return {"status": "FAILED", "chain_id": config["chain_id"],
                     "chain_name": config["chain_name"],
