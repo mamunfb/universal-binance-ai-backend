@@ -62,7 +62,12 @@ def test_combined_analysis_joins_exact_timestamps_and_separates_funding(tmp_path
 
 def test_combined_analysis_does_not_forward_fill_missing_ratio_timestamps(tmp_path):
     engine, _, ratios = build_engine(tmp_path)
+    ratios = DerivativesRatioStore(str(tmp_path / "replacement-ratios.sqlite3"))
+    ratios.save("GLOBAL_LONG_SHORT", "BTCUSDT", "1h", [
+        global_row(1000, 1.0), global_row(2000, 1.1), global_row(3000, 1.2),
+    ])
     ratios.save("TAKER_BUY_SELL", "BTCUSDT", "1h", [taker_row(1000, 0.9), taker_row(3000, 1.1)])
+    engine = CombinedDerivativesIntelligence(engine.open_interest, engine.funding, ratios)
     result = engine.analyze("BTCUSDT", "1h", 10)
     assert result["coverage"]["exact_timestamp_matches"] == 2
     assert [row["timestamp_ms"] for row in result["aligned_observations"]] == [1000, 3000]
@@ -70,7 +75,10 @@ def test_combined_analysis_does_not_forward_fill_missing_ratio_timestamps(tmp_pa
 
 def test_combined_analysis_returns_insufficient_if_only_one_common_timestamp(tmp_path):
     engine, _, ratios = build_engine(tmp_path)
+    ratios = DerivativesRatioStore(str(tmp_path / "replacement-ratios.sqlite3"))
+    ratios.save("GLOBAL_LONG_SHORT", "BTCUSDT", "1h", [global_row(1000, 1.0), global_row(2000, 1.1), global_row(3000, 1.2)])
     ratios.save("TAKER_BUY_SELL", "BTCUSDT", "1h", [taker_row(1000, 0.9)])
+    engine = CombinedDerivativesIntelligence(engine.open_interest, engine.funding, ratios)
     result = engine.analyze("BTCUSDT", "1h", 10)
     assert result["status"] == "INSUFFICIENT_ALIGNED_DATA"
     assert result["coverage"]["exact_timestamp_matches"] == 1
@@ -78,7 +86,10 @@ def test_combined_analysis_returns_insufficient_if_only_one_common_timestamp(tmp
 
 def test_combined_analysis_returns_insufficient_if_no_aligned_data(tmp_path):
     engine, _, ratios = build_engine(tmp_path)
+    ratios = DerivativesRatioStore(str(tmp_path / "replacement-ratios.sqlite3"))
     ratios.save("GLOBAL_LONG_SHORT", "BTCUSDT", "1h", [global_row(9000, 1.2)])
+    ratios.save("TAKER_BUY_SELL", "BTCUSDT", "1h", [taker_row(9000, 1.0)])
+    engine = CombinedDerivativesIntelligence(engine.open_interest, engine.funding, ratios)
     result = engine.analyze("BTCUSDT", "1h", 10)
     assert result["status"] == "INSUFFICIENT_ALIGNED_DATA"
     assert result["coverage"]["exact_timestamp_matches"] == 0
