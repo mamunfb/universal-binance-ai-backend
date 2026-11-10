@@ -7,6 +7,15 @@ Audit basis:
 - Futures prompt: canonical user-uploaded \`universal_crypto_master_prompt_futures.md\`, copied verbatim to \`master-prompts/MASTER_PROMPT_02_FUTURES.md\` on this branch
 - Review method: static review of repository tree, README, API routes, providers, analysis services, readiness map, and selected tests. This document is not a claim that all tests or live endpoints were executed.
 
+## Repository control documents
+
+- Complete end-to-end scope and paired execution ledger: `docs/UNIVERSAL_PROJECT_SCOPE_AND_EXECUTION_CONTROL.md`.
+- Session restart/controller prompt: `master-prompts/MASTER_RESUME_PROMPT.md`.
+- Canonical functional specifications: `master-prompts/MASTER_PROMPT_01_SPOT.md` and `master-prompts/MASTER_PROMPT_02_FUTURES.md`.
+- At the start of every resumed coding session, read both canonical prompts first, then the scope, then this audit, and reconcile GitHub/CI before editing.
+
+The scope covers the work before Phase 01 (configuration, global rules, API architecture), all 20 paired phases, and work after Phase 20 (phase protocol, output continuity, research quality, safety, activation, pre-flight, re-validation and final project closure). It is not a 20-phase-only checklist.
+
 ## Executive result
 
 The repository is a substantial research-only Python/FastAPI foundation. It already contains separate Spot and Futures market-data providers/scanners, many reusable analysis services, data stores, REST endpoints, an MCP adapter, and automated tests. It is **not yet an implementation of either complete 20-phase master prompt**. The existing readiness service correctly reports zero phases completed and marks the overall process incomplete.
@@ -152,3 +161,8 @@ The two master prompts must advance in lockstep by phase number. This is a hard 
 - A prior GitHub Actions run on the baseline commit completed successfully. That result does not validate the new audit-branch changes.
 - Live Binance API connectivity, configured RSS feeds, EVM RPC access, persistent storage and each external AI client's MCP connection must be checked in the actual deployment environment.
 - The user-uploaded Futures master prompt is the governing source. Do not silently substitute a shortened copy or treat the Spot prompt as the Futures specification.
+
+
+## Scope completeness and restart rule
+
+The complete project perimeter is now explicitly recorded in `docs/UNIVERSAL_PROJECT_SCOPE_AND_EXECUTION_CONTROL.md`, including every pre-phase setup section, all 20 SPOT/FUTURES phase pairs, all post-phase execution/evidence/safety/activation requirements, and final project closure. The reusable restart instructions are in `master-prompts/MASTER_RESUME_PROMPT.md`. Every future coding session must read both canonical prompts before reading the scope and audit, determine the earliest incomplete paired phase from repository evidence, and resume there. Current statuses remain SPOT Phase 01 IN_PROGRESS, FUTURES Phase 01 IN_PROGRESS, combined Phase 01 INCOMPLETE, Phase 02 LOCKED.
