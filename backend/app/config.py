@@ -7,6 +7,8 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     binance_spot_base_url: str = "https://api.binance.com"
     http_timeout_seconds: float = 15.0
+    liquidation_collector_enabled: bool = False
+    liquidation_database_path: str = "data/liquidations.sqlite3"
 
     model_config = SettingsConfigDict(
         env_file=".env",
