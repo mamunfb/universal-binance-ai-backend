@@ -190,22 +190,34 @@ def _decode_abi_uint(value: str) -> int:
 def _decode_abi_text(value: str) -> str | None:
     if not isinstance(value, str) or not value.startswith("0x"):
         return None
-    raw = bytes.fromhex(value[2:])
+    encoded = value[2:]
+    if len(encoded) % 2:
+        return None
+    try:
+        raw = bytes.fromhex(encoded)
+    except ValueError:
+        return None
     if len(raw) < 32:
         return None
-    offset = int.from_bytes(raw[:32], 'big')
-    if offset + 32 <= len(raw):
-        length = int.from_bytes(raw[offset:offset + 32], 'big')
+
+    # Dynamic ABI string: offset word, length word, then UTF-8 bytes.
+    offset = int.from_bytes(raw[:32], "big")
+    if offset >= 32 and offset % 32 == 0 and offset + 32 <= len(raw):
+        length = int.from_bytes(raw[offset:offset + 32], "big")
         start, end = offset + 32, offset + 32 + length
         if end <= len(raw):
             try:
-                return raw[start:end].decode("utf-8").rstrip("\\x00")
+                return raw[start:end].decode("utf-8")
             except UnicodeDecodeError:
-                pass
-    try:
-        return raw[:32].split(b"\\x00", 1)[0].decode("utf-8")
-    except UnicodeDecodeError:
-        return None
+                return None
+
+    # Some tokens return bytes32 for name/symbol rather than a dynamic string.
+    if len(raw) == 32:
+        try:
+            return raw.split(b"\x00", 1)[0].decode("utf-8")
+        except UnicodeDecodeError:
+            return None
+    return None
 
 
 async def get_erc20_token_snapshot(provider: EVMRPCProvider, contract: str,
