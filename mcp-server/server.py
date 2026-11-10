@@ -236,6 +236,25 @@ def get_stored_funding_rate_history(
 
 
 @mcp.tool()
+def analyze_multi_timeframe_derivatives(
+    symbol: str, periods: str = "5m,15m,1h,4h,1d", limit: int = 48,
+) -> dict:
+    """Compare locally stored derivatives evidence across explicitly selected timeframes."""
+    allowed = {"5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "1d"}
+    parsed = [part.strip() for part in periods.split(",")]
+    if not 1 <= len(parsed) <= 9 or any(p not in allowed for p in parsed):
+        raise ValueError("Unsupported timeframe list")
+    if len(set(parsed)) != len(parsed):
+        raise ValueError("Duplicate timeframes are not allowed")
+    if not 6 <= limit <= 500:
+        raise ValueError("limit must be between 6 and 500")
+    return _get(
+        f"/api/v1/analysis/derivatives/multi-timeframe/{quote(symbol.upper(), safe='')}",
+        {"periods": ",".join(parsed), "limit": limit},
+    )
+
+
+@mcp.tool()
 def analyze_advanced_derivatives(
     symbol: str, period: str = "1h", price_interval: str = "1h",
     limit: int = 48, funding_abs_threshold: float = 0.001,
