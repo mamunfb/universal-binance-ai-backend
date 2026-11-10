@@ -236,7 +236,7 @@ class MarketConfluencePerformance:
             "FLAT_OR_UNCLEAR" if bias_aligned_change is not None else "NON_DIRECTIONAL_BIAS"
         )
         return {
-            "status": "COMPLETED", "snapshot_id": snapshot_id,
+            "status": "COMPLETED" if endpoint is not None else "PENDING_HORIZON_NOT_MATURED", "snapshot_id": snapshot_id,
             "market": market.upper(), "symbol": symbol.upper(),
             "analyzed_at_ms": analyzed_at, "bias": snapshot["bias"],
             "alignment": snapshot["alignment"], "price_interval": price_interval,
@@ -245,7 +245,7 @@ class MarketConfluencePerformance:
             "bias_aligned_change_percent": bias_aligned_change,
             "bias_vs_actual": bias_vs_actual,
             "reference_close_time_ms": snapshot.get("reference_close_time_ms"),
-            "target_time_ms": target_time, "candles": path,
+            "target_time_ms": target_time, "target_reached": endpoint is not None, "candles": path,
             "coverage": {
                 "complete": complete, "expected_count": expected_count,
                 "received_count": len(path),
