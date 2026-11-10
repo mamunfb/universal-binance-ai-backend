@@ -1119,6 +1119,8 @@ async def all_futures_market_scan(
     statuses = (usdm.get("status"), coinm.get("status"))
     return {
         "status": "COMPLETED" if all(value == "COMPLETED" for value in statuses) else "INCOMPLETE",
+        "phase_status": "INCOMPLETE",
+        "phase_status_reason": "Full Stage 1 requires depth, recent-average volume surge, relative strength, market-cap and per-contract derivatives enrichment.",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "source": "Binance USDⓈ-M and COIN-M public Futures REST APIs",
         "perpetual_only": perpetual_only,
