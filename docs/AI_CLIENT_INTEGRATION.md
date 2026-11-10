@@ -114,7 +114,18 @@ curl -H "Authorization: Bearer $PERSONAL_API_KEY" \
 ```
 
 - Protect the private API with server-side authentication before exposing it beyond localhost/private network.
-- The current implementation uses one owner-controlled Bearer key shared by the three private AI integrations. Separate per-client keys, rotation, and usage accounting are future hardening work. Never commit raw credentials.
+- Configure separate keys for the three AI clients with `AI_CLIENT_API_KEYS`, a JSON object mapping `chatgpt`, `gemini`, and `manus` to independent random secrets of at least 32 characters.
+- Example only (replace every value with a unique randomly generated secret; never commit real secrets):
+
+```env
+APP_ENV=production
+AI_CLIENT_API_KEYS={"chatgpt":"REPLACE_WITH_CHATGPT_RANDOM_SECRET_32_CHARS_MIN","gemini":"REPLACE_WITH_GEMINI_RANDOM_SECRET_32_CHARS_MIN","manus":"REPLACE_WITH_MANUS_RANDOM_SECRET_32_CHARS_MIN"}
+```
+
+- Production requires either all three valid per-client keys or a strong owner-level `PERSONAL_API_KEY`. The owner key can be used for administration; prefer the individual client keys for AI integrations.
+- During development, an empty key configuration leaves API routes unauthenticated for local testing only. Never expose that configuration to the public internet.
+- Each client key can be revoked or rotated independently by changing its environment value and restarting/redeploying the service.
+- Never commit raw credentials.
 - Do not put private API credentials, RPC provider secrets, Binance secrets, wallet seed phrases, or signing keys in prompts or client-side code.
 - Prefer HTTPS. Restrict network access at the deployment boundary where possible.
 - Keep request logs free of Authorization headers, API keys, and sensitive query values.
