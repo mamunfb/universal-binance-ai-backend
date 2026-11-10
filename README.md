@@ -96,7 +96,7 @@ Open `/docs` for the interactive API documentation. See [personal AI client inte
 
 ## Liquidity sweep confirmation
 
-`GET /api/v1/analysis/liquidity-sweep-confirmation/{market}/{symbol}` correlates local OHLC wick/reclaim sweep candidates with equal-high/equal-low swing clusters, nearby aggregate-trade aggressor flow, paired sampled order-book depth, and nearest timestamp-aligned USD-M open-interest/funding context. Derivatives observations are never forward-filled; all source coverage and lag limits are reported. The labels are evidence classifications, not probabilities or trade signals. See [Liquidity Sweep Confirmation](docs/LIQUIDITY_SWEEP_CONFIRMATION.md).
+`GET /api/v1/analysis/liquidity-sweep-confirmation/{market}/{symbol}` correlates local OHLC wick/reclaim sweep candidates with equal-high/equal-low swing clusters, post-sweep aggregate-trade CVD and POC/VAH/VAL, paired sampled order-book depth, and nearest timestamp-aligned USD-M open-interest/funding context. Derivatives observations are never forward-filled; all source coverage and lag limits are reported. The labels are evidence classifications, not probabilities or trade signals. See [Liquidity Sweep Confirmation](docs/LIQUIDITY_SWEEP_CONFIRMATION.md).
 
 ## Multi-timeframe order flow intelligence
 
