@@ -80,3 +80,16 @@ async def test_futures_klines_reject_empty_symbol(monkeypatch):
 
     with pytest.raises(ValueError, match="symbol"):
         await provider.klines(" ")
+
+
+async def test_usdm_price_ticker_uses_futures_endpoint(monkeypatch):
+    clients = []
+    class PriceClient(FakeAsyncClient):
+        async def get(self, path, params=None):
+            self.calls.append((path, params))
+            return FakeResponse({"symbol": "BTCUSDT", "price": "101"})
+    monkeypatch.setattr("app.providers.binance_futures.httpx.AsyncClient",
+        lambda **kwargs: clients.append(PriceClient(**kwargs)) or clients[-1])
+    result = await BinanceFuturesProvider("USD_M").price_ticker("btcusdt")
+    assert result == {"symbol": "BTCUSDT", "price": "101"}
+    assert clients[0].calls == [("/fapi/v1/ticker/price", {"symbol": "BTCUSDT"})]
