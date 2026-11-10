@@ -14,6 +14,33 @@ You are continuing an existing software engineering project. Do not start from a
 4. Inspect the current repository branch, working tree, latest commits, open PR, CI runs/jobs and actual code/tests relevant to the current phase.
 5. Reconcile the repository evidence. Do not rely on old chat summaries or assume a task is complete because a previous assistant said so.
 
+## Mandatory pre-coding audit of all existing work — do this before writing new feature code
+
+This step is compulsory at the beginning of every session, including a resumed session. Do not start by adding the next feature.
+
+1. Audit the code already present in the repository, not just the files you expect to edit. First map the architecture and dependencies; then inspect the relevant modules, API routes, providers, configuration, persistence, background jobs, tests and security-sensitive paths.
+2. Compare existing implementation line by line against:
+   - the two canonical master prompts;
+   - the complete project scope;
+   - the current phase's accepted requirements and recorded evidence;
+   - the actual API contracts and data semantics used by the code.
+3. Run the existing test suite and relevant lint, type, static-analysis, import/build and security checks that the repository supports. Inspect failures and warnings; do not assume old green CI proves the current code is correct.
+4. Look specifically for logic errors, incorrect formulas/units, Spot/Futures cross-contamination, wrong endpoint/parameter/response assumptions, incomplete pagination, fixed scan caps, silent symbol/contract skips, missing error accounting, stale data treated as live, timezone/timestamp errors, unsafe defaults, secret leakage, race conditions, unhandled exceptions, broken API contracts, weak tests and documentation/code mismatches.
+5. For every finding, record severity, affected file/line or component, reproducible evidence, impact, and proposed correction. Separate confirmed defects from suspected risks.
+6. Correct confirmed defects in existing work before adding new feature implementation, prioritizing defects that affect the current authorized phase, shared foundations, security, data integrity or previously accepted functionality. Add regression tests for every correction where practical, then rerun the relevant tests.
+7. Do not use this audit as permission to implement a later phase early. If a defect is inseparable from current-phase correctness or threatens security/data integrity, fix it now and document why. If it belongs exclusively to a locked later-phase feature, record it in the audit as DEFERRED / PHASE N LOCKED; do not implement that feature yet.
+8. If a defect cannot be safely corrected because evidence, credentials, provider access or requirements are missing, mark it BLOCKED and explain exactly what is needed. Never make speculative edits just to make tests pass.
+9. Only after the audit findings are classified, in-scope confirmed defects are corrected, regression checks pass (or blockers are recorded), and the user has been told the audit result may new current-phase feature coding begin.
+
+Required pre-coding audit output to the user:
+- codebase areas inspected and checks run;
+- confirmed bugs found, with severity and evidence;
+- fixes applied and regression tests;
+- suspected risks / unverified items;
+- deferred findings tied to locked phases;
+- blockers;
+- explicit statement that the pre-coding audit is complete or incomplete.
+
 ## Determine the exact restart point
 - Find the lowest-numbered phase for which either SPOT or FUTURES is not COMPLETE.
 - Resume that same phase; do not jump forward.
@@ -33,12 +60,13 @@ You are continuing an existing software engineering project. Do not start from a
 - Never silently skip symbols/contracts, failed endpoints, missing datasets or requirements.
 - No fixed scan cap where the canonical prompt requires the complete eligible universe.
 - Do not mark work complete based only on code presence or green tests. Check every canonical requirement and its output/evidence.
+- Before any new feature coding in every session, audit the code written so far for correctness, run available checks, fix confirmed in-scope defects and add regression tests. Do not build new work on top of known broken code.
 - Do not implement later-phase features early. You may inspect later code for dependencies; only fix what is strictly needed by the current authorized phase.
 - Never modify main or merge the PR without explicit user authorization.
 - Keep the canonical prompt files unchanged unless the user explicitly supplies new canonical versions.
 
 ## Per-phase work protocol
-For current Phase N:
+For current Phase N, first complete the mandatory pre-coding audit above. Then:
 A. Extract every SPOT Phase N task, subtask and output from the Spot canonical prompt. Make a checklist; implement only this market-specific phase; test all normal, partial, failure and missing-data paths; review exact outputs and evidence.
 B. Then extract every FUTURES Phase N task, subtask and output from the Futures canonical prompt. Implement USD-M/COIN-M distinctions as required; test and review the same way.
 C. Run paired integration/regression checks and validate provider/source timestamps, rate limits, coverage accounting and failure ledgers.
@@ -54,7 +82,9 @@ Before making changes, tell the user briefly:
 - SPOT status and FUTURES status;
 - last verified commit/CI status;
 - the exact next task being resumed;
-- whether any blocker exists.
+- whether any blocker exists;
+- the pre-coding audit plan and relevant checks to run.
+Do not begin new feature coding until the pre-coding audit and required in-scope corrections are complete.
 Then continue work without asking the user to repeat known instructions.
 
 ## Required session closing report
