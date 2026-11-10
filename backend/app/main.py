@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Literal
+from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Query, Body, Request
 from fastapi.exceptions import RequestValidationError
@@ -57,12 +58,27 @@ app = FastAPI(
     ),
 )
 
-def _error_payload(code: str, message: str, details: dict | list | None = None) -> dict:
+def _error_payload(
+    code: str, message: str, details: dict | list | None = None,
+    request_id: str | None = None,
+) -> dict:
     """Return a stable, machine-readable API error envelope."""
     error = {"code": code, "message": message}
     if details is not None:
         error["details"] = details
-    return {"status": "FAILED", "error": error}
+    payload = {"status": "FAILED", "error": error}
+    if request_id:
+        payload["request_id"] = request_id
+    return payload
+
+
+@app.middleware("http")
+async def request_tracking_middleware(request: Request, call_next):
+    request_id = uuid4().hex
+    request.state.request_id = request_id
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = request_id
+    return response
 
 
 @app.exception_handler(RequestValidationError)
@@ -80,7 +96,8 @@ async def request_validation_error_handler(
     return JSONResponse(
         status_code=422,
         content=_error_payload(
-            "VALIDATION_ERROR", "Request parameters or body failed validation.", details
+            "VALIDATION_ERROR", "Request parameters or body failed validation.", details,
+            getattr(request.state, "request_id", None)
         ),
     )
 
@@ -110,7 +127,7 @@ async def http_error_handler(
     )
     return JSONResponse(
         status_code=exc.status_code,
-        content=_error_payload(code, message, details),
+        content=_error_payload(code, message, details, getattr(request.state, "request_id", None)),
         headers=exc.headers,
     )
 
@@ -122,6 +139,7 @@ async def unhandled_error_handler(request: Request, exc: Exception) -> JSONRespo
         content=_error_payload(
             "INTERNAL_SERVER_ERROR",
             "An unexpected server error occurred. No internal exception details are exposed.",
+            request_id=getattr(request.state, "request_id", None),
         ),
     )
 
