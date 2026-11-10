@@ -17,8 +17,8 @@ def test_detects_buy_side_sweep_and_aligned_trade_flow():
     candles = make_candles()
     sweep_time = candles[13]["open_time_ms"]
     trades = [
-        {"trade_time_ms": sweep_time + 1_000, "quantity": 3.0, "aggressor_side": "SELL"},
-        {"trade_time_ms": sweep_time + 2_000, "quantity": 1.0, "aggressor_side": "BUY"},
+        {"trade_time_ms": sweep_time + 1_000, "price": 100.0, "quantity": 3.0, "notional": 300.0, "aggressor_side": "SELL"},
+        {"trade_time_ms": sweep_time + 2_000, "price": 100.1, "quantity": 1.0, "notional": 100.1, "aggressor_side": "BUY"},
     ]
     result = analyze_liquidity_sweep_confirmation(
         candles, trades, [], "USD_M", "BTCUSDT"
@@ -31,6 +31,8 @@ def test_detects_buy_side_sweep_and_aligned_trade_flow():
     )
     assert candidate["aggressor_flow"]["confirmation"] == "OPPOSING_AGGRESSOR_FLOW"
     assert candidate["confirmation_status"] == "OHLC_ONLY_CANDIDATE"
+    assert candidate["volume_profile"]["status"] == "COMPLETED"
+    assert candidate["volume_profile"]["poc"] is not None
 
 
 def test_pairs_order_book_and_derivatives_only_within_explicit_time_lag():
