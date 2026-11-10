@@ -73,3 +73,16 @@ async def test_spot_klines_rejects_empty_symbol_without_request(monkeypatch):
 
     with pytest.raises(ValueError, match="symbol"):
         await provider.klines("   ")
+
+
+async def test_spot_price_ticker_uses_symbol_query_parameter(monkeypatch):
+    clients = []
+    class PriceClient(FakeAsyncClient):
+        async def get(self, path, params=None):
+            self.calls.append((path, params))
+            return FakeResponse({"symbol": "BTCUSDT", "price": "100"})
+    monkeypatch.setattr("app.providers.binance_spot.httpx.AsyncClient",
+        lambda **kwargs: clients.append(PriceClient(**kwargs)) or clients[-1])
+    result = await BinanceSpotProvider("https://spot.example.test").price_ticker("btcusdt")
+    assert result == {"symbol": "BTCUSDT", "price": "100"}
+    assert clients[0].calls == [("/api/v3/ticker/price", {"symbol": "BTCUSDT"})]
