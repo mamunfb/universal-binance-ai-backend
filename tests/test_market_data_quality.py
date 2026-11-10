@@ -101,3 +101,35 @@ def test_current_open_candle_is_in_progress_not_stale(tmp_path):
     assert source["freshness"] == "IN_PROGRESS"
     assert source["status"] == "DEGRADED"
     assert source["time_until_close_ms"] == 29_999
+
+def test_in_progress_candle_never_reports_healthy(tmp_path):
+    db = str(tmp_path / "klines.sqlite3")
+    store = HistoricalKlineStore(db)
+    start = 1_700_000_040_000
+    store.save_klines("SPOT", "BTCUSDT", "1m", [candle(start)])
+    result = engine(tmp_path).inspect(
+        "SPOT", "BTCUSDT", "1m",
+        lookback_hours=1, now_ms=start + 30_000,
+    )
+    source = result["sources"]["historical_klines"]
+    assert source["latest_candle_finality"] == "NOT_CONFIRMED"
+    assert source["status"] != "HEALTHY"
+
+
+def test_healthy_requires_closed_candle_and_complete_window(tmp_path):
+    db = str(tmp_path / "klines.sqlite3")
+    store = HistoricalKlineStore(db)
+    start = 1_700_000_040_000
+    store.save_klines("SPOT", "BTCUSDT", "1m", [
+        candle(start + offset * 60_000) for offset in range(61)
+    ])
+    now = start + 61 * 60_000
+    result = engine(tmp_path).inspect(
+        "SPOT", "BTCUSDT", "1m",
+        lookback_hours=1, now_ms=now,
+    )
+    source = result["sources"]["historical_klines"]
+    assert source["freshness"] == "FRESH"
+    assert source["latest_candle_finality"] == "CLOSE_TIME_PASSED"
+    assert source["status"] == "HEALTHY"
+    assert source["coverage"]["coverage"]["missing_candle_count"] == 0
