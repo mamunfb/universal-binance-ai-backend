@@ -143,18 +143,26 @@ class SmartMoneyMarketStructure:
         for i in range(2, len(candles)):
             first, middle, third = candles[i-2], candles[i-1], candles[i]
             if float(third["low"]) > float(first["high"]):
+                lower, upper = float(first["high"]), float(third["low"])
+                later = candles[i+1:]
+                entered = any(float(row["low"]) <= upper for row in later)
+                filled = any(float(row["low"]) <= lower for row in later)
                 fvgs.append({
                     "type": "BULLISH_FVG_CANDIDATE",
-                    "lower": float(first["high"]), "upper": float(third["low"]),
+                    "lower": lower, "upper": upper,
                     "formed_time_ms": third["open_time_ms"], "middle_candle_time_ms": middle["open_time_ms"],
-                    "status": "UNMITIGATED_AT_LAST_CANDLE" if float(last["low"]) > float(first["high"]) else "MITIGATED_OR_OVERLAPPED",
+                    "status": "FULLY_FILLED" if filled else "PARTIALLY_MITIGATED" if entered else "UNMITIGATED",
                 })
             if float(third["high"]) < float(first["low"]):
+                lower, upper = float(third["high"]), float(first["low"])
+                later = candles[i+1:]
+                entered = any(float(row["high"]) >= lower for row in later)
+                filled = any(float(row["high"]) >= upper for row in later)
                 fvgs.append({
                     "type": "BEARISH_FVG_CANDIDATE",
-                    "lower": float(third["high"]), "upper": float(first["low"]),
+                    "lower": lower, "upper": upper,
                     "formed_time_ms": third["open_time_ms"], "middle_candle_time_ms": middle["open_time_ms"],
-                    "status": "UNMITIGATED_AT_LAST_CANDLE" if float(last["high"]) < float(first["low"]) else "MITIGATED_OR_OVERLAPPED",
+                    "status": "FULLY_FILLED" if filled else "PARTIALLY_MITIGATED" if entered else "UNMITIGATED",
                 })
 
         order_block = None
