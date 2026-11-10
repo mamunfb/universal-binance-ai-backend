@@ -57,13 +57,20 @@ async def test_wallet_snapshot_reports_partial_failures():
             return 1
         async def block_number(self):
             return 123
-        async def native_balance(self, address):
+        async def block_timestamp(self, block_number):
+            assert block_number == 123
+            return 1700000000
+        async def native_balance(self, address, block="latest"):
+            assert block == "0x7b"
             if address == ADDRESS_B:
                 raise RuntimeError("provider unavailable")
             return 10**18
     result = await get_evm_wallet_snapshot(FakeProvider(), [ADDRESS_A, ADDRESS_B])
     assert result["status"] == "INCOMPLETE"
     assert result["block_number"] == 123
+    assert result["block_timestamp"] == 1700000000
+    assert result["timestamp_status"] == "AVAILABLE"
+    assert result["snapshot_age_seconds"] >= 0
     assert result["wallets"][0]["native_balance"] == 1
     assert result["wallets"][1]["status"] == "FAILED"
 
