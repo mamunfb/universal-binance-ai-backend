@@ -1,4 +1,4 @@
-from app.services.market_evidence import build_market_evidence_snapshot
+from app.services.market_evidence import build_market_evidence_snapshot, detect_evidence_conflicts
 
 
 def _sections():
@@ -109,3 +109,59 @@ def test_open_interest_history_change_is_descriptive_not_directional():
     assert oi["status"] == "OBSERVED"
     assert oi["change_percent"] == 100 / 9
     assert "does not identify long or short" in oi["warning"]
+
+
+def test_conflict_detector_reports_opposing_timeframe_structures():
+    sections = list(_sections())
+    sections[0]["timeframes"]["4h"]["trend_structure"] = "BEARISH_STRUCTURE"
+    result = build_market_evidence_snapshot("BTCUSDT", *sections)
+    conflict = next(
+        item for item in result["conflict_analysis"]["conflicts"]
+        if item["rule_id"] == "TREND_TIMEFRAME_DIVERGENCE"
+    )
+    assert conflict["observations"] == {
+        "1d": "BULLISH_STRUCTURE", "4h": "BEARISH_STRUCTURE"
+    }
+
+
+def test_conflict_detector_reports_basis_and_funding_divergence():
+    sections = list(_sections())
+    sections[1]["funding"]["funding_rate"] = -0.0001
+    sections[1]["funding"]["sign"] = "NEGATIVE"
+    result = build_market_evidence_snapshot("BTCUSDT", *sections)
+    ids = {item["rule_id"] for item in result["conflict_analysis"]["conflicts"]}
+    assert "BASIS_FUNDING_DIVERGENCE" in ids
+
+
+def test_conflict_detector_reports_oi_growth_with_taker_sell_imbalance_as_tension():
+    sections = list(_sections())
+    sections[2]["sections"]["taker_buy_sell_ratio"]["data"] = [{"buySellRatio": "0.8"}]
+    result = build_market_evidence_snapshot("BTCUSDT", *sections)
+    conflict = next(
+        item for item in result["conflict_analysis"]["conflicts"]
+        if item["rule_id"] == "OPEN_INTEREST_TAKER_FLOW_TENSION"
+    )
+    assert conflict["severity"] == "INFO"
+    assert "does not reveal which side" in conflict["explanation"]
+
+
+def test_conflict_detector_reports_trend_and_market_structure_divergence():
+    sections = list(_sections())
+    sections[3]["market_structure"]["trend_state"] = "BEARISH"
+    result = build_market_evidence_snapshot("BTCUSDT", *sections)
+    ids = {item["rule_id"] for item in result["conflict_analysis"]["conflicts"]}
+    assert "TREND_STRUCTURE_DIVERGENCE" in ids
+
+
+def test_conflict_detector_reports_opposing_confirmed_news_candidate():
+    sections = list(_sections())
+    sections[4]["items"][0]["catalyst"]["direction"] = "BEARISH"
+    result = build_market_evidence_snapshot("BTCUSDT", *sections)
+    ids = {item["rule_id"] for item in result["conflict_analysis"]["conflicts"]}
+    assert "CONFIRMED_NEWS_TREND_DIVERGENCE" in ids
+
+
+def test_conflict_detector_marks_missing_evidence_checks_incomplete():
+    result = detect_evidence_conflicts([])
+    assert result["status"] == "NO_RULED_CONFLICT_FOUND"
+    assert all(item["status"] == "INSUFFICIENT_DATA" for item in result["rule_checks"])
