@@ -1,4 +1,3 @@
-import pytest
 from datetime import datetime, timezone
 
 from app.services.market_scanner import scan_spot_markets
