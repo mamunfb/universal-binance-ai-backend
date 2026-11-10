@@ -94,6 +94,10 @@ uvicorn app.main:app --app-dir backend --reload
 ```
 Open `/docs` for the interactive API documentation. See [personal AI client integration](docs/AI_CLIENT_INTEGRATION.md) for the five-client ChatGPT, Gemini, Manus, Claude, and Perplexity scope, private access, OpenAPI discovery, error handling, and deployment guidance.
 
+## Market structure + order flow confluence
+
+`GET /api/v1/analysis/market-structure-confluence/{market}/{symbol}` summarizes local market structure, market regime, one-hour CVD, multi-timeframe order flow and liquidity-sweep evidence. It reports directional agreement, conflicts and source coverage without treating missing data as opposing evidence. These are descriptive heuristics, not probabilities or trade recommendations. See [Market Structure Confluence](docs/MARKET_STRUCTURE_CONFLUENCE.md).
+
 ## Liquidity sweep confirmation
 
 `GET /api/v1/analysis/liquidity-sweep-confirmation/{market}/{symbol}` correlates local OHLC wick/reclaim sweep candidates with equal-high/equal-low swing clusters, post-sweep aggregate-trade CVD and POC/VAH/VAL, paired sampled order-book depth, and nearest timestamp-aligned USD-M open-interest/funding context. Derivatives observations are never forward-filled; all source coverage and lag limits are reported. The labels are evidence classifications, not probabilities or trade signals. See [Liquidity Sweep Confirmation](docs/LIQUIDITY_SWEEP_CONFIRMATION.md).
