@@ -115,16 +115,21 @@ class BinanceFuturesProvider:
         return data
 
     async def klines(
-        self, symbol: str, interval: str = "1h", limit: int = 500
+        self, symbol: str, interval: str = "1h", limit: int = 500,
+        start_time_ms: int | None = None, end_time_ms: int | None = None,
     ) -> list[list[Any]]:
         if not symbol or not symbol.strip():
             raise ValueError("symbol must not be empty")
         if not 1 <= limit <= 1500:
             raise ValueError("limit must be between 1 and 1500")
-        data = await self._get(
-            f"{self.prefix}/klines",
-            {"symbol": symbol.upper(), "interval": interval, "limit": limit},
-        )
+        params: dict[str, Any] = {
+            "symbol": symbol.upper(), "interval": interval, "limit": limit,
+        }
+        if start_time_ms is not None:
+            params["startTime"] = start_time_ms
+        if end_time_ms is not None:
+            params["endTime"] = end_time_ms
+        data = await self._get(f"{self.prefix}/klines", params)
         if not isinstance(data, list):
             raise ValueError(f"Unexpected Binance {self.market} kline response")
         return data
