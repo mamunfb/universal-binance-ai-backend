@@ -114,6 +114,18 @@ def test_stored_open_interest_history_tool_uses_read_only_api_route(monkeypatch)
     }
 
 
+def test_derivatives_collector_status_mcp_tool_calls_fixed_route(monkeypatch):
+    server = _load_server(monkeypatch)
+    calls = []
+    monkeypatch.setattr(
+        server, "_get",
+        lambda path, params=None: calls.append((path, params)) or {"status": "DISABLED"},
+    )
+    result = server.get_derivatives_collector_status()
+    assert result["status"] == "DISABLED"
+    assert calls == [("/api/v1/history/derivatives-collector/status", None)]
+
+
 def test_rejects_invalid_token_limits(monkeypatch):
     server = _load_server(monkeypatch)
     with pytest.raises(ValueError, match="limit"):
