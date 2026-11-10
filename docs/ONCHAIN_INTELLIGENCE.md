@@ -133,3 +133,10 @@ Configure `EVM_CHAIN_TOKEN_CONTRACTS` as a JSON array. Each entry defines one ch
 ```
 
 The endpoint validates each RPC's reported chain ID, reads token name/symbol/decimals/total supply, and queries balances for 1–50 supplied wallet addresses. It first reads the current block number and pins all ERC-20 `eth_call` requests for that chain to that block tag. Chain results are independent; any failed chain or wallet makes the overall status INCOMPLETE. The same asset_id is an operator-defined grouping label only: it does not prove that contracts are issued by the same entity, redeemable 1:1, or economically equivalent. Verify token contracts and bridge/issuer provenance before comparing supplies or balances. This is not a full holder ranking, transaction history, or ownership analysis. Use HTTPS RPC URLs and keep provider credentials private.
+
+
+### Cross-chain indexed ERC-20 flow intelligence
+
+GET /api/v1/onchain/evm/cross-chain/token/{asset_id}/flows?from_block=...&to_block=...&decimals=18&limit=50
+
+Uses the chain-specific contracts configured in `EVM_CHAIN_TOKEN_CONTRACTS` and aggregates locally indexed ERC-20 Transfer logs independently for each chain. Returns top net receivers/senders, requested block range, and indexed coverage gaps per chain. The overall response is INCOMPLETE if any configured chain has a coverage gap or RPC chain-ID mismatch. Index each chain/contract range first with the existing per-chain history index endpoint. The `decimals` query parameter is applied to every contract selected by the asset_id; only group contracts with matching decimals, or the displayed token quantities will be wrong. The endpoint does not fetch missing logs automatically and does not infer cross-chain transfers, wallet ownership, or token equivalence. A net transfer flow is not a wallet balance or proof of buying/selling.
