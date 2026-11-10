@@ -254,6 +254,9 @@ def test_walk_forward_uses_expanding_training_windows_and_disjoint_test_blocks()
     assert test_ids == ["wf-4", "wf-5", "wf-6"]
     assert walk["test_snapshot_count"] == 3
     assert walk["test_directional_sample_size"] <= walk["test_matured_outcome_count"]
+    assert walk["consistency_assessment"]["status"] == "INSUFFICIENT_FOLD_EVIDENCE"
+    assert walk["consistency_assessment"]["eligible_fold_count"] == 0
+    assert walk["consistency_assessment"]["insufficient_fold_count"] == 3
 
 
 def test_walk_forward_requires_four_snapshots():
@@ -486,3 +489,33 @@ def test_horizon_comparison_ranks_only_metrics_with_at_least_30_samples():
     assert all(row["sample_size"] >= 30 for row in positive_groups["ranked"])
     assert all(row["reason"] == "BELOW_MINIMUM_SAMPLE_SIZE" for row in positive_groups["excluded"])
     assert "not a forecast" in leaderboard["method"]
+
+
+def test_walk_forward_consistency_uses_only_folds_with_minimum_samples():
+    from app.services.market_confluence_performance import _walk_forward_consistency
+
+    def fold(sample_size, fraction, lower, upper):
+        return {
+            "test_directional_sample_size": sample_size,
+            "test_directional_positive_fraction": fraction,
+            "test_directional_positive_fraction_ci_95_wilson": {
+                "lower": lower, "upper": upper,
+            },
+        }
+
+    result = _walk_forward_consistency([
+        fold(30, 0.7, 0.53, 0.83),
+        fold(30, 0.3, 0.17, 0.47),
+        fold(30, 0.5, 0.33, 0.67),
+        fold(12, 1.0, 0.76, 1.0),
+    ])
+    assert result["status"] == "MIXED_DIRECTIONAL_RESULTS"
+    assert result["total_fold_count"] == 4
+    assert result["eligible_fold_count"] == 3
+    assert result["insufficient_fold_count"] == 1
+    assert result["folds_above_50_percent_point_estimate"] == 1
+    assert result["folds_at_or_below_50_percent_point_estimate"] == 2
+    assert result["folds_with_interval_above_50_percent"] == 1
+    assert result["folds_with_interval_below_50_percent"] == 1
+    assert result["folds_with_interval_including_50_percent"] == 1
+    assert result["positive_fraction_range"] == 0.4
