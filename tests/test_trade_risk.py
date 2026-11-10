@@ -46,13 +46,13 @@ def test_risk_plan_does_not_invent_net_rr_or_position_size_when_costs_missing():
     assert result["cost_assumptions"]["net_rr_status"].startswith("NOT_ESTABLISHED")
 
 
-def test_risk_plan_rejects_spot_short_and_coinm_inverse():
+def test_risk_plan_rejects_spot_short_and_requires_coinm_contract_metadata():
     with pytest.raises(ValueError):
         build_trade_risk_plan(market="SPOT", direction="SHORT", entry_price=100,
                               stop_loss=105, take_profits=[90])
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="contract_size_usd is required"):
         build_trade_risk_plan(market="COIN_M", direction="LONG", entry_price=100,
-                              stop_loss=95, take_profits=[110])
+                              stop_loss=95, take_profits=[110], settlement_asset="BTC")
 
 
 def test_trade_risk_plan_api_returns_user_supplied_calculation():
@@ -66,3 +66,51 @@ def test_trade_risk_plan_api_returns_user_supplied_calculation():
     assert payload["analysis_only"] is True
     assert payload["trading_enabled"] is False
     assert payload["gross_risk_reward_ratios"] == [2.0]
+
+
+def test_coinm_inverse_long_uses_coin_settlement_pnl_and_cost_adjusted_sizing():
+    result = build_trade_risk_plan(
+        market="COIN_M", direction="LONG", entry_price=100, stop_loss=90,
+        take_profits=[120], contract_size_usd=100, settlement_asset="BTC",
+        account_capital=1, risk_percent=1,
+        fee_rate_per_side=0.0004, slippage_bps_per_side=5,
+        adverse_funding_cost_percent=0.01,
+    )
+    assert result["status"] == "COMPLETED"
+    assert result["contract_model"] == "COIN_M_INVERSE_FIXED_USD_FACE_VALUE"
+    assert result["pnl_unit"] == "BTC"
+    assert result["gross_risk_per_contract"] == pytest.approx(100 * (1 / 90 - 1 / 100))
+    assert result["gross_reward_per_contract"] == pytest.approx(100 * (1 / 100 - 1 / 120))
+    assert result["net_risk_reward_ratios"][0] > 0
+    assert result["risk_budget"]["risk_amount_unit"] == "BTC"
+    assert result["risk_budget"]["position_unit"] == "CONTRACTS"
+    assert result["risk_budget"]["position_units"] > 0
+    assert result["liquidation_price"] is None
+    assert "MAINTENANCE_TIER" in result["liquidation_status"]
+
+
+def test_coinm_inverse_short_calculates_positive_reward_for_lower_exit():
+    result = build_trade_risk_plan(
+        market="COIN_M", direction="SHORT", entry_price=100, stop_loss=110,
+        take_profits=[80], contract_size_usd=100, settlement_asset="BTC",
+        fee_rate_per_side=0.0004, slippage_bps_per_side=3,
+        adverse_funding_cost_percent=0.02,
+    )
+    assert result["gross_reward_per_contract"][0] == pytest.approx(100 * (1 / 80 - 1 / 100))
+    assert result["gross_risk_reward_ratios"][0] == pytest.approx(
+        (1 / 80 - 1 / 100) / (1 / 100 - 1 / 110)
+    )
+
+
+def test_coinm_trade_risk_plan_api_accepts_inverse_contract_metadata():
+    response = client.post("/api/v1/analysis/trade-risk-plan", json={
+        "market": "COIN_M", "direction": "LONG", "entry_price": 100,
+        "stop_loss": 90, "take_profits": [120], "contract_size_usd": 100,
+        "settlement_asset": "BTC", "fee_rate_per_side": 0.0004,
+        "slippage_bps_per_side": 5, "adverse_funding_cost_percent": 0.01,
+    })
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["analysis_only"] is True
+    assert payload["trading_enabled"] is False
+    assert payload["market"] == "COIN_M"
