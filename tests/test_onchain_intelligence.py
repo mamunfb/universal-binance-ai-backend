@@ -211,3 +211,24 @@ def test_wallet_snapshot_does_not_expose_provider_exception_message():
     assert failed["status"] == "FAILED"
     assert failed["error"] == "BALANCE_UNAVAILABLE"
     assert "secret-token" not in str(result)
+
+
+async def test_erc20_snapshot_sanitizes_holder_rpc_errors():
+    class FakeProvider:
+        async def block_number(self):
+            return 789
+        async def block_timestamp(self, block_number):
+            return 1700000000
+        async def eth_call(self, contract, data, block="latest"):
+            if data == "0x18160ddd":
+                return "0x" + (1000).to_bytes(32, "big").hex()
+            if data == "0x313ce567":
+                return "0x" + (0).to_bytes(32, "big").hex()
+            if data == "0x95d89b41" or data == "0x06fdde03":
+                return "0x" + (0).to_bytes(32, "big").hex()
+            raise RuntimeError("https://rpc.example/key=secret-token")
+
+    result = await get_erc20_token_snapshot(FakeProvider(), CONTRACT, {"wallet-a": ADDRESS_A})
+    assert result["status"] == "INCOMPLETE"
+    assert result["failed_balances"][0]["error"] == "BALANCE_UNAVAILABLE"
+    assert "secret-token" not in str(result)
