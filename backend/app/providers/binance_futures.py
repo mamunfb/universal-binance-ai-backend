@@ -51,10 +51,28 @@ class BinanceFuturesProvider:
             raise ValueError(f"Unexpected Binance {self.market} 24hr ticker response")
         return data
 
-    async def funding_rate(self, symbol: str, limit: int = 10) -> list[dict[str, Any]]:
+    async def funding_rate(
+        self, symbol: str, limit: int = 1000,
+        start_time_ms: int | None = None, end_time_ms: int | None = None,
+    ) -> list[dict[str, Any]]:
         if self.market != "USD_M":
             raise NotImplementedError("Funding history adapter is currently enabled for USD_M only")
-        data = await self._get("/fapi/v1/fundingRate", {"symbol": symbol.upper(), "limit": limit})
+        if not symbol or not symbol.strip():
+            raise ValueError("symbol must not be empty")
+        if not 1 <= limit <= 1000:
+            raise ValueError("limit must be between 1 and 1000")
+        if start_time_ms is not None and start_time_ms < 0:
+            raise ValueError("start_time_ms must be non-negative")
+        if end_time_ms is not None and end_time_ms < 0:
+            raise ValueError("end_time_ms must be non-negative")
+        if start_time_ms is not None and end_time_ms is not None and end_time_ms < start_time_ms:
+            raise ValueError("end_time_ms must be >= start_time_ms")
+        params: dict[str, Any] = {"symbol": symbol.upper(), "limit": limit}
+        if start_time_ms is not None:
+            params["startTime"] = start_time_ms
+        if end_time_ms is not None:
+            params["endTime"] = end_time_ms
+        data = await self._get("/fapi/v1/fundingRate", params)
         if not isinstance(data, list):
             raise ValueError("Unexpected funding rate response")
         return data
