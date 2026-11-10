@@ -23,8 +23,8 @@ Binance public APIs -> provider adapters and normalization -> analysis services 
 
 ## Market coverage
 - Binance Spot: market scanner, 24-hour ticker summary, klines, EMA/RSI/MACD/Bollinger indicators.
-- Binance USDⓈ-M Futures: perpetual contract scanner and klines.
-- Binance COIN-M Futures: perpetual contract scanner and klines.
+- Binance USDⓈ-M Futures: scanner for all currently trading perpetual and dated contracts, plus klines.
+- Binance COIN-M Futures: scanner for all currently trading perpetual and dated contracts, plus klines.
 - Binance USDⓈ-M derivatives: funding history, open interest, global long/short account ratio, taker buy/sell ratio, and order-book snapshot summary.
 - Spot/USDⓈ-M Futures comparison: latest price basis (premium/discount) plus latest funding-rate context; see docs/SPOT_FUTURES_BASIS_API.md.
 - Unified research-only Market Evidence Snapshot combining multi-timeframe trend, Spot/Futures basis, derivatives, approximate volume structure, and configured news catalyst triage; it explicitly emits no Buy/Sell signal or probability. See docs/MARKET_EVIDENCE_API.md.
