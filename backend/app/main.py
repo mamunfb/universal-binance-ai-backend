@@ -36,6 +36,7 @@ from app.services.funding_rates import FundingRateStore
 from app.services.open_interest import OpenInterestStore
 from app.services.derivatives_collector import DerivativesHistoryCollector
 from app.services.funding_open_interest_analysis import FundingOpenInterestAnalysis
+from app.services.advanced_derivatives_analysis import AdvancedDerivativesAnalysis, DerivativesSignalStore
 from app.services.historical_coverage import HistoricalCoverageEngine
 from app.services.historical_collector import HistoricalKlineCollector
 from app.services.wallet_attribution import load_wallet_registry, annotate_wallet_addresses
@@ -50,6 +51,7 @@ evm_transfer_store = EVMTransferStore(settings.evm_transfer_database_path)
 historical_kline_store = HistoricalKlineStore(settings.historical_kline_database_path)
 funding_rate_store = FundingRateStore(settings.funding_rate_database_path)
 open_interest_store = OpenInterestStore(settings.open_interest_database_path)
+derivatives_signal_store = DerivativesSignalStore(settings.derivatives_signal_database_path)
 historical_collector: HistoricalKlineCollector | None = None
 derivatives_collector: DerivativesHistoryCollector | None = None
 
@@ -1421,6 +1423,45 @@ async def analyze_funding_open_interest(
         )
         return await asyncio.to_thread(
             engine.analyze, symbol, period, price_interval, limit
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.get("/api/v1/analysis/derivatives/advanced/{symbol}", tags=["analysis"])
+async def analyze_advanced_derivatives(
+    symbol: str,
+    period: Literal["5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "1d"] = "1h",
+    price_interval: Literal["1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d", "3d", "1w", "1M"] = "1h",
+    limit: int = Query(default=48, ge=6, le=500),
+    funding_abs_threshold: float = Query(default=0.001, ge=0, le=0.1),
+    spike_mad_multiplier: float = Query(default=3.5, ge=1, le=10),
+) -> dict:
+    try:
+        engine = AdvancedDerivativesAnalysis(
+            funding_rate_store, open_interest_store, historical_kline_store,
+            liquidation_store, derivatives_signal_store,
+        )
+        return await asyncio.to_thread(
+            engine.analyze, symbol, period, price_interval, limit,
+            funding_abs_threshold, spike_mad_multiplier,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.get("/api/v1/history/derivatives-signals/{symbol}", tags=["history"])
+async def get_derivatives_signal_history(
+    symbol: str,
+    period: Literal["5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "1d"] = "1h",
+    start_time_ms: int | None = Query(default=None, ge=0),
+    end_time_ms: int | None = Query(default=None, ge=0),
+    limit: int = Query(default=100, ge=1, le=1000),
+) -> dict:
+    try:
+        return await asyncio.to_thread(
+            derivatives_signal_store.history, symbol, period,
+            start_time_ms, end_time_ms, limit,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
