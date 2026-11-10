@@ -56,7 +56,8 @@ async def cross_chain_verified_wallet_flows(
                 "status": "COMPLETED" if coverage["complete"] else "INCOMPLETE",
                 "chain_id": chain_id, "chain_name": config["chain_name"],
                 "contract_address": config["contract_address"],
-                "coverage": coverage, "verified_wallet_flow": flows,\n                "accumulation_trend": trend,
+                "coverage": coverage, "verified_wallet_flow": flows,
+                "accumulation_trend": trend,
                 "verified_registry_wallet_count": len(verified_registry["wallets"]),
             }
         except Exception as exc:
