@@ -9,6 +9,7 @@ from app.providers.binance_spot import BinanceSpotProvider
 from app.providers.binance_futures import BinanceFuturesProvider
 from app.services.market_scanner import scan_spot_markets
 from app.services.futures_scanner import scan_futures_markets
+from app.services.derivatives_intelligence import get_derivatives_intelligence
 
 app = FastAPI(
     title=settings.app_name,
@@ -111,6 +112,27 @@ async def coinm_klines(
         raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
     return {"status": "COMPLETED", "source": "Binance COIN-M Futures public REST API",
             "symbol": symbol.upper(), "interval": interval, "count": len(rows), "klines": rows}
+
+
+@app.get("/api/v1/analysis/futures/usdm/derivatives/{symbol}", tags=["analysis"])
+async def usdm_derivatives_intelligence(
+    symbol: str,
+    period: Literal["5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d"] = "1h",
+    history_limit: int = Query(default=30, ge=1, le=100),
+    order_book_limit: Literal[5, 10, 20, 50, 100, 500, 1000] = 100,
+) -> dict:
+    try:
+        return await get_derivatives_intelligence(
+            get_futures_provider("USD_M"),
+            symbol=symbol,
+            period=period,
+            history_limit=history_limit,
+            order_book_limit=order_book_limit,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
 
 
 @app.get("/api/v1/analysis/spot/technical/{symbol}", tags=["analysis"])
