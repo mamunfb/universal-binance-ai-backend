@@ -54,6 +54,19 @@ class MarketConfluencePerformance:
             raise ValueError("Selected price_interval requires more than the local history query limit")
 
         history = self.snapshots.history(market, symbol, interval, limit)
+        ordered_snapshots = sorted(
+            history["snapshots"], key=lambda item: int(item["analyzed_at_ms"])
+        )
+        train_count = (
+            min(len(ordered_snapshots) - 1, max(1, int(len(ordered_snapshots) * 0.7)))
+            if len(ordered_snapshots) >= 2 else 0
+        )
+        training_ids = {item["snapshot_id"] for item in ordered_snapshots[:train_count]}
+        test_ids = {item["snapshot_id"] for item in ordered_snapshots[train_count:]}
+        split_timestamp_ms = (
+            int(ordered_snapshots[train_count - 1]["analyzed_at_ms"])
+            if train_count else None
+        )
         summaries: dict[str, Any] = {}
         for hours in self.HORIZONS_HOURS:
             outcomes = []
@@ -146,6 +159,39 @@ class MarketConfluencePerformance:
                 })
 
             directional = [row for row in outcomes if row["directional_positive"] is not None]
+            training_outcomes = [row for row in outcomes if row["snapshot_id"] in training_ids]
+            test_outcomes = [row for row in outcomes if row["snapshot_id"] in test_ids]
+            train_directional = [row for row in training_outcomes if row["directional_positive"] is not None]
+            test_directional = [row for row in test_outcomes if row["directional_positive"] is not None]
+            out_of_sample = {
+                "method": "Chronological holdout: earliest 70% of saved snapshots are the training period; latest 30% are the test period. No fitting or tuning is performed by this evaluator.",
+                "status": (
+                    "INSUFFICIENT_SNAPSHOTS" if len(ordered_snapshots) < 2
+                    else "COMPLETED" if test_outcomes else "INSUFFICIENT_TEST_OUTCOMES"
+                ),
+                "split_fraction": 0.7,
+                "split_timestamp_ms": split_timestamp_ms,
+                "training_snapshot_count": len(training_ids),
+                "test_snapshot_count": len(test_ids),
+                "training_matured_outcome_count": len(training_outcomes),
+                "test_matured_outcome_count": len(test_outcomes),
+                "training_directional_sample_size": len(train_directional),
+                "test_directional_sample_size": len(test_directional),
+                "test_positive_count": sum(row["directional_positive"] for row in test_directional),
+                "test_negative_count": sum(not row["directional_positive"] for row in test_directional),
+                "test_directional_positive_fraction": (
+                    sum(row["directional_positive"] for row in test_directional) / len(test_directional)
+                    if test_directional else None
+                ),
+                "test_mean_directional_return_percent": (
+                    sum(row["directional_return_percent"] for row in test_directional) / len(test_directional)
+                    if test_directional else None
+                ),
+                "test_coverage_complete_count": sum(
+                    row["future_candle_coverage_complete"] for row in test_outcomes
+                ),
+                "test_outcomes": test_outcomes,
+            }
             bias_breakdown = {}
             for bias_name in ("BULLISH", "BEARISH", "MIXED", "UNKNOWN"):
                 bias_rows = [row for row in outcomes if row["bias"] == bias_name]
@@ -224,6 +270,7 @@ class MarketConfluencePerformance:
                 "bias_breakdown": bias_breakdown,
                 "regime_breakdown": regime_breakdown,
                 "regime_bias_breakdown": regime_bias_breakdown,
+                "out_of_sample": out_of_sample,
                 "pending_or_not_matured": pending,
                 "missing_reference_price": missing_reference,
                 "coverage_complete_count": sum(row["future_candle_coverage_complete"] for row in outcomes),
@@ -265,6 +312,7 @@ class MarketConfluencePerformance:
                 "directional_metric": "Directional-positive fraction is descriptive, not a validated strategy hit rate.",
                 "mixed_unknown": "Retained in raw outcomes but excluded from directional aggregates.",
                 "regime_stratification": "Groups outcomes by saved market, volatility and structure regime labels; missing labels are UNCLASSIFIED. Groups are descriptive and may have small samples.",
+                "out_of_sample": "Chronological 70/30 holdout by snapshot analysis time. This is a temporal evaluation split, not a trained or tuned predictive model.",
                 "mfe_mae": "Directional high/low excursion; not a stop/target simulation.",
                 "coverage": "Every outcome reports whether the local candle sequence is continuous from the first expected candle through its endpoint.",
             },
@@ -273,6 +321,7 @@ class MarketConfluencePerformance:
                 "A horizon is evaluated only when a stored candle closes at or after its target time.",
                 "No execution, fees, slippage, funding, leverage, position sizing, stop or target is simulated.",
                 "Not strategy profitability, investment advice, or a forecast.",
+                "The out-of-sample section is a chronological holdout summary only; it does not train, tune, or validate a predictive model.",
             ],
         }
 
