@@ -150,7 +150,9 @@ async def test_scan_defaults_to_all_quote_assets_and_consolidates_base_assets():
     assert result["scanned_symbols"] == 3
     assert result["unique_coin_count"] == 2
     primary = {row["base_asset"]: row["primary_symbol"] for row in result["unique_coins"]}
-    assert primary == {"AAA": "AAAUSDC", "BBB": "BBBFDUSD"}
+    assert primary == {"AAA": None, "BBB": "BBBFDUSD"}
+    aaa = next(row for row in result["unique_coins"] if row["base_asset"] == "AAA")
+    assert aaa["primary_selection_status"] == "NOT_ESTABLISHED_DIFFERENT_QUOTE_ASSETS_NOT_COMPARABLE"
     assert result["excluded_pair_counts"]["BREAK"] == 1
 
 
