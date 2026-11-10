@@ -43,6 +43,16 @@ class BinanceSpotProvider:
             raise ValueError("Unexpected Binance 24hr ticker response")
         return data
 
+    async def order_book(self, symbol: str, limit: int = 100) -> dict[str, Any]:
+        if not symbol or not symbol.strip():
+            raise ValueError("symbol must not be empty")
+        if limit not in {1, 5, 10, 20, 50, 100, 500, 1000, 5000}:
+            raise ValueError("Unsupported Spot order book limit")
+        data = await self._get("/api/v3/depth", {"symbol": symbol.upper(), "limit": limit})
+        if not isinstance(data, dict) or not isinstance(data.get("bids"), list) or not isinstance(data.get("asks"), list):
+            raise ValueError("Unexpected Binance Spot order book response")
+        return data
+
     async def klines(
         self, symbol: str, interval: str = "1h", limit: int = 500,
         start_time_ms: int | None = None, end_time_ms: int | None = None,
