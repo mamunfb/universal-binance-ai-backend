@@ -137,7 +137,8 @@ async def scan_spot_markets(
     newly_listed_pairs = [
         {"symbol": row["symbol"], "base_asset": row["base_asset"], "onboard_date": row["onboard_date"]}
         for row in results
-        if row.get("onboard_date") and now_ms - datetime.fromisoformat(row["onboard_date"]).timestamp() * 1000 <= 30 * 24 * 60 * 60 * 1000
+        if row.get("onboard_date")
+        and 0 <= now_ms - datetime.fromisoformat(row["onboard_date"]).timestamp() * 1000 <= 30 * 24 * 60 * 60 * 1000
     ]
     scanned = len(eligible)
     return {
