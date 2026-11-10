@@ -96,3 +96,8 @@ Open `/docs` for the interactive API documentation. See [personal AI client inte
 
 ## Disclaimer
 This software is for research and education. It does not provide guaranteed predictions or financial advice. Crypto assets are volatile; users are responsible for their own decisions.
+
+
+## Historical market regime heuristic
+
+A descriptive endpoint classifies locally stored OHLC candles by relative volatility and price-path efficiency. It requires at least 40 stored candles, reports UNKNOWN when the baseline is insufficient, and does not produce forecasts or trade signals. See [Market Regime Analysis](docs/MARKET_REGIME_ANALYSIS.md).
