@@ -309,6 +309,64 @@ class EVMTransferStore:
             "warning": "Cumulative net flow starts at zero at the requested from_block. It is not a wallet balance or total holdings; windows without matching transfers are omitted.",
         }
 
+
+    def verified_label_flows(self, chain_id: int, contract: str, from_block: int,
+                             to_block: int, decimals: int, registry: dict[str, Any]) -> dict[str, Any]:
+        """Aggregate indexed transfer flow for verified registry labels, cancelling cohort-internal transfers."""
+        if not 0 <= decimals <= 36:
+            raise ValueError("decimals must be between 0 and 36")
+        verified = {
+            item["address"]: item for item in registry.get("wallets", [])
+            if item.get("verification_status") == "verified"
+            and item.get("label") in {"exchange", "fund", "market_maker",
+                                      "protocol_treasury", "smart_money", "whale"}
+        }
+        with sqlite3.connect(self.database_path) as connection:
+            rows = connection.execute("""
+                SELECT from_address, to_address, amount_raw
+                FROM evm_transfer_logs
+                WHERE chain_id=? AND contract_address=?
+                  AND block_number BETWEEN ? AND ? AND removed=0
+            """, (chain_id, contract.lower(), from_block, to_block)).fetchall()
+        grouped: dict[str, dict[str, Any]] = {}
+        for sender, recipient, amount_text in rows:
+            raw = int(amount_text)
+            sender_entry = verified.get(sender)
+            recipient_entry = verified.get(recipient)
+            if sender_entry:
+                label = sender_entry["label"]
+                item = grouped.setdefault(label, {"wallets": set(), "sent_raw": 0,
+                                                   "received_raw": 0, "transfer_events": 0})
+                item["wallets"].add(sender)
+                item["sent_raw"] += raw
+                item["transfer_events"] += 1
+            if recipient_entry:
+                label = recipient_entry["label"]
+                item = grouped.setdefault(label, {"wallets": set(), "sent_raw": 0,
+                                                   "received_raw": 0, "transfer_events": 0})
+                item["wallets"].add(recipient)
+                item["received_raw"] += raw
+                item["transfer_events"] += 1
+        scale = 10 ** decimals
+        result = {}
+        for label, item in grouped.items():
+            net = item["received_raw"] - item["sent_raw"]
+            result[label] = {
+                "verified_wallet_count": len(item["wallets"]),
+                "sent_raw": str(item["sent_raw"]),
+                "received_raw": str(item["received_raw"]),
+                "net_received_raw": str(net),
+                "sent_tokens": item["sent_raw"] / scale,
+                "received_tokens": item["received_raw"] / scale,
+                "net_received_tokens": net / scale,
+                "transfer_events_involving_cohort": item["transfer_events"],
+                "direction": "NET_INFLOW" if net > 0 else "NET_OUTFLOW" if net < 0 else "NEUTRAL",
+            }
+        return {
+            "verified_label_flows": result,
+            "warning": "Only operator-verified registry entries are included. Transfers between wallets in the same label cohort are included in gross sent/received but cancel in net flow. Transfers are not proof of exchange deposits, sales, purchases, ownership, or investment intent.",
+        }
+
     def coverage(self, chain_id: int, contract: str) -> list[dict[str, Any]]:
         with sqlite3.connect(self.database_path) as connection:
             connection.row_factory = sqlite3.Row
