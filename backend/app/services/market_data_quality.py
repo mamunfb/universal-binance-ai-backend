@@ -141,6 +141,8 @@ class MarketDataQualityEngine:
             freshness = "UNKNOWN" if count < 0 else self._freshness(latest, now, stale_after)
             sources[name] = {
                 "status": "UNKNOWN" if count < 0 else "NO_DATA" if count == 0 else "NOT_MEASURABLE",
+                "source_market": "USD_M" if name in {"funding_rates", "open_interest", "derivatives_ratios"} else market,
+                "period": interval if name == "open_interest" else None,
                 "freshness": freshness,
                 "record_count": count,
                 "latest_event_time_ms": latest,
