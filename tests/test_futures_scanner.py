@@ -124,6 +124,13 @@ async def test_futures_scanner_rejects_negative_minimum_volume():
     assert result["error_code"] == "INVALID_FILTER"
 
 
+async def test_futures_scanner_rejects_boolean_minimum_volume():
+    for value in (True, False):
+        result = await scan_futures_markets(FakeFuturesProvider(), min_quote_volume=value)
+        assert result["status"] == "FAILED"
+        assert result["error_code"] == "INVALID_FILTER"
+
+
 async def test_futures_scanner_rejects_malformed_upstream_shape():
     class MalformedProvider:
         market = "USD_M"
