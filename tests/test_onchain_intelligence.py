@@ -68,6 +68,10 @@ async def test_wallet_snapshot_reports_partial_failures():
     result = await get_evm_wallet_snapshot(FakeProvider(), [ADDRESS_A, ADDRESS_B])
     assert result["status"] == "INCOMPLETE"
     assert result["block_number"] == 123
+    assert result["snapshot_block"] == 123
+    assert result["snapshot_block_number"] == 123
+    assert result["snapshot_block_timestamp"] == 1700000000
+    assert result["snapshot_timestamp_status"] == "AVAILABLE"
     assert result["block_timestamp"] == 1700000000
     assert result["timestamp_status"] == "AVAILABLE"
     assert result["snapshot_age_seconds"] >= 0
