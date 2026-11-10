@@ -7,6 +7,19 @@ from app.services.historical_klines import HistoricalKlineStore
 from app.services.market_confluence_store import MarketConfluenceStore
 
 
+def _snapshot_regime_labels(snapshot: dict[str, Any]) -> dict[str, str]:
+    """Read regime labels from saved MARKET_REGIME evidence without guessing."""
+    payload = snapshot.get("payload") or {}
+    evidence = payload.get("evidence") or []
+    item = next((entry for entry in evidence if entry.get("source") == "MARKET_REGIME"), {})
+    detail = item.get("detail") or {}
+    keys = {"market_regime": "regime", "volatility_regime": "volatility_regime",
+            "structure_regime": "structure_regime"}
+    return {name: (str(detail.get(source)).strip().upper()
+                   if detail.get(source) is not None and str(detail.get(source)).strip()
+                   else "UNCLASSIFIED") for name, source in keys.items()}
+
+
 class MarketConfluencePerformance:
     """Descriptive forward outcomes for saved snapshots, not a strategy backtest."""
 
@@ -50,6 +63,7 @@ class MarketConfluencePerformance:
                 analyzed_at = int(snapshot["analyzed_at_ms"])
                 reference = snapshot["reference_price"]
                 bias = snapshot["bias"]
+                regime_labels = _snapshot_regime_labels(snapshot)
                 if reference is None or not math.isfinite(float(reference)) or float(reference) <= 0:
                     missing_reference += 1
                     continue
@@ -113,6 +127,7 @@ class MarketConfluencePerformance:
                     "snapshot_id": snapshot["snapshot_id"],
                     "analyzed_at_ms": analyzed_at,
                     "bias": bias,
+                    **regime_labels,
                     "alignment": snapshot["alignment"],
                     "reference_price": reference_price,
                     "outcome_close": outcome_close,
@@ -154,6 +169,27 @@ class MarketConfluencePerformance:
                         row["future_candle_coverage_complete"] for row in bias_rows
                     ),
                 }
+            regime_breakdown = {}
+            for dimension in ("market_regime", "volatility_regime", "structure_regime"):
+                grouped = {}
+                for row in outcomes:
+                    grouped.setdefault(row[dimension], []).append(row)
+                regime_breakdown[dimension] = {}
+                for label, group_rows in sorted(grouped.items()):
+                    group_directional = [row for row in group_rows if row["directional_positive"] is not None]
+                    positive_count = sum(row["directional_positive"] for row in group_directional)
+                    regime_breakdown[dimension][label] = {
+                        "sample_size": len(group_rows),
+                        "directional_sample_size": len(group_directional),
+                        "positive_count": positive_count,
+                        "negative_count": len(group_directional) - positive_count,
+                        "positive_fraction": positive_count / len(group_directional) if group_directional else None,
+                        "mean_directional_return_percent": (
+                            sum(row["directional_return_percent"] for row in group_directional) / len(group_directional)
+                            if group_directional else None
+                        ),
+                        "coverage_complete_count": sum(row["future_candle_coverage_complete"] for row in group_rows),
+                    }
             summaries[str(hours)] = {
                 "label": self.HORIZON_LABELS[hours],
                 "horizon_hours": hours,
@@ -162,6 +198,7 @@ class MarketConfluencePerformance:
                 "sample_size": len(outcomes),
                 "directional_sample_size": len(directional),
                 "bias_breakdown": bias_breakdown,
+                "regime_breakdown": regime_breakdown,
                 "pending_or_not_matured": pending,
                 "missing_reference_price": missing_reference,
                 "coverage_complete_count": sum(row["future_candle_coverage_complete"] for row in outcomes),
@@ -202,6 +239,7 @@ class MarketConfluencePerformance:
                 "one_month": "30 fixed days (720 hours), not a calendar-month calculation.",
                 "directional_metric": "Directional-positive fraction is descriptive, not a validated strategy hit rate.",
                 "mixed_unknown": "Retained in raw outcomes but excluded from directional aggregates.",
+                "regime_stratification": "Groups outcomes by saved market, volatility and structure regime labels; missing labels are UNCLASSIFIED. Groups are descriptive and may have small samples.",
                 "mfe_mae": "Directional high/low excursion; not a stop/target simulation.",
                 "coverage": "Every outcome reports whether the local candle sequence is continuous from the first expected candle through its endpoint.",
             },
