@@ -224,3 +224,12 @@ def test_get_handles_connection_failure_without_leaking_exception(monkeypatch):
     assert result["error"]["code"] == "UPSTREAM_CONNECTION_ERROR"
     assert result["retryable"] is True
     assert "private host" not in str(result)
+
+
+def test_spot_futures_basis_mcp_tool_calls_fixed_read_only_route(monkeypatch):
+    server = _load_server(monkeypatch)
+    calls = []
+    monkeypatch.setattr(server, "_get", lambda path, params=None: calls.append((path, params)) or {"status": "COMPLETED"})
+    result = server.get_spot_futures_basis("btcusdt")
+    assert result["status"] == "COMPLETED"
+    assert calls == [("/api/v1/analysis/spot-futures/basis/BTCUSDT", None)]
