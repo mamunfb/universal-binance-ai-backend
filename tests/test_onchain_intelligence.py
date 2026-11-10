@@ -81,9 +81,9 @@ async def test_erc20_snapshot_reports_tracked_share_not_full_distribution():
             if data == "0x18160ddd": return hex(1_000_000 * 10**6)
             if data == "0x313ce567": return hex(6)
             if data == "0x95d89b41":
-                return "0x" + (32).to_bytes(32, "big").hex() + (3).to_bytes(32, "big").hex() + b"ABC".ljust(32, b"\\x00").hex()
+                return "0x" + (32).to_bytes(32, "big").hex() + (3).to_bytes(32, "big").hex() + b"ABC".ljust(32, b"\x00").hex()
             if data == "0x06fdde03":
-                return "0x" + (32).to_bytes(32, "big").hex() + (7).to_bytes(32, "big").hex() + b"Example".ljust(32, b"\\x00").hex()
+                return "0x" + (32).to_bytes(32, "big").hex() + (7).to_bytes(32, "big").hex() + b"Example".ljust(32, b"\x00").hex()
             if data.endswith(ADDRESS_A[2:].rjust(64, "0")): return hex(250_000 * 10**6)
             raise AssertionError(data)
     result = await get_erc20_token_snapshot(FakeProvider(), CONTRACT, {"wallet-a": ADDRESS_A})
