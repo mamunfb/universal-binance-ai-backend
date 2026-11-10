@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     liquidation_collector_enabled: bool = False
     liquidation_database_path: str = "data/liquidations.sqlite3"
     historical_kline_database_path: str = "data/historical_klines.sqlite3"
+    funding_rate_database_path: str = "data/funding_rates.sqlite3"
     historical_collector_enabled: bool = False
     historical_collector_jobs: str = "[]"
     historical_collector_poll_seconds: int = 30
