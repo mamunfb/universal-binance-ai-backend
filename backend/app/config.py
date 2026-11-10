@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     evm_index_max_total_blocks: int = 10000
     evm_wallet_registry: str = "[]"
     evm_chain_rpc_urls: str = "[]"
+    evm_chain_token_contracts: str = "[]"
 
     model_config = SettingsConfigDict(
         env_file=".env",
