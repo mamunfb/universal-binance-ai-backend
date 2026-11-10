@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import math
-from collections import defaultdict
 from typing import Any
 
 from app.services.advanced_derivatives_analysis import DerivativesSignalStore
@@ -62,7 +61,7 @@ class HistoricalSignalPerformance:
                 limit=5000,
             )["candles"]
             baseline_candidates = [c for c in candles if c["close_time_ms"] <= signal_time]
-            future = [c for c in candles if c["open_time_ms"] > signal_time]
+            future = [c for c in candles if c["open_time_ms"] >= signal_time]
             if not baseline_candidates:
                 skipped_no_baseline += 1
                 continue
