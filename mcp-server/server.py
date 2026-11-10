@@ -222,6 +222,20 @@ def get_cross_chain_token_intelligence(
 
 
 @mcp.tool()
+def get_stored_funding_rate_history(
+    symbol: str, start_time_ms: int | None = None,
+    end_time_ms: int | None = None, limit: int = 1000,
+) -> dict:
+    """Read locally stored USD-M funding events and observed timestamp deltas."""
+    if not 1 <= limit <= 5000:
+        raise ValueError("limit must be between 1 and 5000")
+    return _get(
+        f"/api/v1/history/funding-rates/USD_M/{quote(symbol.upper(), safe='')}",
+        {"start_time_ms": start_time_ms, "end_time_ms": end_time_ms, "limit": limit},
+    )
+
+
+@mcp.tool()
 def get_historical_collector_status() -> dict:
     """Check whether scheduled historical candle collection is enabled and healthy."""
     return _get("/api/v1/history/collector/status")
