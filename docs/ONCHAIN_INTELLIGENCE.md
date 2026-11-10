@@ -36,3 +36,24 @@ Reads ERC-20 name, symbol, decimals, total supply, and balances for supplied add
 - Whale threshold is token quantity, not USD value.
 - Smart-money labels, beneficial ownership, holder distribution, active addresses, and exchange reserves require additional indexed datasets and verified attribution.
 - Native token transfers are not included in ERC-20 Transfer logs.
+
+### Persistent ERC-20 transfer history
+
+POST /api/v1/onchain/evm/token/{contract}/index
+
+JSON body:
+```json
+{"from_block": 1000000, "to_block": 1001000, "chunk_size": 500}
+```
+
+Indexes a caller-selected block range in bounded chunks and stores normalized Transfer logs in SQLite. Replaying the same range is idempotent by chain ID, contract, transaction hash, and log index. Successful chunks are recorded individually. If an RPC request fails, the response reports the last completed range and next block to retry; retrying from that block is safe.
+
+GET /api/v1/onchain/evm/token/{contract}/history?from_block=...&to_block=...&limit=500
+
+Returns stored transfers and the successful indexed ranges recorded for that chain and contract. An empty result is not proof of no transfers unless the requested range is covered.
+
+Configuration:
+- `EVM_TRANSFER_DATABASE_PATH=data/evm_transfers.sqlite3`
+- `EVM_INDEX_MAX_TOTAL_BLOCKS=10000`
+
+The request range is capped by EVM_INDEX_MAX_TOTAL_BLOCKS, and each chunk is capped at 2000 blocks. SQLite storage is local to the running instance; ephemeral hosting filesystems may lose it on restart or redeploy. Use a persistent disk or external database for production history retention.
