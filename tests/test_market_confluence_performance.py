@@ -439,3 +439,32 @@ def test_regime_bias_alignment_breakdown_separates_alignment_groups():
     assert volatility["BEARISH"]["CONFLICTING"]["sample_size"] == 2
     assert structure["BULLISH"]["CONFLICTING"]["sample_size"] == 1
     assert structure["BEARISH"]["ALIGNED"]["sample_size"] == 1
+
+def test_horizon_comparison_ranks_only_metrics_with_at_least_30_samples():
+    rows = []
+    for index in range(30):
+        item = snapshot("BULLISH")
+        item["snapshot_id"] = f"ranking-{index}"
+        item["analyzed_at_ms"] = index * 7_200_000
+        rows.append(item)
+
+    result = MarketConfluencePerformance(
+        SnapshotStore(rows), KlineStore(),
+    ).evaluate("USD_M", "BTCUSDT", "1h", "1h", 50)
+
+    comparison = result["horizon_comparison"]
+    assert comparison["status"] == "DESCRIPTIVE_ONLY"
+    assert comparison["minimum_sample_size"] == 30
+
+    positive = comparison["rankings"]["directional_positive_fraction"]
+    assert positive["minimum_sample_size"] == 30
+    one_hour = next(row for row in positive["ranked"] if row["horizon_hours"] == 1)
+    assert one_hour["rank"] == 1
+    assert one_hour["sample_size"] == 30
+    assert one_hour["value"] == 1.0
+    assert all(row["sample_size"] >= 30 for row in positive["ranked"])
+    assert all(row["reason"] == "BELOW_MINIMUM_SAMPLE_SIZE" for row in positive["excluded"])
+
+    non_overlap = comparison["rankings"]["non_overlapping_positive_fraction"]
+    assert all(row["sample_size"] >= 30 for row in non_overlap["ranked"])
+    assert "composite score" in comparison["method"]
