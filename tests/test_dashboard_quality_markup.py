@@ -58,3 +58,11 @@ def test_dashboard_displays_regime_bias_confidence_and_overlap_metrics():
     assert "x.non_overlapping_directional_sample_size" in html
     assert "x.overlap_excluded_count" in html
     assert "30-sample flag is a caution threshold" in html
+
+
+def test_dashboard_displays_regime_bias_alignment_breakdown():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "Market regime × bias × alignment" in html
+    assert "regime_bias_alignment_breakdown" in html
+    assert "x.positive_fraction_ci_95_wilson.lower" in html
+    assert "escapeHtml(alignment)" in html
