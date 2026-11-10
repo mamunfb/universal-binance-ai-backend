@@ -27,8 +27,9 @@ Binance public APIs -> provider adapters and normalization -> analysis services 
 - Binance COIN-M Futures: perpetual contract scanner and klines.
 - Binance USDⓈ-M derivatives: funding history, open interest, global long/short account ratio, taker buy/sell ratio, and order-book snapshot summary.
 - Multi-timeframe Spot analysis (15m/1h/4h/1d) and a limited BTC/ETH market context endpoint.
+- Optional Binance USDⓈ-M force-order WebSocket snapshot collector with SQLite persistence; disabled by default and explicitly documented as incomplete snapshot coverage.
 
-Futures coverage is based on exchangeInfo symbols marked TRADING and the selected quote asset. Scanner responses include coverage counts and data failures. See docs/FUTURES_API.md, docs/DERIVATIVES_API.md, and docs/MULTI_TIMEFRAME_API.md.
+Futures coverage is based on exchangeInfo symbols marked TRADING and the selected quote asset. Scanner responses include coverage counts and data failures. See docs/FUTURES_API.md, docs/DERIVATIVES_API.md, docs/MULTI_TIMEFRAME_API.md, and docs/LIQUIDATION_COLLECTOR.md.
 
 ## Repository layout
 - backend/ — API and application services
@@ -43,7 +44,7 @@ Futures coverage is based on exchangeInfo symbols marked TRADING and the selecte
 Upstream projects will be evaluated and integrated individually. They will not be blindly copied into this repository. Each source must have its license, maintenance status, security posture, and relevance reviewed first. See docs/REPOSITORY_IMPORT_PLAN.md.
 
 ## Current status
-Initial Python/FastAPI backend skeleton is committed. The first implementation includes Binance Spot public ticker scanning, raw Spot klines, and EMA/RSI/MACD/Bollinger calculations. USDⓈ-M Futures, COIN-M Futures, news, on-chain data, order-book analytics, and AI/MCP adapters are not implemented yet. Upstream source code has NOT been copied into this repository; see docs/REPOSITORY_IMPORT_PLAN.md and docs/THIRD_PARTY_NOTICES.md.
+The repository now includes Spot and Futures scanners/klines, Spot technical indicators, USDⓈ-M derivatives snapshots, multi-timeframe Spot analysis, a limited BTC/ETH context endpoint, and an opt-in liquidation snapshot collector. News intelligence, on-chain data, validated forecasting/backtesting, production database operations, and AI/MCP adapters remain future work. Upstream source code has NOT been copied into this repository; see docs/REPOSITORY_IMPORT_PLAN.md and docs/THIRD_PARTY_NOTICES.md.
 
 ## Run locally
 ```bash
