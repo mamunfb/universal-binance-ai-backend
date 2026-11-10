@@ -35,6 +35,7 @@ from app.services.historical_klines import HistoricalKlineStore
 from app.services.funding_rates import FundingRateStore
 from app.services.open_interest import OpenInterestStore
 from app.services.derivatives_collector import DerivativesHistoryCollector
+from app.services.funding_open_interest_analysis import FundingOpenInterestAnalysis
 from app.services.historical_coverage import HistoricalCoverageEngine
 from app.services.historical_collector import HistoricalKlineCollector
 from app.services.wallet_attribution import load_wallet_registry, annotate_wallet_addresses
@@ -1405,6 +1406,24 @@ async def collect_historical_open_interest(
             "status": "FAILED", "error": "OPEN_INTEREST_COLLECTION_UNAVAILABLE",
             "error_type": type(exc).__name__,
         }) from exc
+
+
+@app.get("/api/v1/analysis/derivatives/funding-open-interest/{symbol}", tags=["analysis"])
+async def analyze_funding_open_interest(
+    symbol: str,
+    period: Literal["5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "1d"] = "1h",
+    price_interval: str = "1h",
+    limit: int = Query(default=24, ge=2, le=500),
+) -> dict:
+    try:
+        engine = FundingOpenInterestAnalysis(
+            funding_rate_store, open_interest_store, historical_kline_store
+        )
+        return await asyncio.to_thread(
+            engine.analyze, symbol, period, price_interval, limit
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @app.get("/api/v1/history/open-interest/USD_M/{symbol}", tags=["history"])
