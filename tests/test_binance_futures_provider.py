@@ -250,3 +250,40 @@ async def test_coinm_funding_history_uses_coinm_endpoint(monkeypatch):
     result = await BinanceFuturesProvider("COIN_M").funding_rate("BTCUSD_PERP")
     assert result[0]["fundingRate"] == "0.0001"
     assert clients[0].calls[0][0] == "/dapi/v1/fundingRate"
+
+
+async def test_coinm_open_interest_and_history_use_coinm_contract_schema(monkeypatch):
+    clients = []
+
+    class OIClient(FakeAsyncClient):
+        async def get(self, path, params=None):
+            self.calls.append((path, params))
+            if path == "/dapi/v1/openInterest":
+                return FakeResponse({
+                    "symbol": "BTCUSD_PERP", "pair": "BTCUSD",
+                    "openInterest": "12345", "contractType": "PERPETUAL",
+                    "time": 1700000000000,
+                })
+            return FakeResponse([{
+                "pair": "BTCUSD", "contractType": "PERPETUAL",
+                "sumOpenInterest": "12345", "timestamp": 1700000000000,
+            }])
+
+    def client_factory(**kwargs):
+        client = OIClient(**kwargs)
+        clients.append(client)
+        return client
+
+    monkeypatch.setattr("app.providers.binance_futures.httpx.AsyncClient", client_factory)
+    provider = BinanceFuturesProvider("COIN_M")
+    current = await provider.open_interest("BTCUSD_PERP")
+    history = await provider.open_interest_history(
+        "BTCUSD_PERP", period="1h", limit=20, contract_type="PERPETUAL",
+    )
+    assert current["openInterest"] == "12345"
+    assert history[0]["sumOpenInterest"] == "12345"
+    assert clients[0].calls == [("/dapi/v1/openInterest", {"symbol": "BTCUSD_PERP"})]
+    assert clients[1].calls == [(
+        "/futures/data/openInterestHist",
+        {"pair": "BTCUSD", "period": "1h", "limit": 20, "contractType": "PERPETUAL"},
+    )]
