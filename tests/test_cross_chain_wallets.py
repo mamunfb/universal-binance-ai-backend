@@ -41,6 +41,7 @@ def test_cross_chain_snapshot_checks_actual_chain_id_and_keeps_failures(monkeypa
     assert result["status"] == "INCOMPLETE"
     assert result["chains"][0]["wallets"][0]["native_balance"] == 1
     assert result["chains"][0]["snapshot_block"] == 456
+    assert result["chains"][0]["snapshot_block_number"] == 456
     assert result["chains"][0]["snapshot_block_timestamp"] == 1700000000
     assert result["chains"][0]["snapshot_timestamp_status"] == "AVAILABLE"
     assert result["chains"][0]["snapshot_age_seconds"] >= 0
