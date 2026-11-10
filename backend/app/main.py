@@ -558,7 +558,8 @@ async def evm_token_concentration(contract: str) -> dict:
         return {
             "status": snapshot["status"],
             "chain_id": chain_id,
-            "snapshot_block_number": snapshot["snapshot_block"],
+            "snapshot_block": snapshot["snapshot_block"],
+            "snapshot_block_number": snapshot["snapshot_block_number"],
             "snapshot_block_timestamp": snapshot["snapshot_block_timestamp"],
             "snapshot_timestamp_status": snapshot["snapshot_timestamp_status"],
             "snapshot_block_time": snapshot["snapshot_block_time"],
