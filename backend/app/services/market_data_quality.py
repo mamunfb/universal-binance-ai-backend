@@ -42,7 +42,7 @@ class MarketDataQualityEngine:
             with sqlite3.connect(f"file:{Path(db_path).resolve()}?mode=ro", uri=True) as db:
                 row = db.execute(sql, params).fetchone()
         except sqlite3.Error:
-            return 0, None
+            return -1, None
         if not row:
             return 0, None
         return int(row[0] or 0), int(row[1]) if row[1] is not None else None
@@ -84,7 +84,7 @@ class MarketDataQualityEngine:
                 "SELECT COUNT(*), MAX(close_time_ms) FROM historical_klines WHERE market=? AND symbol=? AND interval=? AND open_time_ms=?",
                 (market, symbol, interval, latest_candle_open),
             )
-        candle_freshness = self._freshness(latest_close, now, interval_ms * 2)
+        candle_freshness = "UNKNOWN" if candle_count < 0 else self._freshness(latest_close, now, interval_ms * 2)
         coverage = None
         if latest_candle_open is not None:
             first_open = max(0, latest_candle_open - lookback_hours * 3_600_000)
@@ -96,6 +96,7 @@ class MarketDataQualityEngine:
             except ValueError as exc:
                 coverage = {"status": "NOT_MEASURABLE", "reason": str(exc)}
         candle_status = (
+            "UNKNOWN" if candle_count < 0 else
             "NO_DATA" if candle_count == 0 else
             "STALE" if candle_freshness in {"STALE", "FUTURE_TIMESTAMP"} else
             "DEGRADED" if coverage and coverage.get("status") == "INCOMPLETE" else
@@ -125,6 +126,9 @@ class MarketDataQualityEngine:
              "SELECT COUNT(*), MAX(timestamp_ms) FROM historical_open_interest WHERE market='USD_M' AND symbol=? AND period=?",
              (symbol, interval if interval in _PERIOD_MS else "1h"), max(3 * _PERIOD_MS.get(interval, 3_600_000), 3_600_000),
              "Freshness threshold is three selected periods; it does not establish continuous coverage."),
+            ("derivatives_ratios", self.ratio_db,
+             "SELECT COUNT(*), MAX(timestamp_ms) FROM derivatives_ratio_history WHERE market='USD_M' AND symbol=?",
+             (symbol,), 3 * 3_600_000, "Ratio freshness uses a three-hour operational threshold; records from different ratio types are counted together and are not treated as synchronized."),
             ("aggregate_trades", self.aggregate_trade_db,
              "SELECT COUNT(*), MAX(trade_time_ms) FROM aggregate_trades WHERE market=? AND symbol=?",
              (market, symbol), 10 * 60_000, "Event gaps cannot be proven from stored rows alone; no exchange sequence/heartbeat completeness is retained."),
@@ -134,9 +138,9 @@ class MarketDataQualityEngine:
         ]
         for name, db_path, sql, params, stale_after, note in queries:
             count, latest = self._query(db_path, sql, params)
-            freshness = self._freshness(latest, now, stale_after)
+            freshness = "UNKNOWN" if count < 0 else self._freshness(latest, now, stale_after)
             sources[name] = {
-                "status": "NO_DATA" if count == 0 else "NOT_MEASURABLE",
+                "status": "UNKNOWN" if count < 0 else "NO_DATA" if count == 0 else "NOT_MEASURABLE",
                 "freshness": freshness,
                 "record_count": count,
                 "latest_event_time_ms": latest,
