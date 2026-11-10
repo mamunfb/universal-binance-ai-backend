@@ -123,15 +123,26 @@ class MultiQuoteProvider:
 
     async def all_24h_tickers(self):
         return [
-            {"symbol": "AAAUSDT", "lastPrice": "2", "priceChangePercent": "1", "quoteVolume": "100"},
-            {"symbol": "AAAUSDC", "lastPrice": "2", "priceChangePercent": "2", "quoteVolume": "300"},
-            {"symbol": "BBBFDUSD", "lastPrice": "3", "priceChangePercent": "3", "quoteVolume": "200"},
+            {"symbol": "BTCUSDT", "lastPrice": "60000", "priceChangePercent": "0.5", "quoteVolume": "999"},
+            {"symbol": "AAAUSDT", "lastPrice": "2", "priceChangePercent": "1", "quoteVolume": "100", "highPrice": "2.2", "lowPrice": "1.8"},
+            {"symbol": "AAAUSDC", "lastPrice": "2", "priceChangePercent": "2", "quoteVolume": "300", "highPrice": "2.1", "lowPrice": "1.9"},
+            {"symbol": "BBBFDUSD", "lastPrice": "3", "priceChangePercent": "3", "quoteVolume": "200", "highPrice": "3.2", "lowPrice": "2.8"},
+        ]
+
+    async def all_book_tickers(self):
+        return [
+            {"symbol": "AAAUSDT", "bidPrice": "1.99", "askPrice": "2.01"},
+            {"symbol": "AAAUSDC", "bidPrice": "1.99", "askPrice": "2.01"},
+            {"symbol": "BBBFDUSD", "bidPrice": "2.99", "askPrice": "3.01"},
         ]
 
 
 async def test_scan_defaults_to_all_quote_assets_and_consolidates_base_assets():
     result = await scan_spot_markets(MultiQuoteProvider())
     assert result["status"] == "COMPLETED"
+    assert result["phase_status"] == "INCOMPLETE"
+    assert "order_book_depth" in result["stage1_missing_metrics"]
+    assert result["results"][0]["spread_bps"] is not None
     assert result["quote_asset_filter"] is None
     assert result["total_available_pairs"] == 4
     assert result["eligible_symbols"] == 3
