@@ -102,3 +102,10 @@ These are descriptive historical summaries, not calibrated probabilities, valida
 Each forward horizon now also returns `regime_bias_breakdown`. For each of the three saved regime dimensions, outcomes are grouped by regime label and then by BULLISH, BEARISH, MIXED or UNKNOWN bias. Each cell includes sample size, directional sample size, positive and negative counts, positive fraction, mean directional return, and complete candle-coverage count. Empty combinations remain visible with zero samples and null directional metrics.
 
 The dashboard displays the market-regime-by-bias table separately for every horizon. The API includes equivalent nested breakdowns for volatility and structure regimes. Cross-groups can be very small; compare counts and coverage before interpreting percentages. These are retrospective descriptive statistics, not predictive probabilities.
+
+
+## Chronological out-of-sample holdout
+
+Every horizon now includes an `out_of_sample` section. Saved snapshots are sorted by `analyzed_at_ms`; the earliest 70% form the training period and the latest 30% form the test period, with at least one snapshot on each side when at least two snapshots exist. Only matured outcomes from the later test snapshots contribute to test directional-positive fraction, mean directional return and coverage counts. Pending or missing-reference snapshots remain reflected in split snapshot counts but are not counted as completed test outcomes.
+
+This endpoint does not fit, tune, or select a predictive model. It provides a chronological holdout view of already-saved confluence biases, not a complete machine-learning validation protocol. A single temporal split can still be sensitive to market regime changes and small sample sizes; do not treat the reported fraction as a guaranteed future hit rate. The dashboard shows training/test counts and test-only metrics separately for each horizon.
