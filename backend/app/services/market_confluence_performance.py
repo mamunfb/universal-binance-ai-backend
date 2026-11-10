@@ -474,6 +474,7 @@ class MarketConfluencePerformance:
                                 "non_overlapping_directional_sample_size": len(non_overlapping_group),
                                 "non_overlapping_positive_count": non_overlapping_stats["positive_count"],
                                 "non_overlapping_positive_fraction": non_overlapping_stats["positive_fraction"],
+                                "non_overlapping_positive_fraction_ci_95_wilson": non_overlapping_stats["positive_fraction_ci_95_wilson"],
                                 "overlap_excluded_count": len(directional_group) - len(non_overlapping_group),
                                 "mean_directional_return_percent": (
                                     sum(row["directional_return_percent"] for row in directional_group) / len(directional_group)
@@ -596,6 +597,95 @@ class MarketConfluencePerformance:
                 "excluded": excluded,
             }
 
+        historical_leaderboard = {
+            "status": "DESCRIPTIVE_ONLY",
+            "minimum_sample_size": minimum_ranking_sample_size,
+            "dimensions": {},
+            "method": "Within each horizon and regime dimension, groups are ranked separately by directional positive fraction, mean directional return, and non-overlapping positive fraction. Groups below the metric-specific sample threshold are excluded. This is a historical descriptive comparison, not a forecast or profitability claim.",
+        }
+        dimension_titles = {
+            "market_regime": "Market regime",
+            "volatility_regime": "Volatility regime",
+            "structure_regime": "Structure regime",
+        }
+        for dimension, dimension_title in dimension_titles.items():
+            historical_leaderboard["dimensions"][dimension] = {}
+            for horizon_key, horizon_data in summaries.items():
+                breakdown = (horizon_data.get("regime_bias_alignment_breakdown") or {}).get(dimension) or {}
+                records = []
+                for regime_label, biases in breakdown.items():
+                    for bias_name, alignments in biases.items():
+                        for alignment_label, stats in alignments.items():
+                            records.append({
+                                "regime": regime_label,
+                                "bias": bias_name,
+                                "alignment": alignment_label,
+                                "sample_size": stats["sample_size"],
+                                "directional_sample_size": stats["directional_sample_size"],
+                                "positive_fraction": stats["positive_fraction"],
+                                "positive_fraction_ci_95_wilson": stats["positive_fraction_ci_95_wilson"],
+                                "mean_directional_return_percent": stats["mean_directional_return_percent"],
+                                "non_overlapping_directional_sample_size": stats["non_overlapping_directional_sample_size"],
+                                "non_overlapping_positive_fraction": stats["non_overlapping_positive_fraction"],
+                                "non_overlapping_positive_fraction_ci_95_wilson": stats["non_overlapping_positive_fraction_ci_95_wilson"],
+                                "overlap_excluded_count": stats["overlap_excluded_count"],
+                                "sample_size_status": stats["sample_size_status"],
+                            })
+                metric_definitions = (
+                    ("positive_fraction", "Directional positive fraction", "directional_sample_size", "positive_fraction_ci_95_wilson"),
+                    ("mean_directional_return_percent", "Mean directional return", "directional_sample_size", None),
+                    ("non_overlapping_positive_fraction", "Non-overlapping positive fraction", "non_overlapping_directional_sample_size", "non_overlapping_positive_fraction_ci_95_wilson"),
+                )
+                metric_rankings = {}
+                for metric, label, sample_field, ci_field in metric_definitions:
+                    eligible = []
+                    excluded = []
+                    for record in records:
+                        sample_size = record[sample_field]
+                        value = record[metric]
+                        identity = {
+                            "regime": record["regime"],
+                            "bias": record["bias"],
+                            "alignment": record["alignment"],
+                            "sample_size": sample_size,
+                        }
+                        if sample_size < minimum_ranking_sample_size:
+                            excluded.append({**identity, "reason": "BELOW_MINIMUM_SAMPLE_SIZE"})
+                        elif value is None or not math.isfinite(float(value)):
+                            excluded.append({**identity, "reason": "METRIC_UNAVAILABLE"})
+                        else:
+                            eligible.append({
+                                **identity,
+                                "value": value,
+                                "confidence_interval_95_wilson": record[ci_field] if ci_field else None,
+                                "directional_sample_size": record["directional_sample_size"],
+                                "non_overlapping_directional_sample_size": record["non_overlapping_directional_sample_size"],
+                                "mean_directional_return_percent": record["mean_directional_return_percent"],
+                                "positive_fraction": record["positive_fraction"],
+                                "non_overlapping_positive_fraction": record["non_overlapping_positive_fraction"],
+                                "overlap_excluded_count": record["overlap_excluded_count"],
+                            })
+                    eligible.sort(key=lambda row: (-row["value"], row["regime"], row["bias"], row["alignment"]))
+                    ranked = []
+                    previous_value = None
+                    current_rank = 0
+                    for index, row in enumerate(eligible, start=1):
+                        if previous_value is None or row["value"] != previous_value:
+                            current_rank = index
+                        ranked.append({"rank": current_rank, **row})
+                        previous_value = row["value"]
+                    metric_rankings[metric] = {
+                        "label": label,
+                        "minimum_sample_size": minimum_ranking_sample_size,
+                        "ranked": ranked,
+                        "excluded": excluded,
+                    }
+                historical_leaderboard["dimensions"][dimension][horizon_key] = {
+                    "horizon": horizon_data["label"],
+                    "horizon_hours": horizon_data["horizon_hours"],
+                    "rankings": metric_rankings,
+                }
+
         return {
             "status": "COMPLETED" if history["snapshots"] else "NO_STORED_SNAPSHOTS",
             "market": market.upper(),
@@ -605,6 +695,7 @@ class MarketConfluencePerformance:
             "snapshot_count": history["returned_count"],
             "horizon_count": len(self.HORIZONS_HOURS),
             "horizons": summaries,
+            "historical_leaderboard": historical_leaderboard,
             "horizon_comparison": {
                 "status": "DESCRIPTIVE_ONLY",
                 "minimum_sample_size": minimum_ranking_sample_size,
