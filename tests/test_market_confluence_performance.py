@@ -175,3 +175,25 @@ def test_regime_breakdown_uses_saved_evidence_and_unclassified_fallback():
     assert regimes["UNCLASSIFIED"]["sample_size"] == 1
     assert regimes["UNCLASSIFIED"]["positive_fraction"] is None
     assert one_hour["regime_breakdown"]["volatility_regime"]["HIGH"]["sample_size"] == 1
+
+ 
+
+def test_combined_market_regime_and_bias_breakdown_is_separate_per_horizon():
+    trending_bull = snapshot("BULLISH")
+    trending_bull["payload"] = {"evidence": [{"source": "MARKET_REGIME", "detail": {"regime": "TRENDING"}}]}
+    trending_bear = snapshot("BEARISH")
+    trending_bear["payload"] = {"evidence": [{"source": "MARKET_REGIME", "detail": {"regime": "TRENDING"}}]}
+    ranging_bull = snapshot("BULLISH")
+    ranging_bull["payload"] = {"evidence": [{"source": "MARKET_REGIME", "detail": {"regime": "RANGING"}}]}
+    evaluator = MarketConfluencePerformance(
+        SnapshotStore([trending_bull, trending_bear, ranging_bull]), KlineStore(),
+    )
+    result = evaluator.evaluate("USD_M", "BTCUSDT", "1h", "1h", 10)
+    one_hour = result["horizons"]["1"]
+    grouped = one_hour["regime_bias_breakdown"]["market_regime"]
+    assert grouped["TRENDING"]["BULLISH"]["sample_size"] == 1
+    assert grouped["TRENDING"]["BULLISH"]["positive_fraction"] == 1.0
+    assert grouped["TRENDING"]["BEARISH"]["sample_size"] == 1
+    assert grouped["TRENDING"]["BEARISH"]["positive_fraction"] == 0.0
+    assert grouped["RANGING"]["BULLISH"]["sample_size"] == 1
+    assert grouped["RANGING"]["BEARISH"]["sample_size"] == 0
