@@ -70,3 +70,13 @@ async def test_no_sources_is_blocked_not_empty_success():
     result = await collect_news_intelligence(RSSNewsProvider(), [], ["BTC"])
     assert result["status"] == "BLOCKED"
     assert result["returned_count"] == 0
+
+
+async def test_feed_failure_does_not_expose_secret_query_parameters():
+    url = "https://feeds.example.test/rss?token=feed-secret"
+    transport = httpx.MockTransport(lambda request: httpx.Response(503, request=request))
+    async with httpx.AsyncClient(transport=transport) as client:
+        result = await RSSNewsProvider().collect([{"name": "Private feed", "url": url}], client=client)
+    assert result["failed_sources"] == 1
+    assert result["failures"][0]["error"] == "HTTPStatusError"
+    assert "feed-secret" not in str(result["failures"])
