@@ -102,3 +102,12 @@ def test_dashboard_displays_subgroup_reliability_assessment_diagnostics():
     assert "reliability_assessment" in html
     assert "reliability_summary" in html
     assert "not a predictive reliability score" in html
+
+
+def test_dashboard_displays_walk_forward_fold_consistency():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "Fold consistency:" in html
+    assert "consistency_assessment" in html
+    assert "eligible_fold_count" in html
+    assert "insufficient_fold_count" in html
+    assert "folds_with_interval_including_50_percent" in html or "positive_fraction_range" in html
