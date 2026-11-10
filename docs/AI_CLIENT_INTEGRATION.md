@@ -7,10 +7,12 @@ This is a private, single-owner project for the repository owner. The only AI cl
 1. ChatGPT
 2. Google Gemini
 3. Manus
+4. Claude
+5. Perplexity
 
 Do not build a public SaaS, customer registration, subscription, billing, tenant management, or public API marketplace for this project. Do not add integrations for other AI products unless the owner explicitly changes this scope.
 
-The three AI clients share one canonical backend and one research-only crypto intelligence engine. They do not each get separate market-data or on-chain implementations.
+The five AI clients share one canonical backend and one research-only crypto intelligence engine. They do not each get separate market-data or on-chain implementations.
 
 ## Shared architecture
 
@@ -25,10 +27,10 @@ Binance public data + configured EVM RPC providers
                     |
         +-----------+-----------+
         |           |           |
-     ChatGPT      Gemini      Manus
-     adapter      adapter     adapter
-        |           |           |
-        +------ Owner-only access ------+
+     ChatGPT   Gemini   Manus   Claude   Perplexity
+     adapter   adapter  adapter  adapter   adapter
+        |         |        |        |         |
+        +---------- Owner-only access --------+
 ```
 
 REST/OpenAPI is the canonical API contract. MCP may be used as a shared tool interface where a target client supports the required MCP transport and authentication. Client-specific adapters should remain thin: translate tool calls and arguments, call the same REST services, and return the same structured evidence and limitations.
@@ -38,6 +40,8 @@ REST/OpenAPI is the canonical API contract. MCP may be used as a shared tool int
 - **ChatGPT:** use an OpenAPI-based custom action or another supported private tool connection when available. Expose only required read-only operations.
 - **Google Gemini:** use function/tool declarations or a supported connector that calls the same private REST API. Keep provider credentials on the backend.
 - **Manus:** use a supported MCP or HTTP/API integration if available in the selected Manus environment. Confirm the actual supported transport and authentication before implementing its adapter; do not assume every Manus plan or workspace exposes the same integration features.
+- **Claude:** use a supported MCP connection or API/tool integration available in the selected Claude product. Verify the target product's transport and authentication requirements before implementation.
+- **Perplexity:** use a supported API or connector/tool integration for the selected Perplexity product. Do not assume the consumer search interface accepts arbitrary private MCP servers; verify the exact target product and plan first.
 
 Platform capabilities and plan availability can change. A platform is not considered integrated until a real end-to-end connection test succeeds in the owner's account.
 
@@ -114,15 +118,15 @@ curl -H "Authorization: Bearer $PERSONAL_API_KEY" \
 ```
 
 - Protect the private API with server-side authentication before exposing it beyond localhost/private network.
-- Configure separate keys for the three AI clients with `AI_CLIENT_API_KEYS`, a JSON object mapping `chatgpt`, `gemini`, and `manus` to independent random secrets of at least 32 characters.
+- Configure separate keys for the three AI clients with `AI_CLIENT_API_KEYS`, a JSON object mapping `chatgpt`, `gemini`, `manus`, `claude`, and `perplexity` to independent random secrets of at least 32 characters.
 - Example only (replace every value with a unique randomly generated secret; never commit real secrets):
 
 ```env
 APP_ENV=production
-AI_CLIENT_API_KEYS={"chatgpt":"REPLACE_WITH_CHATGPT_RANDOM_SECRET_32_CHARS_MIN","gemini":"REPLACE_WITH_GEMINI_RANDOM_SECRET_32_CHARS_MIN","manus":"REPLACE_WITH_MANUS_RANDOM_SECRET_32_CHARS_MIN"}
+AI_CLIENT_API_KEYS={"chatgpt":"REPLACE_WITH_CHATGPT_RANDOM_SECRET_32_CHARS_MIN","gemini":"REPLACE_WITH_GEMINI_RANDOM_SECRET_32_CHARS_MIN","manus":"REPLACE_WITH_MANUS_RANDOM_SECRET_32_CHARS_MIN","claude":"REPLACE_WITH_CLAUDE_RANDOM_SECRET_32_CHARS_MIN","perplexity":"REPLACE_WITH_PERPLEXITY_RANDOM_SECRET_32_CHARS_MIN"}
 ```
 
-- Production requires either all three valid per-client keys or a strong owner-level `PERSONAL_API_KEY`. The owner key can be used for administration; prefer the individual client keys for AI integrations.
+- Production requires either all five valid per-client keys or a strong owner-level `PERSONAL_API_KEY`. The owner key can be used for administration; prefer the individual client keys for AI integrations.
 - During development, an empty key configuration leaves API routes unauthenticated for local testing only. Never expose that configuration to the public internet.
 - Each client key can be revoked or rotated independently by changing its environment value and restarting/redeploying the service.
 - Never commit raw credentials.
@@ -149,7 +153,7 @@ Do not choose a fixed requests-per-minute limit until the deployment, upstream q
 
 ## Completion criteria
 
-A ChatGPT, Gemini, or Manus adapter is complete only after:
+A ChatGPT, Gemini, Manus, Claude, or Perplexity adapter is complete only after:
 1. Its exact supported connection method is confirmed in the target account/environment.
 2. It authenticates to the private backend without exposing credentials in prompts or client code.
 3. It can discover/call a small set of read-only tools.
