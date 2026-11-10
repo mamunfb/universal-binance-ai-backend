@@ -193,6 +193,7 @@ Available tools:
 - `get_spot_technical_analysis`
 - `get_futures_derivatives`
 - `get_spot_futures_basis`
+- `get_market_evidence_snapshot`
 - `get_news_intelligence`
 - `get_cross_chain_token_intelligence`
 - `get_liquidation_collector_status`
