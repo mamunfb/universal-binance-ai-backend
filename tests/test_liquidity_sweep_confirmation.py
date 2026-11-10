@@ -9,13 +9,13 @@ def make_candles():
             "low": 98.0, "close": 100.0,
         })
     rows[10].update({"high": 105.0, "low": 99.0})
-    rows[11].update({"high": 106.0, "low": 99.0, "close": 104.0})
+    rows[13].update({"high": 106.0, "low": 99.0, "close": 104.0})
     return rows
 
 
 def test_detects_buy_side_sweep_and_aligned_trade_flow():
     candles = make_candles()
-    sweep_time = candles[11]["open_time_ms"]
+    sweep_time = candles[13]["open_time_ms"]
     trades = [
         {"trade_time_ms": sweep_time + 1_000, "quantity": 3.0, "aggressor_side": "SELL"},
         {"trade_time_ms": sweep_time + 2_000, "quantity": 1.0, "aggressor_side": "BUY"},
@@ -35,7 +35,7 @@ def test_detects_buy_side_sweep_and_aligned_trade_flow():
 
 def test_pairs_order_book_and_derivatives_only_within_explicit_time_lag():
     candles = make_candles()
-    sweep_time = candles[11]["open_time_ms"]
+    sweep_time = candles[13]["open_time_ms"]
     books = [
         {"event_time_ms": sweep_time, "bids": [[100, 10]], "asks": [[101, 10]]},
         {"event_time_ms": sweep_time + 300_000, "bids": [[100, 8]], "asks": [[101, 12]]},
@@ -57,7 +57,7 @@ def test_pairs_order_book_and_derivatives_only_within_explicit_time_lag():
 
 def test_no_derivatives_forward_fill_when_timestamp_is_outside_tolerance():
     candles = make_candles()
-    sweep_time = candles[11]["open_time_ms"]
+    sweep_time = candles[13]["open_time_ms"]
     result = analyze_liquidity_sweep_confirmation(
         candles, [], [], "USD_M", "BTCUSDT",
         [{"timestamp_ms": sweep_time + 3_600_001, "sum_open_interest": 100}],
