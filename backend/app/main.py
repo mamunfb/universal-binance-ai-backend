@@ -36,6 +36,7 @@ from app.services.funding_rates import FundingRateStore
 from app.services.open_interest import OpenInterestStore
 from app.services.derivatives_ratio_store import DerivativesRatioStore
 from app.services.combined_derivatives_intelligence import CombinedDerivativesIntelligence
+from app.services.market_regime import MarketRegimeAnalysis
 from app.services.derivatives_collector import DerivativesHistoryCollector
 from app.services.funding_open_interest_analysis import FundingOpenInterestAnalysis
 from app.services.advanced_derivatives_analysis import AdvancedDerivativesAnalysis, DerivativesSignalStore
@@ -1646,3 +1647,18 @@ async def spot_klines(
         "count": len(rows),
         "klines": rows,
     }
+
+
+@app.get("/api/v1/analysis/market-regime/{market}/{symbol}", tags=["analysis"])
+async def analyze_historical_market_regime(
+    market: Literal["SPOT", "USD_M", "COIN_M"],
+    symbol: str,
+    interval: Literal["1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d", "3d", "1w", "1M"] = "1h",
+    limit: int = Query(default=200, ge=40, le=1000),
+) -> dict:
+    try:
+        engine = MarketRegimeAnalysis(historical_kline_store)
+        return await asyncio.to_thread(engine.analyze, market, symbol, interval, limit)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
