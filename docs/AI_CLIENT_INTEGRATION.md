@@ -228,3 +228,9 @@ The read-only MCP tool `analyze_liquidation_clusters` calls
 locally stored force-order snapshots into price buckets and reports event
 coverage and limitations. It does not collect events. See
 `docs/LIQUIDATION_CLUSTER_ANALYSIS.md`.
+
+
+
+## Historical signal performance evaluation
+
+The read-only endpoint `GET /api/v1/analysis/derivatives/signal-performance/{symbol}` evaluates forward 1h/4h/24h price outcomes for locally stored completed descriptive snapshots. It reports sample sizes, gross/hypothetical net returns and favorable/adverse excursions. It does not calculate directional accuracy or claim a strategy win rate because the stored classifications do not define validated directional entries. The MCP tool is `evaluate_historical_signal_performance`. See `docs/HISTORICAL_SIGNAL_PERFORMANCE.md` for the method and coverage caveats.
