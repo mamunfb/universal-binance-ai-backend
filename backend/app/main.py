@@ -40,6 +40,7 @@ from app.services.market_regime import MarketRegimeAnalysis
 from app.services.liquidation_clusters import LiquidationClusterAnalysis
 from app.services.historical_signal_performance import HistoricalSignalPerformance
 from app.services.smart_money_structure import SmartMoneyMarketStructure
+from app.services.order_book_intelligence import analyze_order_book
 from app.services.derivatives_collector import DerivativesHistoryCollector
 from app.services.funding_open_interest_analysis import FundingOpenInterestAnalysis
 from app.services.advanced_derivatives_analysis import AdvancedDerivativesAnalysis, DerivativesSignalStore
@@ -1075,6 +1076,35 @@ async def coinm_klines(
         raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
     return {"status": "COMPLETED", "source": "Binance COIN-M Futures public REST API",
             "symbol": symbol.upper(), "interval": interval, "count": len(rows), "klines": rows}
+
+
+@app.get("/api/v1/analysis/order-book/{market}/{symbol}", tags=["analysis"])
+async def order_book_liquidity_intelligence(
+    market: Literal["SPOT", "USD_M", "COIN_M"],
+    symbol: str,
+    limit: int = Query(default=100, ge=1, le=1000),
+    wall_multiplier: float = Query(default=3.0, ge=1, le=20),
+) -> dict:
+    try:
+        if market == "SPOT":
+            if limit not in {1, 5, 10, 20, 50, 100, 500, 1000}:
+                raise ValueError("Unsupported Spot order book limit")
+            provider = get_spot_provider()
+        else:
+            if limit not in {5, 10, 20, 50, 100, 500, 1000}:
+                raise ValueError("Unsupported futures order book limit")
+            provider = get_futures_provider(market)
+        book = await provider.order_book(symbol, limit)
+        return await asyncio.to_thread(
+            analyze_order_book, book, market, symbol, limit, wall_multiplier,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail={
+            "status": "FAILED", "error": "ORDER_BOOK_UNAVAILABLE",
+            "error_type": type(exc).__name__,
+        }) from exc
 
 
 @app.get("/api/v1/analysis/futures/usdm/derivatives/{symbol}", tags=["analysis"])
