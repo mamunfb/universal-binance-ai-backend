@@ -63,7 +63,8 @@ async def cross_chain_verified_wallet_flows(
         except Exception as exc:
             return {"status": "FAILED", "chain_id": config["chain_id"],
                     "chain_name": config["chain_name"],
-                    "error": f"{type(exc).__name__}: {str(exc)[:250]}"}
+                    "error": "SMART_MONEY_ANALYSIS_UNAVAILABLE",
+                    "error_type": type(exc).__name__}
 
     chains = await asyncio.gather(*(inspect(config) for config in selected))
     complete = bool(chains) and all(item["status"] == "COMPLETED" for item in chains)
