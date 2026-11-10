@@ -182,9 +182,12 @@ async def get_evm_wallet_snapshot(provider: EVMRPCProvider, addresses: list[str]
     }
 
 def _decode_abi_uint(value: str) -> int:
-    if not isinstance(value, str) or not value.startswith("0x"):
-        raise ValueError("Invalid ABI hex result")
-    return int(value, 16)
+    if not isinstance(value, str) or not value.startswith("0x") or len(value) != 66:
+        raise ValueError("ABI uint result must be exactly 32 bytes of hex")
+    try:
+        return int(value[2:], 16)
+    except ValueError as exc:
+        raise ValueError("ABI uint result contains invalid hexadecimal data") from exc
 
 
 def _decode_abi_text(value: str) -> str | None:
@@ -222,8 +225,15 @@ def _decode_abi_text(value: str) -> str | None:
 
 async def get_erc20_token_snapshot(provider: EVMRPCProvider, contract: str,
                                   watch_addresses: dict[str, str]) -> dict[str, Any]:
+    _validate_evm_address(contract)
+    if not isinstance(watch_addresses, dict):
+        raise ValueError("watch_addresses must be a mapping of labels to EVM addresses")
     if len(watch_addresses) > 50:
         raise ValueError("At most 50 tracked addresses are supported per request")
+    for label, address in watch_addresses.items():
+        if not isinstance(label, str) or not label.strip():
+            raise ValueError("Tracked address labels must be non-empty strings")
+        _validate_evm_address(address)
     block = await provider.block_number()
     try:
         block_timestamp = await provider.block_timestamp(block)
@@ -241,7 +251,6 @@ async def get_erc20_token_snapshot(provider: EVMRPCProvider, contract: str,
     scale = 10 ** decimals
     holders = []
     for label, address in watch_addresses.items():
-        _validate_evm_address(address)
         data = "0x70a08231" + address[2:].lower().rjust(64, "0")
         try:
             raw = _decode_abi_uint(await provider.eth_call(contract, data, block_tag))
