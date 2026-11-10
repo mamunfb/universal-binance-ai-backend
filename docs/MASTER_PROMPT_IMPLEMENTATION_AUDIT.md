@@ -38,6 +38,55 @@ The two master prompts must advance in lockstep by phase number. This is a hard 
 - Phase 02 is LOCKED until both Phase 01 checklists are complete and verified.
 - No Phase 16 implementation is authorized at this stage. Any experimental Phase 16 work has been reverted/deferred; it must be revisited only after paired Phases 01–15 are accepted.
 
+## Phase 01 paired completion checklist — the only active workstream
+
+### SPOT Phase 01 — remaining acceptance criteria
+
+- [x] Fetch Spot exchange information and the all-symbol 24-hour ticker list.
+- [x] Enumerate trading symbols and exclude non-TRADING, stablecoin/stablecoin, fiat and leveraged-token pairs.
+- [x] Capture last price, 24-hour percentage change and quote volume.
+- [x] Capture returned best bid/ask spread where the all-book-ticker endpoint supplies it.
+- [x] Consolidate duplicate base assets across quote pairs; do not compare raw quote volumes across unlike quote assets.
+- [x] Expose onboarding date and identify recent listings.
+- [ ] Maintain a per-symbol failure ledger with exact reason; current implementation exposes only an aggregate failed count.
+- [ ] Collect full order-book depth for every eligible pair (or explicitly enumerate every failed/unavailable pair); best bid/ask alone is not depth.
+- [ ] Calculate volume surge against a defined recent historical average for every eligible pair.
+- [ ] Add market-cap enrichment from a verified source with timestamps, mapping confidence and missing-coverage accounting.
+- [ ] Add verified risk-tag and delisting-announcement coverage; do not infer labels from symbol names.
+- [ ] Add objective top-gainer, top-loser, unusual-price, unusual-volume and high-liquidity outputs with disclosed thresholds.
+- [ ] Compare related Futures activity as optional sentiment context without allowing Futures metrics to replace Spot data.
+- [ ] Record source-specific retrieval timestamps, freshness, API/rate-limit failures and exact scan coverage.
+- [ ] Do not mark SPOT Phase 01 complete until all applicable tasks are integrated and tests cover complete, partial and failed market coverage.
+
+### FUTURES Phase 01 — remaining acceptance criteria
+
+- [x] Scan each Futures family through its own exchange metadata and 24-hour ticker provider (USD-M and COIN-M are separate market families).
+- [x] Include active perpetual and dated contracts by default; preserve contract type and delivery metadata.
+- [x] Exclude non-TRADING contracts and support an optional narrowed quote/perpetual filter; the paired full-market run must not use those narrowing filters.
+- [x] Capture 24-hour price change, volume, spread where returned, mark/index price, basis, funding and funding-interval metadata where available.
+- [x] Preserve COIN-M margin/settlement asset and fixed USD contract face value metadata.
+- [x] Consolidate duplicate underlying assets and avoid comparing unlike quote/margin units as if directly comparable.
+- [x] Identify newly onboarded contracts.
+- [ ] Maintain per-contract failure and exclusion reason ledgers across both USD-M and COIN-M.
+- [ ] Collect full order-book depth for every eligible contract.
+- [ ] Calculate volume surge versus recent average for every eligible contract.
+- [ ] Collect Open Interest and comparable historical Open Interest change for every eligible contract in both market families, or explicitly account for endpoint limitations.
+- [ ] Calculate relative strength versus BTC on a comparable quote/price basis for every eligible contract.
+- [ ] Add verified market-cap enrichment and unique-underlying mapping.
+- [ ] Add verified risk-tag and delisting-announcement coverage.
+- [ ] Produce top gainers, top losers, unusual price/volume activity and high-liquidity outputs with disclosed thresholds.
+- [ ] Integrate Spot reference/basis comparison as reference-only data, retaining Futures contract prices for Futures analysis.
+- [ ] Preserve leverage brackets, maintenance tiers and symbol filters where official endpoints provide them; disclose per-contract gaps.
+- [ ] Record per-endpoint timestamps, freshness, API/rate-limit failures and exact USD-M / COIN-M scan coverage.
+- [ ] Do not mark FUTURES Phase 01 complete until both USD-M and COIN-M requirements applicable to the prompt are integrated and tested.
+
+### Paired Phase 01 release gate
+
+- SPOT Phase 01 status: **IN_PROGRESS**
+- FUTURES Phase 01 status: **IN_PROGRESS**
+- Combined Phase 01 status: **INCOMPLETE — PHASE 02 LOCKED**
+- Required evidence to unlock Phase 02: implementation checklist complete for both prompts, automated tests passing, API responses showing exact totals/eligible/scanned/failed/excluded counts, explicit missing-data records, source timestamps, and a review confirming no eligible pair/contract was silently skipped.
+
 ## Phase-by-phase capability audit
 
 | Phase | SPOT prompt | FUTURES prompt | Main gap / next work |
