@@ -173,3 +173,51 @@ The complete project perimeter is now explicitly recorded in `docs/UNIVERSAL_PRO
 ## Mandatory pre-coding audit gate
 
 Before any further feature coding, inspect the implementation already written, compare it against both canonical prompts and the active Phase 01 acceptance criteria, run available tests/static/security checks, correct confirmed defects in scope, add regression tests, and document deferred later-phase issues. New Phase 01 feature coding is permitted only after this audit gate is recorded COMPLETE or exact blockers are documented. The current phase authorization remains Phase 01 only.
+
+
+## Session restart audit — 2026-11-11 (GitHub branch review)
+
+### Repository state verified
+- Repository: `mamunfb/universal-binance-ai-backend`.
+- Work branch: `work/dual-master-prompt-audit`.
+- Verified code-fix checkpoint: `721425b3b4f9eed02cf329d99b1a1bbca6e8e39d`.
+- Base branch: `main`, base SHA `dfef59340c08fd20ba858efb78016ff8ff4e3997`; comparison showed the work branch ahead by 21 commits and not behind at the time of comparison.
+- PR #1 remains OPEN and DRAFT; no merge or main-branch update was performed.
+- GitHub Actions run `42926461113` on the verified checkpoint completed successfully: dashboard JavaScript syntax check passed; `pytest -q` reported **525 passed, 2 warnings**.
+- The GitHub connector exposes remote commits/files but not a local working-tree status. Local uncommitted changes therefore remain UNVERIFIED, not assumed clean.
+
+### Code and test areas inspected
+- Canonical Spot/Futures prompts, complete scope, resume controller and existing implementation audit.
+- Spot/Futures provider adapters, Spot/Futures scanners, market scan routes and combined scan accounting.
+- Application configuration, environment example, API authentication/error middleware, startup/shutdown lifecycle and research pre-flight/readiness routes.
+- Risk/qualification/data-quality services, RSS and EVM providers, dashboard rendering, MCP adapter and selected background stream collectors.
+- Spot/Futures provider and scanner tests, dashboard markup tests, API error-envelope tests and MCP contract tests.
+- Repository tree, CI workflow, PR metadata, branch commit and workflow job logs.
+
+### Confirmed defects corrected before any new Phase 01 feature work
+1. **P2 — Boolean volume threshold accepted by Futures scanner.** `scan_futures_markets` converted `True`/`False` to numeric values and did not reject them, unlike the Spot scanner. Added an explicit Boolean rejection in `backend/app/services/futures_scanner.py` and regression coverage in `tests/test_futures_scanner.py`.
+2. **P2 — Unsafe dashboard HTML interpolation.** API-derived strings and serialized response details were inserted into `innerHTML` without consistent escaping. Added `escapeHtml` at the affected evidence, metrics, saved-snapshot, price-path and performance-report rendering points, including option attributes and JSON displayed inside HTML. Added regression assertions in `tests/test_dashboard_quality_markup.py`.
+
+### Regression verification
+- GitHub Actions on checkpoint `721425b3b4f9eed02cf329d99b1a1bbca6e8e39d`: **SUCCESS**.
+- Dashboard JavaScript syntax check: **PASSED**.
+- Full configured test suite: **525 passed, 2 warnings**.
+- The two warnings are dependency deprecations; no test failures were reported.
+- The earlier intermediate dashboard commit `b62bb4484c13ca2a30c81b42bab2722efd26ab8` failed the JavaScript syntax check due to a malformed concatenation introduced during escaping. That intermediate defect was corrected before the verified checkpoint; the later syntax check and test suite passed.
+
+### Suspected risks, deferred findings and blockers
+- **DEFERRED / Phase 07 background collection:** `.env.example` names `AGG_TRADE_COLLECTOR_JOBS`, while the Settings field maps to `AGGREGATE_TRADE_COLLECTOR_JOBS`. This configuration-documentation mismatch must be reconciled when the collector configuration/operations work is authorized; it was not changed as Phase 01 feature work.
+- **UNVERIFIED security concern:** Spot scanner upstream exception text is returned from `str(exc)`. Review whether a configured custom base URL or transport exception can expose credentials/query data before changing the error contract.
+- **Phase 01 still INCOMPLETE:** no per-symbol/per-contract failure ledger with exact reasons; no all-eligible-pair/contract depth; no recent-average volume surge; no verified market-cap/risk-tag/delisting coverage; no complete objective activity ranking; and no source-specific retrieval timestamp/freshness ledger.
+- Futures Phase 01 also lacks all-contract Open Interest change and comparable relative-strength coverage; current output explicitly lists missing metrics.
+- The CI workflow does not run Ruff, a type checker or a dedicated security scanner. Those checks were not executed locally in this session.
+- Live Binance connectivity and deployment-environment capabilities were not tested from the GitHub source review.
+- Local working-tree status is not available through the connected GitHub interface.
+
+### Current paired phase decision
+- SPOT Phase 01: **IN_PROGRESS**.
+- FUTURES Phase 01: **IN_PROGRESS**.
+- Combined Phase 01: **INCOMPLETE**.
+- Phase 02: **LOCKED**.
+- No later-phase feature was implemented or unlocked.
+- **Pre-Coding Full Audit: INCOMPLETE.** Confirmed in-scope correctness/security defects found in the inspected areas were fixed and regression-tested, but the exhaustive review of every existing service/module and local/deployment runtime state is not yet evidenced. Do not begin new Phase 01 feature implementation until the remaining audit coverage and limitations are resolved or explicitly accepted as blockers.
