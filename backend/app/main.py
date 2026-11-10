@@ -31,6 +31,7 @@ from app.services.catalyst_analysis import analyze_catalysts
 from app.providers.evm_rpc import EVMRPCProvider
 from app.services.onchain_intelligence import analyze_erc20_activity, get_evm_wallet_snapshot, get_erc20_token_snapshot
 from app.services.evm_transfer_store import EVMTransferStore, index_erc20_transfer_history
+from app.services.historical_klines import HistoricalKlineStore
 from app.services.wallet_attribution import load_wallet_registry, annotate_wallet_addresses
 from app.services.cross_chain_wallets import parse_chain_rpc_configs, cross_chain_native_wallet_snapshot
 from app.services.cross_chain_tokens import parse_chain_token_configs, cross_chain_erc20_snapshot
@@ -40,6 +41,7 @@ liquidation_store = LiquidationStore(settings.liquidation_database_path)
 liquidation_collector = LiquidationCollector(liquidation_store)
 news_provider = RSSNewsProvider(settings.http_timeout_seconds)
 evm_transfer_store = EVMTransferStore(settings.evm_transfer_database_path)
+historical_kline_store = HistoricalKlineStore(settings.historical_kline_database_path)
 
 
 @asynccontextmanager
@@ -1261,6 +1263,42 @@ async def recent_liquidations(
         "coverage_warning": "Binance sends at most the latest liquidation snapshot per symbol per 1000ms. This is not a complete liquidation tape or historical exchange archive.",
     }
 
+
+@app.post("/api/v1/history/klines/{market}/{symbol}/collect", tags=["history"])
+async def collect_historical_klines(
+    market: Literal["SPOT", "USD_M", "COIN_M"],
+    symbol: str,
+    interval: Literal["1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d", "3d", "1w", "1M"] = "1h",
+    limit: int = Query(default=500, ge=1, le=1500),
+) -> dict:
+    normalized = symbol.strip().upper()
+    if not normalized:
+        raise HTTPException(status_code=422, detail="symbol must not be empty")
+    try:
+        provider = get_spot_provider() if market == "SPOT" else get_futures_provider(market)
+        rows = await provider.klines(normalized, interval, limit)
+        if not rows:
+            return {"status": "INCOMPLETE", "market": market, "symbol": normalized, "interval": interval, "received_count": 0, "warning": "The exchange returned no candles; no history was stored."}
+        return await asyncio.to_thread(historical_kline_store.save_klines, market, normalized, interval, rows)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": "HISTORICAL_KLINE_COLLECTION_UNAVAILABLE", "error_type": type(exc).__name__}) from exc
+
+
+@app.get("/api/v1/history/klines/{market}/{symbol}", tags=["history"])
+async def get_historical_klines(
+    market: Literal["SPOT", "USD_M", "COIN_M"],
+    symbol: str,
+    interval: Literal["1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d", "3d", "1w", "1M"] = "1h",
+    start_time_ms: int | None = Query(default=None, ge=0),
+    end_time_ms: int | None = Query(default=None, ge=0),
+    limit: int = Query(default=1000, ge=1, le=5000),
+) -> dict:
+    try:
+        return await asyncio.to_thread(historical_kline_store.history, market, symbol, interval, start_time_ms, end_time_ms, limit)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 @app.get("/api/v1/markets/spot/klines/{symbol}", tags=["markets"])
 async def spot_klines(
