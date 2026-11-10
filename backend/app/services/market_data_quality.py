@@ -84,7 +84,12 @@ class MarketDataQualityEngine:
                 "SELECT COUNT(*), MAX(close_time_ms) FROM historical_klines WHERE market=? AND symbol=? AND interval=? AND open_time_ms=?",
                 (market, symbol, interval, latest_candle_open),
             )
-        candle_freshness = "UNKNOWN" if candle_count < 0 else self._freshness(latest_close, now, interval_ms * 2)
+        candle_freshness = (
+            "UNKNOWN" if candle_count < 0 else
+            "NO_DATA" if latest_close is None else
+            "IN_PROGRESS" if latest_close > now else
+            self._freshness(latest_close, now, interval_ms * 2)
+        )
         coverage = None
         if latest_candle_open is not None:
             first_open = max(0, latest_candle_open - lookback_hours * 3_600_000)
@@ -98,7 +103,7 @@ class MarketDataQualityEngine:
         candle_status = (
             "UNKNOWN" if candle_count < 0 else
             "NO_DATA" if candle_count == 0 else
-            "STALE" if candle_freshness in {"STALE", "FUTURE_TIMESTAMP"} else
+            "STALE" if candle_freshness == "STALE" else
             "DEGRADED" if coverage and coverage.get("status") == "INCOMPLETE" else
             "HEALTHY" if coverage and coverage.get("status") == "COMPLETE" else "UNKNOWN"
         )
@@ -110,7 +115,8 @@ class MarketDataQualityEngine:
                 "record_count": candle_count,
                 "latest_open_time_ms": latest_candle_open,
                 "latest_close_time_ms": latest_close,
-                "age_ms": now - latest_close if latest_close is not None else None,
+                "age_ms": max(0, now - latest_close) if latest_close is not None else None,
+                "time_until_close_ms": max(0, latest_close - now) if latest_close is not None else None,
                 "stale_after_ms": interval_ms * 2,
                 "coverage": coverage,
                 "duplicate_open_times": 0,
