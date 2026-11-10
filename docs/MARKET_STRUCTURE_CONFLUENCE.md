@@ -32,7 +32,7 @@ The response reports:
 - `bias`: BULLISH, BEARISH, MIXED, or UNKNOWN.
 - `alignment`: whether available directional source classifications agree or conflict.
 - Counts of bullish, bearish, directional and available source classifications.
-- Each source's status, direction and compact evidence detail.
+- Each source's status, direction and compact evidence detail, including structure swing levels/BOS-CHoCH, regime metrics, CVD divergence, POC/VAH/VAL, per-timeframe flow coverage, and the latest sweep's aggressor-flow/order-book/derivatives context when available.
 - Local data coverage and query caps.
 
 A missing or neutral source contributes no vote; it is not counted as evidence for the opposite direction. A source that reports a descriptive status but no directional label can still appear as available without affecting the directional count. Counts are not weighted confidence, calibrated probability, or statistical independence.
