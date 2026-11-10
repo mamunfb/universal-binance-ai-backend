@@ -9,6 +9,116 @@ def _section_status(section: Any) -> str:
     return section.get("status", "UNKNOWN") if isinstance(section, dict) else "UNKNOWN"
 
 
+
+def detect_evidence_conflicts(evidence: list[dict[str, Any]]) -> dict[str, Any]:
+    """Apply explicit contradiction/tension rules; never infer a trade direction."""
+    by_category = {item.get("category"): item for item in evidence}
+    conflicts: list[dict[str, Any]] = []
+    checks: list[dict[str, str]] = []
+
+    trend = by_category.get("TREND_ALIGNMENT", {})
+    trend_direction = trend.get("direction")
+    trend_observations = trend.get("observations", {})
+    daily = trend_observations.get("1d")
+    four_hour = trend_observations.get("4h")
+    if trend.get("status") == "OBSERVED" and daily and four_hour:
+        if {daily, four_hour} == {"BULLISH_STRUCTURE", "BEARISH_STRUCTURE"}:
+            conflicts.append({
+                "rule_id": "TREND_TIMEFRAME_DIVERGENCE",
+                "severity": "WARNING",
+                "categories": ["TREND_ALIGNMENT"],
+                "observations": {"1d": daily, "4h": four_hour},
+                "explanation": "The 4h and 1d trend structures point in opposite directions.",
+            })
+        checks.append({"rule_id": "TREND_TIMEFRAME_DIVERGENCE", "status": "CHECKED"})
+    else:
+        checks.append({"rule_id": "TREND_TIMEFRAME_DIVERGENCE", "status": "INSUFFICIENT_DATA"})
+
+    basis = by_category.get("SPOT_FUTURES_BASIS", {})
+    funding = by_category.get("FUNDING_RATE", {})
+    relationship = basis.get("relationship")
+    funding_sign = funding.get("sign")
+    if basis.get("status") == "OBSERVED" and funding.get("status") == "OBSERVED":
+        if (relationship == "FUTURES_PREMIUM" and funding_sign == "NEGATIVE") or (
+            relationship == "FUTURES_DISCOUNT" and funding_sign == "POSITIVE"
+        ):
+            conflicts.append({
+                "rule_id": "BASIS_FUNDING_DIVERGENCE",
+                "severity": "INFO",
+                "categories": ["SPOT_FUTURES_BASIS", "FUNDING_RATE"],
+                "observations": {"relationship": relationship, "funding_sign": funding_sign},
+                "explanation": "The latest price basis and funding-rate sign differ in their usual directional interpretation; the observations may be from different moments.",
+            })
+        checks.append({"rule_id": "BASIS_FUNDING_DIVERGENCE", "status": "CHECKED"})
+    else:
+        checks.append({"rule_id": "BASIS_FUNDING_DIVERGENCE", "status": "INSUFFICIENT_DATA"})
+
+    oi = by_category.get("OPEN_INTEREST_HISTORY", {})
+    taker = by_category.get("TAKER_BUY_SELL_RATIO", {})
+    try:
+        oi_change = float(oi.get("change_percent"))
+        taker_ratio = float(taker.get("value"))
+        valid_flow = math.isfinite(oi_change) and math.isfinite(taker_ratio)
+    except (TypeError, ValueError, OverflowError):
+        valid_flow = False
+        oi_change = taker_ratio = 0.0
+    if oi.get("status") == "OBSERVED" and taker.get("status") == "OBSERVED" and valid_flow:
+        if oi_change > 0 and taker_ratio < 1:
+            conflicts.append({
+                "rule_id": "OPEN_INTEREST_TAKER_FLOW_TENSION",
+                "severity": "INFO",
+                "categories": ["OPEN_INTEREST_HISTORY", "TAKER_BUY_SELL_RATIO"],
+                "observations": {"open_interest_change_percent": oi_change, "taker_buy_sell_ratio": taker_ratio},
+                "explanation": "Open interest increased while the sampled taker buy/sell ratio was below 1; this does not reveal which side opened positions.",
+            })
+        checks.append({"rule_id": "OPEN_INTEREST_TAKER_FLOW_TENSION", "status": "CHECKED"})
+    else:
+        checks.append({"rule_id": "OPEN_INTEREST_TAKER_FLOW_TENSION", "status": "INSUFFICIENT_DATA"})
+
+    volume = by_category.get("VOLUME_AND_STRUCTURE", {})
+    structure = volume.get("trend_state")
+    if trend_direction in {"BULLISH", "BEARISH"} and structure in {"BULLISH", "BEARISH"}:
+        if trend_direction != structure:
+            conflicts.append({
+                "rule_id": "TREND_STRUCTURE_DIVERGENCE",
+                "severity": "WARNING",
+                "categories": ["TREND_ALIGNMENT", "VOLUME_AND_STRUCTURE"],
+                "observations": {"multi_timeframe_direction": trend_direction, "market_structure": structure},
+                "explanation": "Multi-timeframe EMA structure and the OHLCV pivot-based market-structure label disagree.",
+            })
+        checks.append({"rule_id": "TREND_STRUCTURE_DIVERGENCE", "status": "CHECKED"})
+    else:
+        checks.append({"rule_id": "TREND_STRUCTURE_DIVERGENCE", "status": "INSUFFICIENT_DATA"})
+
+    news = by_category.get("NEWS_CATALYSTS", {})
+    candidates = news.get("candidates", [])
+    directional_news = sorted({
+        item.get("direction") for item in candidates
+        if item.get("direction") in {"BULLISH", "BEARISH"}
+    })
+    if news.get("status") == "OBSERVED" and trend_direction in {"BULLISH", "BEARISH"}:
+        opposing = [direction for direction in directional_news if direction != trend_direction]
+        if opposing:
+            conflicts.append({
+                "rule_id": "CONFIRMED_NEWS_TREND_DIVERGENCE",
+                "severity": "INFO",
+                "categories": ["NEWS_CATALYSTS", "TREND_ALIGNMENT"],
+                "observations": {"trend_direction": trend_direction, "opposing_news_directions": opposing},
+                "explanation": "At least one corroborated, rule-eligible news candidate has a direction opposite to the multi-timeframe trend label; keyword classification is heuristic.",
+            })
+        checks.append({"rule_id": "CONFIRMED_NEWS_TREND_DIVERGENCE", "status": "CHECKED"})
+    else:
+        checks.append({"rule_id": "CONFIRMED_NEWS_TREND_DIVERGENCE", "status": "INSUFFICIENT_DATA"})
+
+    return {
+        "status": "CONFLICTS_FOUND" if conflicts else "NO_RULED_CONFLICT_FOUND",
+        "conflict_count": len(conflicts),
+        "conflicts": conflicts,
+        "rule_checks": checks,
+        "warning": "These are transparent rule-based divergences and evidence tensions, not proof that either source is wrong and not Buy/Sell signals.",
+    }
+
+
 def build_market_evidence_snapshot(
     symbol: str,
     multi_timeframe: dict[str, Any],
@@ -214,6 +324,7 @@ def build_market_evidence_snapshot(
         "mode": "RESEARCH_ONLY_EVIDENCE_SUMMARY",
         "section_status": section_status,
         "evidence": evidence,
+        "conflict_analysis": detect_evidence_conflicts(evidence),
         "limitations": limitations,
         "decision": {
             "status": "NO_TRADE_DECISION",
