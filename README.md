@@ -116,3 +116,8 @@ Observed locally stored USD-M force-order snapshots can be grouped into configur
 ## Smart Money market structure
 
 `GET /api/v1/analysis/smart-money-structure/{market}/{symbol}` provides OHLC-based swing points, BOS/CHoCH, liquidity-sweep candidates, FVG candidates, an order-block candidate and sample-range premium/discount context. These are heuristics, not verified institutional order flow or trading signals. See [Smart Money Market Structure](docs/SMART_MONEY_MARKET_STRUCTURE.md).
+
+
+## Order book liquidity intelligence
+
+`GET /api/v1/analysis/order-book/{market}/{symbol}` returns a public REST order-book snapshot with spread, depth imbalance, microprice, near-mid depth bands, cumulative visible depth and relative large-order candidates. It is not a synchronized depth stream and does not track historical liquidity. See [Order Book Liquidity Intelligence](docs/ORDER_BOOK_LIQUIDITY_INTELLIGENCE.md).
