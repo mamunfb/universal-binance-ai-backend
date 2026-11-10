@@ -159,14 +159,28 @@ def build_market_evidence_snapshot(
     if _section_status(catalysts) != "COMPLETED":
         limitations.append("Configured news-feed coverage is incomplete.")
 
-    statuses = [_section_status(value) for value in sections.values()]
+    derivative_required = (
+        "open_interest", "open_interest_history",
+        "global_long_short_account_ratio", "taker_buy_sell_ratio", "order_book",
+    )
+    derivative_sections_complete = all(
+        _section_status(derivative_sections.get(key)) == "COMPLETED"
+        for key in derivative_required
+    )
+    if _section_status(derivatives) != "COMPLETED" or not derivative_sections_complete:
+        limitations.append("One or more required USD-M derivatives sections are missing or incomplete.")
+
+    section_status = {name: _section_status(value) for name, value in sections.items()}
+    if not derivative_sections_complete:
+        section_status["derivatives"] = "INCOMPLETE"
+    statuses = list(section_status.values())
     overall = "COMPLETED" if all(value == "COMPLETED" for value in statuses) else "INCOMPLETE"
     return {
         "status": overall,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "symbol": symbol.upper(),
         "mode": "RESEARCH_ONLY_EVIDENCE_SUMMARY",
-        "section_status": {name: _section_status(value) for name, value in sections.items()},
+        "section_status": section_status,
         "evidence": evidence,
         "limitations": limitations,
         "decision": {
