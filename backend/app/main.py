@@ -292,7 +292,7 @@ async def evm_wallet_snapshots(addresses: str = Query(..., min_length=42, max_le
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": "ONCHAIN_PROVIDER_UNAVAILABLE", "error_type": type(exc).__name__}) from exc
 
 
 @app.get("/api/v1/onchain/evm/token/{contract}/snapshot", tags=["on-chain"])
@@ -307,7 +307,7 @@ async def evm_token_snapshot(contract: str, addresses: str = "") -> dict:
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": "ONCHAIN_PROVIDER_UNAVAILABLE", "error_type": type(exc).__name__}) from exc
 
 @app.post("/api/v1/onchain/evm/token/{contract}/index", tags=["on-chain"])
 async def index_evm_token_history(
@@ -329,7 +329,7 @@ async def index_evm_token_history(
     except (KeyError, TypeError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": "ONCHAIN_PROVIDER_UNAVAILABLE", "error_type": type(exc).__name__}) from exc
 
 
 @app.get("/api/v1/onchain/evm/token/{contract}/history", tags=["on-chain"])
@@ -355,7 +355,7 @@ async def get_evm_token_history(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": "ONCHAIN_PROVIDER_UNAVAILABLE", "error_type": type(exc).__name__}) from exc
 
 
 @app.get("/api/v1/onchain/evm/cross-chain/wallets", tags=["on-chain"])
@@ -378,7 +378,7 @@ async def cross_chain_wallets(addresses: str = Query(..., description="Comma-sep
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)[:300]}) from exc
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": "ONCHAIN_PROVIDER_UNAVAILABLE", "error_type": type(exc).__name__}) from exc
 
 
 @app.get("/api/v1/onchain/evm/cross-chain/token/{asset_id}", tags=["on-chain"])
@@ -392,7 +392,7 @@ async def cross_chain_token_snapshot(asset_id: str, addresses: str = Query(..., 
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)[:300]}) from exc
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": "ONCHAIN_PROVIDER_UNAVAILABLE", "error_type": type(exc).__name__}) from exc
 
 
 @app.get("/api/v1/onchain/evm/cross-chain/token/{asset_id}/flows", tags=["on-chain"])
@@ -815,7 +815,7 @@ async def evm_token_concentration(contract: str) -> dict:
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)[:300]}) from exc
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": "ONCHAIN_PROVIDER_UNAVAILABLE", "error_type": type(exc).__name__}) from exc
 
 
 @app.get("/api/v1/onchain/evm/wallet-registry", tags=["on-chain"])
@@ -836,7 +836,7 @@ async def evm_wallet_registry(addresses: str = "") -> dict:
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": "ONCHAIN_PROVIDER_UNAVAILABLE", "error_type": type(exc).__name__}) from exc
 
 
 @app.get("/api/v1/onchain/evm/token/{contract}/history/flows", tags=["on-chain"])
@@ -875,7 +875,7 @@ async def get_evm_token_history_flows(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": "ONCHAIN_PROVIDER_UNAVAILABLE", "error_type": type(exc).__name__}) from exc
 
 
 @app.get("/api/v1/onchain/evm/token/{contract}/smart-money", tags=["on-chain"])
@@ -912,7 +912,7 @@ async def evm_token_smart_money_activity(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": "ONCHAIN_PROVIDER_UNAVAILABLE", "error_type": type(exc).__name__}) from exc
 
 
 @app.get("/api/v1/onchain/evm/token/{contract}/activity", tags=["on-chain"])
@@ -935,7 +935,7 @@ async def evm_token_activity(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": "ONCHAIN_PROVIDER_UNAVAILABLE", "error_type": type(exc).__name__}) from exc
 
 
 @app.get("/health", tags=["system"])
