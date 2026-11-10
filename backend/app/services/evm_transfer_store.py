@@ -300,7 +300,7 @@ class EVMTransferStore:
                 "cumulative_net_flow_raw": str(cumulative_raw),
                 "cumulative_net_flow_tokens": cumulative_raw / scale,
                 "transfer_events": item["transfer_events"],
-                "direction": "ACCUMULATION" if item["net_flow_raw"] > 0 else "DISTRIBUTION" if item["net_flow_raw"] < 0 else "NEUTRAL",
+                "direction": "NET_INFLOW" if item["net_flow_raw"] > 0 else "NET_OUTFLOW" if item["net_flow_raw"] < 0 else "NEUTRAL",
             })
         return {
             "window_blocks": window_blocks,
