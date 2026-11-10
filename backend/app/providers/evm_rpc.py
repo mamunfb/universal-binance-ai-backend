@@ -47,11 +47,11 @@ class EVMRPCProvider:
         _validate_address(address)
         return int(await self._rpc("eth_getBalance", [address, block]), 16)
 
-    async def eth_call(self, contract: str, data: str) -> str:
+    async def eth_call(self, contract: str, data: str, block: str = "latest") -> str:
         _validate_address(contract)
         if not isinstance(data, str) or not data.startswith("0x"):
             raise ValueError("eth_call data must be 0x-prefixed hex")
-        result = await self._rpc("eth_call", [{"to": contract, "data": data}, "latest"])
+        result = await self._rpc("eth_call", [{"to": contract, "data": data}, block])
         if not isinstance(result, str) or not result.startswith("0x"):
             raise ValueError("Unexpected eth_call result")
         return result
