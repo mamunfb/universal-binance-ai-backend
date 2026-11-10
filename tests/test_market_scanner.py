@@ -1,3 +1,5 @@
+import pytest
+
 from app.services.market_scanner import scan_spot_markets
 
 
