@@ -56,6 +56,19 @@ async def scan_futures_markets(
         except Exception as exc:
             book_tickers = []
             book_ticker_error = type(exc).__name__
+        try:
+            premium_payload = await provider.premium_index()
+            premium_rows = premium_payload if isinstance(premium_payload, list) else [premium_payload]
+            premium_error = None
+        except Exception as exc:
+            premium_rows = []
+            premium_error = type(exc).__name__
+        try:
+            funding_info_rows = await provider.funding_info()
+            funding_info_error = None
+        except Exception as exc:
+            funding_info_rows = []
+            funding_info_error = type(exc).__name__
     except Exception:
         return _failed_result(
             provider, generated_at, quote, "UPSTREAM_UNAVAILABLE",
@@ -69,6 +82,8 @@ async def scan_futures_markets(
 
     all_contracts = exchange_info["symbols"]
     book_by_symbol = {item.get("symbol"): item for item in book_tickers if isinstance(item, dict) and item.get("symbol")}
+    premium_by_symbol = {item.get("symbol"): item for item in premium_rows if isinstance(item, dict) and item.get("symbol")}
+    funding_info_by_symbol = {item.get("symbol"): item for item in funding_info_rows if isinstance(item, dict) and item.get("symbol")}
     ticker_by_symbol = {
         item.get("symbol"): item for item in tickers
         if isinstance(item, dict) and item.get("symbol")
@@ -111,6 +126,11 @@ async def scan_futures_markets(
         high_price = _number(ticker.get("highPrice"))
         low_price = _number(ticker.get("lowPrice"))
         range_24h_pct = ((high_price - low_price) / last_price * 100) if high_price is not None and low_price is not None and last_price else None
+        premium = premium_by_symbol.get(symbol, {})
+        funding_meta = funding_info_by_symbol.get(symbol, {})
+        mark_price = _number(premium.get("markPrice"))
+        index_price = _number(premium.get("indexPrice"))
+        basis_bps = ((mark_price - index_price) / index_price * 10000) if mark_price is not None and index_price is not None and index_price > 0 else None
         if quote_volume is None and provider.market == "COIN_M":
             # COIN-M 24h ticker exposes baseVolume rather than quoteVolume.
             # Convert using the observed last price and label it as a derived notional.
@@ -137,6 +157,11 @@ async def scan_futures_markets(
             "quote_volume_24h": quote_volume, "quote_volume_method": quote_volume_method,
             "best_bid": bid, "best_ask": ask, "spread_bps": spread_bps,
             "range_24h_pct": range_24h_pct,
+            "mark_price": mark_price, "index_price": index_price,
+            "mark_index_basis_bps": basis_bps,
+            "funding_rate": _number(premium.get("lastFundingRate")),
+            "next_funding_time_ms": premium.get("nextFundingTime"),
+            "funding_interval_hours": _number(funding_meta.get("fundingIntervalHours")),
             "status": info.get("status") or info.get("contractStatus"),
             "filters": info.get("filters", []),
         })
@@ -180,13 +205,18 @@ async def scan_futures_markets(
             "volume_surge_vs_recent_average": "NOT_COLLECTED",
             "relative_strength_vs_btc": "NOT_COLLECTED",
             "market_cap": "NOT_COLLECTED",
-            "funding_rate_open_interest_basis": "NOT_COLLECTED_FOR_ALL_CONTRACTS",
+            "funding_rate": "AVAILABLE" if premium_by_symbol else "UNAVAILABLE",
+            "mark_index_basis": "AVAILABLE" if premium_by_symbol else "UNAVAILABLE",
+            "funding_interval_hours": "AVAILABLE_FOR_RETURNED_OVERRIDE_ROWS" if funding_info_by_symbol else "UNAVAILABLE_OR_NO_OVERRIDE_ROWS",
+            "open_interest_and_change": "NOT_COLLECTED_FOR_ALL_CONTRACTS",
         },
         "stage1_missing_metrics": [
             "order_book_depth", "volume_surge_vs_recent_average", "relative_strength_vs_btc",
-            "market_cap", "funding_rate_open_interest_basis",
+            "market_cap", "open_interest_and_change",
         ],
         "book_ticker_error": book_ticker_error,
+        "premium_index_error": premium_error,
+        "funding_info_error": funding_info_error,
         "coverage_warning": (
             "This scans one Futures market family (USD_M or COIN_M) per request. "
             "Funding, open interest, order-book depth, spread, mark/index price and leverage tiers "
