@@ -234,3 +234,35 @@ def test_out_of_sample_requires_at_least_two_snapshots():
     assert holdout["training_snapshot_count"] == 0
     assert holdout["test_snapshot_count"] == 1
     assert holdout["test_directional_positive_fraction"] is None
+
+
+def test_walk_forward_uses_expanding_training_windows_and_disjoint_test_blocks():
+    rows = []
+    for index, bias in enumerate(["BULLISH", "BULLISH", "BEARISH", "BEARISH", "BULLISH", "BEARISH"], start=1):
+        item = snapshot(bias)
+        item["snapshot_id"] = f"wf-{index}"
+        item["analyzed_at_ms"] = index * 1_000_000
+        rows.append(item)
+    evaluator = MarketConfluencePerformance(SnapshotStore(rows), KlineStore())
+    result = evaluator.evaluate("USD_M", "BTCUSDT", "1h", "1h", 10)
+    walk = result["horizons"]["1"]["walk_forward"]
+    assert walk["status"] == "COMPLETED"
+    assert walk["fold_count"] == 3
+    assert [fold["training_snapshot_count"] for fold in walk["folds"]] == [3, 4, 5]
+    assert [fold["test_snapshot_count"] for fold in walk["folds"]] == [1, 1, 1]
+    test_ids = [snapshot_id for fold in walk["folds"] for snapshot_id in fold["test_snapshot_ids"]]
+    assert test_ids == ["wf-4", "wf-5", "wf-6"]
+    assert walk["test_snapshot_count"] == 3
+    assert walk["test_directional_sample_size"] <= walk["test_matured_outcome_count"]
+
+
+def test_walk_forward_requires_four_snapshots():
+    evaluator = MarketConfluencePerformance(
+        SnapshotStore([snapshot("BULLISH"), snapshot("BEARISH"), snapshot("MIXED")]),
+        KlineStore(),
+    )
+    result = evaluator.evaluate("USD_M", "BTCUSDT", "1h", "1h", 10)
+    walk = result["horizons"]["1"]["walk_forward"]
+    assert walk["status"] == "INSUFFICIENT_SNAPSHOTS"
+    assert walk["fold_count"] == 0
+    assert walk["test_directional_positive_fraction"] is None
