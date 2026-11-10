@@ -77,3 +77,27 @@ def test_market_structure_confluence_api_rejects_duplicate_periods():
         params={"periods": "15m,1h,15m"},
     )
     assert response.status_code == 422
+
+
+
+def test_market_confluence_snapshot_api_save_and_history(monkeypatch):
+    class SnapshotStore:
+        def save(self, payload):
+            return {"status": "STORED", "snapshot_id": "snapshot-1", "bias": payload["confluence"]["bias"]}
+
+        def history(self, market, symbol, interval, limit):
+            return {"status": "COMPLETED", "market": market, "symbol": symbol,
+                    "interval": interval, "returned_count": 1, "snapshots": []}
+
+    monkeypatch.setattr(main, "market_confluence_store", SnapshotStore())
+    payload = {
+        "market": "USD_M", "symbol": "BTCUSDT", "interval": "1h",
+        "analyzed_at_ms": 100000, "confluence": {"bias": "BULLISH", "alignment": "ALIGNED"},
+        "reference": {"price": 100.0, "close_time_ms": 99999}, "evidence": [],
+    }
+    saved = client.post("/api/v1/history/market-confluence/snapshots", json=payload)
+    assert saved.status_code == 200
+    assert saved.json()["snapshot_id"] == "snapshot-1"
+    history = client.get("/api/v1/history/market-confluence/USD_M/BTCUSDT", params={"interval": "1h"})
+    assert history.status_code == 200
+    assert history.json()["returned_count"] == 1
