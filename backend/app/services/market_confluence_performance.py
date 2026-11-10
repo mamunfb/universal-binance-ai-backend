@@ -161,6 +161,78 @@ class MarketConfluencePerformance:
                 "outcomes": outcomes,
             }
 
+
+    def price_path(
+        self, market: str, symbol: str, snapshot_id: str,
+        price_interval: str = "1h", hours: int = 720,
+    ) -> dict[str, Any]:
+        """Return one bounded local OHLC path for a saved snapshot."""
+        if price_interval not in self.INTERVAL_MS:
+            raise ValueError("Unsupported price_interval")
+        if not 1 <= hours <= 720:
+            raise ValueError("hours must be between 1 and 720")
+        snapshot = self.snapshots.get_snapshot(market, symbol, snapshot_id)
+        if snapshot is None:
+            raise ValueError("Snapshot not found for the requested market and symbol")
+        analyzed_at = int(snapshot["analyzed_at_ms"])
+        reference = snapshot["reference_price"]
+        if reference is None or not math.isfinite(float(reference)) or float(reference) <= 0:
+            raise ValueError("Snapshot has no valid reference price")
+        step = self.INTERVAL_MS[price_interval]
+        target_time = analyzed_at + hours * 3_600_000
+        query_limit = min(5000, (hours * 3_600_000) // step + 3)
+        candles = self.klines.history(
+            market, symbol, price_interval, analyzed_at + 1,
+            target_time + step, query_limit,
+        )["candles"]
+        eligible = sorted(
+            (c for c in candles if int(c["open_time_ms"]) > analyzed_at),
+            key=lambda c: int(c["open_time_ms"]),
+        )
+        if not eligible:
+            return {
+                "status": "PENDING_NO_FUTURE_CANDLES", "snapshot_id": snapshot_id,
+                "market": market.upper(), "symbol": symbol.upper(),
+                "price_interval": price_interval, "hours": hours,
+                "reference_price": float(reference), "candles": [],
+                "coverage": {"complete": False, "expected_count": 0, "received_count": 0},
+            }
+        reference_price = float(reference)
+        first_expected = (analyzed_at // step + 1) * step
+        last_open = int(eligible[-1]["open_time_ms"])
+        expected_count = max(1, ((last_open - first_expected) // step) + 1)
+        complete = (
+            int(eligible[0]["open_time_ms"]) == first_expected
+            and len(eligible) == expected_count
+            and all(
+                int(eligible[i]["open_time_ms"]) - int(eligible[i - 1]["open_time_ms"]) == step
+                for i in range(1, len(eligible))
+            )
+        )
+        path = [{
+            "open_time_ms": int(c["open_time_ms"]),
+            "close_time_ms": int(c["close_time_ms"]),
+            "open": float(c["open"]), "high": float(c["high"]),
+            "low": float(c["low"]), "close": float(c["close"]),
+            "change_from_reference_percent": (float(c["close"]) - reference_price) / reference_price * 100.0,
+        } for c in eligible]
+        return {
+            "status": "COMPLETED", "snapshot_id": snapshot_id,
+            "market": market.upper(), "symbol": symbol.upper(),
+            "analyzed_at_ms": analyzed_at, "bias": snapshot["bias"],
+            "alignment": snapshot["alignment"], "price_interval": price_interval,
+            "hours": hours, "reference_price": reference_price,
+            "reference_close_time_ms": snapshot.get("reference_close_time_ms"),
+            "target_time_ms": target_time, "candles": path,
+            "coverage": {
+                "complete": complete, "expected_count": expected_count,
+                "received_count": len(path),
+                "status": "COMPLETE" if complete else "GAPPED_OR_PARTIAL",
+            },
+            "method": "Local stored OHLC candles only; no interpolation or backfill.",
+        }
+
+
         return {
             "status": "COMPLETED" if history["snapshots"] else "NO_STORED_SNAPSHOTS",
             "market": market.upper(),
