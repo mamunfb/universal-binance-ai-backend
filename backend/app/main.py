@@ -34,6 +34,7 @@ from app.services.evm_transfer_store import EVMTransferStore, index_erc20_transf
 from app.services.historical_klines import HistoricalKlineStore
 from app.services.funding_rates import FundingRateStore
 from app.services.open_interest import OpenInterestStore
+from app.services.derivatives_ratio_store import DerivativesRatioStore
 from app.services.derivatives_collector import DerivativesHistoryCollector
 from app.services.funding_open_interest_analysis import FundingOpenInterestAnalysis
 from app.services.advanced_derivatives_analysis import AdvancedDerivativesAnalysis, DerivativesSignalStore
@@ -53,6 +54,7 @@ historical_kline_store = HistoricalKlineStore(settings.historical_kline_database
 funding_rate_store = FundingRateStore(settings.funding_rate_database_path)
 open_interest_store = OpenInterestStore(settings.open_interest_database_path)
 derivatives_signal_store = DerivativesSignalStore(settings.derivatives_signal_database_path)
+derivatives_ratio_store = DerivativesRatioStore(settings.derivatives_ratio_database_path)
 historical_collector: HistoricalKlineCollector | None = None
 derivatives_collector: DerivativesHistoryCollector | None = None
 
@@ -1409,6 +1411,57 @@ async def collect_historical_open_interest(
             "status": "FAILED", "error": "OPEN_INTEREST_COLLECTION_UNAVAILABLE",
             "error_type": type(exc).__name__,
         }) from exc
+
+
+@app.post("/api/v1/history/derivatives-ratios/USD_M/{ratio_type}/{symbol}/collect", tags=["history"])
+async def collect_derivatives_ratio_history(
+    ratio_type: Literal["GLOBAL_LONG_SHORT", "TAKER_BUY_SELL"],
+    symbol: str,
+    period: Literal["5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "1d"] = "1h",
+    limit: int = Query(default=500, ge=1, le=500),
+) -> dict:
+    normalized = symbol.strip().upper()
+    if not normalized:
+        raise HTTPException(status_code=422, detail="symbol must not be empty")
+    try:
+        provider = get_futures_provider("USD_M")
+        if ratio_type == "GLOBAL_LONG_SHORT":
+            rows = await provider.global_long_short_ratio(normalized, period, limit)
+        else:
+            rows = await provider.taker_long_short_ratio(normalized, period, limit)
+        if not rows:
+            return {
+                "status": "NO_NEW_DATA", "market": "USD_M", "ratio_type": ratio_type,
+                "symbol": normalized, "period": period, "received_count": 0,
+            }
+        return await asyncio.to_thread(
+            derivatives_ratio_store.save, ratio_type, normalized, period, rows
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail={
+            "status": "FAILED", "error": "DERIVATIVES_RATIO_COLLECTION_UNAVAILABLE",
+            "error_type": type(exc).__name__,
+        }) from exc
+
+
+@app.get("/api/v1/history/derivatives-ratios/USD_M/{ratio_type}/{symbol}", tags=["history"])
+async def get_derivatives_ratio_history(
+    ratio_type: Literal["GLOBAL_LONG_SHORT", "TAKER_BUY_SELL"],
+    symbol: str,
+    period: Literal["5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "1d"] = "1h",
+    start_time_ms: int | None = Query(default=None, ge=0),
+    end_time_ms: int | None = Query(default=None, ge=0),
+    limit: int = Query(default=500, ge=1, le=500),
+) -> dict:
+    try:
+        return await asyncio.to_thread(
+            derivatives_ratio_store.history, ratio_type, symbol, period,
+            start_time_ms, end_time_ms, limit,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @app.get("/api/v1/analysis/derivatives/funding-open-interest/{symbol}", tags=["analysis"])
