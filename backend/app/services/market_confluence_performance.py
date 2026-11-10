@@ -203,6 +203,89 @@ def _historical_walk_forward_comparison(
     }
 
 
+def _data_quality_risk_assessment(horizon: dict[str, Any]) -> dict[str, Any]:
+    """Surface observable data limitations without claiming to detect or quantify overfitting."""
+    total = int(horizon.get("sample_size") or 0)
+    directional_n = int(horizon.get("directional_sample_size") or 0)
+    coverage_complete = int(horizon.get("coverage_complete_count") or 0)
+    coverage_partial = int(horizon.get("coverage_partial_count") or 0)
+    dependence = horizon.get("dependence_adjusted") or {}
+    overlap_excluded = int(dependence.get("overlap_excluded_count") or 0)
+    overlap_fraction = overlap_excluded / directional_n if directional_n else None
+    walk = horizon.get("walk_forward") or {}
+    consistency = walk.get("consistency_assessment") or {}
+    comparison = horizon.get("historical_vs_walk_forward") or {}
+    flags: list[dict[str, str]] = []
+
+    if directional_n < 30:
+        flags.append({
+            "code": "LOW_DIRECTIONAL_SAMPLE_SIZE",
+            "severity": "WARNING",
+            "detail": f"Only {directional_n} directional outcomes; the reporting threshold is 30 and is not a guarantee of adequacy.",
+        })
+    if coverage_partial > 0:
+        flags.append({
+            "code": "INCOMPLETE_FUTURE_CANDLE_COVERAGE",
+            "severity": "WARNING",
+            "detail": f"{coverage_partial} of {total} matured outcomes do not have complete future-candle coverage.",
+        })
+    if overlap_excluded > 0:
+        flags.append({
+            "code": "OVERLAPPING_OUTCOME_WINDOWS",
+            "severity": "WARNING",
+            "detail": f"{overlap_excluded} of {directional_n} directional outcomes were excluded by the non-overlap selector ({(overlap_fraction or 0.0) * 100:.1f}%); this selector does not remove all serial dependence.",
+        })
+    if walk and int(consistency.get("eligible_fold_count") or 0) < int(consistency.get("total_fold_count") or 0):
+        flags.append({
+            "code": "INSUFFICIENT_WALK_FORWARD_FOLD_SAMPLES",
+            "severity": "WARNING",
+            "detail": f"Only {consistency.get('eligible_fold_count', 0)} of {consistency.get('total_fold_count', 0)} folds meet the per-fold directional sample threshold.",
+        })
+    if consistency.get("status") == "MIXED_DIRECTIONAL_RESULTS":
+        flags.append({
+            "code": "MIXED_WALK_FORWARD_FOLD_RESULTS",
+            "severity": "WARNING",
+            "detail": "Eligible chronological test folds do not all have positive fractions on the same side of 50%.",
+        })
+    if comparison.get("status") == "NOMINAL_INTERVALS_DO_NOT_OVERLAP":
+        flags.append({
+            "code": "HISTORICAL_AND_WALK_FORWARD_INTERVALS_DIFFER",
+            "severity": "WARNING",
+            "detail": "The nominal Wilson intervals do not overlap; this is a descriptive discrepancy, not a formal significance test.",
+        })
+    if not flags:
+        flags.append({
+            "code": "NO_TRIGGERED_DATA_QUALITY_FLAGS",
+            "severity": "INFO",
+            "detail": "No configured data-quality warning was triggered; this does not establish data quality or strategy validity.",
+        })
+
+    return {
+        "status": "WARNINGS_PRESENT" if any(flag["severity"] == "WARNING" for flag in flags) else "NO_CONFIGURED_WARNING_TRIGGERED",
+        "total_outcome_count": total,
+        "directional_sample_size": directional_n,
+        "coverage_complete_count": coverage_complete,
+        "coverage_partial_count": coverage_partial,
+        "coverage_complete_fraction": coverage_complete / total if total else None,
+        "overlap_excluded_count": overlap_excluded,
+        "overlap_excluded_fraction_of_directional": overlap_fraction,
+        "flags": flags,
+        "overfitting_assessment": {
+            "status": "NOT_DIRECTLY_TESTED",
+            "selection_bias_risk": "PRESENT_WHEN_SELECTING_TOP_GROUPS",
+            "detail": (
+                "This evaluator does not fit or tune a predictive model. Selecting apparently strong groups "
+                "from many horizons, regimes, biases, and alignments can create selection bias; no multiple-"
+                "comparison correction or independent confirmation set is implemented here."
+            ),
+        },
+        "interpretation": (
+            "Warnings describe observable sample, coverage, overlap, and fold limitations. They do not "
+            "estimate the probability of overfitting and do not establish predictive performance."
+        ),
+    }
+
+
 
 def _non_overlapping_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Select a maximum-cardinality set of non-overlapping forward outcome windows."""
@@ -674,6 +757,9 @@ class MarketConfluencePerformance:
             }
             summaries[str(hours)]["historical_vs_walk_forward"] = _historical_walk_forward_comparison(
                 summaries[str(hours)], walk_forward,
+            )
+            summaries[str(hours)]["data_quality_risk_assessment"] = _data_quality_risk_assessment(
+                summaries[str(hours)],
             )
 
 
