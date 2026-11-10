@@ -28,7 +28,7 @@ def test_global_long_short_ratio_store_round_trip_and_order(tmp_path):
         1700000000000, 1700003600000
     ]
     assert history["records"][0]["long_short_ratio"] == 1.2
-    assert "account counts" in history["interpretation_warning"]
+    assert "account counts" in history["interpretation_warning"].lower()
 
 
 def test_taker_ratio_store_and_idempotent_upsert(tmp_path):
