@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Query
@@ -64,7 +65,7 @@ async def spot_technical_analysis(
         "source": "Binance Spot public REST API",
         "symbol": symbol.upper(),
         "interval": interval,
-        "generated_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
+        "generated_at": datetime.now(timezone.utc).isoformat(),
         "indicators": indicators,
         "warning": "Indicators describe historical data and are not guaranteed trading signals.",
     }
