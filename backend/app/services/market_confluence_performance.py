@@ -185,9 +185,17 @@ class MarketConfluencePerformance:
             market, symbol, price_interval, analyzed_at + 1,
             target_time + step, query_limit,
         )["candles"]
-        eligible = sorted(
+        eligible_all = sorted(
             (c for c in candles if int(c["open_time_ms"]) > analyzed_at),
             key=lambda c: int(c["open_time_ms"]),
+        )
+        endpoint = next(
+            (c for c in eligible_all if int(c["close_time_ms"]) >= target_time),
+            None,
+        )
+        eligible = (
+            [c for c in eligible_all if int(c["open_time_ms"]) <= int(endpoint["open_time_ms"])]
+            if endpoint is not None else eligible_all
         )
         if not eligible:
             return {
@@ -216,12 +224,26 @@ class MarketConfluencePerformance:
             "low": float(c["low"]), "close": float(c["close"]),
             "change_from_reference_percent": (float(c["close"]) - reference_price) / reference_price * 100.0,
         } for c in eligible]
+        actual_change = path[-1]["change_from_reference_percent"]
+        bias = snapshot["bias"]
+        bias_aligned_change = (
+            actual_change if bias == "BULLISH" else
+            -actual_change if bias == "BEARISH" else None
+        )
+        bias_vs_actual = (
+            "ALIGNED" if bias_aligned_change is not None and bias_aligned_change > 0 else
+            "OPPOSED" if bias_aligned_change is not None and bias_aligned_change < 0 else
+            "FLAT_OR_UNCLEAR" if bias_aligned_change is not None else "NON_DIRECTIONAL_BIAS"
+        )
         return {
             "status": "COMPLETED", "snapshot_id": snapshot_id,
             "market": market.upper(), "symbol": symbol.upper(),
             "analyzed_at_ms": analyzed_at, "bias": snapshot["bias"],
             "alignment": snapshot["alignment"], "price_interval": price_interval,
             "hours": hours, "reference_price": reference_price,
+            "actual_market_change_percent": actual_change,
+            "bias_aligned_change_percent": bias_aligned_change,
+            "bias_vs_actual": bias_vs_actual,
             "reference_close_time_ms": snapshot.get("reference_close_time_ms"),
             "target_time_ms": target_time, "candles": path,
             "coverage": {
