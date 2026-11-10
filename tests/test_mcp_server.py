@@ -70,3 +70,93 @@ def test_rejects_invalid_token_limits(monkeypatch):
         server.get_spot_klines("BTCUSDT", limit=1001)
     with pytest.raises(ValueError, match="from_block"):
         server.get_cross_chain_token_intelligence("ethereum:0xabc", 10, 9)
+
+
+class _FakeResponse:
+    def __init__(self, status_code, payload, headers=None):
+        self.status_code = status_code
+        self._payload = payload
+        self.headers = headers or {}
+        self.is_success = 200 <= status_code < 300
+
+    def json(self):
+        if isinstance(self._payload, Exception):
+            raise self._payload
+        return self._payload
+
+
+class _FakeClient:
+    def __init__(self, response):
+        self.response = response
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        return False
+
+    def get(self, *_args, **_kwargs):
+        return self.response
+
+
+def test_get_preserves_success_data_quality_metadata(monkeypatch):
+    server = _load_server(monkeypatch)
+    payload = {
+        "status": "INCOMPLETE",
+        "source": "test-provider",
+        "generated_at": "2026-11-10T00:00:00Z",
+        "coverage": {"complete": False},
+        "missing_data": ["sample"],
+        "warning": "Partial coverage",
+    }
+    monkeypatch.setattr(
+        server.httpx, "Client",
+        lambda **_kwargs: _FakeClient(_FakeResponse(200, payload)),
+    )
+    assert server._get("/read-only") == payload
+
+
+def test_get_returns_structured_validation_error_and_request_id(monkeypatch):
+    server = _load_server(monkeypatch)
+    payload = {
+        "status": "FAILED",
+        "error": {
+            "code": "VALIDATION_ERROR",
+            "message": "Invalid request",
+            "details": [{"location": ["query", "limit"]}],
+        },
+        "request_id": "request-123",
+    }
+    monkeypatch.setattr(
+        server.httpx, "Client",
+        lambda **_kwargs: _FakeClient(
+            _FakeResponse(422, payload, {"X-Request-ID": "request-123"})
+        ),
+    )
+    result = server._get("/read-only")
+    assert result["error"]["code"] == "VALIDATION_ERROR"
+    assert result["error"]["details"] == payload["error"]["details"]
+    assert result["request_id"] == "request-123"
+    assert result["retryable"] is False
+
+
+def test_get_marks_rate_limit_as_retryable(monkeypatch):
+    server = _load_server(monkeypatch)
+    monkeypatch.setattr(
+        server.httpx, "Client",
+        lambda **_kwargs: _FakeClient(_FakeResponse(429, {})),
+    )
+    result = server._get("/read-only")
+    assert result["error"]["code"] == "RATE_LIMITED"
+    assert result["http_status"] == 429
+    assert result["retryable"] is True
+
+
+def test_get_rejects_invalid_success_json(monkeypatch):
+    server = _load_server(monkeypatch)
+    monkeypatch.setattr(
+        server.httpx, "Client",
+        lambda **_kwargs: _FakeClient(_FakeResponse(200, ValueError("bad json"))),
+    )
+    result = server._get("/read-only")
+    assert result["error"]["code"] == "UPSTREAM_INVALID_RESPONSE"
