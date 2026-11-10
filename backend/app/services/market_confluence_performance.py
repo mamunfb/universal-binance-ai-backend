@@ -416,13 +416,24 @@ class MarketConfluencePerformance:
                     for bias_name in ("BULLISH", "BEARISH", "MIXED", "UNKNOWN"):
                         group = [row for row in regime_rows if row["bias"] == bias_name]
                         directional_group = [row for row in group if row["directional_positive"] is not None]
-                        positives = sum(row["directional_positive"] for row in directional_group)
+                        directional_stats = _directional_statistics(directional_group)
+                        positives = directional_stats["positive_count"]
+                        non_overlapping_group = _non_overlapping_rows(directional_group)
+                        non_overlapping_stats = _directional_statistics(non_overlapping_group)
                         regime_bias_breakdown[dimension][regime_label][bias_name] = {
                             "sample_size": len(group),
                             "directional_sample_size": len(directional_group),
                             "positive_count": positives,
                             "negative_count": len(directional_group) - positives,
-                            "positive_fraction": positives / len(directional_group) if directional_group else None,
+                            "positive_fraction": directional_stats["positive_fraction"],
+                            "positive_fraction_ci_95_wilson": directional_stats["positive_fraction_ci_95_wilson"],
+                            "minimum_directional_sample_size": directional_stats["minimum_sample_size"],
+                            "sample_size_status": directional_stats["sample_size_status"],
+                            "non_overlapping_directional_sample_size": len(non_overlapping_group),
+                            "non_overlapping_positive_count": non_overlapping_stats["positive_count"],
+                            "non_overlapping_positive_fraction": non_overlapping_stats["positive_fraction"],
+                            "non_overlapping_positive_fraction_ci_95_wilson": non_overlapping_stats["positive_fraction_ci_95_wilson"],
+                            "overlap_excluded_count": len(directional_group) - len(non_overlapping_group),
                             "mean_directional_return_percent": (
                                 sum(row["directional_return_percent"] for row in directional_group) / len(directional_group)
                                 if directional_group else None
