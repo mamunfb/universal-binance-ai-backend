@@ -170,7 +170,7 @@ async def test_coinm_scanner_handles_contract_status_and_base_volume_schema():
                 "symbol": "BTCUSD_PERP", "pair": "BTCUSD",
                 "baseAsset": "BTC", "quoteAsset": "USD", "marginAsset": "BTC",
                 "contractType": "PERPETUAL", "contractStatus": "TRADING",
-                "deliveryDate": 4133404800000,
+                "deliveryDate": 4133404800000, "contractSize": 100,
                 "filters": [{"filterType": "PRICE_FILTER", "tickSize": "0.1"}],
             }]}
 
@@ -188,6 +188,8 @@ async def test_coinm_scanner_handles_contract_status_and_base_volume_schema():
     assert result["results"][0]["status"] == "TRADING"
     assert result["results"][0]["quote_volume_24h"] == 1_000_000
     assert result["results"][0]["quote_volume_method"] == "DERIVED_BASE_VOLUME_TIMES_LAST_PRICE"
+    assert result["results"][0]["contract_size_usd"] == 100
+    assert result["results"][0]["settlement_asset"] == "BTC"
 
 
 async def test_futures_scanner_flags_newly_onboarded_contract():
