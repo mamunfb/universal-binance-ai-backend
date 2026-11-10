@@ -45,7 +45,7 @@ async def scan_futures_markets(
     if quote_asset is not None and not quote:
         return _failed_result(provider, generated_at, quote, "INVALID_FILTER", "quote_asset must not be empty")
     minimum_volume = _number(min_quote_volume)
-    if minimum_volume is None or minimum_volume < 0:
+    if minimum_volume is None or minimum_volume < 0 or isinstance(min_quote_volume, bool):
         return _failed_result(provider, generated_at, quote, "INVALID_FILTER", "min_quote_volume must be a finite non-negative number")
 
     try:
