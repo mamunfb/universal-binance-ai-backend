@@ -187,7 +187,10 @@ class OrderBookStreamCollector:
             async for raw in socket:
                 await queue.put(json.loads(raw))
         finally:
-            await queue.put(None)
+            try:
+                queue.put_nowait(None)
+            except asyncio.QueueFull:
+                pass
 
     async def _run_job(self, job: dict[str, str]) -> None:
         market, symbol = job["market"], job["symbol"]
