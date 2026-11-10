@@ -18,6 +18,7 @@ from app.services.volume_structure import calculate_vwap, calculate_volume_profi
 from app.providers.news_rss import RSSNewsProvider, parse_feed_sources
 from app.services.news_intelligence import collect_news_intelligence
 from app.services.news_verification import parse_domain_list
+from app.services.catalyst_analysis import analyze_catalysts
 
 liquidation_store = LiquidationStore(settings.liquidation_database_path)
 liquidation_collector = LiquidationCollector(liquidation_store)
@@ -63,6 +64,31 @@ async def news_intelligence(
     sources = parse_feed_sources(settings.news_rss_feeds)
     return await collect_news_intelligence(
         news_provider, sources, requested_symbols, hours=hours, limit=limit,\n        primary_domains=parse_domain_list(settings.news_primary_source_domains),\n        independent_domains=parse_domain_list(settings.news_independent_source_domains),\n        stale_after_hours=settings.news_stale_after_hours,\n    )
+
+@app.get("/api/v1/news/catalysts", tags=["news"])
+async def news_catalysts(
+    symbols: str = "BTC,ETH",
+    hours: int = Query(default=72, ge=1, le=720),
+    limit: int = Query(default=100, ge=1, le=500),
+) -> dict:
+    news = await news_intelligence(symbols=symbols, hours=hours, limit=limit)
+    items = analyze_catalysts(news["items"])
+    counts = {
+        label: sum(1 for item in items if item["catalyst"]["direction"] == label)
+        for label in ("BULLISH", "BEARISH", "MIXED", "UNKNOWN")
+    }
+    return {
+        "status": news["status"],
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "source_news_status": news["status"],
+        "item_count": len(items),
+        "direction_counts": counts,
+        "items": items,
+        "warning": (
+            "Keyword-based catalyst triage only. Not a price forecast or trade signal. "
+            "Confirm with technical, liquidity, derivatives, and risk checks."
+        ),
+    }
 
 
 @app.get("/health", tags=["system"])
