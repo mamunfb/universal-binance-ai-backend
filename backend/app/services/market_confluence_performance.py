@@ -131,6 +131,29 @@ class MarketConfluencePerformance:
                 })
 
             directional = [row for row in outcomes if row["directional_positive"] is not None]
+            bias_breakdown = {}
+            for bias_name in ("BULLISH", "BEARISH", "MIXED", "UNKNOWN"):
+                bias_rows = [row for row in outcomes if row["bias"] == bias_name]
+                bias_directional = [
+                    row for row in bias_rows if row["directional_positive"] is not None
+                ]
+                bias_breakdown[bias_name] = {
+                    "sample_size": len(bias_rows),
+                    "directional_sample_size": len(bias_directional),
+                    "positive_count": sum(row["directional_positive"] for row in bias_directional),
+                    "negative_count": sum(not row["directional_positive"] for row in bias_directional),
+                    "positive_fraction": (
+                        sum(row["directional_positive"] for row in bias_directional) / len(bias_directional)
+                        if bias_directional else None
+                    ),
+                    "mean_directional_return_percent": (
+                        sum(row["directional_return_percent"] for row in bias_directional) / len(bias_directional)
+                        if bias_directional else None
+                    ),
+                    "coverage_complete_count": sum(
+                        row["future_candle_coverage_complete"] for row in bias_rows
+                    ),
+                }
             summaries[str(hours)] = {
                 "label": self.HORIZON_LABELS[hours],
                 "horizon_hours": hours,
@@ -138,6 +161,7 @@ class MarketConfluencePerformance:
                 "status": "COMPLETED" if outcomes else "INSUFFICIENT_FUTURE_DATA",
                 "sample_size": len(outcomes),
                 "directional_sample_size": len(directional),
+                "bias_breakdown": bias_breakdown,
                 "pending_or_not_matured": pending,
                 "missing_reference_price": missing_reference,
                 "coverage_complete_count": sum(row["future_candle_coverage_complete"] for row in outcomes),
@@ -160,6 +184,35 @@ class MarketConfluencePerformance:
                 ),
                 "outcomes": outcomes,
             }
+
+
+        return {
+            "status": "COMPLETED" if history["snapshots"] else "NO_STORED_SNAPSHOTS",
+            "market": market.upper(),
+            "symbol": symbol.upper(),
+            "interval": interval,
+            "price_interval": price_interval,
+            "snapshot_count": history["returned_count"],
+            "horizon_count": len(self.HORIZONS_HOURS),
+            "horizons": summaries,
+            "method": {
+                "baseline": "Saved close of the last local candle fully closed at or before snapshot time.",
+                "future_data": "Only candles whose open_time_ms is strictly later than analyzed_at_ms are eligible.",
+                "hourly_comparison": "Default price_interval is 1h; select 15m or 30m for finer resolution.",
+                "one_month": "30 fixed days (720 hours), not a calendar-month calculation.",
+                "directional_metric": "Directional-positive fraction is descriptive, not a validated strategy hit rate.",
+                "mixed_unknown": "Retained in raw outcomes but excluded from directional aggregates.",
+                "mfe_mae": "Directional high/low excursion; not a stop/target simulation.",
+                "coverage": "Every outcome reports whether the local candle sequence is continuous from the first expected candle through its endpoint.",
+            },
+            "limitations": [
+                "Local history only; missing candles are not interpolated or backfilled.",
+                "A horizon is evaluated only when a stored candle closes at or after its target time.",
+                "No execution, fees, slippage, funding, leverage, position sizing, stop or target is simulated.",
+                "Not strategy profitability, investment advice, or a forecast.",
+            ],
+        }
+
 
 
     def price_path(
@@ -252,32 +305,4 @@ class MarketConfluencePerformance:
                 "status": "COMPLETE" if complete else "GAPPED_OR_PARTIAL",
             },
             "method": "Local stored OHLC candles only; no interpolation or backfill.",
-        }
-
-
-        return {
-            "status": "COMPLETED" if history["snapshots"] else "NO_STORED_SNAPSHOTS",
-            "market": market.upper(),
-            "symbol": symbol.upper(),
-            "interval": interval,
-            "price_interval": price_interval,
-            "snapshot_count": history["returned_count"],
-            "horizon_count": len(self.HORIZONS_HOURS),
-            "horizons": summaries,
-            "method": {
-                "baseline": "Saved close of the last local candle fully closed at or before snapshot time.",
-                "future_data": "Only candles whose open_time_ms is strictly later than analyzed_at_ms are eligible.",
-                "hourly_comparison": "Default price_interval is 1h; select 15m or 30m for finer resolution.",
-                "one_month": "30 fixed days (720 hours), not a calendar-month calculation.",
-                "directional_metric": "Directional-positive fraction is descriptive, not a validated strategy hit rate.",
-                "mixed_unknown": "Retained in raw outcomes but excluded from directional aggregates.",
-                "mfe_mae": "Directional high/low excursion; not a stop/target simulation.",
-                "coverage": "Every outcome reports whether the local candle sequence is continuous from the first expected candle through its endpoint.",
-            },
-            "limitations": [
-                "Local history only; missing candles are not interpolated or backfilled.",
-                "A horizon is evaluated only when a stored candle closes at or after its target time.",
-                "No execution, fees, slippage, funding, leverage, position sizing, stop or target is simulated.",
-                "Not strategy profitability, investment advice, or a forecast.",
-            ],
         }
