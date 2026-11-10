@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     order_book_sample_interval_seconds: float = 1.0
     order_book_snapshot_limit: int = 1000
     order_book_stored_levels: int = 20
+    aggregate_trade_collector_enabled: bool = False
+    aggregate_trade_collector_jobs: str = "[]"
+    aggregate_trade_database_path: str = "data/aggregate_trades.sqlite3"
     historical_kline_database_path: str = "data/historical_klines.sqlite3"
     funding_rate_database_path: str = "data/funding_rates.sqlite3"
     open_interest_database_path: str = "data/open_interest.sqlite3"
