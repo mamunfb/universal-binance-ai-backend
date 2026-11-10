@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Literal
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Body
 
 from app.config import settings
 from app.indicators import calculate_indicators
@@ -20,11 +20,11 @@ from app.services.news_intelligence import collect_news_intelligence
 from app.services.news_verification import parse_domain_list
 from app.services.catalyst_analysis import analyze_catalysts
 from app.providers.evm_rpc import EVMRPCProvider
-from app.services.onchain_intelligence import analyze_erc20_activity, get_evm_wallet_snapshot, get_erc20_token_snapshot
+from app.services.onchain_intelligence import analyze_erc20_activity, get_evm_wallet_snapshot, get_erc20_token_snapshot\nfrom app.services.evm_transfer_store import EVMTransferStore, index_erc20_transfer_history
 
 liquidation_store = LiquidationStore(settings.liquidation_database_path)
 liquidation_collector = LiquidationCollector(liquidation_store)
-news_provider = RSSNewsProvider(settings.http_timeout_seconds)
+news_provider = RSSNewsProvider(settings.http_timeout_seconds)\nevm_transfer_store = EVMTransferStore(settings.evm_transfer_database_path)
 
 
 @asynccontextmanager
@@ -144,6 +144,51 @@ async def evm_token_snapshot(contract: str, addresses: str = "") -> dict:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
+
+@app.post("/api/v1/onchain/evm/token/{contract}/index", tags=["on-chain"])
+async def index_evm_token_history(
+    contract: str,
+    payload: dict = Body(..., example={"from_block": 1000000, "to_block": 1001000, "chunk_size": 500}),
+) -> dict:
+    try:
+        from_block = int(payload["from_block"])
+        to_block = int(payload["to_block"])
+        chunk_size = int(payload.get("chunk_size", 500))
+        return await index_erc20_transfer_history(
+            get_evm_provider(), evm_transfer_store, contract, from_block, to_block,
+            chunk_size, settings.evm_index_max_total_blocks,
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
+
+
+@app.get("/api/v1/onchain/evm/token/{contract}/history", tags=["on-chain"])
+async def get_evm_token_history(
+    contract: str,
+    from_block: int = Query(..., ge=0),
+    to_block: int = Query(..., ge=0),
+    limit: int = Query(default=500, ge=1, le=2000),
+) -> dict:
+    if to_block < from_block:
+        raise HTTPException(status_code=422, detail="to_block must be >= from_block")
+    try:
+        provider = get_evm_provider()
+        chain_id = await provider.chain_id()
+        rows = evm_transfer_store.history(chain_id, contract, from_block, to_block, limit)
+        return {
+            "status": "COMPLETED", "chain_id": chain_id, "contract_address": contract.lower(),
+            "requested_range": {"from": from_block, "to": to_block},
+            "returned_count": len(rows), "transfers": rows,
+            "indexed_coverage": evm_transfer_store.coverage(chain_id, contract),
+            "warning": "Only stored indexed logs are returned. An empty result does not prove there were no transfers unless this range is fully covered.",
+        }
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
+
 
 @app.get("/api/v1/onchain/evm/token/{contract}/activity", tags=["on-chain"])
 async def evm_token_activity(
