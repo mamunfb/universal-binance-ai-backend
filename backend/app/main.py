@@ -687,7 +687,7 @@ async def cross_chain_token_intelligence(
                     "warning": "Snapshot balances are queried at one pinned block per chain. Only verified operator-registry wallets are included; this is not a full holder ranking or complete supply concentration analysis.",
                 }
             concentration_status = concentration["status"]
-        except Exception as exc:
+        except Exception:
             entity_flows = {"error": "UPSTREAM_UNAVAILABLE"}
             entity_flow_status = "FAILED"
             concentration = {"status": "FAILED", "error": "UPSTREAM_UNAVAILABLE"}
