@@ -90,12 +90,16 @@ def test_each_private_ai_client_can_use_its_own_key(monkeypatch):
         "ai_client_api_keys",
         '{"chatgpt":"chatgpt-test-key-12345678901234567890123456789012",'
         '"gemini":"gemini-test-key-12345678901234567890123456789012",'
-        '"manus":"manus-test-key-12345678901234567890123456789012"}',
+        '"manus":"manus-test-key-12345678901234567890123456789012",'
+        '"claude":"claude-test-key-12345678901234567890123456789012",'
+        '"perplexity":"perplexity-test-key-12345678901234567890123456789012"}',
     )
     for client_name, key in (
         ("chatgpt", "chatgpt-test-key-12345678901234567890123456789012"),
         ("gemini", "gemini-test-key-12345678901234567890123456789012"),
         ("manus", "manus-test-key-12345678901234567890123456789012"),
+        ("claude", "claude-test-key-12345678901234567890123456789012"),
+        ("perplexity", "perplexity-test-key-12345678901234567890123456789012"),
     ):
         response = client.get(
             "/api/v1/analysis/futures/liquidations/status",
