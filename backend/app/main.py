@@ -37,6 +37,7 @@ from app.services.open_interest import OpenInterestStore
 from app.services.derivatives_ratio_store import DerivativesRatioStore
 from app.services.combined_derivatives_intelligence import CombinedDerivativesIntelligence
 from app.services.market_regime import MarketRegimeAnalysis
+from app.services.liquidation_clusters import LiquidationClusterAnalysis
 from app.services.derivatives_collector import DerivativesHistoryCollector
 from app.services.funding_open_interest_analysis import FundingOpenInterestAnalysis
 from app.services.advanced_derivatives_analysis import AdvancedDerivativesAnalysis, DerivativesSignalStore
@@ -1662,3 +1663,22 @@ async def analyze_historical_market_regime(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
+
+
+@app.get("/api/v1/analysis/futures/liquidation-clusters/{symbol}", tags=["analysis"])
+async def analyze_liquidation_clusters(
+    symbol: str,
+    start_time_ms: int | None = Query(default=None, ge=0),
+    end_time_ms: int | None = Query(default=None, ge=0),
+    limit: int = Query(default=5000, ge=1, le=20000),
+    bucket_bps: int = Query(default=25, ge=1, le=500),
+    min_events: int = Query(default=1, ge=1, le=1000),
+) -> dict:
+    try:
+        engine = LiquidationClusterAnalysis(liquidation_store)
+        return await asyncio.to_thread(
+            engine.analyze, symbol, start_time_ms, end_time_ms, limit,
+            bucket_bps, min_events,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
