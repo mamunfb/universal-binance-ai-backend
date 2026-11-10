@@ -44,6 +44,7 @@ from app.services.order_book_intelligence import analyze_order_book
 from app.services.order_book_stream import OrderBookHistoryStore, OrderBookStreamCollector
 from app.services.aggregate_trade_stream import AggregateTradeStore, AggregateTradeCollector
 from app.services.liquidity_behavior import analyze_liquidity_behavior
+from app.services.order_flow_intelligence import analyze_order_flow
 from app.services.derivatives_collector import DerivativesHistoryCollector
 from app.services.funding_open_interest_analysis import FundingOpenInterestAnalysis
 from app.services.advanced_derivatives_analysis import AdvancedDerivativesAnalysis, DerivativesSignalStore
@@ -1202,6 +1203,39 @@ async def liquidity_behavior_analysis(
         "order_book_collector_enabled": settings.order_book_collector_enabled,
         "aggregate_trade_collector_enabled": settings.aggregate_trade_collector_enabled,
         "aggregate_trade_samples_available": len(trades),
+    }
+    return result
+
+
+@app.get("/api/v1/analysis/order-flow/{market}/{symbol}", tags=["analysis"])
+async def order_flow_intelligence(
+    market: Literal["SPOT", "USD_M", "COIN_M"], symbol: str,
+    lookback_minutes: int = Query(default=60, ge=1, le=1440),
+    bin_size_bps: float = Query(default=5.0, ge=0.1, le=500),
+    value_area_pct: float = Query(default=70.0, ge=50, le=99),
+) -> dict:
+    end_time_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+    start_time_ms = end_time_ms - lookback_minutes * 60 * 1000
+    trades = await asyncio.to_thread(
+        aggregate_trade_store.recent, market, symbol, 50000,
+        start_time_ms, end_time_ms,
+    )
+    result = await asyncio.to_thread(
+        analyze_order_flow, trades, market, symbol,
+        start_time_ms, end_time_ms, bin_size_bps, value_area_pct,
+    )
+    result["collector_coverage"] = {
+        "aggregate_trade_collector_enabled": settings.aggregate_trade_collector_enabled,
+        "collector_state": (
+            "RUNNING" if aggregate_trade_collector is not None
+            else "DISABLED" if not settings.aggregate_trade_collector_enabled
+            else "STARTING"
+        ),
+        "stored_trade_count_in_requested_window": len(trades),
+        "query_limit": 50000,
+        "limit_reached": len(trades) >= 50000,
+        "history_is_local_only": True,
+        "backfill_available": False,
     }
     return result
 
