@@ -114,6 +114,29 @@ def test_stored_open_interest_history_tool_uses_read_only_api_route(monkeypatch)
     }
 
 
+def test_stored_derivatives_ratio_mcp_tool_calls_fixed_history_route(monkeypatch):
+    server = _load_server(monkeypatch)
+    calls = []
+    monkeypatch.setattr(
+        server, "_get",
+        lambda path, params=None: calls.append((path, params)) or {"status": "COMPLETED"},
+    )
+    result = server.get_stored_derivatives_ratio_history(
+        "btcusdt", "GLOBAL_LONG_SHORT", "1h", limit=100
+    )
+    assert result["status"] == "COMPLETED"
+    assert calls == [(
+        "/api/v1/history/derivatives-ratios/USD_M/GLOBAL_LONG_SHORT/BTCUSDT",
+        {"period": "1h", "start_time_ms": None, "end_time_ms": None, "limit": 100},
+    )]
+
+
+def test_stored_derivatives_ratio_mcp_tool_rejects_invalid_type(monkeypatch):
+    server = _load_server(monkeypatch)
+    with pytest.raises(ValueError, match="ratio_type"):
+        server.get_stored_derivatives_ratio_history("BTCUSDT", "UNKNOWN")
+
+
 def test_multi_timeframe_derivatives_mcp_tool_calls_fixed_route(monkeypatch):
     server = _load_server(monkeypatch)
     calls = []
