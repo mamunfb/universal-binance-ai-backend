@@ -57,6 +57,81 @@ def _directional_statistics(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 
+def _signal_quality_assessment(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Evaluate explicit bullish/bearish confluence calls as an UP-vs-DOWN classifier."""
+    eligible = [
+        row for row in rows
+        if row.get("bias") in {"BULLISH", "BEARISH"}
+        and row.get("market_return_percent") is not None
+    ]
+    tp = fp = tn = fn = flat = 0
+    for row in eligible:
+        actual = float(row["market_return_percent"])
+        if actual == 0:
+            flat += 1
+        elif row["bias"] == "BULLISH":
+            tp += int(actual > 0)
+            fp += int(actual < 0)
+        else:
+            fn += int(actual > 0)
+            tn += int(actual < 0)
+    scored = tp + fp + tn + fn
+
+    def ratio(numerator: int, denominator: int) -> float | None:
+        return numerator / denominator if denominator else None
+
+    def ci(numerator: int, denominator: int) -> dict[str, float] | None:
+        stats = _directional_statistics([
+            {"directional_positive": index < numerator}
+            for index in range(denominator)
+        ])
+        return stats["positive_fraction_ci_95_wilson"]
+
+    accuracy_numerator = tp + tn
+    precision_numerator = tp
+    recall_numerator = tp
+    specificity_numerator = tn
+    accuracy = ratio(accuracy_numerator, scored)
+    precision = ratio(precision_numerator, tp + fp)
+    recall = ratio(recall_numerator, tp + fn)
+    specificity = ratio(specificity_numerator, tn + fp)
+    f1 = 2 * precision * recall / (precision + recall) if precision is not None and recall is not None and precision + recall else None
+    sample_size = len(eligible)
+    return {
+        "status": (
+            "NO_DIRECTIONAL_CALLS" if sample_size == 0
+            else "LOW_SAMPLE_SIZE" if scored < 30
+            else "DESCRIPTIVE_CLASSIFICATION_METRICS"
+        ),
+        "positive_class": "UPWARD_MARKET_RETURN",
+        "negative_class": "DOWNWARD_MARKET_RETURN",
+        "prediction_sample_size": sample_size,
+        "scored_non_flat_sample_size": scored,
+        "flat_outcome_count": flat,
+        "confusion_matrix": {
+            "true_positive": tp, "false_positive": fp,
+            "true_negative": tn, "false_negative": fn,
+        },
+        "accuracy": accuracy,
+        "accuracy_ci_95_wilson": ci(accuracy_numerator, scored),
+        "precision": precision,
+        "precision_ci_95_wilson": ci(precision_numerator, tp + fp),
+        "recall": recall,
+        "recall_ci_95_wilson": ci(recall_numerator, tp + fn),
+        "specificity": specificity,
+        "specificity_ci_95_wilson": ci(specificity_numerator, tn + fp),
+        "f1_score": f1,
+        "minimum_sample_size_reporting_threshold": 30,
+        "interpretation": (
+            "BULLISH predicts an upward close-to-close market return; BEARISH predicts a downward return. "
+            "Flat returns are excluded from confusion-matrix metrics. False positives are bullish calls "
+            "followed by negative returns; false negatives are bearish calls followed by positive returns. "
+            "This evaluates only stored directional-call snapshots, not periods with no call, and does not "
+            "adjust for overlapping observations or serial dependence. Wilson intervals are nominal."
+        ),
+    }
+
+
 def _reliability_assessment(stats: dict[str, Any]) -> dict[str, Any]:
     """Expose transparent uncertainty diagnostics; this is not a predictive reliability score."""
     sample_size = int(stats.get("directional_sample_size") or 0)
@@ -716,8 +791,20 @@ class MarketConfluencePerformance:
                                     row["future_candle_coverage_complete"] for row in group
                                 ),
                             }
+            signal_quality = _signal_quality_assessment(outcomes)
+            signal_quality_by_regime = {}
+            for dimension in ("market_regime", "volatility_regime", "structure_regime"):
+                groups: dict[str, list[dict[str, Any]]] = {}
+                for row in outcomes:
+                    groups.setdefault(row[dimension], []).append(row)
+                signal_quality_by_regime[dimension] = {
+                    label: _signal_quality_assessment(group_rows)
+                    for label, group_rows in sorted(groups.items())
+                }
             summaries[str(hours)] = {
                 "label": self.HORIZON_LABELS[hours],
+                "signal_quality": signal_quality,
+                "signal_quality_by_regime": signal_quality_by_regime,
                 "horizon_hours": hours,
                 "horizon_days": hours / 24,
                 "status": "COMPLETED" if outcomes else "INSUFFICIENT_FUTURE_DATA",
