@@ -106,7 +106,7 @@ class RSSNewsProvider:
                 except Exception as exc:
                     failures.append({
                         "source": source.get("name", "unknown"),
-                        "error": f"{type(exc).__name__}: {str(exc)[:300]}",
+                        "error": type(exc).__name__,
                     })
         finally:
             if owns_client:
