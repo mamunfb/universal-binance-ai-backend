@@ -81,3 +81,21 @@ def test_malformed_log_does_not_create_coverage(tmp_path):
     else:
         raise AssertionError("Malformed log must not be accepted")
     assert store.coverage(1, CONTRACT) == []
+
+
+def test_address_flow_summary_uses_exact_raw_integer_totals(tmp_path):
+    store = EVMTransferStore(str(tmp_path / "history.sqlite3"))
+    huge = 2**80
+    logs = [
+        {"topics": ["0x" + "0" * 64, _topic(SENDER), _topic(RECIPIENT)],
+         "data": hex(huge), "transactionHash": "0x" + "d" * 64,
+         "blockNumber": "0x64", "logIndex": "0x0"},
+        {"topics": ["0x" + "0" * 64, _topic(RECIPIENT), _topic(SENDER)],
+         "data": hex(100), "transactionHash": "0x" + "e" * 64,
+         "blockNumber": "0x65", "logIndex": "0x0"},
+    ]
+    store.save_chunk(1, CONTRACT, 100, 101, logs)
+    result = store.address_flow_summary(1, CONTRACT, 100, 101, 0, 10)
+    receivers = {row["address"]: row for row in result["top_net_receivers"]}
+    assert receivers[SENDER]["net_received_tokens"] == 100 - huge
+    assert receivers[RECIPIENT]["net_received_tokens"] == huge - 100
