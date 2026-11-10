@@ -43,6 +43,23 @@ class EVMRPCProvider:
     async def block_number(self) -> int:
         return int(await self._rpc("eth_blockNumber", []), 16)
 
+    async def block_timestamp(self, block_number: int) -> int:
+        if isinstance(block_number, bool) or not isinstance(block_number, int) or block_number < 0:
+            raise ValueError("block_number must be a non-negative integer")
+        block = await self._rpc("eth_getBlockByNumber", [hex(block_number), False])
+        if not isinstance(block, dict):
+            raise ValueError("Unexpected eth_getBlockByNumber result")
+        timestamp = block.get("timestamp")
+        if not isinstance(timestamp, str) or not timestamp.startswith("0x"):
+            raise ValueError("Block response has no valid timestamp")
+        try:
+            value = int(timestamp, 16)
+        except ValueError as exc:
+            raise ValueError("Block timestamp is not valid hexadecimal") from exc
+        if value < 0:
+            raise ValueError("Block timestamp must be non-negative")
+        return value
+
     async def native_balance(self, address: str, block: str = "latest") -> int:
         _validate_address(address)
         return int(await self._rpc("eth_getBalance", [address, block]), 16)
