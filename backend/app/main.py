@@ -20,7 +20,7 @@ from app.services.news_intelligence import collect_news_intelligence
 from app.services.news_verification import parse_domain_list
 from app.services.catalyst_analysis import analyze_catalysts
 from app.providers.evm_rpc import EVMRPCProvider
-from app.services.onchain_intelligence import analyze_erc20_activity, get_evm_wallet_snapshot
+from app.services.onchain_intelligence import analyze_erc20_activity, get_evm_wallet_snapshot, get_erc20_token_snapshot
 
 liquidation_store = LiquidationStore(settings.liquidation_database_path)
 liquidation_collector = LiquidationCollector(liquidation_store)
@@ -130,6 +130,20 @@ async def evm_wallet_snapshots(addresses: str = Query(..., min_length=42, max_le
     except Exception as exc:
         raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
 
+
+@app.get("/api/v1/onchain/evm/token/{contract}/snapshot", tags=["on-chain"])
+async def evm_token_snapshot(contract: str, addresses: str = "") -> dict:
+    requested = [value.strip() for value in addresses.split(",") if value.strip()]
+    watchlist = {f"Tracked wallet {index + 1}": address for index, address in enumerate(requested)}
+    watchlist.update(parse_exchange_addresses(settings.evm_exchange_addresses))
+    if len(watchlist) > 50:
+        raise HTTPException(status_code=422, detail="At most 50 tracked addresses are supported.")
+    try:
+        return await get_erc20_token_snapshot(get_evm_provider(), contract, watchlist)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
 
 @app.get("/api/v1/onchain/evm/token/{contract}/activity", tags=["on-chain"])
 async def evm_token_activity(
