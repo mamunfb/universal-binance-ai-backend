@@ -27,6 +27,8 @@ def parse_chain_token_configs(raw: str) -> list[dict[str, Any]]:
         raise ValueError("EVM_CHAIN_TOKEN_CONTRACTS must be valid JSON") from exc
     if not isinstance(entries, list):
         raise ValueError("EVM_CHAIN_TOKEN_CONTRACTS must be a JSON array")
+    if len(entries) > 20:
+        raise ValueError("At most 20 chain token configs are supported")
     parsed = []
     seen: set[tuple[int, str]] = set()
     for entry in entries:
@@ -56,24 +58,33 @@ def parse_chain_token_configs(raw: str) -> list[dict[str, Any]]:
 
 
 def _uint(result: str) -> int:
-    if not isinstance(result, str) or not result.startswith("0x"):
-        raise ValueError("Invalid ABI uint result")
-    return int(result, 16)
+    if not isinstance(result, str) or not result.startswith("0x") or len(result) != 66:
+        raise ValueError("ABI uint result must be exactly 32 bytes of hex")
+    try:
+        return int(result[2:], 16)
+    except ValueError as exc:
+        raise ValueError("ABI uint result contains invalid hexadecimal data") from exc
 
 
 def _text(result: str) -> str | None:
     if not isinstance(result, str) or not result.startswith("0x"):
         return None
+    encoded = result[2:]
+    if len(encoded) % 2:
+        return None
     try:
-        raw = bytes.fromhex(result[2:])
+        raw = bytes.fromhex(encoded)
         if len(raw) < 32:
             return None
         offset = int.from_bytes(raw[:32], "big")
-        if offset + 32 <= len(raw):
+        if offset >= 32 and offset % 32 == 0 and offset + 32 <= len(raw):
             length = int.from_bytes(raw[offset:offset + 32], "big")
             if offset + 32 + length <= len(raw):
                 return raw[offset + 32:offset + 32 + length].decode("utf-8")
-        return raw[:32].rstrip(b"\\x00").decode("utf-8")
+            return None
+        if len(raw) == 32:
+            return raw.split(b"\\x00", 1)[0].decode("utf-8")
+        return None
     except (ValueError, UnicodeDecodeError):
         return None
 
@@ -116,7 +127,7 @@ async def _token_on_chain(config: dict[str, Any], addresses: list[str],
                     "share_of_total_supply_pct": raw / supply_raw * 100 if supply_raw else None}
         except Exception as exc:
             return {"address": address, "status": "FAILED",
-                    "error": f"{type(exc).__name__}: {str(exc)[:200]}"}
+                    "error": "BALANCE_UNAVAILABLE", "error_type": type(exc).__name__}
 
     wallets = await asyncio.gather(*(balance(address) for address in addresses))
     ok = [row for row in wallets if row["status"] == "COMPLETED"]
@@ -167,7 +178,8 @@ async def cross_chain_erc20_snapshot(configs: list[dict[str, Any]], asset_id: st
             return {"status": "FAILED", "chain_id": config["chain_id"],
                     "chain_name": config["chain_name"], "asset_id": config["asset_id"],
                     "contract_address": config["contract_address"],
-                    "error": f"{type(exc).__name__}: {str(exc)[:250]}"}
+                    "error": "CHAIN_SNAPSHOT_UNAVAILABLE",
+                    "error_type": type(exc).__name__}
     chains = await asyncio.gather(*(inspect(item) for item in selected))
     return {
         "status": "COMPLETED" if chains and all(item["status"] == "COMPLETED" for item in chains) else "INCOMPLETE",
