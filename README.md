@@ -121,3 +121,8 @@ Observed locally stored USD-M force-order snapshots can be grouped into configur
 ## Order book liquidity intelligence
 
 `GET /api/v1/analysis/order-book/{market}/{symbol}` returns a public REST order-book snapshot with spread, depth imbalance, microprice, near-mid depth bands, cumulative visible depth and relative large-order candidates. It is not a synchronized depth stream and does not track historical liquidity. See [Order Book Liquidity Intelligence](docs/ORDER_BOOK_LIQUIDITY_INTELLIGENCE.md).
+
+
+## Real-time order book history
+
+An opt-in sequence-aware Binance diff-depth collector can maintain local Spot, USD-M and COIN-M order books and persist periodic liquidity samples. It is disabled by default and requires a persistent single-process deployment. APIs: `GET /api/v1/history/order-book/status` and `GET /api/v1/history/order-book/{market}/{symbol}`. Configure `ORDER_BOOK_COLLECTOR_ENABLED`, `ORDER_BOOK_COLLECTOR_JOBS`, and related `ORDER_BOOK_*` variables. See [Order Book Liquidity Intelligence](docs/ORDER_BOOK_LIQUIDITY_INTELLIGENCE.md).
