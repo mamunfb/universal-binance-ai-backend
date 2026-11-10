@@ -151,6 +151,98 @@ class EVMTransferStore:
             "warning": "Computed only from logs currently stored in SQLite for the requested range. Results are not complete unless indexed coverage spans the full requested range; address flow is not a holder balance or ownership attribution.",
         }
 
+    def range_coverage(self, chain_id: int, contract: str, from_block: int,
+                       to_block: int) -> dict[str, Any]:
+        ranges = self.coverage(chain_id, contract)
+        relevant = sorted(
+            (max(from_block, row["from_block"]), min(to_block, row["to_block"]))
+            for row in ranges
+            if row["to_block"] >= from_block and row["from_block"] <= to_block
+        )
+        cursor = from_block
+        gaps = []
+        for start, end in relevant:
+            if end < cursor:
+                continue
+            if start > cursor:
+                gaps.append({"from": cursor, "to": start - 1})
+            cursor = max(cursor, end + 1)
+            if cursor > to_block:
+                break
+        if cursor <= to_block:
+            gaps.append({"from": cursor, "to": to_block})
+        return {
+            "complete": not gaps,
+            "requested_range": {"from": from_block, "to": to_block},
+            "covered_through": cursor - 1 if cursor > from_block else None,
+            "gaps": gaps,
+            "indexed_ranges": relevant,
+        }
+
+    def smart_money_activity(self, chain_id: int, contract: str, from_block: int,
+                             to_block: int, decimals: int, registry: dict[str, Any],
+                             limit: int = 100) -> dict[str, Any]:
+        if not 0 <= decimals <= 36:
+            raise ValueError("decimals must be between 0 and 36")
+        with sqlite3.connect(self.database_path) as connection:
+            connection.row_factory = sqlite3.Row
+            rows = connection.execute("""
+                SELECT from_address, to_address, amount_raw, block_number, transaction_hash
+                FROM evm_transfer_logs
+                WHERE chain_id=? AND contract_address=? AND block_number BETWEEN ? AND ? AND removed=0
+                ORDER BY block_number
+            """, (chain_id, contract.lower(), from_block, to_block)).fetchall()
+        verified = {
+            item["address"]: item for item in registry.get("wallets", [])
+            if item.get("label") == "smart_money" and item.get("verification_status") == "verified"
+        }
+        totals: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            raw = int(row["amount_raw"])
+            for address, sent, received in (
+                (row["from_address"], raw, 0), (row["to_address"], 0, raw)
+            ):
+                if address not in verified:
+                    continue
+                item = totals.setdefault(address, {
+                    "sent_raw": 0, "received_raw": 0, "transfer_count": 0,
+                    "first_block": row["block_number"], "last_block": row["block_number"],
+                    "transaction_hashes": set(),
+                })
+                item["sent_raw"] += sent
+                item["received_raw"] += received
+                item["transfer_count"] += 1
+                item["first_block"] = min(item["first_block"], row["block_number"])
+                item["last_block"] = max(item["last_block"], row["block_number"])
+                item["transaction_hashes"].add(row["transaction_hash"])
+        scale = 10 ** decimals
+        activity = []
+        for address, values in totals.items():
+            net = values["received_raw"] - values["sent_raw"]
+            activity.append({
+                "address": address,
+                "entity_name": verified[address].get("entity_name"),
+                "evidence_url": verified[address].get("evidence_url"),
+                "sent_raw": str(values["sent_raw"]),
+                "received_raw": str(values["received_raw"]),
+                "net_received_raw": str(net),
+                "sent_tokens": values["sent_raw"] / scale,
+                "received_tokens": values["received_raw"] / scale,
+                "net_received_tokens": net / scale,
+                "transfer_count": values["transfer_count"],
+                "unique_transactions": len(values["transaction_hashes"]),
+                "first_activity_block": values["first_block"],
+                "last_activity_block": values["last_block"],
+                "flow_direction": "NET_INFLOW" if net > 0 else "NET_OUTFLOW" if net < 0 else "NEUTRAL",
+            })
+        activity.sort(key=lambda item: abs(int(item["net_received_raw"])), reverse=True)
+        return {
+            "verified_smart_money_wallets_found": len(activity),
+            "wallets": activity[:limit],
+            "matched_transfer_count": len(rows),
+            "warning": "Only operator-verified smart_money registry addresses are included. Metrics reflect stored ERC-20 Transfer logs in this block range, not portfolio holdings, intent, realized profit, or a prediction. Coverage must be checked separately.",
+        }
+
     def coverage(self, chain_id: int, contract: str) -> list[dict[str, Any]]:
         with sqlite3.connect(self.database_path) as connection:
             connection.row_factory = sqlite3.Row
