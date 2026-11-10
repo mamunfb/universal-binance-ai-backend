@@ -400,6 +400,33 @@ def analyze_historical_market_regime(
 
 
 
+@mcp.tool()
+def analyze_liquidation_clusters(
+    symbol: str, start_time_ms: int | None = None,
+    end_time_ms: int | None = None, limit: int = 5000,
+    bucket_bps: int = 25, min_events: int = 1,
+) -> dict:
+    """Group locally stored USD-M force-order snapshots into observed price buckets."""
+    if not 1 <= limit <= 20000:
+        raise ValueError("limit must be between 1 and 20000")
+    if not 1 <= bucket_bps <= 500:
+        raise ValueError("bucket_bps must be between 1 and 500")
+    if not 1 <= min_events <= 1000:
+        raise ValueError("min_events must be between 1 and 1000")
+    if start_time_ms is not None and start_time_ms < 0:
+        raise ValueError("start_time_ms must be non-negative")
+    if end_time_ms is not None and end_time_ms < 0:
+        raise ValueError("end_time_ms must be non-negative")
+    if start_time_ms is not None and end_time_ms is not None and end_time_ms < start_time_ms:
+        raise ValueError("end_time_ms must be >= start_time_ms")
+    return _get(
+        f"/api/v1/analysis/futures/liquidation-clusters/{quote(symbol.upper(), safe='')}",
+        {"start_time_ms": start_time_ms, "end_time_ms": end_time_ms,
+         "limit": limit, "bucket_bps": bucket_bps, "min_events": min_events},
+    )
+
+
+
 if __name__ == "__main__":
     # stdio transport keeps the adapter local to its configured AI client process.
     mcp.run(transport="stdio")
