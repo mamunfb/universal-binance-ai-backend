@@ -74,7 +74,7 @@ class HistoricalSignalPerformance:
             for hours in self.HORIZONS_HOURS:
                 key = str(hours)
                 target_ms = signal_time + hours * 60 * 60 * 1000
-                eligible = [c for c in future if c["close_time_ms"] >= target_ms]
+                eligible = [c for c in future if c["close_time_ms"] >= target_ms - 1]
                 if not eligible:
                     pending[key] += 1
                     continue
