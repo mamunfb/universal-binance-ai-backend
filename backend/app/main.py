@@ -33,6 +33,7 @@ from app.services.onchain_intelligence import analyze_erc20_activity, get_evm_wa
 from app.services.evm_transfer_store import EVMTransferStore, index_erc20_transfer_history
 from app.services.historical_klines import HistoricalKlineStore
 from app.services.funding_rates import FundingRateStore
+from app.services.open_interest import OpenInterestStore
 from app.services.historical_coverage import HistoricalCoverageEngine
 from app.services.historical_collector import HistoricalKlineCollector
 from app.services.wallet_attribution import load_wallet_registry, annotate_wallet_addresses
@@ -46,6 +47,7 @@ news_provider = RSSNewsProvider(settings.http_timeout_seconds)
 evm_transfer_store = EVMTransferStore(settings.evm_transfer_database_path)
 historical_kline_store = HistoricalKlineStore(settings.historical_kline_database_path)
 funding_rate_store = FundingRateStore(settings.funding_rate_database_path)
+open_interest_store = OpenInterestStore(settings.open_interest_database_path)
 historical_collector: HistoricalKlineCollector | None = None
 
 
@@ -1339,6 +1341,59 @@ async def get_historical_funding_rates(
     try:
         return await asyncio.to_thread(
             funding_rate_store.history, "USD_M", symbol, start_time_ms, end_time_ms, limit
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.post("/api/v1/history/open-interest/USD_M/{symbol}/collect", tags=["history"])
+async def collect_historical_open_interest(
+    symbol: str,
+    period: Literal["5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "1d"] = "1h",
+    start_time_ms: int | None = Query(default=None, ge=0),
+    end_time_ms: int | None = Query(default=None, ge=0),
+    limit: int = Query(default=500, ge=1, le=500),
+) -> dict:
+    normalized = symbol.strip().upper()
+    if not normalized:
+        raise HTTPException(status_code=422, detail="symbol must not be empty")
+    if start_time_ms is not None and end_time_ms is not None and end_time_ms < start_time_ms:
+        raise HTTPException(status_code=422, detail="end_time_ms must be >= start_time_ms")
+    try:
+        rows = await get_futures_provider("USD_M").open_interest_history(
+            normalized, period=period, limit=limit,
+            start_time_ms=start_time_ms, end_time_ms=end_time_ms,
+        )
+        if not rows:
+            return {
+                "status": "NO_NEW_DATA", "market": "USD_M", "symbol": normalized,
+                "period": period, "received_count": 0,
+                "warning": "The exchange returned no open-interest records; no history was stored.",
+            }
+        return await asyncio.to_thread(
+            open_interest_store.save, "USD_M", normalized, period, rows
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail={
+            "status": "FAILED", "error": "OPEN_INTEREST_COLLECTION_UNAVAILABLE",
+            "error_type": type(exc).__name__,
+        }) from exc
+
+
+@app.get("/api/v1/history/open-interest/USD_M/{symbol}", tags=["history"])
+async def get_historical_open_interest(
+    symbol: str,
+    period: Literal["5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "1d"] = "1h",
+    start_time_ms: int | None = Query(default=None, ge=0),
+    end_time_ms: int | None = Query(default=None, ge=0),
+    limit: int = Query(default=500, ge=1, le=5000),
+) -> dict:
+    try:
+        return await asyncio.to_thread(
+            open_interest_store.history, "USD_M", symbol, period,
+            start_time_ms, end_time_ms, limit,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
