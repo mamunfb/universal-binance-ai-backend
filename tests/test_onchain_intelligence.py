@@ -21,7 +21,7 @@ def test_provider_requires_https():
 
 def test_transfer_log_parser_and_exchange_flow():
     log = {"topics": [TRANSFER_TOPIC, _topic(ADDRESS_A), _topic(ADDRESS_B)],
-           "data": hex(250_000 * 10**6), "transactionHash": "0x" + "b" * 64,
+           "data": "0x" + hex(250_000 * 10**6)[2:].rjust(64, "0"), "transactionHash": "0x" + "b" * 64,
            "blockNumber": "0x64", "logIndex": "0x0"}
 
     class FakeProvider:
@@ -125,3 +125,24 @@ async def test_erc20_snapshot_caps_watchlist_before_rpc():
             raise AssertionError("Should reject before RPC")
     with pytest.raises(ValueError):
         await get_erc20_token_snapshot(FakeProvider(), CONTRACT, {str(i): ADDRESS_A for i in range(51)})
+
+
+def test_transfer_activity_marks_malformed_logs_incomplete():
+    valid_topics = [TRANSFER_TOPIC, _topic(ADDRESS_A), _topic(ADDRESS_B)]
+    malformed = [
+        {"topics": valid_topics, "data": "0x1234"},
+        {"topics": [TRANSFER_TOPIC, "0x" + "z" * 64, _topic(ADDRESS_B)],
+         "data": "0x" + "0" * 64},
+        None,
+    ]
+
+    class FakeProvider:
+        async def token_transfer_logs(self, contract, from_block, to_block, max_block_span):
+            return malformed
+
+    result = asyncio.run(analyze_erc20_activity(
+        FakeProvider(), CONTRACT, 100, 100, 6
+    ))
+    assert result["status"] == "INCOMPLETE"
+    assert result["malformed_log_count"] == 3
+    assert result["transfer_count"] == 0
