@@ -17,6 +17,7 @@ from app.services.price_levels import analyze_support_resistance, calculate_fibo
 from app.services.volume_structure import calculate_vwap, calculate_volume_profile, analyze_market_structure
 from app.providers.news_rss import RSSNewsProvider, parse_feed_sources
 from app.services.news_intelligence import collect_news_intelligence
+from app.services.news_verification import parse_domain_list
 
 liquidation_store = LiquidationStore(settings.liquidation_database_path)
 liquidation_collector = LiquidationCollector(liquidation_store)
@@ -61,8 +62,7 @@ async def news_intelligence(
     requested_symbols = [value.strip().upper() for value in symbols.split(",") if value.strip()]
     sources = parse_feed_sources(settings.news_rss_feeds)
     return await collect_news_intelligence(
-        news_provider, sources, requested_symbols, hours=hours, limit=limit
-    )
+        news_provider, sources, requested_symbols, hours=hours, limit=limit,\n        primary_domains=parse_domain_list(settings.news_primary_source_domains),\n        independent_domains=parse_domain_list(settings.news_independent_source_domains),\n        stale_after_hours=settings.news_stale_after_hours,\n    )
 
 
 @app.get("/health", tags=["system"])
