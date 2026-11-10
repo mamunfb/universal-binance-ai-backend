@@ -142,3 +142,26 @@ def test_evm_wallet_route_sanitizes_provider_exception(monkeypatch):
         assert "secret-token" not in detail
     else:
         raise AssertionError("Expected sanitized HTTP 502")
+
+
+def test_derivatives_route_sanitizes_unexpected_provider_exception(monkeypatch):
+    import asyncio
+    from app import main
+
+    class FakeProvider:
+        market = "USD_M"
+
+    async def fail_analysis(*args, **kwargs):
+        raise RuntimeError("https://futures.example/key=private-secret")
+
+    monkeypatch.setattr(main, "get_futures_provider", lambda market: FakeProvider())
+    monkeypatch.setattr(main, "get_derivatives_intelligence", fail_analysis)
+    try:
+        asyncio.run(main.usdm_derivatives_intelligence("BTCUSDT"))
+    except Exception as exc:
+        assert getattr(exc, "status_code", None) == 502
+        detail = str(getattr(exc, "detail", ""))
+        assert "DERIVATIVES_ANALYSIS_UNAVAILABLE" in detail
+        assert "private-secret" not in detail
+    else:
+        raise AssertionError("Expected sanitized HTTP 502")
