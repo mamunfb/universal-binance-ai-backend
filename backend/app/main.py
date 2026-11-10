@@ -359,9 +359,70 @@ async def cross_chain_token_intelligence(
                 decimals, registry,
             ) if config else {"verified_label_flows": {}, "warning": "No matching chain configuration."}
             entity_flow_status = "COMPLETED" if config else "UNAVAILABLE"
+            verified_wallets = [
+                item for item in registry.get("wallets", [])
+                if item.get("verification_status") == "verified"
+                and item.get("label") in {"exchange", "fund", "market_maker",
+                                          "protocol_treasury", "smart_money", "whale"}
+            ]
+            if not config:
+                concentration = {"status": "UNAVAILABLE", "reason": "No matching chain configuration."}
+            elif not verified_wallets:
+                concentration = {"status": "EMPTY", "verified_wallet_count": 0,
+                                  "wallets": [], "by_label": {},
+                                  "warning": "No verified registry wallets are configured for this chain."}
+            elif len(verified_wallets) > 50:
+                concentration = {"status": "INCOMPLETE",
+                                  "verified_wallet_count": len(verified_wallets),
+                                  "queried_wallet_count": 0,
+                                  "reason": "Snapshot limit is 50 verified wallets; reduce the chain registry before querying to avoid a biased partial sample."}
+            else:
+                snapshot = await cross_chain_erc20_snapshot(
+                    [config], asset_id, [item["address"] for item in verified_wallets],
+                    settings.http_timeout_seconds,
+                )
+                chain_snapshot = snapshot["chains"][0]
+                label_by_address = {item["address"]: item["label"] for item in verified_wallets}
+                groups = {}
+                for wallet in chain_snapshot.get("wallets", []):
+                    if wallet.get("status") != "COMPLETED":
+                        continue
+                    label = label_by_address[wallet["address"]]
+                    group = groups.setdefault(label, {"wallet_count": 0, "balance_raw": 0})
+                    group["wallet_count"] += 1
+                    group["balance_raw"] += int(wallet["balance_raw"])
+                supply_raw = int(chain_snapshot.get("token", {}).get("total_supply_raw", "0"))
+                scale = 10 ** chain_snapshot.get("token", {}).get("decimals", decimals)
+                by_label = {
+                    label: {
+                        "wallet_count": group["wallet_count"],
+                        "balance_raw": str(group["balance_raw"]),
+                        "balance_tokens": group["balance_raw"] / scale,
+                        "share_of_total_supply_pct": (
+                            group["balance_raw"] / supply_raw * 100 if supply_raw else None
+                        ),
+                    } for label, group in groups.items()
+                }
+                concentration = {
+                    "status": chain_snapshot["status"],
+                    "snapshot_block": chain_snapshot.get("snapshot_block"),
+                    "token": chain_snapshot.get("token"),
+                    "verified_wallet_count": len(verified_wallets),
+                    "queried_wallet_count": len(chain_snapshot.get("wallets", [])),
+                    "successful_wallet_count": sum(
+                        1 for item in chain_snapshot.get("wallets", [])
+                        if item.get("status") == "COMPLETED"
+                    ),
+                    "by_label": by_label,
+                    "wallets": chain_snapshot.get("wallets", []),
+                    "warning": "Snapshot balances are queried at one pinned block per chain. Only verified operator-registry wallets are included; this is not a full holder ranking or complete supply concentration analysis.",
+                }
+            concentration_status = concentration["status"]
         except Exception as exc:
             entity_flows = {"error": f"{type(exc).__name__}: {str(exc)[:200]}"}
             entity_flow_status = "FAILED"
+            concentration = {"status": "FAILED", "error": f"{type(exc).__name__}: {str(exc)[:200]}"}
+            concentration_status = "FAILED"
         chains.append({
             "chain_id": flow["chain_id"],
             "chain_name": flow.get("chain_name"),
@@ -371,6 +432,7 @@ async def cross_chain_token_intelligence(
                 if flow["status"] == "COMPLETED"
                 and cohort is not None and cohort["status"] == "COMPLETED"
                 and entity_flow_status == "COMPLETED"
+                and concentration_status in {"COMPLETED", "EMPTY"}
                 else "INCOMPLETE"
             ),
             "address_flows": flow,
@@ -382,6 +444,7 @@ async def cross_chain_token_intelligence(
                 "status": entity_flow_status,
                 **entity_flows,
             },
+            "verified_wallet_concentration": concentration,
         })
     return {
         "status": "COMPLETED" if chains and all(
