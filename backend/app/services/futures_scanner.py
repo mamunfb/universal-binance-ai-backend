@@ -166,16 +166,30 @@ async def scan_futures_markets(
             "filters": info.get("filters", []),
         })
 
-    results.sort(key=lambda row: row["quote_volume_24h"], reverse=True)
-    primary: dict[str, dict[str, Any]] = {}
+    results.sort(key=lambda row: (str(row.get("quote_asset") or ""), -row["quote_volume_24h"]))
+    grouped: dict[str, list[dict[str, Any]]] = {}
     for row in results:
-        primary.setdefault(str(row.get("base_asset") or row["symbol"]), row)
-    unique = [
-        {"base_asset": base, "primary_symbol": row["symbol"],
-         "market": row["market"], "contract_type": row["contract_type"],
-         "margin_asset": row["margin_asset"], "quote_volume_24h": row["quote_volume_24h"]}
-        for base, row in sorted(primary.items())
-    ]
+        grouped.setdefault(str(row.get("base_asset") or row["symbol"]), []).append(row)
+    unique = []
+    for base, rows in sorted(grouped.items()):
+        quote_assets = {str(row.get("quote_asset") or "") for row in rows}
+        margin_assets = {str(row.get("margin_asset") or "") for row in rows}
+        comparable = len(quote_assets) == 1 and len(margin_assets) == 1
+        selected = max(rows, key=lambda row: row["quote_volume_24h"]) if comparable else None
+        unique.append({
+            "base_asset": base,
+            "primary_symbol": selected["symbol"] if selected else None,
+            "market": provider.market,
+            "contract_type": selected["contract_type"] if selected else None,
+            "margin_asset": selected["margin_asset"] if selected else None,
+            "quote_asset": selected["quote_asset"] if selected else None,
+            "quote_volume_24h": selected["quote_volume_24h"] if selected else None,
+            "candidate_symbols": [row["symbol"] for row in rows],
+            "primary_selection_status": (
+                "PROVISIONAL_QUOTE_VOLUME_ONLY_DEPTH_NOT_CHECKED" if selected
+                else "NOT_ESTABLISHED_INCOMPARABLE_QUOTE_OR_MARGIN_ASSETS"
+            ),
+        })
     now_ms = datetime.now(timezone.utc).timestamp() * 1000
     newly_listed_contracts = [
         {"symbol": row["symbol"], "market": row["market"], "contract_type": row["contract_type"],
