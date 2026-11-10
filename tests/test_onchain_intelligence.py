@@ -154,7 +154,7 @@ def test_abi_text_decoder_returns_none_for_malformed_hex(value):
 
 
 def test_abi_text_decoder_supports_bytes32_and_trims_null_bytes():
-    encoded = "0x" + b"USDC".ljust(32, b"\\x00").hex()
+    encoded = "0x" + b"USDC".ljust(32, b"\x00").hex()
     assert _decode_abi_text(encoded) == "USDC"
 
 
