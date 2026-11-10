@@ -67,6 +67,17 @@ The read-only endpoint `GET /api/v1/analysis/derivatives/advanced/{symbol}` eval
 
 Completed snapshots are stored idempotently in `DERIVATIVES_SIGNAL_DATABASE_PATH` and can be read through `GET /api/v1/history/derivatives-signals/{symbol}`. The MCP tools are `analyze_advanced_derivatives` and `get_derivatives_signal_history`. Liquidation context is incomplete: Binance's force-order stream is not a complete liquidation tape, and absence of stored events does not establish that no liquidations occurred. These outputs are descriptive research evidence, not trade instructions.
 
+## Stored futures account and taker ratios
+
+Manual collection endpoints store Binance USD-M global long/short account ratio and taker buy/sell ratio observations in a dedicated SQLite database:
+
+- `POST /api/v1/history/derivatives-ratios/USD_M/GLOBAL_LONG_SHORT/BTCUSDT/collect?period=1h&limit=500`
+- `POST /api/v1/history/derivatives-ratios/USD_M/TAKER_BUY_SELL/BTCUSDT/collect?period=1h&limit=500`
+- `GET /api/v1/history/derivatives-ratios/USD_M/GLOBAL_LONG_SHORT/BTCUSDT?period=1h&limit=200`
+- `GET /api/v1/history/derivatives-ratios/USD_M/TAKER_BUY_SELL/BTCUSDT?period=1h&limit=200`
+
+The MCP reader is `get_stored_derivatives_ratio_history`. Storage is idempotent by market, ratio type, symbol, period and timestamp. Collection is manual; it is not automatically scheduled. Global long/short ratio is an account-count ratio, not position size. Taker buy/sell ratio measures aggressive buy/sell volume, not guaranteed future price direction.
+
 ## Multi-timeframe derivatives research
 
 The read-only endpoint `GET /api/v1/analysis/derivatives/multi-timeframe/{symbol}?periods=5m,15m,1h,4h,1d&limit=48` combines independently stored USD-M Open Interest and price observations across selected periods. It reports rising/falling/flat OI directions, missing timeframes and a cautious agreement classification. Confirmation is withheld when the latest OI timestamps differ, when any requested timeframe lacks sufficient records, or when only one timeframe is selected. Each completed period analysis writes a local signal snapshot. The MCP tool is `analyze_multi_timeframe_derivatives`.
