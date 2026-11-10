@@ -167,6 +167,38 @@ def test_derivatives_route_sanitizes_unexpected_provider_exception(monkeypatch):
         raise AssertionError("Expected sanitized HTTP 502")
 
 
+def test_market_data_routes_sanitize_provider_exception_details(monkeypatch):
+    import asyncio
+    from app import main
+
+    class FakeSpot:
+        async def klines(self, *args, **kwargs):
+            raise RuntimeError("https://spot.example/api?token=spot-secret")
+
+    class FakeFutures:
+        async def klines(self, *args, **kwargs):
+            raise RuntimeError("https://futures.example/api?token=futures-secret")
+
+    monkeypatch.setattr(main, "get_spot_provider", lambda: FakeSpot())
+    monkeypatch.setattr(main, "get_futures_provider", lambda market: FakeFutures())
+
+    for operation, secret in (
+        (main.spot_klines("BTCUSDT"), "spot-secret"),
+        (main.usdm_klines("BTCUSDT"), "futures-secret"),
+        (main.coinm_klines("BTCUSD_PERP"), "futures-secret"),
+        (main.spot_technical_analysis("BTCUSDT"), "spot-secret"),
+    ):
+        try:
+            asyncio.run(operation)
+        except Exception as exc:
+            assert getattr(exc, "status_code", None) == 502
+            detail = str(getattr(exc, "detail", ""))
+            assert "UPSTREAM_UNAVAILABLE" in detail
+            assert secret not in detail
+        else:
+            raise AssertionError("Expected sanitized HTTP 502")
+
+
 def test_spot_futures_basis_route_returns_analysis(monkeypatch):
     from app import main
 
