@@ -53,3 +53,19 @@ class MarketConfluenceStore:
         return {"status":"COMPLETED" if snapshots else "NO_STORED_SNAPSHOTS","market":market.upper(),
             "symbol":symbol.upper(),"interval":interval,"returned_count":len(snapshots),"snapshots":snapshots,
             "source":"Local SQLite confluence snapshot store"}
+
+    def get_snapshot(self, market: str, symbol: str, snapshot_id: str) -> dict[str, Any] | None:
+        if market.upper() not in {"SPOT", "USD_M", "COIN_M"}:
+            raise ValueError("Invalid market")
+        with sqlite3.connect(self.database_path) as db:
+            db.row_factory = sqlite3.Row
+            row = db.execute(
+                """SELECT * FROM market_confluence_snapshots
+                   WHERE snapshot_id=? AND market=? AND symbol=?""",
+                (snapshot_id, market.upper(), symbol.upper()),
+            ).fetchone()
+        if row is None:
+            return None
+        item = dict(row)
+        item["payload"] = json.loads(item.pop("payload_json"))
+        return item
