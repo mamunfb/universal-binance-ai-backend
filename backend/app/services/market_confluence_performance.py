@@ -145,6 +145,64 @@ def _walk_forward_consistency(folds: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _historical_walk_forward_comparison(
+    historical: dict[str, Any], walk_forward: dict[str, Any],
+) -> dict[str, Any]:
+    """Compare full-history descriptive results with chronological walk-forward test results."""
+    historical_fraction = historical.get("directional_positive_fraction")
+    walk_fraction = walk_forward.get("test_directional_positive_fraction")
+    historical_n = int(historical.get("directional_sample_size") or 0)
+    walk_n = int(walk_forward.get("test_directional_sample_size") or 0)
+    historical_ci = historical.get("directional_positive_fraction_ci_95_wilson")
+    walk_ci = walk_forward.get("test_directional_positive_fraction_ci_95_wilson")
+    difference = (
+        float(walk_fraction) - float(historical_fraction)
+        if historical_fraction is not None and walk_fraction is not None else None
+    )
+    ci_overlap = None
+    if historical_ci is not None and walk_ci is not None:
+        ci_overlap = not (
+            float(historical_ci["upper"]) < float(walk_ci["lower"])
+            or float(walk_ci["upper"]) < float(historical_ci["lower"])
+        )
+    if historical_fraction is None or walk_fraction is None:
+        status = "INSUFFICIENT_COMPARABLE_RESULTS"
+    elif historical_n < 30 or walk_n < 30:
+        status = "LOW_SAMPLE_SIZE"
+    elif ci_overlap is None:
+        status = "CONFIDENCE_INTERVAL_UNAVAILABLE"
+    elif ci_overlap:
+        status = "NOMINAL_INTERVALS_OVERLAP"
+    else:
+        status = "NOMINAL_INTERVALS_DO_NOT_OVERLAP"
+    historical_mean = historical.get("mean_directional_return_percent")
+    walk_mean = walk_forward.get("test_mean_directional_return_percent")
+    return {
+        "status": status,
+        "comparison_basis": "Full-history descriptive outcomes versus the aggregate chronological walk-forward test folds.",
+        "historical_directional_sample_size": historical_n,
+        "walk_forward_test_directional_sample_size": walk_n,
+        "historical_positive_fraction": historical_fraction,
+        "historical_positive_fraction_ci_95_wilson": historical_ci,
+        "walk_forward_positive_fraction": walk_fraction,
+        "walk_forward_positive_fraction_ci_95_wilson": walk_ci,
+        "walk_forward_minus_historical_positive_fraction": difference,
+        "positive_fraction_difference_percentage_points": difference * 100.0 if difference is not None else None,
+        "nominal_confidence_intervals_overlap": ci_overlap,
+        "historical_mean_directional_return_percent": historical_mean,
+        "walk_forward_mean_directional_return_percent": walk_mean,
+        "mean_directional_return_difference_percentage_points": (
+            float(walk_mean) - float(historical_mean)
+            if historical_mean is not None and walk_mean is not None else None
+        ),
+        "interpretation": (
+            "Descriptive comparison only: the full-history set includes earlier snapshots while walk-forward "
+            "uses later chronological test folds. The samples are not independent, and interval overlap is "
+            "not a formal significance test or evidence of predictive validity."
+        ),
+    }
+
+
 
 def _non_overlapping_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Select a maximum-cardinality set of non-overlapping forward outcome windows."""
@@ -597,6 +655,9 @@ class MarketConfluencePerformance:
                     sum(row["directional_positive"] for row in directional) / len(directional)
                     if directional else None
                 ),
+                "directional_positive_fraction_ci_95_wilson": (
+                    _directional_statistics(directional)["positive_fraction_ci_95_wilson"]
+                ),
                 "mean_directional_return_percent": (
                     sum(row["directional_return_percent"] for row in directional) / len(directional)
                     if directional else None
@@ -611,6 +672,9 @@ class MarketConfluencePerformance:
                 ),
                 "outcomes": outcomes,
             }
+            summaries[str(hours)]["historical_vs_walk_forward"] = _historical_walk_forward_comparison(
+                summaries[str(hours)], walk_forward,
+            )
 
 
         minimum_ranking_sample_size = 30
