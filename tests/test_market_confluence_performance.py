@@ -257,6 +257,11 @@ def test_walk_forward_uses_expanding_training_windows_and_disjoint_test_blocks()
     assert walk["consistency_assessment"]["status"] == "INSUFFICIENT_FOLD_EVIDENCE"
     assert walk["consistency_assessment"]["eligible_fold_count"] == 0
     assert walk["consistency_assessment"]["insufficient_fold_count"] == 3
+    comparison = result["horizons"]["1"]["historical_vs_walk_forward"]
+    assert comparison["status"] == "LOW_SAMPLE_SIZE"
+    assert comparison["historical_directional_sample_size"] >= 0
+    assert comparison["walk_forward_test_directional_sample_size"] < 30
+    assert comparison["positive_fraction_difference_percentage_points"] is not None
 
 
 def test_walk_forward_requires_four_snapshots():
@@ -519,3 +524,30 @@ def test_walk_forward_consistency_uses_only_folds_with_minimum_samples():
     assert result["folds_with_interval_below_50_percent"] == 1
     assert result["folds_with_interval_including_50_percent"] == 1
     assert abs(result["positive_fraction_range"] - 0.4) < 1e-9
+
+
+def test_historical_walk_forward_comparison_reports_interval_overlap_and_sample_gating():
+    from app.services.market_confluence_performance import _historical_walk_forward_comparison
+
+    historical = {
+        "directional_sample_size": 100,
+        "directional_positive_fraction": 0.60,
+        "directional_positive_fraction_ci_95_wilson": {"lower": 0.50, "upper": 0.69},
+        "mean_directional_return_percent": 0.25,
+    }
+    walk_forward = {
+        "test_directional_sample_size": 45,
+        "test_directional_positive_fraction": 0.56,
+        "test_directional_positive_fraction_ci_95_wilson": {"lower": 0.41, "upper": 0.70},
+        "test_mean_directional_return_percent": 0.10,
+    }
+    result = _historical_walk_forward_comparison(historical, walk_forward)
+    assert result["status"] == "NOMINAL_INTERVALS_OVERLAP"
+    assert result["nominal_confidence_intervals_overlap"] is True
+    assert result["positive_fraction_difference_percentage_points"] < 0
+    assert abs(result["mean_directional_return_difference_percentage_points"] + 0.15) < 1e-9
+    assert "not a formal significance test" in result["interpretation"]
+
+    walk_forward["test_directional_sample_size"] = 12
+    low_sample = _historical_walk_forward_comparison(historical, walk_forward)
+    assert low_sample["status"] == "LOW_SAMPLE_SIZE"
