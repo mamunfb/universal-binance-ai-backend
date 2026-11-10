@@ -117,3 +117,19 @@ Configure `EVM_CHAIN_RPC_URLS` as a JSON array, for example:
 `[{"chain_id":1,"chain_name":"Ethereum","rpc_url":"https://YOUR_ETHEREUM_RPC"},{"chain_id":56,"chain_name":"BNB Smart Chain","rpc_url":"https://YOUR_BSC_RPC"}]`
 
 The service verifies each endpoint's reported chain ID against configuration before querying native balances for supplied addresses. Each chain is reported independently; a failed or mismatched RPC does not invalidate successful results from other chains, but overall status becomes INCOMPLETE. At most 50 addresses are accepted. This endpoint does not establish that matching addresses have the same owner, does not query ERC-20 balances, and does not infer bridge relationships or cross-chain transactions. Keep provider URLs and API credentials private; do not commit real credentials.
+
+
+### Cross-chain ERC-20 token snapshots
+
+GET /api/v1/onchain/evm/cross-chain/token/{asset_id}?addresses=0x...,0x...
+
+Configure `EVM_CHAIN_TOKEN_CONTRACTS` as a JSON array. Each entry defines one chain-specific contract and an operator-assigned grouping key:
+
+```json
+[
+  {"chain_id":1,"chain_name":"Ethereum","asset_id":"usd-coin","contract_address":"0x...","rpc_url":"https://YOUR_ETHEREUM_RPC"},
+  {"chain_id":56,"chain_name":"BNB Smart Chain","asset_id":"usd-coin","contract_address":"0x...","rpc_url":"https://YOUR_BSC_RPC"}
+]
+```
+
+The endpoint validates each RPC's reported chain ID, reads token name/symbol/decimals/total supply, and queries balances for 1–50 supplied wallet addresses. It first reads the current block number and pins all ERC-20 `eth_call` requests for that chain to that block tag. Chain results are independent; any failed chain or wallet makes the overall status INCOMPLETE. The same asset_id is an operator-defined grouping label only: it does not prove that contracts are issued by the same entity, redeemable 1:1, or economically equivalent. Verify token contracts and bridge/issuer provenance before comparing supplies or balances. This is not a full holder ranking, transaction history, or ownership analysis. Use HTTPS RPC URLs and keep provider credentials private.
