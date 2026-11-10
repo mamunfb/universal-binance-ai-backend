@@ -42,3 +42,14 @@ def test_unmatched_news_does_not_receive_a_score():
     }])[0]["catalyst"]
     assert result["status"] == "NO_RULE_MATCH"
     assert result["heuristic_score"] is None
+
+
+def test_keyword_triage_does_not_fabricate_weighted_catalyst_score():
+    result = analyze_catalysts([{
+        "title": "Binance lists Example token",
+        "verification_status": "CONFIRMED",
+    }])[0]["catalyst"]
+    assert result["heuristic_score"] is not None
+    assert result["catalyst_score_0_100"] is None
+    assert result["catalyst_score_status"] == "NOT_ESTABLISHED"
+    assert all(value is None for value in result["catalyst_score_components"].values())
