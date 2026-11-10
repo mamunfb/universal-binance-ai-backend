@@ -46,6 +46,7 @@ from app.services.aggregate_trade_stream import AggregateTradeStore, AggregateTr
 from app.services.liquidity_behavior import analyze_liquidity_behavior
 from app.services.order_flow_intelligence import analyze_order_flow
 from app.services.multi_timeframe_order_flow import analyze_multi_timeframe_order_flow
+from app.services.liquidity_sweep_confirmation import analyze_liquidity_sweep_confirmation
 from app.services.derivatives_collector import DerivativesHistoryCollector
 from app.services.funding_open_interest_analysis import FundingOpenInterestAnalysis
 from app.services.advanced_derivatives_analysis import AdvancedDerivativesAnalysis, DerivativesSignalStore
@@ -1206,6 +1207,63 @@ async def liquidity_behavior_analysis(
         "aggregate_trade_samples_available": len(trades),
     }
     return result
+
+
+@app.get("/api/v1/analysis/liquidity-sweep-confirmation/{market}/{symbol}", tags=["analysis"])
+async def liquidity_sweep_confirmation(
+    market: Literal["SPOT", "USD_M", "COIN_M"], symbol: str,
+    interval: str = "5m",
+    limit: int = Query(default=300, ge=30, le=1000),
+    equal_level_tolerance_bps: float = Query(default=8.0, ge=0.1, le=100),
+) -> dict:
+    allowed_intervals = {"1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d"}
+    if interval not in allowed_intervals:
+        raise HTTPException(status_code=422, detail="Unsupported candle interval")
+    try:
+        history = await asyncio.to_thread(
+            historical_kline_store.history, market, symbol, interval, None, None, limit
+        )
+        candles = history["candles"]
+        if not candles:
+            return {
+                "status": "INSUFFICIENT_CANDLE_DATA", "market": market,
+                "symbol": symbol.upper(), "available_candles": 0,
+                "sweep_candidates": [], "confirmation_status": "INSUFFICIENT_DATA",
+                "historical_coverage": history.get("coverage"),
+            }
+        start_ms = int(candles[0]["open_time_ms"])
+        end_ms = int(candles[-1]["close_time_ms"])
+        trades, books = await asyncio.gather(
+            asyncio.to_thread(aggregate_trade_store.recent, market, symbol, 10000, start_ms, end_ms),
+            asyncio.to_thread(order_book_history_store.recent, market, symbol, 2000, start_ms, end_ms),
+        )
+        oi_records, funding_events = [], []
+        if market == "USD_M":
+            oi_history, funding_history = await asyncio.gather(
+                asyncio.to_thread(open_interest_store.history, "USD_M", symbol, "1h", start_ms, end_ms, 500),
+                asyncio.to_thread(funding_rate_store.history, "USD_M", symbol, start_ms, end_ms, 100),
+            )
+            oi_records = oi_history["records"]
+            funding_events = funding_history["events"]
+        result = await asyncio.to_thread(
+            analyze_liquidity_sweep_confirmation,
+            candles, trades, books, market, symbol, oi_records, funding_events,
+            2, 2, equal_level_tolerance_bps,
+        )
+        result["historical_coverage"] = history.get("coverage")
+        result["collector_coverage"] = {
+            "aggregate_trade_collector_enabled": settings.aggregate_trade_collector_enabled,
+            "order_book_collector_enabled": settings.order_book_collector_enabled,
+            "aggregate_trade_rows_returned": len(trades),
+            "order_book_samples_returned": len(books),
+            "query_limits": {"aggregate_trades": 10000, "order_book_samples": 2000},
+            "derivatives_history_available": market == "USD_M",
+            "local_history_only": True,
+            "backfill_performed": False,
+        }
+        return result
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @app.get("/api/v1/analysis/order-flow/multi-timeframe/{market}/{symbol}", tags=["analysis"])
