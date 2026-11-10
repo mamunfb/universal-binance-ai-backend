@@ -122,3 +122,17 @@ def test_snapshot_price_path_rejects_more_than_30_days():
         assert "hours" in str(exc)
     else:
         raise AssertionError("Price path must be capped at 720 hours")
+
+
+def test_snapshot_price_path_marks_horizon_pending_until_target_candle_closes():
+    class EarlyKlines:
+        def history(self, market, symbol, interval, start_time_ms, end_time_ms, limit):
+            return {"candles": [
+                {"open_time_ms": 7_200_000, "close_time_ms": 10_799_999,
+                 "open": 100.0, "high": 104.0, "low": 99.0, "close": 103.0},
+            ]}
+    engine = MarketConfluencePerformance(PricePathSnapshotStore([]), EarlyKlines())
+    result = engine.price_path("USD_M", "BTCUSDT", "snapshot-1", "1h", 2)
+    assert result["status"] == "PENDING_HORIZON_NOT_MATURED"
+    assert result["target_reached"] is False
+    assert len(result["candles"]) == 1
