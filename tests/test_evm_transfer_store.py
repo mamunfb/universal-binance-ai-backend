@@ -129,3 +129,5 @@ def test_smart_money_activity_only_includes_verified_registry_addresses(tmp_path
     assert result["verified_smart_money_wallets_found"] == 1
     assert result["wallets"][0]["net_received_raw"] == str(-(10**18))
     assert result["wallets"][0]["flow_direction"] == "NET_OUTFLOW"
+    assert result["cohort_summary"]["net_outflow_wallet_count"] == 1
+    assert result["cohort_summary"]["direction"] == "NET_OUTFLOW"
