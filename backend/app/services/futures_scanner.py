@@ -71,6 +71,7 @@ async def scan_futures_markets(
         if quote_volume < min_quote_volume:
             continue
         results.append({
+            "market": provider.market,
             "symbol": symbol,
             "base_asset": info.get("baseAsset"),
             "quote_asset": info.get("quoteAsset"),
