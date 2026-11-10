@@ -25,6 +25,16 @@ def load_wallet_registry(raw: str, chain_id: int) -> dict[str, Any]:
         raise ValueError("EVM_WALLET_REGISTRY must be valid JSON") from exc
     if not isinstance(entries, list):
         raise ValueError("EVM_WALLET_REGISTRY must be a JSON array")
+    if not entries:
+        return {
+            "status": "EMPTY",
+            "chain_id": chain_id,
+            "wallet_count": 0,
+            "verified_count": 0,
+            "unverified_count": 0,
+            "wallets": [],
+            "warning": "No wallet identities are configured. No address is assumed to belong to an exchange, fund, whale, or smart-money entity.",
+        }
     wallets = []
     seen: set[str] = set()
     for item in entries:
