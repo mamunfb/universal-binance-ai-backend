@@ -257,6 +257,38 @@ async def get_evm_token_history_flows(
         raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
 
 
+@app.get("/api/v1/onchain/evm/token/{contract}/smart-money", tags=["on-chain"])
+async def evm_token_smart_money_activity(
+    contract: str,
+    from_block: int = Query(..., ge=0),
+    to_block: int = Query(..., ge=0),
+    decimals: int = Query(..., ge=0, le=36),
+    limit: int = Query(default=100, ge=1, le=200),
+) -> dict:
+    if to_block < from_block:
+        raise HTTPException(status_code=422, detail="to_block must be >= from_block")
+    try:
+        chain_id = await get_evm_provider().chain_id()
+        registry = load_wallet_registry(settings.evm_wallet_registry, chain_id)
+        coverage = evm_transfer_store.range_coverage(chain_id, contract, from_block, to_block)
+        activity = evm_transfer_store.smart_money_activity(
+            chain_id, contract, from_block, to_block, decimals, registry, limit
+        )
+        return {
+            "status": "COMPLETED" if coverage["complete"] else "INCOMPLETE",
+            "chain_id": chain_id, "contract_address": contract.lower(),
+            "requested_range": {"from": from_block, "to": to_block},
+            "coverage": coverage,
+            "smart_money_activity": activity,
+            "registry_status": registry["status"],
+            "warning": "Only verified registry labels are treated as smart_money. Incomplete indexed coverage means missing transfers may change these results.",
+        }
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
+
+
 @app.get("/api/v1/onchain/evm/token/{contract}/activity", tags=["on-chain"])
 async def evm_token_activity(
     contract: str,
