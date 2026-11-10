@@ -21,3 +21,22 @@ def test_indicators_reject_non_positive_prices():
     except ValueError:
         return
     raise AssertionError("Expected non-positive price validation")
+
+
+def test_indicators_include_ema_100_and_sma_periods():
+    closes = [100.0 + index for index in range(250)]
+    result = calculate_indicators(closes)
+
+    assert result["ema_100"] is not None
+    assert result["ema_200"] is not None
+    assert result["sma_20"] == sum(closes[-20:]) / 20
+    assert result["sma_50"] == sum(closes[-50:]) / 50
+    assert result["sma_100"] == sum(closes[-100:]) / 100
+    assert result["sma_200"] == sum(closes[-200:]) / 200
+
+
+def test_sma_and_ema_return_null_when_history_is_insufficient():
+    result = calculate_indicators([100.0 + index for index in range(60)])
+    assert result["ema_100"] is None
+    assert result["sma_100"] is None
+    assert result["sma_200"] is None
