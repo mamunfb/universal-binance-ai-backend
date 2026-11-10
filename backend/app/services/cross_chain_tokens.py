@@ -125,9 +125,18 @@ async def _token_on_chain(config: dict[str, Any], addresses: list[str],
         "status": "COMPLETED" if len(ok) == len(wallets) else "INCOMPLETE",
         "asset_id": config["asset_id"], "chain_id": actual_chain_id,
         "chain_name": config["chain_name"], "contract_address": contract,
-        "snapshot_block": block, "snapshot_block_tag": tag,
+        "snapshot_block": block, "snapshot_block_number": block,
+        "snapshot_block_tag": tag,
         "snapshot_block_timestamp": block_timestamp,
         "snapshot_timestamp_status": timestamp_status,
+        "snapshot_block_time": (
+            datetime.fromtimestamp(block_timestamp, timezone.utc).isoformat()
+            if block_timestamp is not None else None
+        ),
+        "snapshot_age_seconds": (
+            max(0, int(datetime.now(timezone.utc).timestamp()) - block_timestamp)
+            if block_timestamp is not None else None
+        ),
         "token": {"name": _text(name), "symbol": _text(symbol), "decimals": decimals_value,
                   "total_supply_raw": str(supply_raw),
                   "total_supply_tokens": supply_raw / (10 ** decimals_value)},
