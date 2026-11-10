@@ -380,6 +380,30 @@ def get_liquidation_collector_status() -> dict:
 
 
 @mcp.tool()
+def analyze_smart_money_market_structure(
+    market: str, symbol: str, interval: str = "1h", limit: int = 300,
+    swing_left: int = 3, swing_right: int = 3,
+) -> dict:
+    """Analyze OHLC-derived BOS/CHoCH, liquidity sweep, FVG and order-block candidates."""
+    if market not in {"SPOT", "USD_M", "COIN_M"}:
+        raise ValueError("Unsupported market")
+    if interval not in {
+        "1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h",
+        "6h", "8h", "12h", "1d", "3d", "1w", "1M",
+    }:
+        raise ValueError("Unsupported candle interval")
+    if not 30 <= limit <= 1000:
+        raise ValueError("limit must be between 30 and 1000")
+    if not 1 <= swing_left <= 10 or not 1 <= swing_right <= 10:
+        raise ValueError("swing_left and swing_right must be between 1 and 10")
+    return _get(
+        f"/api/v1/analysis/smart-money-structure/{market}/{quote(symbol.upper(), safe='')}",
+        {"interval": interval, "limit": limit,
+         "swing_left": swing_left, "swing_right": swing_right},
+    )
+
+
+@mcp.tool()
 def analyze_historical_market_regime(
     market: str, symbol: str, interval: str = "1h", limit: int = 200,
 ) -> dict:
