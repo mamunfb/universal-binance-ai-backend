@@ -30,3 +30,12 @@ def test_dashboard_renders_collector_job_runtime_details_safely():
     assert "job.synchronized===false?' · NOT SYNCED'" in html
     assert "escapeHtml(label)" in html
     assert "escapeHtml(error)" in html
+
+
+def test_dashboard_shows_collector_last_cycle_results_and_errors():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "const results=Array.isArray(x.last_results)?x.last_results:[]" in html
+    assert "Last collection cycle:" in html
+    assert "escapeHtml(result.error_type)" in html
+    assert "CONNECTED:'status-good'" in html
+    assert "DISCONNECTED:'status-warn'" in html
