@@ -96,7 +96,7 @@ async def request_tracking_middleware(request: Request, call_next):
             isinstance(client_keys, dict)
             and all(
                 isinstance(client_keys.get(name), str) and len(client_keys[name]) >= 32
-                for name in ("chatgpt", "gemini", "manus")
+                for name in ("chatgpt", "gemini", "manus", "claude", "perplexity")
             )
         )
         if production and (
