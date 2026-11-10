@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import math
 from typing import Any
 
 
@@ -105,7 +106,6 @@ def build_market_evidence_snapshot(
             latest_oi = float(history_rows[-1]["sumOpenInterest"])
             first_time = history_rows[0].get("timestamp")
             latest_time = history_rows[-1].get("timestamp")
-            import math
             valid_oi = (
                 math.isfinite(first_oi) and math.isfinite(latest_oi)
                 and first_oi > 0 and latest_oi > 0
