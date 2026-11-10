@@ -10,10 +10,12 @@ class EVMRPCProvider:
     """Minimal read-only JSON-RPC provider for EVM-compatible networks."""
 
     def __init__(self, rpc_url: str, timeout_seconds: float = 20.0) -> None:
-        if not rpc_url.startswith("https://"):
+        if not isinstance(rpc_url, str) or not rpc_url.startswith("https://"):
             raise ValueError("EVM RPC endpoint must use HTTPS")
+        if isinstance(timeout_seconds, bool) or not isinstance(timeout_seconds, (int, float)) or timeout_seconds <= 0:
+            raise ValueError("timeout_seconds must be a positive number")
         self.rpc_url = rpc_url
-        self.timeout_seconds = timeout_seconds
+        self.timeout_seconds = float(timeout_seconds)
         self._request_id = 0
 
     async def _rpc(self, method: str, params: list[Any], client: httpx.AsyncClient | None = None) -> Any:
@@ -31,7 +33,11 @@ class EVMRPCProvider:
                 await client.aclose()
         if not isinstance(data, dict):
             raise ValueError("Unexpected JSON-RPC response")
-        if data.get("error"):
+        if data.get("jsonrpc") != "2.0":
+            raise ValueError("JSON-RPC response has an invalid protocol version")
+        if data.get("id") != payload["id"]:
+            raise ValueError("JSON-RPC response id does not match request")
+        if data.get("error") is not None:
             raise RuntimeError(f"JSON-RPC {method} failed: {data['error']}")
         if "result" not in data:
             raise ValueError(f"JSON-RPC {method} response has no result")
@@ -76,15 +82,20 @@ class EVMRPCProvider:
     async def token_transfer_logs(self, contract: str, from_block: int, to_block: int,
                                   max_block_span: int = 2000) -> list[dict[str, Any]]:
         _validate_address(contract)
-        if from_block < 0 or to_block < from_block:
+        if (isinstance(from_block, bool) or not isinstance(from_block, int) or
+                isinstance(to_block, bool) or not isinstance(to_block, int) or
+                from_block < 0 or to_block < from_block):
             raise ValueError("Invalid block range")
+        if (isinstance(max_block_span, bool) or not isinstance(max_block_span, int)
+                or max_block_span < 1):
+            raise ValueError("max_block_span must be a positive integer")
         if to_block - from_block + 1 > max_block_span:
             raise ValueError(f"Block range exceeds configured maximum of {max_block_span}")
         logs = await self._rpc("eth_getLogs", [{
             "address": contract, "fromBlock": hex(from_block), "toBlock": hex(to_block),
             "topics": [TRANSFER_TOPIC],
         }])
-        if not isinstance(logs, list):
+        if not isinstance(logs, list) or any(not isinstance(item, dict) for item in logs):
             raise ValueError("Unexpected eth_getLogs result")
         return logs
 
