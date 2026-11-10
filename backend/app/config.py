@@ -10,6 +10,9 @@ class Settings(BaseSettings):
     liquidation_collector_enabled: bool = False
     liquidation_database_path: str = "data/liquidations.sqlite3"
     news_rss_feeds: str = ""
+    news_primary_source_domains: str = ""
+    news_independent_source_domains: str = ""
+    news_stale_after_hours: int = 168
 
     model_config = SettingsConfigDict(
         env_file=".env",
