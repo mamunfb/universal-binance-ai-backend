@@ -222,6 +222,12 @@ def get_cross_chain_token_intelligence(
 
 
 @mcp.tool()
+def get_historical_collector_status() -> dict:
+    """Check whether scheduled historical candle collection is enabled and healthy."""
+    return _get("/api/v1/history/collector/status")
+
+
+@mcp.tool()
 def get_liquidation_collector_status() -> dict:
     """Check whether the optional liquidation snapshot collector is enabled."""
     return _get("/api/v1/analysis/futures/liquidations/status")
