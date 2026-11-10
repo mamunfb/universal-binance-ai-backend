@@ -23,6 +23,10 @@ def _sections():
         "status": "COMPLETED", "source": "test derivatives",
         "sections": {
             "open_interest": {"status": "COMPLETED", "data": {"openInterest": "1000"}},
+            "open_interest_history": {"status": "COMPLETED", "data": [
+                {"sumOpenInterest": "900", "timestamp": 100},
+                {"sumOpenInterest": "1000", "timestamp": 200},
+            ]},
             "global_long_short_account_ratio": {"status": "COMPLETED",
                                                 "data": [{"longShortRatio": "1.2"}]},
             "taker_buy_sell_ratio": {"status": "COMPLETED",
@@ -65,7 +69,7 @@ def test_market_evidence_aggregates_independent_observations_without_signal():
     categories = {item["category"] for item in result["evidence"]}
     assert {
         "TREND_ALIGNMENT", "SPOT_FUTURES_BASIS", "FUNDING_RATE",
-        "OPEN_INTEREST", "GLOBAL_ACCOUNT_RATIO", "TAKER_BUY_SELL_RATIO",
+        "OPEN_INTEREST", "OPEN_INTEREST_HISTORY", "GLOBAL_ACCOUNT_RATIO", "TAKER_BUY_SELL_RATIO",
         "ORDER_BOOK_DEPTH", "VOLUME_AND_STRUCTURE", "NEWS_CATALYSTS",
     } <= categories
 
@@ -96,3 +100,12 @@ def test_failed_news_feed_is_reported_as_incomplete():
     news_evidence = next(x for x in result["evidence"] if x["category"] == "NEWS_CATALYSTS")
     assert news_evidence["status"] == "INCOMPLETE"
     assert any("news-feed" in item for item in result["limitations"])
+
+
+def test_open_interest_history_change_is_descriptive_not_directional():
+    sections = _sections()
+    result = build_market_evidence_snapshot("BTCUSDT", *sections)
+    oi = next(item for item in result["evidence"] if item["category"] == "OPEN_INTEREST_HISTORY")
+    assert oi["status"] == "OBSERVED"
+    assert oi["change_percent"] == 100 / 9
+    assert "does not identify long or short" in oi["warning"]
