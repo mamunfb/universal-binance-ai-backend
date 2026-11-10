@@ -3,7 +3,7 @@ import httpx
 import pytest
 
 from app.providers.evm_rpc import EVMRPCProvider, TRANSFER_TOPIC
-from app.services.onchain_intelligence import analyze_erc20_activity, get_evm_wallet_snapshot, get_erc20_token_snapshot, _decode_abi_text
+from app.services.onchain_intelligence import analyze_erc20_activity, get_evm_wallet_snapshot, get_erc20_token_snapshot, _decode_abi_text, _decode_abi_uint
 
 ADDRESS_A = "0x" + "1" * 40
 ADDRESS_B = "0x" + "2" * 40
@@ -161,3 +161,27 @@ def test_abi_text_decoder_supports_bytes32_and_trims_null_bytes():
 def test_abi_text_decoder_rejects_out_of_bounds_dynamic_string():
     encoded = "0x" + (32).to_bytes(32, "big").hex() + (999).to_bytes(32, "big").hex()
     assert _decode_abi_text(encoded) is None
+
+
+@pytest.mark.parametrize("value", [
+    "0x0", "0x" + "00" * 31, "0x" + "zz" * 32, "0x" + "00" * 33
+])
+def test_abi_uint_decoder_rejects_non_32_byte_or_invalid_hex(value):
+    with pytest.raises(ValueError):
+        _decode_abi_uint(value)
+
+
+def test_abi_uint_decoder_decodes_exact_32_byte_word():
+    assert _decode_abi_uint("0x" + (123456).to_bytes(32, "big").hex()) == 123456
+
+
+async def test_erc20_snapshot_rejects_invalid_contract_and_watchlist_before_rpc():
+    class FakeProvider:
+        async def block_number(self):
+            raise AssertionError("Must validate all addresses before RPC")
+    with pytest.raises(ValueError):
+        await get_erc20_token_snapshot(FakeProvider(), "not-an-address", {})
+    with pytest.raises(ValueError):
+        await get_erc20_token_snapshot(FakeProvider(), CONTRACT, {"bad-wallet": "0x1234"})
+    with pytest.raises(ValueError):
+        await get_erc20_token_snapshot(FakeProvider(), CONTRACT, {" ": ADDRESS_A})
