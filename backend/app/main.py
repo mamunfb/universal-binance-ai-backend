@@ -1159,6 +1159,53 @@ async def futures_premium_index(
     }
 
 
+@app.get("/api/v1/markets/futures/{market}/open-interest/{symbol}", tags=["markets"])
+async def futures_open_interest(
+    market: Literal["USD_M", "COIN_M"], symbol: str,
+) -> dict:
+    try:
+        data = await get_futures_provider(market).open_interest(symbol)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail={
+            "status": "FAILED", "error": "FUTURES_OPEN_INTEREST_UNAVAILABLE",
+            "market": market, "symbol": symbol.upper(),
+        }) from exc
+    return {
+        "status": "COMPLETED", "market": market, "symbol": symbol.upper(),
+        "source": f"Binance {market} public REST openInterest",
+        "generated_at": datetime.now(timezone.utc).isoformat(), "data": data,
+    }
+
+
+@app.get("/api/v1/markets/futures/{market}/open-interest-history/{symbol}", tags=["markets"])
+async def futures_open_interest_history(
+    market: Literal["USD_M", "COIN_M"], symbol: str,
+    period: Literal["5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "1d"] = "1h",
+    limit: int = Query(default=30, ge=1, le=500),
+    pair: str | None = Query(default=None, min_length=2, max_length=30),
+    contract_type: Literal["PERPETUAL", "CURRENT_QUARTER", "NEXT_QUARTER"] | None = None,
+) -> dict:
+    try:
+        data = await get_futures_provider(market).open_interest_history(
+            symbol, period=period, limit=limit, pair=pair, contract_type=contract_type,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail={
+            "status": "FAILED", "error": "FUTURES_OPEN_INTEREST_HISTORY_UNAVAILABLE",
+            "market": market, "symbol": symbol.upper(),
+        }) from exc
+    return {
+        "status": "COMPLETED", "market": market, "symbol": symbol.upper(),
+        "period": period, "returned_count": len(data),
+        "source": f"Binance {market} public REST openInterestHist",
+        "generated_at": datetime.now(timezone.utc).isoformat(), "data": data,
+    }
+
+
 @app.get("/api/v1/markets/futures/{market}/funding-info", tags=["markets"])
 async def futures_funding_info(market: Literal["USD_M", "COIN_M"]) -> dict:
     try:
