@@ -53,3 +53,8 @@ See [FUTURES_API.md](./FUTURES_API.md) for USDⓈ-M and COIN-M market scanner an
 ## Derivatives and liquidity
 
 See [DERIVATIVES_API.md](./DERIVATIVES_API.md) for the USDⓈ-M Futures derivatives endpoint and data interpretation limitations.
+
+
+## Multi-timeframe and market context
+
+See [MULTI_TIMEFRAME_API.md](./MULTI_TIMEFRAME_API.md) for multi-timeframe technical analysis and the limited BTC market condition endpoint.
