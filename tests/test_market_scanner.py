@@ -106,3 +106,37 @@ async def test_scan_reports_upstream_failure_without_fabricating_zero_market_res
     assert result["error"] == "provider unavailable"
     assert result["eligible_symbols"] == 0
     assert result["results"] == []
+
+
+class MultiQuoteProvider:
+    async def exchange_info(self):
+        return {"symbols": [
+            {"symbol": "AAAUSDT", "baseAsset": "AAA", "quoteAsset": "USDT",
+             "status": "TRADING", "isSpotTradingAllowed": True, "orderTypes": ["LIMIT"]},
+            {"symbol": "AAAUSDC", "baseAsset": "AAA", "quoteAsset": "USDC",
+             "status": "TRADING", "isSpotTradingAllowed": True, "orderTypes": ["LIMIT"]},
+            {"symbol": "BBBFDUSD", "baseAsset": "BBB", "quoteAsset": "FDUSD",
+             "status": "TRADING", "isSpotTradingAllowed": True},
+            {"symbol": "OLDUSDT", "baseAsset": "OLD", "quoteAsset": "USDT",
+             "status": "BREAK", "isSpotTradingAllowed": True},
+        ]}
+
+    async def all_24h_tickers(self):
+        return [
+            {"symbol": "AAAUSDT", "lastPrice": "2", "priceChangePercent": "1", "quoteVolume": "100"},
+            {"symbol": "AAAUSDC", "lastPrice": "2", "priceChangePercent": "2", "quoteVolume": "300"},
+            {"symbol": "BBBFDUSD", "lastPrice": "3", "priceChangePercent": "3", "quoteVolume": "200"},
+        ]
+
+
+async def test_scan_defaults_to_all_quote_assets_and_consolidates_base_assets():
+    result = await scan_spot_markets(MultiQuoteProvider())
+    assert result["status"] == "COMPLETED"
+    assert result["quote_asset_filter"] is None
+    assert result["total_available_pairs"] == 4
+    assert result["eligible_symbols"] == 3
+    assert result["scanned_symbols"] == 3
+    assert result["unique_coin_count"] == 2
+    primary = {row["base_asset"]: row["primary_symbol"] for row in result["unique_coins"]}
+    assert primary == {"AAA": "AAAUSDC", "BBB": "BBBFDUSD"}
+    assert result["excluded_pair_counts"]["BREAK"] == 1
