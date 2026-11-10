@@ -242,3 +242,13 @@ The read-only endpoint `GET /api/v1/analysis/derivatives/signal-performance/{sym
 
 The read-only MCP tool `analyze_smart_money_market_structure` calls
 `GET /api/v1/analysis/smart-money-structure/{market}/{symbol}`. It analyzes locally stored OHLCV candles for swing points, BOS/CHoCH, liquidity-sweep candidates, FVG candidates, order-block candidates and sample-range premium/discount. All are heuristic candidates rather than verified institutional order flow. See `docs/SMART_MONEY_MARKET_STRUCTURE.md`.
+
+
+### Order book liquidity intelligence
+
+The read-only MCP tool `analyze_order_book_liquidity` calls
+`GET /api/v1/analysis/order-book/{market}/{symbol}`. It fetches a single public
+REST snapshot and calculates spread, visible depth, imbalance, microprice,
+near-mid bands and relative large-order candidates. It is not a sequence-aware
+WebSocket stream or historical liquidity tracker. See
+`docs/ORDER_BOOK_LIQUIDITY_INTELLIGENCE.md`.
