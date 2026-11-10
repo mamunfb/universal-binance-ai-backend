@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import hmac
 from datetime import datetime, timezone
 from typing import Literal
 from uuid import uuid4
@@ -76,6 +77,39 @@ def _error_payload(
 async def request_tracking_middleware(request: Request, call_next):
     request_id = uuid4().hex
     request.state.request_id = request_id
+
+    if request.url.path.startswith("/api/"):
+        configured_key = settings.personal_api_key
+        if settings.app_env.lower() in {"production", "prod"} and len(configured_key) < 32:
+            response = JSONResponse(
+                status_code=503,
+                content=_error_payload(
+                    "AUTH_NOT_CONFIGURED",
+                    "Private API authentication is not securely configured.",
+                    request_id=request_id,
+                ),
+            )
+            response.headers["X-Request-ID"] = request_id
+            return response
+
+        if configured_key:
+            authorization = request.headers.get("authorization", "")
+            scheme, _, supplied_key = authorization.partition(" ")
+            if scheme.lower() != "bearer" or not supplied_key or not hmac.compare_digest(
+                supplied_key.encode("utf-8"), configured_key.encode("utf-8")
+            ):
+                response = JSONResponse(
+                    status_code=401,
+                    content=_error_payload(
+                        "UNAUTHORIZED",
+                        "A valid Bearer API key is required.",
+                        request_id=request_id,
+                    ),
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+                response.headers["X-Request-ID"] = request_id
+                return response
+
     response = await call_next(request)
     response.headers["X-Request-ID"] = request_id
     return response
