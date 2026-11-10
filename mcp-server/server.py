@@ -126,6 +126,18 @@ def get_spot_klines(symbol: str, interval: str = "1h", limit: int = 100) -> dict
 
 
 @mcp.tool()
+def get_stored_historical_klines(market: str, symbol: str, interval: str = "1h", limit: int = 1000) -> dict:
+    """Read locally stored historical OHLCV candles; does not collect or modify data."""
+    if market not in {"SPOT", "USD_M", "COIN_M"}:
+        raise ValueError("market must be SPOT, USD_M, or COIN_M")
+    if not 1 <= limit <= 5000:
+        raise ValueError("limit must be between 1 and 5000")
+    return _get(
+        f"/api/v1/history/klines/{market}/{quote(symbol.upper(), safe='')}",
+        {"interval": interval, "limit": limit},
+    )
+
+@mcp.tool()
 def get_spot_technical_analysis(symbol: str, interval: str = "1h", limit: int = 500) -> dict:
     """Get the backend's read-only Spot technical indicator analysis."""
     if not 1 <= limit <= 1000:
