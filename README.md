@@ -51,6 +51,16 @@ Upstream projects will be evaluated and integrated individually. They will not b
 ## Current status
 The repository includes Spot and Futures scanners/klines, a validated local historical OHLCV store for manually collected and optionally scheduled/resumable Spot/USD-M/COIN-M candle collection, with UTC-aligned gap and coverage inspection, plus local USD-M historical funding-rate event and open-interest statistics storage/read APIs, with an optional scheduled/resumable derivatives collector, Spot technical indicators, USDⓈ-M derivatives snapshots, Spot/Futures basis and funding comparison, a unified research-only Market Evidence Snapshot, multi-timeframe Spot analysis, a limited BTC/ETH context endpoint, and an opt-in liquidation snapshot collector. News RSS/Atom ingestion, conservative cross-source corroboration, and keyword-based catalyst triage are implemented. The EVM JSON-RPC layer provides native wallet balance snapshots, bounded ERC-20 Transfer-log analysis, token metadata/total supply, configured holder-watchlist balances, and cross-chain token/wallet/smart-money intelligence for explicitly configured EVM networks. A private read-only MCP stdio adapter is implemented with tools for the five intended AI clients; actual connection in each owner's account remains unverified until end-to-end tests are performed there. Non-EVM chains, indexed holder distributions, automated historical backfills, validated forecasting/backtesting, and production database operations remain future work. Upstream source code has NOT been copied into this repository; see docs/REPOSITORY_IMPORT_PLAN.md and docs/THIRD_PARTY_NOTICES.md.
 
+## Combined derivatives analysis
+
+A read-only analysis endpoint combines locally stored USD-M price candles, open-interest statistics, and funding events:
+
+```http
+GET /api/v1/analysis/derivatives/funding-open-interest/{symbol}?period=1h&price_interval=1h&limit=24
+```
+
+The result reports open-interest and price changes, funding-rate context, and cautious co-movement descriptions. It does not infer individual trader positions or label a rise in open interest as a confirmed long or short signal. Data is local-only; collect and store the required series first. The equivalent MCP tool is `analyze_funding_open_interest`.
+
 ## Run locally
 ```bash
 python -m venv .venv
