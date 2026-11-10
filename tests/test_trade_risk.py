@@ -80,7 +80,7 @@ def test_coinm_inverse_long_uses_coin_settlement_pnl_and_cost_adjusted_sizing():
     assert result["contract_model"] == "COIN_M_INVERSE_FIXED_USD_FACE_VALUE"
     assert result["pnl_unit"] == "BTC"
     assert result["gross_risk_per_contract"] == pytest.approx(100 * (1 / 90 - 1 / 100))
-    assert result["gross_reward_per_contract"] == pytest.approx(100 * (1 / 100 - 1 / 120))
+    assert result["gross_reward_per_contract"][0] == pytest.approx(100 * (1 / 100 - 1 / 120))
     assert result["net_risk_reward_ratios"][0] > 0
     assert result["risk_budget"]["risk_amount_unit"] == "BTC"
     assert result["risk_budget"]["position_unit"] == "CONTRACTS"
