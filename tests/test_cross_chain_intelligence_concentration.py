@@ -47,6 +47,12 @@ def test_unified_intelligence_adds_verified_wallet_balance_concentration(monkeyp
     assert concentration["snapshot_block"] == 500
     assert concentration["by_label"]["exchange"]["balance_tokens"] == 2.5
     assert concentration["by_label"]["exchange"]["share_of_total_supply_pct"] == 2.5
+    quality = result["chains"][0]["data_quality"]
+    assert quality["balance_snapshot_block"] == 500
+    assert quality["balance_wallets_succeeded"] == 1
+    assert quality["chain_result_status"] == "COMPLETED"
+    assert "wall-clock age cannot be determined" in quality["freshness_note"]
+    assert result["data_quality_summary"]["successful_balance_snapshot_chains"] == 1
 
 
 def test_unified_intelligence_refuses_biased_partial_wallet_snapshot(monkeypatch):
