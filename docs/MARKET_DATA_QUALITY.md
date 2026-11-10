@@ -20,7 +20,7 @@ The report reads local SQLite databases only. It does not call Binance or backfi
 
 - Candle status may be `HEALTHY`, `DEGRADED`, `STALE`, `NO_DATA`, or `UNKNOWN`.
 - For funding, OI, ratio, trade and order-book sources, `freshness` is reported separately from `status`. When rows exist their continuity status is `NOT_MEASURABLE` unless the stored schema supports a defensible completeness check.
-- A database/schema read failure is `UNKNOWN`, not `NO_DATA`.
+- A database/schema read failure is `UNKNOWN`, not `NO_DATA`. Future-dated records are labeled `FUTURE_TIMESTAMP`; age is left null and the positive clock skew is reported separately.
 - Collector status is reported separately by the API from the in-process collector objects and environment settings.
 
 ## Important limitations
