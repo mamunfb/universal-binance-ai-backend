@@ -72,7 +72,7 @@ class MarketConfluencePerformance:
             outcomes = []
             pending = missing_reference = 0
             horizon_ms = hours * 3_600_000
-            for snapshot in history["snapshots"]:
+            for snapshot in ordered_snapshots:
                 analyzed_at = int(snapshot["analyzed_at_ms"])
                 reference = snapshot["reference_price"]
                 bias = snapshot["bias"]
