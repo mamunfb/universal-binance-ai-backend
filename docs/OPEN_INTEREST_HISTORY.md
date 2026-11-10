@@ -6,7 +6,7 @@ The backend supports manual collection and local storage of Binance USDⓈ-M his
 
 The Binance endpoint is `GET /futures/data/openInterestHist`. Supported periods are `5m`, `15m`, `30m`, `1h`, `2h`, `4h`, `6h`, `12h`, and `1d`. Binance documents a maximum request limit of 500 and availability of only the latest month of data. It also notes that periods with no trades may be omitted; such absences are expected and are not backfilled. See the [official USD-M Futures API documentation](https://developers.binance.com/docs/derivatives/usds-margined-futures/market-data/rest-api/Open-Interest-Statistics).
 
-This implementation supports USD-M only. It does not currently provide a background Open Interest collector or full historical backfill.
+This implementation supports USD-M only. An optional scheduled derivatives collector can poll configured Open Interest series; it is disabled by default and does not perform a full historical backfill.
 
 ## Configuration
 
