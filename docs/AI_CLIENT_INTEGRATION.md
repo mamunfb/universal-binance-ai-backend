@@ -208,6 +208,7 @@ Available tools:
 - `get_stored_derivatives_ratio_history`
 - `analyze_combined_derivatives_intelligence`
 - `get_derivatives_signal_history`
+- `evaluate_historical_signal_performance`
 - `get_liquidation_collector_status`
 
 All tools are read-only. No order, signing, withdrawal, or trade execution tool is exposed. MCP tool access remains subject to the backend's API authentication and route availability.
