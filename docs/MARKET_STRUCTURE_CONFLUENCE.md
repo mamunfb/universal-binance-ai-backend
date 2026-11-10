@@ -125,3 +125,12 @@ This is a walk-forward temporal evaluation of already-saved confluence outputs, 
 Walk-forward folds, the aggregate walk-forward result, and the chronological holdout now include a nominal 95% Wilson score interval for the directional-positive fraction. A result with fewer than 30 directional samples is flagged LOW_SAMPLE_SIZE; 30 is a practical reporting warning threshold only, not a universal statistical guarantee and not a filter that removes observations. Zero directional samples produce a null fraction and no interval.
 
 The Wilson interval is a binomial interval and assumes independent Bernoulli observations. Market snapshots can be serially dependent, and forward outcome windows can overlap, so the reported interval does not correct for those dependencies and may understate uncertainty. It is not a confidence interval for profitability, expected return, or future strategy performance. Always read it with the raw sample count, candle coverage and fold structure.
+
+
+## Overlapping outcome windows and dependence-aware summaries
+
+For every horizon, the API now adds `dependence_adjusted` alongside the original raw statistics. It applies deterministic maximum-cardinality interval scheduling to directional outcomes, treating each observation window as `[analyzed_at_ms, outcome_close_time_ms]`. A retained observation must begin strictly after the previous retained window ends. This maximizes the number of non-overlapping intervals under that rule; it is a separate diagnostic sample, not a replacement for the full raw history.
+
+The chronological holdout and walk-forward aggregate also report non-overlapping test sample size, positive fraction, Wilson interval and number of overlapping observations excluded. Each walk-forward fold reports the same overlap-reduced sample size and positive fraction. The dashboard displays raw and overlap-reduced counts and fractions side by side.
+
+This procedure reduces direct overlap among the measured forward outcome windows, but it does not eliminate serial dependence in market returns, volatility clustering, common regime exposure, or dependence across different horizons. Wilson intervals remain nominal binomial intervals and should not be interpreted as fully dependence-robust uncertainty estimates. Compare raw and non-overlapping results, fold composition, sample counts and candle coverage; large differences are a warning that repeated/overlapping observations materially affect the headline metric.
