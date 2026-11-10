@@ -24,6 +24,16 @@ async def scan_spot_markets(
     """Scan all eligible Spot symbols; omitted quote_asset means all quote assets."""
     generated_at = datetime.now(timezone.utc).isoformat()
     quote = quote_asset.strip().upper() if quote_asset and quote_asset.strip() else None
+    minimum_volume = _number(min_quote_volume)
+    if minimum_volume is None or minimum_volume < 0 or isinstance(min_quote_volume, bool):
+        return {
+            "status": "FAILED", "phase_status": "FAILED", "generated_at": generated_at,
+            "source": "Binance Spot public REST API", "market": "SPOT",
+            "quote_asset_filter": quote, "error_code": "INVALID_FILTER",
+            "error": "min_quote_volume must be a finite non-negative number", "results": [],
+            "total_available_pairs": 0, "eligible_symbols": 0, "scanned_symbols": 0,
+            "matched_symbols": 0, "failed_symbols": 0, "unique_coin_count": 0, "unique_coins": [],
+        }
 
     try:
         exchange_info, tickers, book_tickers, book_error = await _fetch_inputs(provider)
@@ -37,6 +47,15 @@ async def scan_spot_markets(
             "unique_coin_count": 0, "unique_coins": [],
         }
 
+    if not isinstance(exchange_info, dict) or not isinstance(exchange_info.get("symbols"), list) or not isinstance(tickers, list):
+        return {
+            "status": "FAILED", "phase_status": "FAILED", "generated_at": generated_at,
+            "source": "Binance Spot public REST API", "market": "SPOT",
+            "quote_asset_filter": quote, "error_code": "UPSTREAM_INVALID_RESPONSE",
+            "error": "Binance returned an unexpected Spot market-data response", "results": [],
+            "total_available_pairs": 0, "eligible_symbols": 0, "scanned_symbols": 0,
+            "matched_symbols": 0, "failed_symbols": 0, "unique_coin_count": 0, "unique_coins": [],
+        }
     symbols = exchange_info["symbols"]
     ticker_by_symbol = {
         item.get("symbol"): item for item in tickers
@@ -98,7 +117,7 @@ async def scan_spot_markets(
         if quote_volume is None or quote_volume < 0 or last_price is None or last_price <= 0 or change_pct is None:
             failed += 1
             continue
-        if quote_volume < min_quote_volume:
+        if quote_volume < minimum_volume:
             continue
         onboard_ms = _number(info.get("onboardDate"))
         onboard_at = datetime.fromtimestamp(onboard_ms / 1000, timezone.utc).isoformat() if onboard_ms and onboard_ms > 0 else None
@@ -149,7 +168,7 @@ async def scan_spot_markets(
         "total_available_pairs": len(symbols), "eligible_symbols": scanned,
         "scanned_symbols": scanned - failed, "matched_symbols": len(results),
         "failed_symbols": failed, "excluded_pair_counts": excluded,
-        "min_quote_volume": min_quote_volume, "unique_coin_count": len(unique_coins),
+        "min_quote_volume": minimum_volume, "unique_coin_count": len(unique_coins),
         "unique_coins": unique_coins, "results": results,
         "newly_listed_pairs_30d": newly_listed_pairs,
         "risk_tag_coverage": "UNAVAILABLE_FROM_THIS_EXCHANGE_INFO_SCAN",
