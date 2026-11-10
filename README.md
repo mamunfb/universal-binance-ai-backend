@@ -67,6 +67,10 @@ The read-only endpoint `GET /api/v1/analysis/derivatives/advanced/{symbol}` eval
 
 Completed snapshots are stored idempotently in `DERIVATIVES_SIGNAL_DATABASE_PATH` and can be read through `GET /api/v1/history/derivatives-signals/{symbol}`. The MCP tools are `analyze_advanced_derivatives` and `get_derivatives_signal_history`. Liquidation context is incomplete: Binance's force-order stream is not a complete liquidation tape, and absence of stored events does not establish that no liquidations occurred. These outputs are descriptive research evidence, not trade instructions.
 
+## Multi-timeframe derivatives research
+
+The read-only endpoint `GET /api/v1/analysis/derivatives/multi-timeframe/{symbol}?periods=5m,15m,1h,4h,1d&limit=48` combines independently stored USD-M Open Interest and price observations across selected periods. It reports rising/falling/flat OI directions, missing timeframes and a cautious agreement classification. Confirmation is withheld when the latest OI timestamps differ, when any requested timeframe lacks sufficient records, or when only one timeframe is selected. Each completed period analysis writes a local signal snapshot. The MCP tool is `analyze_multi_timeframe_derivatives`.
+
 ## Run locally
 ```bash
 python -m venv .venv
