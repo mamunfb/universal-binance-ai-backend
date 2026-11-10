@@ -114,6 +114,21 @@ def test_stored_open_interest_history_tool_uses_read_only_api_route(monkeypatch)
     }
 
 
+def test_combined_funding_open_interest_mcp_tool_calls_analysis_route(monkeypatch):
+    server = _load_server(monkeypatch)
+    calls = []
+    monkeypatch.setattr(
+        server, "_get",
+        lambda path, params=None: calls.append((path, params)) or {"status": "COMPLETED"},
+    )
+    result = server.analyze_funding_open_interest("btcusdt", "1h", "15m", 48)
+    assert result["status"] == "COMPLETED"
+    assert calls == [(
+        "/api/v1/analysis/derivatives/funding-open-interest/BTCUSDT",
+        {"period": "1h", "price_interval": "15m", "limit": 48},
+    )]
+
+
 def test_derivatives_collector_status_mcp_tool_calls_fixed_route(monkeypatch):
     server = _load_server(monkeypatch)
     calls = []
