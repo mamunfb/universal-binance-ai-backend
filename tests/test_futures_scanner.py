@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from app.services.futures_scanner import scan_futures_markets
 
 
@@ -187,3 +188,22 @@ async def test_coinm_scanner_handles_contract_status_and_base_volume_schema():
     assert result["results"][0]["status"] == "TRADING"
     assert result["results"][0]["quote_volume_24h"] == 1_000_000
     assert result["results"][0]["quote_volume_method"] == "DERIVED_BASE_VOLUME_TIMES_LAST_PRICE"
+
+
+async def test_futures_scanner_flags_newly_onboarded_contract():
+    now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+
+    class NewlyListedProvider(FakeFuturesProvider):
+        async def exchange_info(self):
+            return {"symbols": [{
+                "symbol": "NEWUSDT", "baseAsset": "NEW", "quoteAsset": "USDT",
+                "marginAsset": "USDT", "contractType": "PERPETUAL",
+                "status": "TRADING", "onboardDate": now_ms,
+            }]}
+
+        async def all_24h_tickers(self):
+            return [{"symbol": "NEWUSDT", "lastPrice": "1", "priceChangePercent": "0.5", "quoteVolume": "100000"}]
+
+    result = await scan_futures_markets(NewlyListedProvider())
+    assert result["newly_listed_contracts_30d"][0]["symbol"] == "NEWUSDT"
+    assert result["results"][0]["onboard_date_ms"] == now_ms
