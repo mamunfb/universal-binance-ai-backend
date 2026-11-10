@@ -61,3 +61,32 @@ The request range is capped by EVM_INDEX_MAX_TOTAL_BLOCKS, and each chunk is cap
 GET /api/v1/onchain/evm/token/{contract}/history/flows?from_block=...&to_block=...&decimals=18&limit=50
 
 Aggregates sender/receiver flows from locally indexed logs, returning the highest net receivers and senders. Amounts are calculated from raw integer token units before conversion. This is an address-flow view for stored records, not a holder-balance ranking, owner attribution, or complete chain view unless indexed coverage spans the requested range.
+
+### Evidence-backed wallet attribution registry
+
+GET /api/v1/onchain/evm/wallet-registry
+
+Returns the operator-maintained registry for the currently configured EVM chain. Optional lookup:
+
+GET /api/v1/onchain/evm/wallet-registry?addresses=0x...,0x...
+
+Configuration uses `EVM_WALLET_REGISTRY`, a JSON array. Example (replace the illustrative values with reviewed evidence before use):
+
+```json
+[
+  {
+    "address": "0x1111111111111111111111111111111111111111",
+    "label": "exchange",
+    "entity_name": "Example Exchange",
+    "verification_status": "pending_review",
+    "evidence_url": "https://example.org/address-disclosure",
+    "evidence_note": "Describe exactly what the cited disclosure supports",
+    "source_published_at": "2026-01-01",
+    "last_reviewed_at": "2026-11-10"
+  }
+]
+```
+
+Allowed labels: exchange, fund, market_maker, protocol_treasury, smart_money, whale, unknown. Allowed statuses: unverified, pending_review, verified, rejected. Entries marked verified must include an HTTPS evidence URL and a non-empty evidence note. The application validates provenance fields but does not independently authenticate the source. Never mark a wallet verified solely because it sends tokens to an exchange or has a large balance. Do not add guessed addresses or unreferenced social-media claims.
+
+The registry endpoint is read-only. Populate it through controlled deployment configuration; do not expose public write access for attribution labels. No exchange or smart-money wallet list is bundled by default.
