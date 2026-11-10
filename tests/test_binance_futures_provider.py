@@ -116,3 +116,34 @@ async def test_usdm_price_ticker_uses_futures_endpoint(monkeypatch):
     result = await BinanceFuturesProvider("USD_M").price_ticker("btcusdt")
     assert result == {"symbol": "BTCUSDT", "price": "101"}
     assert clients[0].calls == [("/fapi/v1/ticker/price", {"symbol": "BTCUSDT"})]
+
+
+async def test_usdm_funding_rate_passes_time_range_filters(monkeypatch):
+    clients = []
+
+    def client_factory(**kwargs):
+        client = FakeAsyncClient(**kwargs)
+        clients.append(client)
+        return client
+
+    monkeypatch.setattr("app.providers.binance_futures.httpx.AsyncClient", client_factory)
+    provider = BinanceFuturesProvider("USD_M")
+    result = await provider.funding_rate(
+        "btcusdt", limit=200, start_time_ms=1700000000000, end_time_ms=1700100000000
+    )
+    assert result == [["candle"]]
+    assert clients[0].calls == [(
+        "/fapi/v1/fundingRate",
+        {"symbol": "BTCUSDT", "limit": 200,
+         "startTime": 1700000000000, "endTime": 1700100000000},
+    )]
+
+
+@pytest.mark.parametrize("limit", [0, -1, 1001])
+async def test_funding_rate_rejects_invalid_limit_before_network(monkeypatch, limit):
+    def fail_if_called(**_kwargs):
+        raise AssertionError("network client must not be created")
+
+    monkeypatch.setattr("app.providers.binance_futures.httpx.AsyncClient", fail_if_called)
+    with pytest.raises(ValueError, match="limit"):
+        await BinanceFuturesProvider("USD_M").funding_rate("BTCUSDT", limit=limit)
