@@ -111,3 +111,8 @@ Observed locally stored USD-M force-order snapshots can be grouped into configur
 ## Historical signal performance evaluation
 
 `GET /api/v1/analysis/derivatives/signal-performance/{symbol}?period=1h&price_interval=1h&limit=500&round_trip_cost_bps=0` evaluates subsequent 1h, 4h and 24h price outcomes for locally stored completed derivatives snapshots. It reports gross and cost-assumption-adjusted hypothetical returns, favorable/adverse excursions, sample size and coverage limitations. It deliberately does not report directional accuracy or strategy win rate because the stored descriptive classifications are not validated directional entry signals. See [Historical Signal Performance](docs/HISTORICAL_SIGNAL_PERFORMANCE.md). The MCP tool is `evaluate_historical_signal_performance`.
+
+
+## Smart Money market structure
+
+`GET /api/v1/analysis/smart-money-structure/{market}/{symbol}` provides OHLC-based swing points, BOS/CHoCH, liquidity-sweep candidates, FVG candidates, an order-block candidate and sample-range premium/discount context. These are heuristics, not verified institutional order flow or trading signals. See [Smart Money Market Structure](docs/SMART_MONEY_MARKET_STRUCTURE.md).
