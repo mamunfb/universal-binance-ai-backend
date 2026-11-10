@@ -1,4 +1,5 @@
 import asyncio
+import math
 from datetime import datetime, timezone
 from typing import Any
 
@@ -11,8 +12,25 @@ TIMEFRAMES = ("15m", "1h", "4h", "1d")
 async def _timeframe_result(provider: BinanceSpotProvider, symbol: str, interval: str) -> dict[str, Any]:
     try:
         rows = await provider.klines(symbol, interval, 250)
-        closes = [float(row[4]) for row in rows]
-        volumes = [float(row[5]) for row in rows]
+        if not isinstance(rows, list) or len(rows) < 50:
+            return {
+                "status": "INCOMPLETE",
+                "interval": interval,
+                "candle_count": len(rows) if isinstance(rows, list) else 0,
+                "error": "INSUFFICIENT_KLINE_DATA",
+            }
+        try:
+            closes = [float(row[4]) for row in rows]
+            volumes = [float(row[5]) for row in rows]
+        except (TypeError, ValueError, IndexError, OverflowError):
+            return {"status": "INCOMPLETE", "interval": interval,
+                    "error": "MALFORMED_KLINE_DATA"}
+        if any(not math.isfinite(value) or value <= 0 for value in closes):
+            return {"status": "INCOMPLETE", "interval": interval,
+                    "error": "INVALID_CLOSE_PRICE"}
+        if any(not math.isfinite(value) or value < 0 for value in volumes):
+            return {"status": "INCOMPLETE", "interval": interval,
+                    "error": "INVALID_KLINE_VOLUME"}
         indicators = calculate_indicators(closes)
         ema20 = indicators["ema_20"]
         ema50 = indicators["ema_50"]
@@ -35,7 +53,9 @@ async def _timeframe_result(provider: BinanceSpotProvider, symbol: str, interval
             "indicators": indicators,
         }
     except Exception as exc:
-        return {"status": "FAILED", "interval": interval, "error": str(exc)}
+        return {"status": "FAILED", "interval": interval,
+                "error": "UPSTREAM_UNAVAILABLE",
+                "error_type": type(exc).__name__}
 
 
 async def analyze_multiple_timeframes(
@@ -96,7 +116,8 @@ async def analyze_btc_market_condition(provider: BinanceSpotProvider) -> dict[st
         }
         ticker_status = "COMPLETED"
     except Exception as exc:
-        market_24h = {"error": str(exc)}
+        market_24h = {"error": "UPSTREAM_UNAVAILABLE",
+                      "error_type": type(exc).__name__}
         ticker_status = "FAILED"
 
     daily = btc["timeframes"].get("1d", {})
@@ -112,7 +133,13 @@ async def analyze_btc_market_condition(provider: BinanceSpotProvider) -> dict[st
     else:
         regime = "MIXED_OR_TRANSITIONAL"
 
-    status = "COMPLETED" if btc["status"] == "COMPLETED" and ticker_status == "COMPLETED" else "INCOMPLETE"
+    status = (
+        "COMPLETED"
+        if btc["status"] == "COMPLETED"
+        and eth["status"] == "COMPLETED"
+        and ticker_status == "COMPLETED"
+        else "INCOMPLETE"
+    )
     return {
         "status": status,
         "generated_at": datetime.now(timezone.utc).isoformat(),
