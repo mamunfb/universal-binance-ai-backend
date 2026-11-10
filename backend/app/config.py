@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     evm_chain_name: str = ""
     evm_exchange_addresses: str = ""
     evm_max_log_block_span: int = 2000
+    evm_transfer_database_path: str = "data/evm_transfers.sqlite3"
+    evm_index_max_total_blocks: int = 10000
 
     model_config = SettingsConfigDict(
         env_file=".env",
