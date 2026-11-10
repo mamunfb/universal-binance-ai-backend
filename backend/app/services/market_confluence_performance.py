@@ -440,6 +440,49 @@ class MarketConfluencePerformance:
                             ),
                             "coverage_complete_count": sum(row["future_candle_coverage_complete"] for row in group),
                         }
+            regime_bias_alignment_breakdown = {}
+            for dimension in ("market_regime", "volatility_regime", "structure_regime"):
+                dimension_groups = {}
+                for row in outcomes:
+                    dimension_groups.setdefault(row[dimension], []).append(row)
+                regime_bias_alignment_breakdown[dimension] = {}
+                for regime_label, regime_rows in sorted(dimension_groups.items()):
+                    regime_bias_alignment_breakdown[dimension][regime_label] = {}
+                    for bias_name in ("BULLISH", "BEARISH", "MIXED", "UNKNOWN"):
+                        bias_rows = [row for row in regime_rows if row["bias"] == bias_name]
+                        alignment_groups = {}
+                        for row in bias_rows:
+                            alignment = str(row.get("alignment") or "UNCLASSIFIED")
+                            alignment_groups.setdefault(alignment, []).append(row)
+                        regime_bias_alignment_breakdown[dimension][regime_label][bias_name] = {}
+                        for alignment, group in sorted(alignment_groups.items()):
+                            directional_group = [
+                                row for row in group if row["directional_positive"] is not None
+                            ]
+                            directional_stats = _directional_statistics(directional_group)
+                            non_overlapping_group = _non_overlapping_rows(directional_group)
+                            non_overlapping_stats = _directional_statistics(non_overlapping_group)
+                            regime_bias_alignment_breakdown[dimension][regime_label][bias_name][alignment] = {
+                                "sample_size": len(group),
+                                "directional_sample_size": len(directional_group),
+                                "positive_count": directional_stats["positive_count"],
+                                "negative_count": directional_stats["negative_count"],
+                                "positive_fraction": directional_stats["positive_fraction"],
+                                "positive_fraction_ci_95_wilson": directional_stats["positive_fraction_ci_95_wilson"],
+                                "minimum_directional_sample_size": directional_stats["minimum_sample_size"],
+                                "sample_size_status": directional_stats["sample_size_status"],
+                                "non_overlapping_directional_sample_size": len(non_overlapping_group),
+                                "non_overlapping_positive_count": non_overlapping_stats["positive_count"],
+                                "non_overlapping_positive_fraction": non_overlapping_stats["positive_fraction"],
+                                "overlap_excluded_count": len(directional_group) - len(non_overlapping_group),
+                                "mean_directional_return_percent": (
+                                    sum(row["directional_return_percent"] for row in directional_group) / len(directional_group)
+                                    if directional_group else None
+                                ),
+                                "coverage_complete_count": sum(
+                                    row["future_candle_coverage_complete"] for row in group
+                                ),
+                            }
             summaries[str(hours)] = {
                 "label": self.HORIZON_LABELS[hours],
                 "horizon_hours": hours,
@@ -450,6 +493,7 @@ class MarketConfluencePerformance:
                 "bias_breakdown": bias_breakdown,
                 "regime_breakdown": regime_breakdown,
                 "regime_bias_breakdown": regime_bias_breakdown,
+                "regime_bias_alignment_breakdown": regime_bias_alignment_breakdown,
                 "out_of_sample": out_of_sample,
                 "walk_forward": walk_forward,
                 "dependence_adjusted": dependence_adjusted,
