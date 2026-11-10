@@ -92,3 +92,9 @@ Allowed labels: exchange, fund, market_maker, protocol_treasury, smart_money, wh
 The registry endpoint is read-only. Populate it through controlled deployment configuration; do not expose public write access for attribution labels. No exchange or smart-money wallet list is bundled by default.
 
 The historical `/history/flows` response also attaches matching registry attribution to each listed address. Missing registry matches are explicitly returned as `unknown` / `unverified`; this is not an automated smart-money classifier.
+
+### Verified smart-money token activity
+
+GET /api/v1/onchain/evm/token/{contract}/smart-money?from_block=...&to_block=...&decimals=18&limit=100
+
+Summarizes sent, received, net token flow, transaction count, and first/last activity block for addresses explicitly labeled `smart_money` with `verification_status=verified` in EVM_WALLET_REGISTRY. Unverified or pending-review wallets are excluded. The response includes indexed range coverage and returns INCOMPLETE if any part of the requested block interval is not covered. This is observed token transfer activity, not evidence of trade direction, portfolio holdings, profitability, or future price movement.
