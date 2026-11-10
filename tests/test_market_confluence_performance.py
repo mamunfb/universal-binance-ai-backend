@@ -136,3 +136,19 @@ def test_snapshot_price_path_marks_horizon_pending_until_target_candle_closes():
     assert result["status"] == "PENDING_HORIZON_NOT_MATURED"
     assert result["target_reached"] is False
     assert len(result["candles"]) == 1
+
+
+def test_evaluate_returns_summary_and_bias_specific_accuracy_breakdown():
+    evaluator = MarketConfluencePerformance(
+        SnapshotStore([snapshot("BULLISH"), snapshot("BEARISH"), snapshot("MIXED")]),
+        KlineStore(),
+    )
+    result = evaluator.evaluate("USD_M", "BTCUSDT", "1h", "1h", 10)
+    assert result["status"] == "COMPLETED"
+    breakdown = result["horizons"]["1"]["bias_breakdown"]
+    assert breakdown["BULLISH"]["sample_size"] == 1
+    assert breakdown["BULLISH"]["positive_fraction"] == 1.0
+    assert breakdown["BEARISH"]["sample_size"] == 1
+    assert breakdown["BEARISH"]["positive_fraction"] == 0.0
+    assert breakdown["MIXED"]["sample_size"] == 1
+    assert breakdown["MIXED"]["positive_fraction"] is None
