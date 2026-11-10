@@ -156,3 +156,32 @@ async def test_futures_scanner_includes_dated_contracts_by_default():
     assert result["scanned_symbols"] == 2
     assert {row["contract_type"] for row in result["results"]} == {"PERPETUAL", "CURRENT_QUARTER"}
     assert result["unique_underlying_count"] == 2
+
+
+async def test_coinm_scanner_handles_contract_status_and_base_volume_schema():
+    class CoinMProvider:
+        market = "COIN_M"
+
+        async def exchange_info(self):
+            return {"symbols": [{
+                "symbol": "BTCUSD_PERP", "pair": "BTCUSD",
+                "baseAsset": "BTC", "quoteAsset": "USD", "marginAsset": "BTC",
+                "contractType": "PERPETUAL", "contractStatus": "TRADING",
+                "deliveryDate": 4133404800000,
+                "filters": [{"filterType": "PRICE_FILTER", "tickSize": "0.1"}],
+            }]}
+
+        async def all_24h_tickers(self):
+            return [{
+                "symbol": "BTCUSD_PERP", "lastPrice": "50000",
+                "priceChangePercent": "1.5", "volume": "10000",
+                "baseVolume": "20.0",
+            }]
+
+    result = await scan_futures_markets(CoinMProvider())
+    assert result["status"] == "COMPLETED"
+    assert result["eligible_symbols"] == 1
+    assert result["scanned_symbols"] == 1
+    assert result["results"][0]["status"] == "TRADING"
+    assert result["results"][0]["quote_volume_24h"] == 1_000_000
+    assert result["results"][0]["quote_volume_method"] == "DERIVED_BASE_VOLUME_TIMES_LAST_PRICE"
