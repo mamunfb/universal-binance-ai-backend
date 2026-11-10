@@ -21,8 +21,8 @@ curl -H "Authorization: Bearer $PERSONAL_API_KEY" \
 1. **OHLC sweep candidate:** a candle wick crosses a previously confirmed local swing high/low and its close returns inside the level.
 2. **Equal-high/equal-low zones:** swing pivots clustered within the configured basis-point tolerance. These are price-level candidates, not observed stop orders.
 3. **Aggressor-flow context:** locally stored aggregate trades during the five minutes after the sweep candle opens; buy/sell quantity and net CVD are reported.
-4. **Order-book context:** visible bid/ask notional is compared only when two stored samples are within the explicit timestamp tolerance. The samples are local snapshots, not a full historical depth reconstruction.
-5. **Derivatives context:** nearest stored OI and funding observation within 60 minutes of the sweep timestamp. No forward-fill or interpolation is used. These are context fields, not directional confirmation.
+4. **Volume profile:** post-sweep aggregate trades are used to calculate a local notional-proxy POC and value area (VAH/VAL), when enough valid trades exist. This profile is scoped to the confirmation window, not the whole candle sample.\n5. **Order-book context:** visible bid/ask notional is compared only when two stored samples are within the explicit timestamp tolerance. The samples are local snapshots, not a full historical depth reconstruction.
+6. **Derivatives context:** nearest stored OI and funding observation within 60 minutes of the sweep timestamp. No forward-fill or interpolation is used. These are context fields, not directional confirmation.
 
 The output labels a candidate `MULTI_SOURCE_CANDIDATE` only when both aligned aggressor flow and paired sampled-depth evidence exist; otherwise it reports `SINGLE_SOURCE_CANDIDATE` or `OHLC_ONLY_CANDIDATE`. This is an evidence-count label, not a probability or validated signal score.
 
