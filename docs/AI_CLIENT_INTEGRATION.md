@@ -312,3 +312,6 @@ or trading recommendation. See `docs/MARKET_STRUCTURE_CONFLUENCE.md`.
 ### Confluence snapshot history
 
 MCP tools: `save_market_confluence_snapshot`, `get_market_confluence_history`, and `evaluate_market_confluence_performance`. They save/read descriptive snapshots and evaluate later local candle movement. This is not a strategy backtest or validated win rate. See `docs/MARKET_STRUCTURE_CONFLUENCE.md`.
+
+
+The confluence outcome evaluator returns seven horizons: 1h, 4h, 24h, 48h, 72h, 15 days (360h), and 30 days (720h). Its default candle resolution is 1h to preserve hourly comparison over the full 30-day period. The 30-day horizon is fixed-duration, not a calendar month. The response includes per-horizon sample maturity and local candle coverage.
