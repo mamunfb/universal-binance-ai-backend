@@ -133,3 +133,18 @@ def test_healthy_requires_closed_candle_and_complete_window(tmp_path):
     assert source["latest_candle_finality"] == "CLOSE_TIME_PASSED"
     assert source["status"] == "HEALTHY"
     assert source["coverage"]["coverage"]["missing_candle_count"] == 0
+
+def test_open_interest_fallback_period_is_reported_truthfully(tmp_path):
+    from app.services.open_interest import OpenInterestStore
+    db = str(tmp_path / "oi.sqlite3")
+    store = OpenInterestStore(db)
+    store.save("USD_M", "BTCUSDT", "1h", [{
+        "symbol": "BTCUSDT", "timestamp": 1_700_000_000_000,
+        "sumOpenInterest": "10", "sumOpenInterestValue": "100000",
+    }])
+    result = engine(tmp_path).inspect(
+        "SPOT", "BTCUSDT", "1m", lookback_hours=1,
+        now_ms=1_700_000_001_000,
+    )
+    assert result["sources"]["open_interest"]["period"] == "1h"
+    assert result["sources"]["open_interest"]["freshness"] == "FRESH"
