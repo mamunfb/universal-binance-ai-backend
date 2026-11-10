@@ -3,6 +3,10 @@ from typing import Any
 
 from app.providers.binance_spot import BinanceSpotProvider
 
+_STABLECOIN_ASSETS = {"USDT", "USDC", "FDUSD", "TUSD", "USDP", "DAI", "BUSD", "USTC", "USDE"}
+_FIAT_ASSETS = {"USD", "EUR", "GBP", "AUD", "BRL", "TRY", "RUB", "UAH", "BIDR", "IDRT", "NGN", "ZAR", "PLN", "RON", "ARS", "JPY", "MXN", "VND", "CZK"}
+_LEVERAGED_SUFFIXES = ("UP", "DOWN", "BULL", "BEAR")
+
 
 def _number(value: Any) -> float | None:
     try:
@@ -53,6 +57,17 @@ async def scan_spot_markets(
         if status != "TRADING":
             excluded[status] = excluded.get(status, 0) + 1
             continue
+        base_asset = str(item.get("baseAsset") or "").upper()
+        quote_asset_code = str(item.get("quoteAsset") or "").upper()
+        if base_asset in _STABLECOIN_ASSETS and quote_asset_code in _STABLECOIN_ASSETS:
+            excluded["STABLECOIN_VS_STABLECOIN"] = excluded.get("STABLECOIN_VS_STABLECOIN", 0) + 1
+            continue
+        if base_asset in _FIAT_ASSETS or quote_asset_code in _FIAT_ASSETS:
+            excluded["FIAT_PAIR"] = excluded.get("FIAT_PAIR", 0) + 1
+            continue
+        if base_asset.endswith(_LEVERAGED_SUFFIXES):
+            excluded["LEVERAGED_TOKEN"] = excluded.get("LEVERAGED_TOKEN", 0) + 1
+            continue
         if not item.get("isSpotTradingAllowed", True):
             excluded["SPOT_TRADING_NOT_ALLOWED"] = excluded.get("SPOT_TRADING_NOT_ALLOWED", 0) + 1
             continue
@@ -85,8 +100,10 @@ async def scan_spot_markets(
             continue
         if quote_volume < min_quote_volume:
             continue
+        onboard_ms = _number(info.get("onboardDate"))
+        onboard_at = datetime.fromtimestamp(onboard_ms / 1000, timezone.utc).isoformat() if onboard_ms and onboard_ms > 0 else None
         results.append({
-            "symbol": symbol, "base_asset": info.get("baseAsset"),
+            "symbol": symbol, "base_asset": info.get("baseAsset"), "onboard_date": onboard_at,
             "quote_asset": info.get("quoteAsset"), "last_price": last_price,
             "price_change_percent_24h": change_pct, "quote_volume_24h": quote_volume,
             "best_bid": bid, "best_ask": ask, "spread_bps": spread_bps,
@@ -107,6 +124,12 @@ async def scan_spot_markets(
          "primary_selection_status": "PROVISIONAL_RAW_QUOTE_VOLUME_ONLY"}
         for base, row in sorted(primary_by_base.items())
     ]
+    now_ms = datetime.now(timezone.utc).timestamp() * 1000
+    newly_listed_pairs = [
+        {"symbol": row["symbol"], "base_asset": row["base_asset"], "onboard_date": row["onboard_date"]}
+        for row in results
+        if row.get("onboard_date") and now_ms - datetime.fromisoformat(row["onboard_date"]).timestamp() * 1000 <= 30 * 24 * 60 * 60 * 1000
+    ]
     scanned = len(eligible)
     return {
         "status": "COMPLETED" if failed == 0 else "INCOMPLETE",
@@ -118,6 +141,8 @@ async def scan_spot_markets(
         "failed_symbols": failed, "excluded_pair_counts": excluded,
         "min_quote_volume": min_quote_volume, "unique_coin_count": len(unique_coins),
         "unique_coins": unique_coins, "results": results,
+        "newly_listed_pairs_30d": newly_listed_pairs,
+        "risk_tag_coverage": "UNAVAILABLE_FROM_THIS_EXCHANGE_INFO_SCAN",
         "stage1_metrics": {
             "best_bid_ask_spread": "AVAILABLE_FOR_RETURNED_BOOK_TICKERS" if book_by_symbol else "UNAVAILABLE",
             "24h_high_low_range_proxy": "AVAILABLE" if any(row["range_24h_pct"] is not None for row in results) else "UNAVAILABLE",
