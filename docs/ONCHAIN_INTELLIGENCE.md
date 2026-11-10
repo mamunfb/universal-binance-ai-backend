@@ -108,3 +108,12 @@ The smart-money endpoint accepts optional `window_blocks` (default 1000) and ret
 GET /api/v1/onchain/evm/token/{contract}/concentration
 
 Reads the ERC-20 total supply and balances for verified addresses in the operator registry, then groups the observed balances by registry label (for example `smart_money`, `exchange`, `fund`). The response includes a block number observed before balance calls begin, snapshot time, per-group balance and percentage of total supply, plus failed balance calls. The underlying RPC calls use the provider's latest-state `eth_call`; unless the provider supports a pinned block tag in a future implementation, balances are not guaranteed to be from one atomic block snapshot. Only up to 50 registry addresses are supported by the existing snapshot service. This is not a full holder ranking or complete token concentration metric.
+
+### Cross-chain native wallet snapshots
+
+GET /api/v1/onchain/evm/cross-chain/wallets?addresses=0x...,0x...
+
+Configure `EVM_CHAIN_RPC_URLS` as a JSON array, for example:
+`[{"chain_id":1,"chain_name":"Ethereum","rpc_url":"https://YOUR_ETHEREUM_RPC"},{"chain_id":56,"chain_name":"BNB Smart Chain","rpc_url":"https://YOUR_BSC_RPC"}]`
+
+The service verifies each endpoint's reported chain ID against configuration before querying native balances for supplied addresses. Each chain is reported independently; a failed or mismatched RPC does not invalidate successful results from other chains, but overall status becomes INCOMPLETE. At most 50 addresses are accepted. This endpoint does not establish that matching addresses have the same owner, does not query ERC-20 balances, and does not infer bridge relationships or cross-chain transactions. Keep provider URLs and API credentials private; do not commit real credentials.
