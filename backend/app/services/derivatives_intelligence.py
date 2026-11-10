@@ -105,9 +105,10 @@ async def get_derivatives_intelligence(
     book_section = sections.get("order_book", {})
     if book_section.get("status") == "COMPLETED":
         book_data = book_section.pop("data")
+        book_summary = summarize_order_book(book_data, levels=min(order_book_limit, 1000))
         sections["order_book"] = {
-            "status": "COMPLETED",
-            "data": summarize_order_book(book_data, levels=min(order_book_limit, 1000)),
+            "status": book_summary["status"],
+            "data": book_summary,
             "last_update_id": book_data.get("lastUpdateId"),
             "event_time": book_data.get("E"),
             "transaction_time": book_data.get("T"),
