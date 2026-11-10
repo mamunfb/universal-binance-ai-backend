@@ -183,11 +183,15 @@ validity or chain finality.
 
 
 Native wallet snapshots (single-chain and cross-chain) are pinned to an explicit
-block number. Their responses include the block timestamp, UTC block time, and
-snapshot age in seconds when the RPC provides the timestamp. If timestamp lookup
-fails, the balance snapshot is retained and timestamp status is `UNAVAILABLE`.
-This prevents a response from mixing balances read at different moving
-`latest` blocks within the same snapshot.
+block number. Responses expose the canonical `snapshot_block` and
+`snapshot_block_number` aliases, `snapshot_block_timestamp`,
+`snapshot_timestamp_status`, `snapshot_block_time`, and
+`snapshot_age_seconds`. Existing single-chain native-wallet keys
+(`block_number`, `block_timestamp`, `timestamp_status`, and `block_time`)
+remain available for backward compatibility. If timestamp lookup fails, the
+balance snapshot is retained and timestamp status is `UNAVAILABLE`. This
+prevents a response from mixing balances read at different moving `latest`
+blocks within the same snapshot.
 
 Standalone ERC-20 token snapshots also pin total supply, metadata, and every
 tracked-wallet balance call to one explicit block. Responses expose the block
