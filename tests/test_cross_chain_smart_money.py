@@ -107,3 +107,23 @@ def test_cross_chain_smart_money_rejects_invalid_window_before_rpc():
         with pytest.raises(ValueError, match="window_blocks"):
             asyncio.run(cross_chain_verified_wallet_flows(
                 configs, "sample", 10, 20, 18, "[]", object(), window_blocks=0))
+
+
+def test_cross_chain_smart_money_sanitizes_provider_error(monkeypatch):
+    class FakeProvider:
+        def __init__(self, url, timeout):
+            pass
+        async def chain_id(self):
+            raise RuntimeError("https://rpc.example/key=secret-token")
+
+    class FakeStore:
+        pass
+
+    monkeypatch.setattr("app.services.cross_chain_smart_money.EVMRPCProvider", FakeProvider)
+    configs = [{"chain_id": 1, "asset_id": "sample", "contract_address": CONTRACT,
+                "rpc_url": "https://rpc.example", "chain_name": "Ethereum"}]
+    result = asyncio.run(cross_chain_verified_wallet_flows(
+        configs, "sample", 10, 20, 18, "[]", FakeStore()))
+    assert result["status"] == "INCOMPLETE"
+    assert result["chains"][0]["error"] == "SMART_MONEY_ANALYSIS_UNAVAILABLE"
+    assert "secret-token" not in str(result)
