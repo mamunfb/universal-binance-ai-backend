@@ -34,7 +34,15 @@ Binance public APIs -> provider adapters and normalization -> analysis services 
 Upstream projects will be evaluated and integrated individually. They will not be blindly copied into this repository. Each source must have its license, maintenance status, security posture, and relevance reviewed first. See docs/REPOSITORY_IMPORT_PLAN.md.
 
 ## Current status
-Initial repository setup. Upstream repositories have NOT yet been imported. Next: implement the minimal backend skeleton, then integrate approved dependencies with their licenses preserved.
+Initial Python/FastAPI backend skeleton is committed. The first implementation includes Binance Spot public ticker scanning, raw Spot klines, and EMA/RSI/MACD/Bollinger calculations. USDⓈ-M Futures, COIN-M Futures, news, on-chain data, order-book analytics, and AI/MCP adapters are not implemented yet. Upstream source code has NOT been copied into this repository; see docs/REPOSITORY_IMPORT_PLAN.md and docs/THIRD_PARTY_NOTICES.md.
+
+## Run locally
+```bash
+python -m venv .venv
+pip install -r requirements.txt
+uvicorn app.main:app --app-dir backend --reload
+```
+Open `/docs` for the interactive API documentation.
 
 ## Disclaimer
 This software is for research and education. It does not provide guaranteed predictions or financial advice. Crypto assets are volatile; users are responsible for their own decisions.
