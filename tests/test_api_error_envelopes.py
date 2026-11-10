@@ -27,7 +27,12 @@ def test_not_found_uses_standard_error_envelope():
 
 
 def test_http_exception_detail_is_preserved_as_structured_reason():
-    response = client.get("/api/v1/onchain/evm/token/history")
-    assert response.status_code == 404
+    contract = "0x" + "1" * 40
+    response = client.get(
+        f"/api/v1/onchain/evm/token/{contract}/history",
+        params={"from_block": 10, "to_block": 1},
+    )
+    assert response.status_code == 422
     body = response.json()
-    assert body["error"]["code"] == "NOT_FOUND"
+    assert body["error"]["code"] == "VALIDATION_ERROR"
+    assert body["error"]["details"]["reason"] == "to_block must be >= from_block"
