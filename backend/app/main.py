@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Literal
 
@@ -11,8 +12,25 @@ from app.services.market_scanner import scan_spot_markets
 from app.services.futures_scanner import scan_futures_markets
 from app.services.derivatives_intelligence import get_derivatives_intelligence
 from app.services.multi_timeframe import analyze_multiple_timeframes, analyze_btc_market_condition
+from app.services.liquidation_collector import LiquidationCollector, LiquidationStore
+
+liquidation_store = LiquidationStore(settings.liquidation_database_path)
+liquidation_collector = LiquidationCollector(liquidation_store)
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    if settings.liquidation_collector_enabled:
+        liquidation_collector.start()
+    try:
+        yield
+    finally:
+        if settings.liquidation_collector_enabled:
+            await liquidation_collector.stop()
+
 
 app = FastAPI(
+    lifespan=lifespan,
     title=settings.app_name,
     version="0.1.0",
     description=(
@@ -170,6 +188,36 @@ async def spot_multi_timeframe_analysis(symbol: str) -> dict:
 @app.get("/api/v1/analysis/market/btc-condition", tags=["analysis"])
 async def btc_market_condition() -> dict:
     return await analyze_btc_market_condition(get_spot_provider())
+
+
+@app.get("/api/v1/analysis/futures/liquidations/status", tags=["analysis"])
+async def liquidation_collector_status() -> dict:
+    if not settings.liquidation_collector_enabled:
+        return {
+            "status": "DISABLED",
+            "collector_enabled": False,
+            "message": "Set LIQUIDATION_COLLECTOR_ENABLED=true and run a persistent service to collect live events.",
+            "stored_event_count": liquidation_store.count(),
+        }
+    return liquidation_collector.status()
+
+
+@app.get("/api/v1/analysis/futures/liquidations/recent", tags=["analysis"])
+async def recent_liquidations(
+    symbol: str | None = None,
+    limit: int = Query(default=100, ge=1, le=1000),
+) -> dict:
+    rows = await __import__("asyncio").to_thread(
+        liquidation_store.recent, symbol, limit
+    )
+    return {
+        "status": "COMPLETED",
+        "source": "Binance USDⓈ-M all-market forceOrder WebSocket snapshot stream",
+        "symbol": symbol.upper() if symbol else None,
+        "returned_count": len(rows),
+        "events": rows,
+        "coverage_warning": "Binance sends at most the latest liquidation snapshot per symbol per 1000ms. This is not a complete liquidation tape or historical exchange archive.",
+    }
 
 
 @app.get("/api/v1/markets/spot/klines/{symbol}", tags=["markets"])
