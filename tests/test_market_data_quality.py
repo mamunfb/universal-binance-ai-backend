@@ -148,3 +148,23 @@ def test_open_interest_fallback_period_is_reported_truthfully(tmp_path):
     )
     assert result["sources"]["open_interest"]["period"] == "1h"
     assert result["sources"]["open_interest"]["freshness"] == "FRESH"
+
+def test_future_stream_timestamp_is_flagged_without_negative_age(tmp_path):
+    from app.services.aggregate_trade_stream import AggregateTradeStore
+    db = str(tmp_path / "trades.sqlite3")
+    store = AggregateTradeStore(db)
+    now = 1_700_000_000_000
+    future = now + 12_345
+    store.insert({
+        "market": "SPOT", "symbol": "BTCUSDT", "trade_id": 2,
+        "event_time_ms": future, "trade_time_ms": future,
+        "price": 100.0, "quantity": 1.0, "notional": 100.0,
+        "buyer_is_maker": False, "aggressor_side": "BUY", "raw_json": "{}",
+    })
+    result = engine(tmp_path).inspect(
+        "SPOT", "BTCUSDT", "1h", lookback_hours=1, now_ms=now,
+    )
+    source = result["sources"]["aggregate_trades"]
+    assert source["freshness"] == "FUTURE_TIMESTAMP"
+    assert source["age_ms"] is None
+    assert source["future_skew_ms"] == 12_345
