@@ -1039,7 +1039,7 @@ async def health() -> dict[str, str]:
 
 @app.get("/api/v1/markets/spot/scan", tags=["markets"])
 async def spot_market_scan(
-    quote_asset: str = Query(default="USDT", min_length=2, max_length=12),
+    quote_asset: str | None = Query(default=None, min_length=2, max_length=12),
     min_quote_volume: float = Query(default=0.0, ge=0.0),
 ) -> dict:
     result = await scan_spot_markets(
@@ -1058,9 +1058,9 @@ def get_futures_provider(market: str) -> BinanceFuturesProvider:
 
 @app.get("/api/v1/markets/futures/usdm/scan", tags=["markets"])
 async def usdm_market_scan(
-    quote_asset: str = Query(default="USDT", min_length=2, max_length=12),
+    quote_asset: str | None = Query(default=None, min_length=2, max_length=12),
     min_quote_volume: float = Query(default=0.0, ge=0.0),
-    perpetual_only: bool = True,
+    perpetual_only: bool = False,
 ) -> dict:
     result = await scan_futures_markets(
         get_futures_provider("USD_M"), quote_asset, min_quote_volume, perpetual_only
@@ -1072,9 +1072,9 @@ async def usdm_market_scan(
 
 @app.get("/api/v1/markets/futures/coinm/scan", tags=["markets"])
 async def coinm_market_scan(
-    quote_asset: str = Query(default="USD", min_length=2, max_length=12),
+    quote_asset: str | None = Query(default=None, min_length=2, max_length=12),
     min_quote_volume: float = Query(default=0.0, ge=0.0),
-    perpetual_only: bool = True,
+    perpetual_only: bool = False,
 ) -> dict:
     result = await scan_futures_markets(
         get_futures_provider("COIN_M"), quote_asset, min_quote_volume, perpetual_only
