@@ -72,7 +72,7 @@ async def scan_futures_markets(
         if not isinstance(item, dict):
             excluded["INVALID_EXCHANGE_INFO_ROW"] = excluded.get("INVALID_EXCHANGE_INFO_ROW", 0) + 1
             continue
-        status = str(item.get("status") or "UNKNOWN")
+        status = str(item.get("status") or item.get("contractStatus") or "UNKNOWN")
         if status != "TRADING":
             excluded[status] = excluded.get(status, 0) + 1
             continue
@@ -95,6 +95,14 @@ async def scan_futures_markets(
         last_price = _number(ticker.get("lastPrice"))
         change_pct = _number(ticker.get("priceChangePercent"))
         quote_volume = _number(ticker.get("quoteVolume"))
+        quote_volume_method = "EXCHANGE_QUOTE_VOLUME"
+        if quote_volume is None and provider.market == "COIN_M":
+            # COIN-M 24h ticker exposes baseVolume rather than quoteVolume.
+            # Convert using the observed last price and label it as a derived notional.
+            base_volume = _number(ticker.get("baseVolume"))
+            if base_volume is not None and base_volume >= 0:
+                quote_volume = base_volume * last_price if last_price is not None else None
+                quote_volume_method = "DERIVED_BASE_VOLUME_TIMES_LAST_PRICE"
         if last_price is None or last_price <= 0 or change_pct is None or quote_volume is None or quote_volume < 0:
             failed += 1
             continue
@@ -107,7 +115,8 @@ async def scan_futures_markets(
             "delivery_date": info.get("deliveryDate"),
             "onboard_date": info.get("onboardDate"),
             "last_price": last_price, "price_change_percent_24h": change_pct,
-            "quote_volume_24h": quote_volume, "status": info.get("status"),
+            "quote_volume_24h": quote_volume, "quote_volume_method": quote_volume_method,
+            "status": info.get("status") or info.get("contractStatus"),
             "filters": info.get("filters", []),
         })
 
