@@ -37,6 +37,7 @@ from app.services.open_interest import OpenInterestStore
 from app.services.derivatives_collector import DerivativesHistoryCollector
 from app.services.funding_open_interest_analysis import FundingOpenInterestAnalysis
 from app.services.advanced_derivatives_analysis import AdvancedDerivativesAnalysis, DerivativesSignalStore
+from app.services.multi_timeframe_derivatives import MultiTimeframeDerivativesAnalysis
 from app.services.historical_coverage import HistoricalCoverageEngine
 from app.services.historical_collector import HistoricalKlineCollector
 from app.services.wallet_attribution import load_wallet_registry, annotate_wallet_addresses
@@ -1424,6 +1425,24 @@ async def analyze_funding_open_interest(
         return await asyncio.to_thread(
             engine.analyze, symbol, period, price_interval, limit
         )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.get("/api/v1/analysis/derivatives/multi-timeframe/{symbol}", tags=["analysis"])
+async def analyze_multi_timeframe_derivatives(
+    symbol: str,
+    periods: str = "5m,15m,1h,4h,1d",
+    limit: int = Query(default=48, ge=6, le=500),
+) -> dict:
+    try:
+        requested = [part.strip() for part in periods.split(",")]
+        engine = AdvancedDerivativesAnalysis(
+            funding_rate_store, open_interest_store, historical_kline_store,
+            liquidation_store, derivatives_signal_store,
+        )
+        multi = MultiTimeframeDerivativesAnalysis(engine)
+        return await asyncio.to_thread(multi.analyze, symbol, requested, limit)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
