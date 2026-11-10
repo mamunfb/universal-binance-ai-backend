@@ -380,6 +380,34 @@ def get_liquidation_collector_status() -> dict:
 
 
 @mcp.tool()
+def get_order_book_stream_status() -> dict:
+    """Check optional sequence-aware order-book stream collector status."""
+    return _get("/api/v1/history/order-book/status")
+
+
+@mcp.tool()
+def get_stored_order_book_history(
+    market: str, symbol: str, limit: int = 100,
+    start_time_ms: int | None = None, end_time_ms: int | None = None,
+) -> dict:
+    """Read locally captured synchronized order-book depth samples; no collection is triggered."""
+    if market not in {"SPOT", "USD_M", "COIN_M"}:
+        raise ValueError("market must be SPOT, USD_M or COIN_M")
+    if not 1 <= limit <= 1000:
+        raise ValueError("limit must be between 1 and 1000")
+    if start_time_ms is not None and start_time_ms < 0:
+        raise ValueError("start_time_ms must be non-negative")
+    if end_time_ms is not None and end_time_ms < 0:
+        raise ValueError("end_time_ms must be non-negative")
+    if start_time_ms is not None and end_time_ms is not None and end_time_ms < start_time_ms:
+        raise ValueError("end_time_ms must be >= start_time_ms")
+    return _get(
+        f"/api/v1/history/order-book/{market}/{quote(symbol.upper(), safe='')}",
+        {"limit": limit, "start_time_ms": start_time_ms, "end_time_ms": end_time_ms},
+    )
+
+
+@mcp.tool()
 def analyze_order_book_liquidity(
     market: str, symbol: str, limit: int = 100, wall_multiplier: float = 3.0,
 ) -> dict:
