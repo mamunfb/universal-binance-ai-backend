@@ -765,3 +765,69 @@ def test_regime_transition_degradation_withholds_screen_when_period_samples_are_
     result = _regime_transition_degradation(rows)
     assert result["overall"]["status"] == "INSUFFICIENT_PERIOD_SAMPLES"
     assert result["dimensions"]["market_regime"]["RANGE"]["status"] == "INSUFFICIENT_PERIOD_SAMPLES"
+
+
+def test_regime_transition_analysis_detects_change_and_purges_cross_boundary_pre_outcomes():
+    from app.services.market_confluence_performance import _regime_transition_analysis
+
+    rows = []
+    for index in range(80):
+        is_new = index >= 40
+        positive = index % 10 < (8 if not is_new else 3)
+        rows.append({
+            "analyzed_at_ms": index * 3_600_000,
+            "outcome_close_time_ms": index * 3_600_000 + 1_000,
+            "market_regime": "RANGING" if not is_new else "TRENDING",
+            "volatility_regime": "LOW" if not is_new else "HIGH",
+            "structure_regime": "COMPRESSION" if not is_new else "EXPANSION",
+            "directional_positive": positive,
+            "directional_return_percent": 1.0 if positive else -1.0,
+        })
+    result = _regime_transition_analysis(rows)
+    market = result["dimensions"]["market_regime"]
+    assert market["transition_count"] == 1
+    transition = market["transitions"][0]
+    assert transition["from_regime"] == "RANGING"
+    assert transition["to_regime"] == "TRENDING"
+    assert transition["pre_transition"]["directional_sample_size"] == 40
+    assert transition["post_transition"]["directional_sample_size"] == 40
+    assert transition["positive_fraction_change_percentage_points"] == -50.0
+    assert transition["status"] == "POTENTIAL_POST_TRANSITION_DEGRADATION"
+    assert transition["signal_adaptation_status"] == "MANUAL_REVIEW_ONLY"
+    assert market["latest_observed_regime"] == "TRENDING"
+
+
+def test_regime_transition_analysis_excludes_pre_transition_outcomes_that_close_after_change():
+    from app.services.market_confluence_performance import _regime_transition_analysis
+
+    rows = []
+    for index in range(70):
+        rows.append({
+            "analyzed_at_ms": index * 3_600_000,
+            "outcome_close_time_ms": (index + (2 if index == 38 else 0)) * 3_600_000 + 1_000,
+            "market_regime": "OLD" if index < 40 else "NEW",
+            "volatility_regime": "LOW" if index < 40 else "HIGH",
+            "structure_regime": "BASE" if index < 40 else "BREAKOUT",
+            "directional_positive": True,
+            "directional_return_percent": 1.0,
+        })
+    result = _regime_transition_analysis(rows)
+    pre = result["dimensions"]["market_regime"]["transitions"][0]["pre_transition"]
+    assert pre["directional_sample_size"] == 39
+
+
+def test_regime_transition_analysis_reports_stable_regime_without_false_transitions():
+    from app.services.market_confluence_performance import _regime_transition_analysis
+
+    rows = [{
+        "analyzed_at_ms": index * 3_600_000,
+        "outcome_close_time_ms": index * 3_600_000 + 1_000,
+        "market_regime": "TRENDING",
+        "volatility_regime": "NORMAL",
+        "structure_regime": "EXPANSION",
+        "directional_positive": True,
+        "directional_return_percent": 0.5,
+    } for index in range(40)]
+    result = _regime_transition_analysis(rows)
+    assert result["dimensions"]["market_regime"]["transition_count"] == 0
+    assert result["dimensions"]["market_regime"]["latest_regime_sample_status"] == "SUFFICIENT_FOR_SCREENING_THRESHOLD"
