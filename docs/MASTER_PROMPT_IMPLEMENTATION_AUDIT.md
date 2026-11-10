@@ -260,3 +260,33 @@ Before any further feature coding, inspect the implementation already written, c
 - Combined Phase 01: **INCOMPLETE**.
 - Phase 02: **LOCKED**.
 - Pre-Coding Full Audit: **INCOMPLETE**. Do not start new Phase 01 feature implementation until remaining code review, static/security checks and runtime limitations have been completed or explicitly recorded as accepted blockers.
+
+
+## Further security and static-analysis review — 2026-11-11
+
+### Additional confirmed exception-disclosure defects corrected
+4. **P2 — Market-data API routes exposed raw provider exception messages.** The USD-M/COIN-M kline routes and Spot kline/technical-analysis/support-resistance/volume-structure routes returned `str(exc)` in HTTP 502 details. They now return `UPSTREAM_UNAVAILABLE` and exception type only. Added regression coverage for Spot, USD-M and COIN-M klines plus Spot technical analysis.
+5. **P2 — Cross-chain intelligence exposed raw RPC/config exception text.** The combined cross-chain token intelligence response included exception text in its per-chain entity-flow and wallet-concentration errors. It now returns the stable `UPSTREAM_UNAVAILABLE` marker. Added a regression test with a token-bearing RPC URL.
+6. **P2 — RSS source failures exposed feed URL details.** `RSSNewsProvider.collect` included raw HTTP exception text in source failure records. It now records the exception type only. Added a regression test using a token-bearing feed query parameter.
+
+The Spot scanner, Futures Boolean filter, dashboard HTML rendering, market-data route error handling, cross-chain intelligence error handling and RSS error handling fixes are all restricted to error disclosure, input validation or rendering safety; no trading execution capability was added.
+
+### Static analysis
+- Added a Ruff CI step on the work branch.
+- Initial broad `ruff check backend tests mcp-server` reported **289 diagnostics**, with 187 marked auto-fixable. This is an existing repository-wide lint debt finding; the step was narrowed to Ruff's core correctness rules `E4,E7,E9,F` for the next verification run. Import sorting and Bugbear-style findings from the broad run are not yet remediated.
+- Type checking and dedicated security scanning remain unavailable in the current workflow.
+
+### Verification status
+- Spot scanner exception fix checkpoint: `898b21e731ad15e9636ae401bb652abf03a2ea8d` — CI SUCCESS, 525 passed.
+- Market-data route sanitization checkpoint: `03c49676d3d6a839cbf211010e77b24478af7cfb` — CI SUCCESS, 526 passed.
+- RSS sanitization checkpoint: `f35e8a777c46cbc6e0bc6e840e4b81597a17318b` — CI SUCCESS, 527 passed.
+- Cross-chain sanitization test initially failed because its fake chain fixture omitted the required `status` field; the fixture was corrected in `75a0a5da36a57a9f3964ae8a5aa291e868fe9b94`. A successful full CI run for that corrected checkpoint is still pending.
+- Ruff broad check failed with 289 diagnostics; narrowed core-rule check and full test run for the latest workflow revision are pending.
+
+### Updated gate decision
+- Confirmed exception-disclosure defects in the reviewed market-data, RSS and cross-chain paths: **FIXED; final CI re-verification pending for the latest combined checkpoint**.
+- SPOT Phase 01: **IN_PROGRESS**.
+- FUTURES Phase 01: **IN_PROGRESS**.
+- Combined Phase 01: **INCOMPLETE**.
+- Phase 02: **LOCKED**.
+- Pre-Coding Full Audit: **INCOMPLETE**. No Phase 01 feature implementation is authorized until latest CI passes and remaining route/service, persistence, runtime, static-analysis and security coverage gaps are resolved or documented as blockers.
