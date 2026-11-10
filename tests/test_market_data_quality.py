@@ -35,7 +35,7 @@ def test_quality_detects_recent_candle_gaps_and_freshness(tmp_path):
     store.save_klines("SPOT", "BTCUSDT", "1m", [
         candle(start), candle(start + 2 * 60_000),
     ])
-    now = start + 2 * 60_000 + 30_000
+    now = start + 3 * 60_000
     result = engine(tmp_path).inspect(
         "SPOT", "BTCUSDT", "1m", lookback_hours=1, now_ms=now
     )
