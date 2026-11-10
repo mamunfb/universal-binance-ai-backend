@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     http_timeout_seconds: float = 15.0
     liquidation_collector_enabled: bool = False
     liquidation_database_path: str = "data/liquidations.sqlite3"
+    news_rss_feeds: str = ""
 
     model_config = SettingsConfigDict(
         env_file=".env",
