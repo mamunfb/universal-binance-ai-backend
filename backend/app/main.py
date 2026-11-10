@@ -17,6 +17,7 @@ from app.providers.binance_futures import BinanceFuturesProvider
 from app.services.market_scanner import scan_spot_markets
 from app.services.futures_scanner import scan_futures_markets
 from app.services.derivatives_intelligence import get_derivatives_intelligence
+from app.services.spot_futures_basis import analyze_spot_futures_basis
 from app.services.multi_timeframe import analyze_multiple_timeframes, analyze_btc_market_condition
 from app.services.liquidation_collector import LiquidationCollector, LiquidationStore
 from app.services.price_levels import analyze_support_resistance, calculate_fibonacci_levels
@@ -1045,6 +1046,22 @@ async def usdm_derivatives_intelligence(
         raise HTTPException(status_code=502, detail={
             "status": "FAILED",
             "error": "DERIVATIVES_ANALYSIS_UNAVAILABLE",
+            "error_type": type(exc).__name__,
+        }) from exc
+
+
+@app.get("/api/v1/analysis/spot-futures/basis/{symbol}", tags=["analysis"])
+async def spot_futures_basis_intelligence(symbol: str) -> dict:
+    try:
+        return await analyze_spot_futures_basis(
+            get_spot_provider(), get_futures_provider("USD_M"), symbol
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail={
+            "status": "FAILED",
+            "error": "SPOT_FUTURES_ANALYSIS_UNAVAILABLE",
             "error_type": type(exc).__name__,
         }) from exc
 
