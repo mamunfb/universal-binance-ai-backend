@@ -196,6 +196,9 @@ prevents a response from mixing balances read at different moving `latest`
 blocks within the same snapshot.
 
 Standalone ERC-20 token snapshots also pin total supply, metadata, and every
-tracked-wallet balance call to one explicit block. Responses expose the block
-number and optional timestamp-derived freshness fields. Timestamp lookup failure
-does not discard successfully retrieved block-pinned token data.
+tracked-wallet balance call to one explicit block. Responses expose the canonical
+`snapshot_block` and `snapshot_block_number` aliases, the exact
+`snapshot_block_tag`, and optional timestamp-derived freshness fields.
+Single-chain concentration responses preserve the same block aliases.
+Timestamp lookup failure does not discard successfully retrieved block-pinned
+token data.
