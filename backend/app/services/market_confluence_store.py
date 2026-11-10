@@ -29,6 +29,8 @@ class MarketConfluenceStore:
         price=ref.get("price"); price=float(price) if price is not None else None
         if price is not None and (not math.isfinite(price) or price <= 0): raise ValueError("reference price must be finite and positive")
         close=ref.get("close_time_ms"); close=int(close) if close is not None and price is not None else None
+        if price is not None and close is None: raise ValueError("reference close_time_ms is required with reference price")
+        if close is not None and close > stamp: raise ValueError("reference candle must be fully closed at or before analyzed_at_ms")
         encoded=json.dumps(payload,sort_keys=True,separators=(",",":"),allow_nan=False)
         key=hashlib.sha256(f"{market}|{symbol}|{interval}|{stamp}".encode()).hexdigest()
         with sqlite3.connect(self.database_path) as db:
