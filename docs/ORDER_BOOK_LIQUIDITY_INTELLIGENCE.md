@@ -28,3 +28,67 @@ A level is flagged when its price-times-quantity notional is at least `wall_mult
 - Imbalance and microprice are descriptive pressure proxies, not price predictions.
 - Historical liquidity change tracking is not included. A future stream collector would need sequence-aware snapshot/delta synchronization and persistent storage.
 - The endpoint does not submit, modify or cancel orders.
+
+
+# Real-Time Order Book Stream & Historical Liquidity
+
+## Scope
+
+The optional collector maintains a local order book from Binance diff-depth WebSocket updates and a REST depth snapshot. It supports Spot, USD-M Futures and COIN-M Futures. Each configured market/symbol is a separate stream job.
+
+## Enablement
+
+The collector is disabled by default. Configure a persistent single-process deployment and set:
+
+```dotenv
+ORDER_BOOK_COLLECTOR_ENABLED=true
+ORDER_BOOK_COLLECTOR_JOBS=[{"market":"USD_M","symbol":"BTCUSDT"},{"market":"SPOT","symbol":"BTCUSDT"}]
+ORDER_BOOK_DATABASE_PATH=data/order_book_history.sqlite3
+ORDER_BOOK_SAMPLE_INTERVAL_SECONDS=1
+ORDER_BOOK_SNAPSHOT_LIMIT=1000
+ORDER_BOOK_STORED_LEVELS=20
+```
+
+Use only symbols valid for the selected market. The database directory must be writable and persist across restarts. Do not run multiple collector processes against the same SQLite file.
+
+## Synchronization and recovery
+
+- Open the market-specific diff-depth stream and buffer updates while fetching a REST depth snapshot.
+- Discard buffered events already covered by snapshot `lastUpdateId`.
+- Require the first applied update range to bridge `lastUpdateId + 1`.
+- For Spot, reject a gap where the next event's `U` exceeds local update ID + 1.
+- For USD-M and COIN-M, require each subsequent event's `pu` to equal the previous applied `u`.
+- On disconnect, malformed sequence, or gap, discard the in-memory book and reconnect with a fresh snapshot.
+- Zero quantity removes a price level; positive quantity replaces its absolute visible quantity.
+- Keep at most the configured snapshot depth in memory and sample the top configured levels at the configured cadence.
+
+The initial REST snapshot is limited to at most 1000 levels per side in this implementation. Levels outside that initial snapshot are not known until subsequent stream updates report them. A local book is therefore a bounded visible-depth view, not a complete representation of every resting order.
+
+## APIs
+
+- `GET /api/v1/history/order-book/status` — collector status and sample count.
+- `GET /api/v1/history/order-book/{market}/{symbol}?limit=100` — locally stored samples, newest first.
+- Optional filters: `start_time_ms`, `end_time_ms`.
+
+Each sample includes event/update identifiers, best bid/ask, midpoint, spread bps, bid/ask notional, imbalance and stored top levels. The history endpoint does not trigger collection or backfill.
+
+## MCP tools
+
+- `get_order_book_stream_status`
+- `get_stored_order_book_history`
+
+## Limitations
+
+- Collection starts only after the feature is deployed and explicitly enabled; no earlier history is reconstructed.
+- Sampling is periodic (default one second), not every depth event. Short-lived changes between samples may not appear in stored history.
+- SQLite needs persistent disk and one collector-owning application process. Multiple workers can duplicate streams and conflict with SQLite write workloads.
+- Stream availability, network gaps and exchange limits affect coverage. Status and timestamps must be checked before interpreting history.
+- Order book levels do not identify participants, hidden liquidity, intent, or whether an order will remain available.
+- Liquidity withdrawal is a change in displayed depth, not proof of spoofing or manipulation.
+- This is market-data research only; no order placement or execution simulation is included.
+
+## Official protocol references
+
+- [Binance Spot WebSocket diff-depth stream and local-book synchronization](https://github.com/binance/binance-spot-api-docs/blob/master/web-socket-streams.md)
+- [Binance USD-M Futures depth stream](https://developers.binance.com/docs/derivatives/usds-margined-futures/websocket-market-streams/How-to-manage-a-local-order-book-correctly)
+- [Binance COIN-M Futures depth stream](https://developers.binance.com/docs/derivatives/coin-margined-futures/websocket-market-streams)
