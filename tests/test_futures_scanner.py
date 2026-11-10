@@ -232,3 +232,25 @@ async def test_futures_scanner_adds_mark_price_funding_and_basis_when_available(
     assert row["funding_interval_hours"] == 4
     assert row["mark_index_basis_bps"] > 0
     assert result["stage1_metrics"]["funding_rate"] == "AVAILABLE"
+
+
+async def test_futures_underlying_selection_does_not_compare_incomparable_quote_assets():
+    class MultiQuoteFuturesProvider(FakeFuturesProvider):
+        async def exchange_info(self):
+            return {"symbols": [
+                {"symbol": "AAAUSDT", "baseAsset": "AAA", "quoteAsset": "USDT", "marginAsset": "USDT", "contractType": "PERPETUAL", "status": "TRADING"},
+                {"symbol": "AAAUSD_260626", "baseAsset": "AAA", "quoteAsset": "USD", "marginAsset": "AAA", "contractType": "CURRENT_QUARTER", "status": "TRADING"},
+            ]}
+
+        async def all_24h_tickers(self):
+            return [
+                {"symbol": "AAAUSDT", "lastPrice": "2", "priceChangePercent": "1", "quoteVolume": "100"},
+                {"symbol": "AAAUSD_260626", "lastPrice": "2", "priceChangePercent": "1", "quoteVolume": "999999"},
+            ]
+
+    result = await scan_futures_markets(MultiQuoteFuturesProvider())
+    assert result["unique_underlying_count"] == 1
+    underlying = result["unique_underlyings"][0]
+    assert underlying["primary_symbol"] is None
+    assert underlying["candidate_symbols"] == ["AAAUSD_260626", "AAAUSDT"]
+    assert underlying["primary_selection_status"] == "NOT_ESTABLISHED_INCOMPARABLE_QUOTE_OR_MARGIN_ASSETS"
