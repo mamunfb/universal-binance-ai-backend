@@ -34,6 +34,7 @@ from app.services.evm_transfer_store import EVMTransferStore, index_erc20_transf
 from app.services.historical_klines import HistoricalKlineStore
 from app.services.funding_rates import FundingRateStore
 from app.services.open_interest import OpenInterestStore
+from app.services.derivatives_collector import DerivativesHistoryCollector
 from app.services.historical_coverage import HistoricalCoverageEngine
 from app.services.historical_collector import HistoricalKlineCollector
 from app.services.wallet_attribution import load_wallet_registry, annotate_wallet_addresses
@@ -49,13 +50,25 @@ historical_kline_store = HistoricalKlineStore(settings.historical_kline_database
 funding_rate_store = FundingRateStore(settings.funding_rate_database_path)
 open_interest_store = OpenInterestStore(settings.open_interest_database_path)
 historical_collector: HistoricalKlineCollector | None = None
+derivatives_collector: DerivativesHistoryCollector | None = None
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    global historical_collector
+    global historical_collector, derivatives_collector
     if settings.liquidation_collector_enabled:
         liquidation_collector.start()
+    if settings.derivatives_collector_enabled:
+        derivatives_collector = DerivativesHistoryCollector(
+            funding_store=funding_rate_store,
+            open_interest_store=open_interest_store,
+            provider_factory=get_futures_provider,
+            jobs_json=settings.derivatives_collector_jobs,
+            poll_seconds=settings.derivatives_collector_poll_seconds,
+            funding_limit=settings.derivatives_collector_funding_limit,
+            open_interest_limit=settings.derivatives_collector_open_interest_limit,
+        )
+        derivatives_collector.start()
     if settings.historical_collector_enabled:
         historical_collector = HistoricalKlineCollector(
             store=historical_kline_store,
@@ -69,6 +82,9 @@ async def lifespan(_: FastAPI):
     try:
         yield
     finally:
+        if derivatives_collector is not None:
+            await derivatives_collector.stop()
+            derivatives_collector = None
         if settings.historical_collector_enabled and historical_collector is not None:
             await historical_collector.stop()
             historical_collector = None
@@ -1344,6 +1360,15 @@ async def get_historical_funding_rates(
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.get("/api/v1/history/derivatives-collector/status", tags=["history"])
+async def get_derivatives_collector_status() -> dict:
+    if not settings.derivatives_collector_enabled:
+        return {"status": "DISABLED", "enabled": False, "jobs": []}
+    if derivatives_collector is None:
+        return {"status": "STARTING", "enabled": True, "jobs": []}
+    return derivatives_collector.status()
 
 
 @app.post("/api/v1/history/open-interest/USD_M/{symbol}/collect", tags=["history"])
