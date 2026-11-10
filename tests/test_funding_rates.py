@@ -43,6 +43,12 @@ def test_funding_store_rejects_invalid_rows(tmp_path, row):
     assert store.history("USD_M", "BTCUSDT")["returned_count"] == 0
 
 
+def test_funding_store_rejects_symbol_mismatch(tmp_path):
+    store = FundingRateStore(str(tmp_path / "funding.sqlite3"))
+    with pytest.raises(ValueError, match="symbol"):
+        store.save("USD_M", "BTCUSDT", [event() | {"symbol": "ETHUSDT"}])
+
+
 def test_funding_store_rejects_duplicate_timestamps_and_wrong_market(tmp_path):
     store = FundingRateStore(str(tmp_path / "funding.sqlite3"))
     with pytest.raises(ValueError, match="Duplicate"):
