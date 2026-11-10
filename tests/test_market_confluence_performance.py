@@ -206,7 +206,7 @@ def test_chronological_out_of_sample_holdout_uses_latest_snapshots_only():
     second = snapshot("BEARISH")
     second["snapshot_id"] = "second"
     second["analyzed_at_ms"] = 2_000_000
-    third = snapshot("BULLISH")
+    third = snapshot("BEARISH")
     third["snapshot_id"] = "third"
     third["analyzed_at_ms"] = 3_000_000
     fourth = snapshot("BEARISH")
