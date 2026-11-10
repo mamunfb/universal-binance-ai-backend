@@ -182,3 +182,24 @@ async def test_spot_scanner_excludes_stable_pairs_fiat_and_leveraged_tokens_and_
     assert result["excluded_pair_counts"]["FIAT_PAIR"] == 1
     assert result["excluded_pair_counts"]["LEVERAGED_TOKEN"] == 1
     assert result["newly_listed_pairs_30d"][0]["symbol"] == "AAAUSDT"
+
+
+async def test_spot_scanner_rejects_negative_or_non_finite_volume_filter():
+    for value in (-1, float("nan"), float("inf"), True):
+        result = await scan_spot_markets(FakeProvider(), min_quote_volume=value)
+        assert result["status"] == "FAILED"
+        assert result["error_code"] == "INVALID_FILTER"
+
+
+async def test_spot_scanner_rejects_malformed_exchange_metadata():
+    class MalformedProvider:
+        async def exchange_info(self):
+            return {"symbols": None}
+
+        async def all_24h_tickers(self):
+            return []
+
+    result = await scan_spot_markets(MalformedProvider())
+    assert result["status"] == "FAILED"
+    assert result["error_code"] == "UPSTREAM_INVALID_RESPONSE"
+    assert result["results"] == []
