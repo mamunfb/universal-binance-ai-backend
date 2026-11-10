@@ -21,3 +21,12 @@ def test_quality_dashboard_escapes_remote_text_and_uses_existing_auth():
     assert "escapeHtml(x.note)" in html
     assert "await call('/api/v1/quality/market-data/'" in html
     assert "localStorage" not in html
+
+
+def test_dashboard_renders_collector_job_runtime_details_safely():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "const renderCollector=(name,x)=>" in html
+    assert "job.connected===true?'CONNECTED'" in html
+    assert "job.synchronized===false?' · NOT SYNCED'" in html
+    assert "escapeHtml(label)" in html
+    assert "escapeHtml(error)" in html
