@@ -97,5 +97,5 @@ def test_address_flow_summary_uses_exact_raw_integer_totals(tmp_path):
     store.save_chunk(1, CONTRACT, 100, 101, logs)
     result = store.address_flow_summary(1, CONTRACT, 100, 101, 0, 10)
     receivers = {row["address"]: row for row in result["top_net_receivers"]}
-    assert receivers[SENDER]["net_received_tokens"] == 100 - huge
-    assert receivers[RECIPIENT]["net_received_tokens"] == huge - 100
+    assert receivers[SENDER]["net_received_raw"] == str(100 - huge)
+    assert receivers[RECIPIENT]["net_received_raw"] == str(huge - 100)
