@@ -126,14 +126,15 @@ class MarketDataQualityEngine:
             }
         }
 
+        open_interest_period = interval if interval in _PERIOD_MS else "1h"
         queries = [
             ("funding_rates", self.funding_db,
              "SELECT COUNT(*), MAX(funding_time_ms) FROM historical_funding_rates WHERE market='USD_M' AND symbol=?",
              (symbol,), 24 * 3_600_000, "Funding events are irregularly sampled; freshness is a 24-hour operational threshold, not an expected schedule."),
             ("open_interest", self.open_interest_db,
              "SELECT COUNT(*), MAX(timestamp_ms) FROM historical_open_interest WHERE market='USD_M' AND symbol=? AND period=?",
-             (symbol, interval if interval in _PERIOD_MS else "1h"), max(3 * _PERIOD_MS.get(interval, 3_600_000), 3_600_000),
-             "Freshness threshold is three selected periods; it does not establish continuous coverage."),
+             (symbol, open_interest_period), 3 * _PERIOD_MS[open_interest_period],
+             "Freshness threshold is three stored open-interest periods; it does not establish continuous coverage."),
             ("derivatives_ratios", self.ratio_db,
              "SELECT COUNT(*), MAX(timestamp_ms) FROM derivatives_ratio_history WHERE market='USD_M' AND symbol=?",
              (symbol,), 3 * 3_600_000, "Ratio freshness uses a three-hour operational threshold; records from different ratio types are counted together and are not treated as synchronized."),
@@ -150,7 +151,7 @@ class MarketDataQualityEngine:
             sources[name] = {
                 "status": "UNKNOWN" if count < 0 else "NO_DATA" if count == 0 else "NOT_MEASURABLE",
                 "source_market": "USD_M" if name in {"funding_rates", "open_interest", "derivatives_ratios"} else market,
-                "period": interval if name == "open_interest" else None,
+                "period": open_interest_period if name == "open_interest" else None,
                 "freshness": freshness,
                 "record_count": count,
                 "latest_event_time_ms": latest,
