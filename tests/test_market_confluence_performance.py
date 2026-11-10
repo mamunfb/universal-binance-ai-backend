@@ -389,3 +389,38 @@ def test_regime_bias_breakdown_reports_confidence_and_overlap_reliability():
     assert group["overlap_excluded_count"] == (
         group["directional_sample_size"] - group["non_overlapping_directional_sample_size"]
     )
+
+
+def test_regime_bias_alignment_breakdown_separates_alignment_groups():
+    rows = []
+    specifications = [
+        ("BULLISH", "ALIGNED"),
+        ("BULLISH", "ALIGNED"),
+        ("BULLISH", "CONFLICTING"),
+        ("BEARISH", "ALIGNED"),
+        ("BEARISH", "CONFLICTING"),
+        ("BEARISH", "CONFLICTING"),
+    ]
+    for index, (bias, alignment) in enumerate(specifications, start=1):
+        item = snapshot(bias)
+        item["snapshot_id"] = f"alignment-{index}"
+        item["analyzed_at_ms"] = index * 1_000_000
+        item["alignment"] = alignment
+        item["payload"] = {"evidence": [{
+            "source": "MARKET_REGIME",
+            "detail": {"regime": "TREND"},
+        }]}
+        rows.append(item)
+
+    result = MarketConfluencePerformance(
+        SnapshotStore(rows), KlineStore(),
+    ).evaluate("USD_M", "BTCUSDT", "1h", "1h", 10)
+    grouped = result["horizons"]["1"]["regime_bias_alignment_breakdown"]["market_regime"]["TREND"]
+
+    assert grouped["BULLISH"]["ALIGNED"]["sample_size"] == 2
+    assert grouped["BULLISH"]["CONFLICTING"]["sample_size"] == 1
+    assert grouped["BEARISH"]["ALIGNED"]["sample_size"] == 1
+    assert grouped["BEARISH"]["CONFLICTING"]["sample_size"] == 2
+    assert grouped["BULLISH"]["ALIGNED"]["positive_fraction"] == 1.0
+    assert grouped["BULLISH"]["ALIGNED"]["sample_size_status"] == "LOW_SAMPLE_SIZE"
+    assert grouped["BULLISH"]["ALIGNED"]["positive_fraction_ci_95_wilson"] is not None
