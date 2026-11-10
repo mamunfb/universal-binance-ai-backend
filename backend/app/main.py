@@ -15,9 +15,12 @@ from app.services.multi_timeframe import analyze_multiple_timeframes, analyze_bt
 from app.services.liquidation_collector import LiquidationCollector, LiquidationStore
 from app.services.price_levels import analyze_support_resistance, calculate_fibonacci_levels
 from app.services.volume_structure import calculate_vwap, calculate_volume_profile, analyze_market_structure
+from app.providers.news_rss import RSSNewsProvider, parse_feed_sources
+from app.services.news_intelligence import collect_news_intelligence
 
 liquidation_store = LiquidationStore(settings.liquidation_database_path)
 liquidation_collector = LiquidationCollector(liquidation_store)
+news_provider = RSSNewsProvider(settings.http_timeout_seconds)
 
 
 @asynccontextmanager
@@ -46,6 +49,19 @@ def get_spot_provider() -> BinanceSpotProvider:
     return BinanceSpotProvider(
         base_url=settings.binance_spot_base_url,
         timeout_seconds=settings.http_timeout_seconds,
+    )
+
+
+@app.get("/api/v1/news/intelligence", tags=["news"])
+async def news_intelligence(
+    symbols: str = "BTC,ETH",
+    hours: int = Query(default=72, ge=1, le=720),
+    limit: int = Query(default=100, ge=1, le=500),
+) -> dict:
+    requested_symbols = [value.strip().upper() for value in symbols.split(",") if value.strip()]
+    sources = parse_feed_sources(settings.news_rss_feeds)
+    return await collect_news_intelligence(
+        news_provider, sources, requested_symbols, hours=hours, limit=limit
     )
 
 
