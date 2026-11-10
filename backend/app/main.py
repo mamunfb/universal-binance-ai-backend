@@ -2,7 +2,10 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Literal
 
-from fastapi import FastAPI, HTTPException, Query, Body
+from fastapi import FastAPI, HTTPException, Query, Body, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.config import settings
 from app.indicators import calculate_indicators
@@ -53,6 +56,74 @@ app = FastAPI(
         "technical analysis, derivatives snapshots, and optional liquidation collection."
     ),
 )
+
+def _error_payload(code: str, message: str, details: dict | list | None = None) -> dict:
+    """Return a stable, machine-readable API error envelope."""
+    error = {"code": code, "message": message}
+    if details is not None:
+        error["details"] = details
+    return {"status": "FAILED", "error": error}
+
+
+@app.exception_handler(RequestValidationError)
+async def request_validation_error_handler(
+    request: Request, exc: RequestValidationError
+) -> JSONResponse:
+    details = [
+        {
+            "location": list(item.get("loc", ())),
+            "message": item.get("msg", "Invalid value"),
+            "type": item.get("type", "validation_error"),
+        }
+        for item in exc.errors()
+    ]
+    return JSONResponse(
+        status_code=422,
+        content=_error_payload(
+            "VALIDATION_ERROR", "Request parameters or body failed validation.", details
+        ),
+    )
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_error_handler(
+    request: Request, exc: StarletteHTTPException
+) -> JSONResponse:
+    status_codes = {
+        400: ("BAD_REQUEST", "The request could not be processed."),
+        401: ("UNAUTHORIZED", "Authentication is required."),
+        403: ("FORBIDDEN", "The request is not permitted."),
+        404: ("NOT_FOUND", "The requested resource was not found."),
+        409: ("CONFLICT", "The request conflicts with the current resource state."),
+        422: ("VALIDATION_ERROR", "The request could not be validated."),
+        429: ("RATE_LIMITED", "The request rate limit was exceeded."),
+        502: ("UPSTREAM_ERROR", "An upstream service returned an error."),
+        503: ("SERVICE_UNAVAILABLE", "The requested service is unavailable."),
+        504: ("UPSTREAM_TIMEOUT", "An upstream service did not respond in time."),
+    }
+    code, message = status_codes.get(
+        exc.status_code, ("HTTP_ERROR", "The request failed.")
+    )
+    detail = exc.detail
+    details = detail if isinstance(detail, (dict, list)) else (
+        {"reason": detail} if isinstance(detail, str) else None
+    )
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=_error_payload(code, message, details),
+        headers=exc.headers,
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    return JSONResponse(
+        status_code=500,
+        content=_error_payload(
+            "INTERNAL_SERVER_ERROR",
+            "An unexpected server error occurred. No internal exception details are exposed.",
+        ),
+    )
 
 
 def get_spot_provider() -> BinanceSpotProvider:
