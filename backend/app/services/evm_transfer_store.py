@@ -143,11 +143,11 @@ class EVMTransferStore:
             "net_received_tokens": (values["received"] - values["sent"]) / scale,
             "transfer_count": values["count"],
         } for address, values in aggregates.items()]
-        flows.sort(key=lambda item: item["net_received_tokens"], reverse=True)
+        flows.sort(key=lambda item: int(item["net_received_raw"]), reverse=True)
         return {
             "transfer_counted_address_count": len(flows),
             "top_net_receivers": flows[:limit],
-            "top_net_senders": sorted(flows, key=lambda item: item["net_received_tokens"])[:limit],
+            "top_net_senders": sorted(flows, key=lambda item: int(item["net_received_raw"]))[:limit],
             "warning": "Computed only from logs currently stored in SQLite for the requested range. Results are not complete unless indexed coverage spans the full requested range; address flow is not a holder balance or ownership attribution.",
         }
 
