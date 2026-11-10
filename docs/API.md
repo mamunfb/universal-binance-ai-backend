@@ -28,6 +28,12 @@ The response reports eligible, scanned, matched, and failed symbol counts. A res
 Example:
 `GET /api/v1/markets/spot/scan?quote_asset=USDT&min_quote_volume=1000000`
 
+### GET /api/v1/analysis/spot/technical/{symbol}
+Fetches Spot klines and calculates EMA 20/50/200, Wilder RSI 14, MACD 12/26/9, and Bollinger Bands 20/2. Values are null when there is insufficient history. These are descriptive indicators, not guaranteed trading signals.
+
+Example:
+`GET /api/v1/analysis/spot/technical/BTCUSDT?interval=4h&limit=500`
+
 ### GET /api/v1/markets/spot/klines/{symbol}
 Returns raw Binance Spot kline rows.
 
