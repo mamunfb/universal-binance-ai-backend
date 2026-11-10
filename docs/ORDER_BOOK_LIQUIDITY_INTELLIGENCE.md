@@ -62,7 +62,7 @@ Use only symbols valid for the selected market. The database directory must be w
 - Zero quantity removes a price level; positive quantity replaces its absolute visible quantity.
 - Keep at most the configured snapshot depth in memory and sample the top configured levels at the configured cadence.
 
-The initial REST snapshot is limited to at most 1000 levels per side in this implementation. Levels outside that initial snapshot are not known until subsequent stream updates report them. A local book is therefore a bounded visible-depth view, not a complete representation of every resting order.
+The initial REST snapshot is limited to at most 1000 levels per side in this implementation. USD-M depth streams use Binance's current `/public/ws/` route. Binance documents that Retail Price Improvement (RPI) orders are not visible in the standard futures depth stream. Levels outside that initial snapshot are not known until subsequent stream updates report them. A local book is therefore a bounded visible-depth view, not a complete representation of every resting order.
 
 ## APIs
 
@@ -90,5 +90,5 @@ Each sample includes event/update identifiers, best bid/ask, midpoint, spread bp
 ## Official protocol references
 
 - [Binance Spot WebSocket diff-depth stream and local-book synchronization](https://github.com/binance/binance-spot-api-docs/blob/master/web-socket-streams.md)
-- [Binance USD-M Futures depth stream](https://developers.binance.com/docs/derivatives/usds-margined-futures/websocket-market-streams/How-to-manage-a-local-order-book-correctly)
+- [Binance USD-M Futures Public diff-depth stream](https://developers.binance.info/en/docs/catalog/core-trading-derivatives-trading-usd-s-m-futures/api/ws-streams/public)
 - [Binance COIN-M Futures depth stream](https://developers.binance.com/docs/derivatives/coin-margined-futures/websocket-market-streams)
