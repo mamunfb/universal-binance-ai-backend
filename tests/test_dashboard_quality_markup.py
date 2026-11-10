@@ -179,3 +179,5 @@ def test_dashboard_escapes_dynamic_api_content_in_html_renderers():
     assert "escapeHtml(JSON.stringify(r,null,2))" in html
     assert "escapeHtml(x.snapshot_id.slice(0,10))" in html
     assert "escapeHtml(h.label)" in html
+    assert "escapeHtml(x.horizon)" in html
+    assert "escapeHtml(x.snapshot_id)" in html
