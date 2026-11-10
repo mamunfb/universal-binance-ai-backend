@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 import hmac
 from datetime import datetime, timezone
 import json
-from typing import Literal
+from typing import Any, Literal
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Query, Body, Request
@@ -29,6 +29,7 @@ from app.providers.news_rss import RSSNewsProvider, parse_feed_sources
 from app.services.news_intelligence import collect_news_intelligence
 from app.services.news_verification import parse_domain_list
 from app.services.catalyst_analysis import analyze_catalysts
+from app.services.trade_risk import build_trade_risk_plan
 from app.providers.evm_rpc import EVMRPCProvider
 from app.services.onchain_intelligence import analyze_erc20_activity, get_evm_wallet_snapshot, get_erc20_token_snapshot
 from app.services.evm_transfer_store import EVMTransferStore, index_erc20_transfer_history
@@ -1854,6 +1855,20 @@ async def market_evidence_snapshot(symbol: str) -> dict:
     return build_market_evidence_snapshot(
         normalized, multi, basis, derivatives, volume, catalysts
     )
+
+
+@app.post("/api/v1/analysis/trade-risk-plan", tags=["analysis"])
+async def trade_risk_plan(payload: dict[str, Any] = Body(...)) -> dict:
+    try:
+        result = build_trade_risk_plan(**payload)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {
+        **result,
+        "analysis_only": True,
+        "trading_enabled": False,
+        "warning": "User-supplied scenario arithmetic only. This endpoint does not generate or validate a live trading signal.",
+    }
 
 
 @app.get("/api/v1/analysis/spot/technical/{symbol}", tags=["analysis"])
