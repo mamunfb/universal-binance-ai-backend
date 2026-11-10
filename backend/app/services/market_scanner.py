@@ -113,17 +113,26 @@ async def scan_spot_markets(
             "filters": info.get("filters", []),
         })
 
-    results.sort(key=lambda row: row["quote_volume_24h"], reverse=True)
-    primary_by_base: dict[str, dict[str, Any]] = {}
+    results.sort(key=lambda row: (str(row.get("quote_asset") or ""), -row["quote_volume_24h"]))
+    grouped_by_base: dict[str, list[dict[str, Any]]] = {}
     for row in results:
-        primary_by_base.setdefault(str(row.get("base_asset") or row["symbol"]), row)
-    unique_coins = [
-        {"base_asset": base, "primary_symbol": row["symbol"],
-         "primary_quote_asset": row["quote_asset"],
-         "primary_quote_volume_24h": row["quote_volume_24h"],
-         "primary_selection_status": "PROVISIONAL_RAW_QUOTE_VOLUME_ONLY"}
-        for base, row in sorted(primary_by_base.items())
-    ]
+        grouped_by_base.setdefault(str(row.get("base_asset") or row["symbol"]), []).append(row)
+    unique_coins = []
+    for base, rows in sorted(grouped_by_base.items()):
+        quote_assets = {str(row.get("quote_asset") or "") for row in rows}
+        comparable = len(quote_assets) == 1
+        provisional = max(rows, key=lambda row: row["quote_volume_24h"]) if comparable else None
+        unique_coins.append({
+            "base_asset": base,
+            "primary_symbol": provisional["symbol"] if provisional else None,
+            "primary_quote_asset": provisional["quote_asset"] if provisional else None,
+            "primary_quote_volume_24h": provisional["quote_volume_24h"] if provisional else None,
+            "candidate_symbols": [row["symbol"] for row in rows],
+            "primary_selection_status": (
+                "PROVISIONAL_QUOTE_VOLUME_ONLY_DEPTH_NOT_CHECKED" if provisional
+                else "NOT_ESTABLISHED_DIFFERENT_QUOTE_ASSETS_NOT_COMPARABLE"
+            ),
+        })
     now_ms = datetime.now(timezone.utc).timestamp() * 1000
     newly_listed_pairs = [
         {"symbol": row["symbol"], "base_asset": row["base_asset"], "onboard_date": row["onboard_date"]}
