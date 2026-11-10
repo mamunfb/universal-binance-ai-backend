@@ -38,7 +38,7 @@ def test_cross_chain_erc20_snapshot_pins_calls_to_observed_block(monkeypatch):
             if data == "0x313ce567":
                 return "0x" + (2).to_bytes(32, "big").hex()
             if data in ("0x95d89b41", "0x06fdde03"):
-                return "0x" + (64).to_bytes(32, "big").hex() + (3).to_bytes(32, "big").hex() + "555344" + "00" * 29
+                return "0x" + (32).to_bytes(32, "big").hex() + (3).to_bytes(32, "big").hex() + "555344" + "00" * 29
             return "0x" + (250).to_bytes(32, "big").hex()
 
     monkeypatch.setattr("app.services.cross_chain_tokens.EVMRPCProvider", FakeProvider)
