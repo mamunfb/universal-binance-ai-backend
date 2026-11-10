@@ -446,6 +446,15 @@ async def cross_chain_token_intelligence(
                 "smart_money_coverage_complete": cohort_coverage.get("complete", False),
                 "smart_money_gap_count": len(cohort_coverage.get("gaps", [])),
                 "balance_snapshot_block": concentration.get("snapshot_block"),
+                "balance_snapshot_block_number": concentration.get(
+                    "snapshot_block_number", concentration.get("snapshot_block")
+                ),
+                "balance_snapshot_block_timestamp": concentration.get("snapshot_block_timestamp"),
+                "balance_snapshot_timestamp_status": concentration.get(
+                    "snapshot_timestamp_status", "UNAVAILABLE"
+                ),
+                "balance_snapshot_block_time": concentration.get("snapshot_block_time"),
+                "balance_snapshot_age_seconds": concentration.get("snapshot_age_seconds"),
                 "balance_snapshot_status": concentration_status,
                 "balance_wallets_queried": concentration.get("queried_wallet_count", 0),
                 "balance_wallets_succeeded": concentration.get("successful_wallet_count", 0),
