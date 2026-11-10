@@ -67,4 +67,4 @@ def test_sample_calculates_spread_and_depth(tmp_path):
     assert row["best_bid"] == 100.0
     assert row["best_ask"] == 101.0
     assert row["spread_bps"] > 0
-    assert row["depth_imbalance"] > 0
+    assert row["depth_imbalance"] < 0  # Ask-side price-weighted notional exceeds bid-side notional.
