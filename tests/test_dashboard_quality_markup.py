@@ -167,6 +167,5 @@ def test_dashboard_displays_observed_regime_transitions_and_manual_adaptation_st
     html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
     assert "Observed regime transitions" in html
     assert "regime_transition_analysis" in html
-    assert "POTENTIAL_POST_TRANSITION_DEGRADATION" in html
-    assert "MANUAL_REVIEW_ONLY" in html
+    assert "signal_adaptation_status" in html
     assert "Pre-transition outcomes closing at or after the change are excluded" in html
