@@ -5,6 +5,7 @@ class Settings(BaseSettings):
     app_name: str = "Universal Binance AI Backend"
     app_env: str = "development"
     personal_api_key: str = ""
+    ai_client_api_keys: str = "{}"
     log_level: str = "INFO"
     binance_spot_base_url: str = "https://api.binance.com"
     http_timeout_seconds: float = 15.0
