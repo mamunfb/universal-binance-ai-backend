@@ -1,5 +1,24 @@
 # On-Chain Intelligence — EVM RPC first stage
 
+## Standard API error responses
+
+The API returns a consistent JSON envelope for HTTP errors and request validation failures:
+
+```json
+{
+  "status": "FAILED",
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "The request could not be validated.",
+    "details": {
+      "reason": "to_block must be >= from_block"
+    }
+  }
+}
+```
+
+The `error.code` is intended for client branching; `error.message` is a safe summary; optional `error.details` contains structured validation locations or endpoint-provided reasons. Validation details omit submitted input values. Unexpected server exceptions return a generic `INTERNAL_SERVER_ERROR` message and do not expose internal exception text. HTTP status codes remain unchanged. Successful response schemas are unaffected.
+
 ## Configuration
 
 Configure an HTTPS JSON-RPC endpoint for an EVM-compatible chain using EVM_RPC_URL and EVM_CHAIN_NAME. Use a provider and plan whose terms permit your intended request volume. Never put private keys in this application; only read-only JSON-RPC methods are used.
