@@ -199,6 +199,38 @@ def test_market_data_routes_sanitize_provider_exception_details(monkeypatch):
             raise AssertionError("Expected sanitized HTTP 502")
 
 
+def test_cross_chain_intelligence_sanitizes_provider_exception(monkeypatch):
+    import asyncio
+    from app import main
+
+    monkeypatch.setattr(main, "parse_chain_token_configs", lambda raw: [{
+        "asset_id": "asset", "chain_id": 1, "contract_address": "0x" + "1" * 40,
+        "chain_name": "test", "rpc_url": "https://rpc.example.test/?key=private-token",
+    }])
+
+    async def fake_flows(*args, **kwargs):
+        return {"chains": [{
+            "chain_id": 1, "contract_address": "0x" + "1" * 40,
+            "coverage": {"complete": True, "gaps": []},
+        }]}
+
+    async def fake_cohorts(*args, **kwargs):
+        return {"chains": []}
+
+    def fail_registry(*args, **kwargs):
+        raise RuntimeError("https://rpc.example.test/?key=private-token")
+
+    monkeypatch.setattr(main, "cross_chain_token_flows", fake_flows)
+    monkeypatch.setattr(main, "cross_chain_verified_wallet_flows", fake_cohorts)
+    monkeypatch.setattr(main, "load_wallet_registry", fail_registry)
+    result = asyncio.run(main.cross_chain_token_intelligence(
+        "asset", from_block=1, to_block=2, decimals=18
+    ))
+    assert result["chains"][0]["entity_flows"]["error"] == "UPSTREAM_UNAVAILABLE"
+    assert result["chains"][0]["concentration"]["error"] == "UPSTREAM_UNAVAILABLE"
+    assert "private-token" not in str(result)
+
+
 def test_spot_futures_basis_route_returns_analysis(monkeypatch):
     from app import main
 
