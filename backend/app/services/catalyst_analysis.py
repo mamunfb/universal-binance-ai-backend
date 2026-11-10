@@ -54,6 +54,8 @@ def analyze_catalysts(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
             direction = "BULLISH"
         elif bearish_hits and not bullish_hits:
             direction = "BEARISH"
+        elif "LISTING" in {match["type"] for match in matches} and "BEARISH" not in directions:
+            direction = "BULLISH"
         elif "BULLISH" in directions and "BEARISH" not in directions:
             direction = "BULLISH"
         elif "BEARISH" in directions and "BULLISH" not in directions:
