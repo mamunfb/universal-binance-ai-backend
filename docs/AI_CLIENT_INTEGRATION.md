@@ -96,8 +96,25 @@ Common codes include `VALIDATION_ERROR`, `NOT_FOUND`, `UNAUTHORIZED`, `FORBIDDEN
 ## Private access and security
 
 - The intended user is one owner. Do not create public sign-up or multi-customer account flows.
+- API routes under `/api/` accept a Bearer key when `PERSONAL_API_KEY` is configured.
+- Set `APP_ENV=production` and `PERSONAL_API_KEY` to a randomly generated secret of at least 32 characters before production deployment. Production API requests fail closed with 503 if a sufficiently long key is not configured.
+- In development, an empty `PERSONAL_API_KEY` leaves API routes unauthenticated for local testing only. Never expose that configuration to the public internet.
+- Example environment configuration (use your own secret; do not commit it):
+
+```env
+APP_ENV=production
+PERSONAL_API_KEY=replace-with-a-unique-random-secret-at-least-32-characters
+```
+
+- Example request:
+
+```bash
+curl -H "Authorization: Bearer $PERSONAL_API_KEY" \
+  "https://YOUR_PRIVATE_API_HOST/api/v1/analysis/futures/liquidations/status"
+```
+
 - Protect the private API with server-side authentication before exposing it beyond localhost/private network.
-- Use separate, revocable credentials for each of the three AI integrations where the chosen gateway supports it. Store only credential hashes where feasible; never commit raw credentials.
+- The current implementation uses one owner-controlled Bearer key shared by the three private AI integrations. Separate per-client keys, rotation, and usage accounting are future hardening work. Never commit raw credentials.
 - Do not put private API credentials, RPC provider secrets, Binance secrets, wallet seed phrases, or signing keys in prompts or client-side code.
 - Prefer HTTPS. Restrict network access at the deployment boundary where possible.
 - Keep request logs free of Authorization headers, API keys, and sensitive query values.
