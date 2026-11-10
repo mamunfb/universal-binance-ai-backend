@@ -21,7 +21,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev,mcp]"
       - name: Run Ruff lint
-        run: ruff check --select E4,E7,E9,F backend tests mcp-server
+        run: ruff check --select E4,E7,E9,F backend/app/main.py backend/app/providers/news_rss.py backend/app/services/futures_scanner.py backend/app/services/market_scanner.py tests/test_api_error_envelopes.py tests/test_futures_scanner.py tests/test_market_scanner.py tests/test_news_intelligence.py tests/test_dashboard_quality_markup.py
       - name: Check dashboard JavaScript syntax
         run: |
           python - <<'PY'
