@@ -23,7 +23,13 @@ def test_cross_chain_snapshot_checks_actual_chain_id_and_keeps_failures(monkeypa
             self.url = url
         async def chain_id(self):
             return 1 if self.url.endswith("good") else 2
-        async def native_balance(self, address):
+        async def block_number(self):
+            return 456
+        async def block_timestamp(self, block_number):
+            assert block_number == 456
+            return 1700000000
+        async def native_balance(self, address, block="latest"):
+            assert block == "0x1c8"
             return 10**18
 
     monkeypatch.setattr("app.services.cross_chain_wallets.EVMRPCProvider", FakeProvider)
@@ -34,6 +40,10 @@ def test_cross_chain_snapshot_checks_actual_chain_id_and_keeps_failures(monkeypa
     result = asyncio.run(cross_chain_native_wallet_snapshot(configs, [ADDRESS]))
     assert result["status"] == "INCOMPLETE"
     assert result["chains"][0]["wallets"][0]["native_balance"] == 1
+    assert result["chains"][0]["snapshot_block"] == 456
+    assert result["chains"][0]["snapshot_block_timestamp"] == 1700000000
+    assert result["chains"][0]["snapshot_timestamp_status"] == "AVAILABLE"
+    assert result["chains"][0]["snapshot_age_seconds"] >= 0
     assert result["chains"][1]["status"] == "FAILED"
     assert result["chains"][1]["actual_chain_id"] == 2
 
