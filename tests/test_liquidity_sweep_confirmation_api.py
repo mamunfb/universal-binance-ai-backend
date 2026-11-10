@@ -14,7 +14,7 @@ def _candles():
             "open": 100.0, "high": 102.0, "low": 98.0, "close": 100.0,
         })
     rows[10]["high"] = 105.0
-    rows[11].update({"high": 106.0, "close": 104.0})
+    rows[13].update({"high": 106.0, "close": 104.0})
     return rows
 
 
@@ -30,7 +30,7 @@ def test_liquidity_sweep_confirmation_api_uses_local_stores(monkeypatch):
     class TradeStore:
         def recent(self, market, symbol, limit, start_time_ms=None, end_time_ms=None):
             return [{
-                "trade_time_ms": candles[11]["open_time_ms"] + 1_000,
+                "trade_time_ms": candles[13]["open_time_ms"] + 1_000,
                 "quantity": 2.0, "aggressor_side": "SELL",
             }]
 
