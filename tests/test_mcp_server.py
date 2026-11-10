@@ -160,3 +160,55 @@ def test_get_rejects_invalid_success_json(monkeypatch):
     )
     result = server._get("/read-only")
     assert result["error"]["code"] == "UPSTREAM_INVALID_RESPONSE"
+
+
+def test_get_marks_authentication_error_non_retryable(monkeypatch):
+    server = _load_server(monkeypatch)
+    monkeypatch.setattr(
+        server.httpx, "Client",
+        lambda **_kwargs: _FakeClient(_FakeResponse(401, {})),
+    )
+    result = server._get("/read-only")
+    assert result["error"]["code"] == "UNAUTHORIZED"
+    assert result["retryable"] is False
+
+
+def test_get_normalizes_fastapi_nested_error_detail(monkeypatch):
+    server = _load_server(monkeypatch)
+    payload = {
+        "detail": {
+            "status": "FAILED",
+            "error": {"code": "UPSTREAM_TIMEOUT", "message": "Provider timed out"},
+            "request_id": "nested-456",
+        }
+    }
+    monkeypatch.setattr(
+        server.httpx, "Client",
+        lambda **_kwargs: _FakeClient(
+            _FakeResponse(504, payload, {"X-Request-ID": "nested-456"})
+        ),
+    )
+    result = server._get("/read-only")
+    assert result["error"]["code"] == "UPSTREAM_TIMEOUT"
+    assert result["request_id"] == "nested-456"
+    assert result["retryable"] is True
+
+
+def test_get_handles_connection_failure_without_leaking_exception(monkeypatch):
+    server = _load_server(monkeypatch)
+
+    class _FailingClient:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def get(self, *_args, **_kwargs):
+            raise server.httpx.ConnectError("private host and details")
+
+    monkeypatch.setattr(server.httpx, "Client", lambda **_kwargs: _FailingClient())
+    result = server._get("/read-only")
+    assert result["error"]["code"] == "UPSTREAM_CONNECTION_ERROR"
+    assert result["retryable"] is True
+    assert "private host" not in str(result)
