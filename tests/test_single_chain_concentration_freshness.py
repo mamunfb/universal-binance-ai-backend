@@ -28,6 +28,7 @@ def test_single_chain_concentration_uses_pinned_snapshot_freshness(monkeypatch):
         return {
             "status": "COMPLETED",
             "snapshot_block": 789,
+            "snapshot_block_number": 789,
             "snapshot_block_timestamp": 1700000000,
             "snapshot_timestamp_status": "AVAILABLE",
             "snapshot_block_time": "2023-11-14T22:13:20+00:00",
