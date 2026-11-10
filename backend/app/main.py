@@ -486,6 +486,8 @@ async def cross_chain_token_intelligence(
                     and cohort is not None and cohort["status"] == "COMPLETED"
                     and entity_flow_status == "COMPLETED"
                     and concentration_status in {"COMPLETED", "EMPTY"}
+                    and flow_coverage.get("complete", False)
+                    and cohort_coverage.get("complete", False)
                     else "INCOMPLETE"
                 ),
                 "freshness_note": (
@@ -503,6 +505,8 @@ async def cross_chain_token_intelligence(
                 and cohort is not None and cohort["status"] == "COMPLETED"
                 and entity_flow_status == "COMPLETED"
                 and concentration_status in {"COMPLETED", "EMPTY"}
+                    and flow_coverage.get("complete", False)
+                    and cohort_coverage.get("complete", False)
                 else "INCOMPLETE"
             ),
             "address_flows": flow,
