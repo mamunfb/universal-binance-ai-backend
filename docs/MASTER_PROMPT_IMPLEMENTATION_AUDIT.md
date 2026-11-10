@@ -14,6 +14,8 @@ Audit basis:
 - Canonical functional specifications: `master-prompts/MASTER_PROMPT_01_SPOT.md` and `master-prompts/MASTER_PROMPT_02_FUTURES.md`.
 - At the start of every resumed coding session, read both canonical prompts first, then the scope, then this audit, and reconcile GitHub/CI before editing.
 
+The scope also mandates a pre-coding audit of all existing implementation at every session restart: inspect code and contracts, run available checks, identify confirmed defects, fix in-scope defects with regression tests before new feature coding, and defer work belonging only to locked later phases. See Section 3 of the scope and the mandatory audit section in the Resume Prompt.
+
 The scope covers the work before Phase 01 (configuration, global rules, API architecture), all 20 paired phases, and work after Phase 20 (phase protocol, output continuity, research quality, safety, activation, pre-flight, re-validation and final project closure). It is not a 20-phase-only checklist.
 
 ## Executive result
@@ -166,3 +168,8 @@ The two master prompts must advance in lockstep by phase number. This is a hard 
 ## Scope completeness and restart rule
 
 The complete project perimeter is now explicitly recorded in `docs/UNIVERSAL_PROJECT_SCOPE_AND_EXECUTION_CONTROL.md`, including every pre-phase setup section, all 20 SPOT/FUTURES phase pairs, all post-phase execution/evidence/safety/activation requirements, and final project closure. The reusable restart instructions are in `master-prompts/MASTER_RESUME_PROMPT.md`. Every future coding session must read both canonical prompts before reading the scope and audit, determine the earliest incomplete paired phase from repository evidence, and resume there. Current statuses remain SPOT Phase 01 IN_PROGRESS, FUTURES Phase 01 IN_PROGRESS, combined Phase 01 INCOMPLETE, Phase 02 LOCKED.
+
+
+## Mandatory pre-coding audit gate
+
+Before any further feature coding, inspect the implementation already written, compare it against both canonical prompts and the active Phase 01 acceptance criteria, run available tests/static/security checks, correct confirmed defects in scope, add regression tests, and document deferred later-phase issues. New Phase 01 feature coding is permitted only after this audit gate is recorded COMPLETE or exact blockers are documented. The current phase authorization remains Phase 01 only.
