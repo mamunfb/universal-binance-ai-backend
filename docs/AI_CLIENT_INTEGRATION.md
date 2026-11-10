@@ -218,7 +218,7 @@ Available tools:
 - `evaluate_market_confluence_performance`
 - `get_liquidation_collector_status`
 
-All tools are read-only. No order, signing, withdrawal, or trade execution tool is exposed. MCP tool access remains subject to the backend's API authentication and route availability.
+All tools are non-trading. The confluence snapshot save tool writes only local research snapshots; no exchange order, signing, withdrawal, or trade execution tool is exposed. MCP tool access remains subject to the backend's API authentication and route availability.
 
 
 ### Historical market regime
