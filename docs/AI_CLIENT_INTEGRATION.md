@@ -211,3 +211,11 @@ Available tools:
 - `get_liquidation_collector_status`
 
 All tools are read-only. No order, signing, withdrawal, or trade execution tool is exposed. MCP tool access remains subject to the backend's API authentication and route availability.
+
+
+### Historical market regime
+
+The read-only MCP tool `analyze_historical_market_regime` calls
+`GET /api/v1/analysis/market-regime/{market}/{symbol}` and reads only locally
+stored candles. It does not trigger data collection. See
+`docs/MARKET_REGIME_ANALYSIS.md` for the fixed heuristic and its limitations.
