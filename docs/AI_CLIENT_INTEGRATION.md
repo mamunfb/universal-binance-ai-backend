@@ -213,6 +213,9 @@ Available tools:
 - `analyze_order_book_liquidity`
 - `analyze_liquidity_sweep_confirmation`
 - `analyze_market_structure_confluence`
+- `save_market_confluence_snapshot`
+- `get_market_confluence_history`
+- `evaluate_market_confluence_performance`
 - `get_liquidation_collector_status`
 
 All tools are read-only. No order, signing, withdrawal, or trade execution tool is exposed. MCP tool access remains subject to the backend's API authentication and route availability.
