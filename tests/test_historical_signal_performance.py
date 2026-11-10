@@ -40,7 +40,7 @@ def test_forward_outcomes_use_only_future_completed_candles(tmp_path):
     assert outcome["actual_elapsed_hours"] == pytest.approx(1.0)
     assert result["horizons"]["4"]["sample_size"] == 1
     assert result["horizons"]["24"]["sample_size"] == 1
-    assert result["method"]["directional_accuracy"].startswith("NOT_CALCULATED")
+    assert "only when a snapshot contains an explicit" in result["method"]["directional_accuracy"]
 
 
 def test_outcomes_remain_pending_until_future_candles_exist(tmp_path):
