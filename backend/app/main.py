@@ -20,11 +20,13 @@ from app.services.news_intelligence import collect_news_intelligence
 from app.services.news_verification import parse_domain_list
 from app.services.catalyst_analysis import analyze_catalysts
 from app.providers.evm_rpc import EVMRPCProvider
-from app.services.onchain_intelligence import analyze_erc20_activity, get_evm_wallet_snapshot, get_erc20_token_snapshot\nfrom app.services.evm_transfer_store import EVMTransferStore, index_erc20_transfer_history
+from app.services.onchain_intelligence import analyze_erc20_activity, get_evm_wallet_snapshot, get_erc20_token_snapshot
+from app.services.evm_transfer_store import EVMTransferStore, index_erc20_transfer_history
 
 liquidation_store = LiquidationStore(settings.liquidation_database_path)
 liquidation_collector = LiquidationCollector(liquidation_store)
-news_provider = RSSNewsProvider(settings.http_timeout_seconds)\nevm_transfer_store = EVMTransferStore(settings.evm_transfer_database_path)
+news_provider = RSSNewsProvider(settings.http_timeout_seconds)
+evm_transfer_store = EVMTransferStore(settings.evm_transfer_database_path)
 
 
 @asynccontextmanager
