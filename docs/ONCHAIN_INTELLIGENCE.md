@@ -180,3 +180,11 @@ block timestamp; it is not the exact RPC query completion time. If the RPC canno
 provide a timestamp, balances remain usable and timestamp fields are null with
 status `UNAVAILABLE`. Freshness age is not itself a guarantee of market-data
 validity or chain finality.
+
+
+Native wallet snapshots (single-chain and cross-chain) are pinned to an explicit
+block number. Their responses include the block timestamp, UTC block time, and
+snapshot age in seconds when the RPC provides the timestamp. If timestamp lookup
+fails, the balance snapshot is retained and timestamp status is `UNAVAILABLE`.
+This prevents a response from mixing balances read at different moving
+`latest` blocks within the same snapshot.
