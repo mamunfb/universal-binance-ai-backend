@@ -31,6 +31,7 @@ from app.services.news_verification import parse_domain_list
 from app.services.catalyst_analysis import analyze_catalysts
 from app.services.trade_risk import build_trade_risk_plan
 from app.services.signal_lifecycle import build_signal_lifecycle
+from app.services.research_readiness import build_phase_readiness
 from app.providers.evm_rpc import EVMRPCProvider
 from app.services.onchain_intelligence import analyze_erc20_activity, get_evm_wallet_snapshot, get_erc20_token_snapshot
 from app.services.evm_transfer_store import EVMTransferStore, index_erc20_transfer_history
@@ -1096,9 +1097,23 @@ async def research_preflight() -> dict:
             "On-chain provider configuration is not a successful chain RPC health check.",
             "Server time is reported in UTC; synchronization accuracy is not independently verified.",
         ],
+        "phase_readiness": build_phase_readiness(
+            news_feed_count=len(feed_sources),
+            onchain_configured=onchain_status != "UNAVAILABLE",
+        ),
         "trading_enabled": False,
         "api_credentials_required": False,
     }
+
+
+@app.get("/api/v1/research/phase-readiness", tags=["research"])
+async def research_phase_readiness() -> dict:
+    feed_sources = parse_feed_sources(settings.news_rss_feeds)
+    onchain_configured = bool(settings.evm_rpc_url or settings.evm_chain_rpc_urls.strip() not in {"", "[]"})
+    return build_phase_readiness(
+        news_feed_count=len(feed_sources),
+        onchain_configured=onchain_configured,
+    )
 
 
 @app.get("/api/v1/markets/futures/usdm/scan", tags=["markets"])
