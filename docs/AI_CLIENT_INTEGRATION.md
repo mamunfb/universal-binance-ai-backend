@@ -219,3 +219,12 @@ The read-only MCP tool `analyze_historical_market_regime` calls
 `GET /api/v1/analysis/market-regime/{market}/{symbol}` and reads only locally
 stored candles. It does not trigger data collection. See
 `docs/MARKET_REGIME_ANALYSIS.md` for the fixed heuristic and its limitations.
+
+
+### Liquidation cluster analysis
+
+The read-only MCP tool `analyze_liquidation_clusters` calls
+`GET /api/v1/analysis/futures/liquidation-clusters/{symbol}`. It groups
+locally stored force-order snapshots into price buckets and reports event
+coverage and limitations. It does not collect events. See
+`docs/LIQUIDATION_CLUSTER_ANALYSIS.md`.
