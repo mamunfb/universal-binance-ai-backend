@@ -304,13 +304,14 @@ async def cross_chain_smart_money(
     to_block: int = Query(..., ge=0),
     decimals: int = Query(..., ge=0, le=36),
     limit: int = Query(default=50, ge=1, le=200),
+    window_blocks: int = Query(default=1000, ge=1, le=1000000),
 ) -> dict:
     try:
         configs = parse_chain_token_configs(settings.evm_chain_token_contracts)
         return await cross_chain_verified_wallet_flows(
             configs, asset_id, from_block, to_block, decimals,
             settings.evm_wallet_registry, evm_transfer_store,
-            settings.http_timeout_seconds, limit,
+            settings.http_timeout_seconds, limit, window_blocks,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
