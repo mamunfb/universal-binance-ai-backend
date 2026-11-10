@@ -95,7 +95,7 @@ async def test_scan_marks_missing_and_malformed_tickers_incomplete():
 
 class FailingProvider:
     async def exchange_info(self):
-        raise RuntimeError("provider unavailable")
+        raise RuntimeError("https://private-host.example/api?token=secret-value")
 
     async def all_24h_tickers(self):
         return []
@@ -104,7 +104,9 @@ class FailingProvider:
 async def test_scan_reports_upstream_failure_without_fabricating_zero_market_result():
     result = await scan_spot_markets(FailingProvider(), quote_asset="USDT")
     assert result["status"] == "FAILED"
-    assert result["error"] == "provider unavailable"
+    assert result["error_code"] == "UPSTREAM_UNAVAILABLE"
+    assert result["error_type"] == "RuntimeError"
+    assert "secret-value" not in result["error"]
     assert result["eligible_symbols"] == 0
     assert result["results"] == []
 
