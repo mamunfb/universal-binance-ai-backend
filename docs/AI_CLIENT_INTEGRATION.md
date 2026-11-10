@@ -211,6 +211,7 @@ Available tools:
 - `evaluate_historical_signal_performance`
 - `analyze_smart_money_market_structure`
 - `analyze_order_book_liquidity`
+- `analyze_liquidity_sweep_confirmation`
 - `get_liquidation_collector_status`
 
 All tools are read-only. No order, signing, withdrawal, or trade execution tool is exposed. MCP tool access remains subject to the backend's API authentication and route availability.
@@ -279,3 +280,15 @@ The read-only MCP tool `analyze_multi_timeframe_order_flow` calls
 It compares locally stored aggregate-trade CVD and volume-profile context
 across selected rolling windows. Overlapping windows are not independent
 confirmations. See `docs/MULTI_TIMEFRAME_ORDER_FLOW.md`.
+
+
+### Liquidity sweep confirmation
+
+The read-only MCP tool `analyze_liquidity_sweep_confirmation` calls
+`GET /api/v1/analysis/liquidity-sweep-confirmation/{market}/{symbol}`.
+It correlates OHLC wick/reclaim candidates and equal swing zones with
+locally captured aggregate trades, paired sampled order-book depth, and
+nearest timestamp-aligned USD-M OI/funding context. Missing or stale
+derivatives observations remain null; they are not forward-filled. The
+evidence labels are heuristic classifications, not probabilities or
+validated trade signals. See `docs/LIQUIDITY_SWEEP_CONFIRMATION.md`.
