@@ -46,7 +46,7 @@ Futures coverage is based on exchangeInfo symbols marked TRADING and the selecte
 Upstream projects will be evaluated and integrated individually. They will not be blindly copied into this repository. Each source must have its license, maintenance status, security posture, and relevance reviewed first. See docs/REPOSITORY_IMPORT_PLAN.md.
 
 ## Current status
-The repository now includes Spot and Futures scanners/klines, Spot technical indicators, USDⓈ-M derivatives snapshots, multi-timeframe Spot analysis, a limited BTC/ETH context endpoint, and an opt-in liquidation snapshot collector. News RSS/Atom ingestion and conservative cross-source corroboration are implemented. Catalyst analysis, on-chain data, validated forecasting/backtesting, production database operations, and AI/MCP adapters remain future work. Upstream source code has NOT been copied into this repository; see docs/REPOSITORY_IMPORT_PLAN.md and docs/THIRD_PARTY_NOTICES.md.
+The repository now includes Spot and Futures scanners/klines, Spot technical indicators, USDⓈ-M derivatives snapshots, multi-timeframe Spot analysis, a limited BTC/ETH context endpoint, and an opt-in liquidation snapshot collector. News RSS/Atom ingestion, conservative cross-source corroboration, and keyword-based catalyst triage are implemented. On-chain data, validated forecasting/backtesting, production database operations, and AI/MCP adapters remain future work. Upstream source code has NOT been copied into this repository; see docs/REPOSITORY_IMPORT_PLAN.md and docs/THIRD_PARTY_NOTICES.md.
 
 ## Run locally
 ```bash
