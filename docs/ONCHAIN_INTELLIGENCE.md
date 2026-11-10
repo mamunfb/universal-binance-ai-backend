@@ -102,3 +102,9 @@ Summarizes sent, received, net token flow, transaction count, and first/last act
 The smart-money activity response also includes `cohort_summary`: counts of verified wallets with net inflow/outflow/neutral flow, the combined net token flow, and the addresses in each directional group. This is a descriptive cohort aggregation over the selected block interval; it does not establish coordinated behavior or intent. Wallet-level rows are still limited by the requested response limit, while cohort counts and address groups are calculated over all matching verified wallets.
 
 The smart-money endpoint accepts optional `window_blocks` (default 1000) and returns `accumulation_trend`. Each populated window reports net transfer flow for verified smart_money registry wallets and cumulative net flow from the requested starting block. Empty windows are omitted. Cumulative flow is a flow sum initialized at zero, not an opening balance, wallet holdings, or proof of purchase/sale. Always inspect the top-level coverage object; incomplete ranges may omit activity.
+
+### Verified wallet token concentration snapshot
+
+GET /api/v1/onchain/evm/token/{contract}/concentration
+
+Reads the ERC-20 total supply and balances for verified addresses in the operator registry, then groups the observed balances by registry label (for example `smart_money`, `exchange`, `fund`). The response includes a block number observed before balance calls begin, snapshot time, per-group balance and percentage of total supply, plus failed balance calls. The underlying RPC calls use the provider's latest-state `eth_call`; unless the provider supports a pinned block tag in a future implementation, balances are not guaranteed to be from one atomic block snapshot. Only up to 50 registry addresses are supported by the existing snapshot service. This is not a full holder ranking or complete token concentration metric.
