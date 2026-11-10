@@ -36,6 +36,9 @@ def test_transfer_log_parser_and_exchange_flow():
     assert result["whale_candidate_count"] == 1
     assert result["exchange_flow"]["inflow_tokens"] == 250_000
     assert result["exchange_flow"]["outflow_tokens"] == 0
+    activity = {row["address"]: row for row in result["address_activity_in_requested_block_range"]}
+    assert activity[ADDRESS_A]["sent_tokens"] == 250_000
+    assert activity[ADDRESS_B]["received_tokens"] == 250_000
 
 
 def test_block_range_guard():
