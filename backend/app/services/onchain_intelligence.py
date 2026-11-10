@@ -112,10 +112,16 @@ async def analyze_erc20_activity(provider: EVMRPCProvider, contract: str, from_b
 
 async def get_evm_wallet_snapshot(provider: EVMRPCProvider, addresses: list[str]) -> dict[str, Any]:
     chain_id, block = await provider.chain_id(), await provider.block_number()
+    try:
+        block_timestamp = await provider.block_timestamp(block)
+        timestamp_status = "AVAILABLE"
+    except Exception:
+        block_timestamp = None
+        timestamp_status = "UNAVAILABLE"
     balances = []
     for address in addresses:
         try:
-            balance = await provider.native_balance(address)
+            balance = await provider.native_balance(address, hex(block))
             balances.append({"address": address.lower(), "native_balance_wei": str(balance),
                              "native_balance": balance / 10**18, "status": "COMPLETED"})
         except Exception as exc:
@@ -124,7 +130,18 @@ async def get_evm_wallet_snapshot(provider: EVMRPCProvider, addresses: list[str]
     return {
         "status": "COMPLETED" if balances and all(x["status"] == "COMPLETED" for x in balances) else "INCOMPLETE",
         "generated_at": datetime.now(timezone.utc).isoformat(), "chain_id": chain_id,
-        "block_number": block, "wallet_count": len(addresses), "wallets": balances,
+        "block_number": block,
+        "block_timestamp": block_timestamp,
+        "timestamp_status": timestamp_status,
+        "block_time": (
+            datetime.fromtimestamp(block_timestamp, timezone.utc).isoformat()
+            if block_timestamp is not None else None
+        ),
+        "snapshot_age_seconds": (
+            max(0, int(datetime.now(timezone.utc).timestamp()) - block_timestamp)
+            if block_timestamp is not None else None
+        ),
+        "wallet_count": len(addresses), "wallets": balances,
         "warning": "Native balances are snapshots; they do not identify owners or smart-money wallets.",
     }
 
