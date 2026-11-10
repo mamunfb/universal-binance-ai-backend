@@ -267,6 +267,6 @@ WebSocket stream or historical liquidity tracker. See
 
 - `get_aggregate_trade_collector_status` reports the optional trade stream collector state.
 - `get_stored_aggregate_trades` reads locally stored public aggregate trades.
-- `analyze_liquidity_behavior` compares the latest two sampled order-book snapshots with trades in that interval and reports candidate liquidity withdrawal/absorption patterns.
+- `analyze_liquidity_behavior` compares the latest two sampled order-book snapshots with trades in that interval and reports candidate liquidity withdrawal/absorption patterns.\n- `analyze_order_flow_intelligence` calculates local aggregate-trade volume profile (POC/VAH/VAL), window-relative CVD, and price/CVD divergence candidates. It reads stored trades only; see `docs/ORDER_FLOW_INTELLIGENCE.md`.
 - Enable the aggregate-trade collector separately from the order-book collector. Both must be enabled for the same market/symbol to produce useful combined analysis.
 - Results are heuristic candidates only; no proof of spoofing, manipulation, or institutional activity is claimed.
