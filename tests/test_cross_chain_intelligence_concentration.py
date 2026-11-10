@@ -65,6 +65,13 @@ def test_unified_intelligence_adds_verified_wallet_balance_concentration(monkeyp
     assert quality["chain_result_status"] == "COMPLETED"
     assert "age is calculated from the chain block timestamp" in quality["freshness_note"]
     assert result["data_quality_summary"]["chains_with_successful_balance_snapshot"] == 1
+    envelope = result["data_quality"]
+    assert envelope["status"] == "COMPLETED"
+    assert envelope["coverage"]["total_chains"] == 1
+    assert envelope["freshness"]["balance_snapshots_with_timestamp"] == 1
+    assert envelope["freshness"]["chain_snapshots"][0]["snapshot_block_number"] == 500
+    assert any("not all token holders" in item for item in envelope["limitations"])
+    assert any("INCOMPLETE" in item for item in envelope["interpretation_notes"])
 
 
 def test_unified_intelligence_refuses_biased_partial_wallet_snapshot(monkeypatch):
