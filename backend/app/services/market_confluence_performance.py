@@ -20,6 +20,42 @@ def _snapshot_regime_labels(snapshot: dict[str, Any]) -> dict[str, str]:
                    else "UNCLASSIFIED") for name, source in keys.items()}
 
 
+
+def _directional_statistics(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Return a nominal 95% Wilson interval and a transparent small-sample flag."""
+    sample_size = len(rows)
+    positive_count = sum(bool(row["directional_positive"]) for row in rows)
+    minimum_sample_size = 30  # Reporting threshold only; never filters observations.
+    if sample_size == 0:
+        return {
+            "positive_count": 0, "negative_count": 0, "positive_fraction": None,
+            "positive_fraction_ci_95_wilson": None,
+            "minimum_sample_size": minimum_sample_size,
+            "sample_size_status": "NO_DIRECTIONAL_SAMPLES",
+        }
+    fraction = positive_count / sample_size
+    z = 1.96
+    z_squared = z * z
+    denominator = 1.0 + z_squared / sample_size
+    center = (fraction + z_squared / (2.0 * sample_size)) / denominator
+    margin = z * math.sqrt(
+        fraction * (1.0 - fraction) / sample_size
+        + z_squared / (4.0 * sample_size * sample_size)
+    ) / denominator
+    return {
+        "positive_count": positive_count,
+        "negative_count": sample_size - positive_count,
+        "positive_fraction": fraction,
+        "positive_fraction_ci_95_wilson": {
+            "lower": max(0.0, center - margin),
+            "upper": min(1.0, center + margin),
+            "method": "Wilson score interval, nominal 95%",
+        },
+        "minimum_sample_size": minimum_sample_size,
+        "sample_size_status": "SAMPLE_SIZE_AT_LEAST_30" if sample_size >= minimum_sample_size else "LOW_SAMPLE_SIZE",
+    }
+
+
 class MarketConfluencePerformance:
     """Descriptive forward outcomes for saved snapshots, not a strategy backtest."""
 
@@ -187,7 +223,8 @@ class MarketConfluencePerformance:
                         and (next_fold_start is None or row["outcome_close_time_ms"] < next_fold_start)
                     ]
                     fold_directional = [row for row in fold_rows if row["directional_positive"] is not None]
-                    positives = sum(row["directional_positive"] for row in fold_directional)
+                    directional_stats = _directional_statistics(fold_directional)
+                    positives = directional_stats["positive_count"]
                     walk_forward_folds.append({
                         "fold": fold_index + 1,
                         "training_snapshot_count": len(train_block),
@@ -200,7 +237,10 @@ class MarketConfluencePerformance:
                         "test_directional_sample_size": len(fold_directional),
                         "test_positive_count": positives,
                         "test_negative_count": len(fold_directional) - positives,
-                        "test_directional_positive_fraction": positives / len(fold_directional) if fold_directional else None,
+                        "test_directional_positive_fraction": directional_stats["positive_fraction"],
+                        "test_directional_positive_fraction_ci_95_wilson": directional_stats["positive_fraction_ci_95_wilson"],
+                        "minimum_directional_sample_size": directional_stats["minimum_sample_size"],
+                        "sample_size_status": directional_stats["sample_size_status"],
                         "test_mean_directional_return_percent": (
                             sum(row["directional_return_percent"] for row in fold_directional) / len(fold_directional)
                             if fold_directional else None
@@ -214,7 +254,8 @@ class MarketConfluencePerformance:
                      or row["outcome_close_time_ms"] < fold["outcome_cutoff_exclusive_ms"])
             ]
             walk_forward_directional = [row for row in walk_forward_rows if row["directional_positive"] is not None]
-            walk_forward_positive = sum(row["directional_positive"] for row in walk_forward_directional)
+            walk_forward_stats = _directional_statistics(walk_forward_directional)
+            walk_forward_positive = walk_forward_stats["positive_count"]
             walk_forward = {
                 "method": "Expanding-window walk-forward evaluation of saved confluence outputs. Each fold trains only on earlier snapshot history; no model fitting or tuning is performed. Outcomes crossing the next test-fold boundary are excluded.",
                 "status": (
@@ -228,7 +269,10 @@ class MarketConfluencePerformance:
                 "test_directional_sample_size": len(walk_forward_directional),
                 "test_positive_count": walk_forward_positive,
                 "test_negative_count": len(walk_forward_directional) - walk_forward_positive,
-                "test_directional_positive_fraction": walk_forward_positive / len(walk_forward_directional) if walk_forward_directional else None,
+                "test_directional_positive_fraction": walk_forward_stats["positive_fraction"],
+                "test_directional_positive_fraction_ci_95_wilson": walk_forward_stats["positive_fraction_ci_95_wilson"],
+                "minimum_directional_sample_size": walk_forward_stats["minimum_sample_size"],
+                "sample_size_status": walk_forward_stats["sample_size_status"],
                 "test_mean_directional_return_percent": (
                     sum(row["directional_return_percent"] for row in walk_forward_directional)
                     / len(walk_forward_directional) if walk_forward_directional else None
@@ -236,6 +280,7 @@ class MarketConfluencePerformance:
                 "test_coverage_complete_count": sum(row["future_candle_coverage_complete"] for row in walk_forward_rows),
                 "folds": walk_forward_folds,
             }
+            test_directional_stats = _directional_statistics(test_directional)
             out_of_sample = {
                 "method": "Chronological holdout: earliest 70% of saved snapshots are the training period; latest 30% are the test period. No fitting or tuning is performed by this evaluator.",
                 "status": (
@@ -250,12 +295,12 @@ class MarketConfluencePerformance:
                 "test_matured_outcome_count": len(test_outcomes),
                 "training_directional_sample_size": len(train_directional),
                 "test_directional_sample_size": len(test_directional),
-                "test_positive_count": sum(row["directional_positive"] for row in test_directional),
-                "test_negative_count": sum(not row["directional_positive"] for row in test_directional),
-                "test_directional_positive_fraction": (
-                    sum(row["directional_positive"] for row in test_directional) / len(test_directional)
-                    if test_directional else None
-                ),
+                "test_positive_count": test_directional_stats["positive_count"],
+                "test_negative_count": test_directional_stats["negative_count"],
+                "test_directional_positive_fraction": test_directional_stats["positive_fraction"],
+                "test_directional_positive_fraction_ci_95_wilson": test_directional_stats["positive_fraction_ci_95_wilson"],
+                "minimum_directional_sample_size": test_directional_stats["minimum_sample_size"],
+                "sample_size_status": test_directional_stats["sample_size_status"],
                 "test_mean_directional_return_percent": (
                     sum(row["directional_return_percent"] for row in test_directional) / len(test_directional)
                     if test_directional else None
@@ -388,6 +433,7 @@ class MarketConfluencePerformance:
                 "regime_stratification": "Groups outcomes by saved market, volatility and structure regime labels; missing labels are UNCLASSIFIED. Groups are descriptive and may have small samples.",
                 "out_of_sample": "Chronological 70/30 holdout by snapshot analysis time. This is a temporal evaluation split, not a trained or tuned predictive model.",
                 "walk_forward": "Expanding-window temporal folds evaluate saved confluence outputs; no predictive model is trained or tuned. Outcomes crossing the next test fold boundary are excluded.",
+                "confidence_interval": "Nominal 95% Wilson score interval for the directional-positive fraction. The 30-sample threshold is a reporting flag, not a universal adequacy guarantee. The interval assumes independent Bernoulli observations and does not adjust for serial dependence or overlapping market horizons.",
                 "mfe_mae": "Directional high/low excursion; not a stop/target simulation.",
                 "coverage": "Every outcome reports whether the local candle sequence is continuous from the first expected candle through its endpoint.",
             },
