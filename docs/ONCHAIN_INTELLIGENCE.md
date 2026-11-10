@@ -172,10 +172,12 @@ The endpoint reports the observed snapshot block height but does not fetch block
 
 ### Snapshot block time and freshness
 
-Cross-chain tracked-wallet balance snapshots include the pinned `snapshot_block`, plus
+Cross-chain tracked-wallet balance snapshots (native and ERC-20) include the
+pinned `snapshot_block` and canonical `snapshot_block_number` alias, plus
 `snapshot_block_timestamp` (Unix seconds), `snapshot_timestamp_status`,
 `snapshot_block_time` (UTC ISO-8601), and `snapshot_age_seconds` when the RPC
-returns block metadata. Age is measured at API response time against the on-chain
+returns block metadata. ERC-20 snapshots also expose `snapshot_block_tag` for
+the exact EVM block tag used by all token calls. Age is measured at API response time against the on-chain
 block timestamp; it is not the exact RPC query completion time. If the RPC cannot
 provide a timestamp, balances remain usable and timestamp fields are null with
 status `UNAVAILABLE`. Freshness age is not itself a guarantee of market-data
