@@ -57,6 +57,57 @@ def _directional_statistics(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 
+def _out_of_sample_regime_stability(
+    rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Describe untouched chronological holdout outcomes within each saved regime label."""
+    dimensions = ("market_regime", "volatility_regime", "structure_regime")
+    result: dict[str, Any] = {
+        "status": "COMPLETED" if rows else "NO_HOLDOUT_OUTCOMES",
+        "method": (
+            "Groups only chronological holdout outcomes by regime labels saved at signal time. "
+            "No regime labels are inferred from future prices. Groups with fewer than 30 directional "
+            "outcomes are reported but flagged as low sample."
+        ),
+        "minimum_directional_sample_size_reporting_threshold": 30,
+        "dimensions": {},
+    }
+    for dimension in dimensions:
+        grouped: dict[str, list[dict[str, Any]]] = {}
+        for row in rows:
+            grouped.setdefault(str(row.get(dimension) or "UNCLASSIFIED"), []).append(row)
+        result["dimensions"][dimension] = {}
+        for label, group_rows in sorted(grouped.items()):
+            directional = [
+                row for row in group_rows
+                if row.get("directional_positive") is not None
+                and row.get("directional_return_percent") is not None
+            ]
+            stats = _directional_statistics(directional)
+            sample_size = len(directional)
+            result["dimensions"][dimension][label] = {
+                "sample_size": len(group_rows),
+                "directional_sample_size": sample_size,
+                "positive_count": stats["positive_count"],
+                "negative_count": stats["negative_count"],
+                "positive_fraction": stats["positive_fraction"],
+                "positive_fraction_ci_95_wilson": stats["positive_fraction_ci_95_wilson"],
+                "sample_size_status": stats["sample_size_status"],
+                "mean_directional_return_percent": (
+                    sum(float(row["directional_return_percent"]) for row in directional) / sample_size
+                    if sample_size else None
+                ),
+                "coverage_complete_count": sum(
+                    bool(row.get("future_candle_coverage_complete")) for row in group_rows
+                ),
+                "coverage_complete_fraction": (
+                    sum(bool(row.get("future_candle_coverage_complete")) for row in group_rows) / len(group_rows)
+                    if group_rows else None
+                ),
+            }
+    return result
+
+
 def _signal_quality_assessment(rows: list[dict[str, Any]]) -> dict[str, Any]:
     """Evaluate explicit bullish/bearish confluence calls as an UP-vs-DOWN classifier."""
     eligible = [
@@ -520,7 +571,18 @@ class MarketConfluencePerformance:
                 })
 
             directional = [row for row in outcomes if row["directional_positive"] is not None]
-            training_outcomes = [row for row in outcomes if row["snapshot_id"] in training_ids]
+            # Purge training outcomes whose forward label window reaches the holdout boundary.
+            unpurged_training_outcomes = [
+                row for row in outcomes if row["snapshot_id"] in training_ids
+            ]
+            training_outcomes = [
+                row for row in unpurged_training_outcomes
+                if split_timestamp_ms is not None
+                and int(row["outcome_close_time_ms"]) < split_timestamp_ms
+            ]
+            training_purged_overlap_count = (
+                len(unpurged_training_outcomes) - len(training_outcomes)
+            )
             test_outcomes = [row for row in outcomes if row["snapshot_id"] in test_ids]
             train_directional = [row for row in training_outcomes if row["directional_positive"] is not None]
             test_directional = [row for row in test_outcomes if row["directional_positive"] is not None]
@@ -624,7 +686,7 @@ class MarketConfluencePerformance:
             holdout_non_overlapping = _non_overlapping_rows(test_directional)
             holdout_non_overlapping_stats = _directional_statistics(holdout_non_overlapping)
             out_of_sample = {
-                "method": "Chronological holdout: earliest 70% of saved snapshots are the training period; latest 30% are the test period. No fitting or tuning is performed by this evaluator.",
+                "method": "Chronological holdout: earliest 70% of saved snapshots are the training period; latest 30% are the untouched test period. Training outcomes whose forward label windows reach or cross the split timestamp are purged to prevent boundary leakage. No fitting or tuning is performed by this evaluator.",
                 "status": (
                     "INSUFFICIENT_SNAPSHOTS" if len(ordered_snapshots) < 2
                     else "COMPLETED" if test_outcomes else "INSUFFICIENT_TEST_OUTCOMES"
@@ -634,7 +696,9 @@ class MarketConfluencePerformance:
                 "training_snapshot_count": len(training_ids),
                 "test_snapshot_count": len(test_ids),
                 "training_matured_outcome_count": len(training_outcomes),
+                "training_purged_overlap_count": training_purged_overlap_count,
                 "test_matured_outcome_count": len(test_outcomes),
+                "test_regime_stability": _out_of_sample_regime_stability(test_outcomes),
                 "training_directional_sample_size": len(train_directional),
                 "test_directional_sample_size": len(test_directional),
                 "test_positive_count": test_directional_stats["positive_count"],
