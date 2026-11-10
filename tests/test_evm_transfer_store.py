@@ -1,3 +1,4 @@
+import pytest
 import asyncio
 
 from app.services.evm_transfer_store import EVMTransferStore, index_erc20_transfer_history
