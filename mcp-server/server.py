@@ -587,6 +587,34 @@ def analyze_order_flow_intelligence(
 
 
 
+@mcp.tool()
+def analyze_multi_timeframe_order_flow(
+    market: str, symbol: str,
+    periods: str = "5m,15m,1h,4h,1d",
+    bin_size_bps: float = 5.0, value_area_pct: float = 70.0,
+) -> dict:
+    """Compare locally captured aggregate-trade CVD and volume-profile context across rolling timeframes."""
+    if market not in {"SPOT", "USD_M", "COIN_M"}:
+        raise ValueError("market must be SPOT, USD_M or COIN_M")
+    selected = [item.strip() for item in periods.split(",") if item.strip()]
+    allowed = {"5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "1d"}
+    if not selected or len(selected) > 9 or len(set(selected)) != len(selected):
+        raise ValueError("Select 1 to 9 unique timeframes")
+    if any(item not in allowed for item in selected):
+        raise ValueError("Unsupported timeframe")
+    if not 0.1 <= bin_size_bps <= 500:
+        raise ValueError("bin_size_bps must be between 0.1 and 500")
+    if not 50 <= value_area_pct <= 99:
+        raise ValueError("value_area_pct must be between 50 and 99")
+    return _get(
+        f"/api/v1/analysis/order-flow/multi-timeframe/{market}/{quote(symbol.upper(), safe='')}",
+        {"periods": ",".join(selected), "bin_size_bps": bin_size_bps,
+         "value_area_pct": value_area_pct},
+    )
+
+
+
+
 if __name__ == "__main__":
     # stdio transport keeps the adapter local to its configured AI client process.
     mcp.run(transport="stdio")
