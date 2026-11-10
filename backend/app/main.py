@@ -1341,7 +1341,7 @@ async def usdm_klines(
     try:
         rows = await get_futures_provider("USD_M").klines(symbol, interval, limit)
     except Exception as exc:
-        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error_code": "UPSTREAM_UNAVAILABLE", "error_type": type(exc).__name__}) from exc
     return {"status": "COMPLETED", "source": "Binance USD-M Futures public REST API",
             "symbol": symbol.upper(), "interval": interval, "count": len(rows), "klines": rows}
 
@@ -1358,7 +1358,7 @@ async def coinm_klines(
     try:
         rows = await get_futures_provider("COIN_M").klines(symbol, interval, limit)
     except Exception as exc:
-        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error_code": "UPSTREAM_UNAVAILABLE", "error_type": type(exc).__name__}) from exc
     return {"status": "COMPLETED", "source": "Binance COIN-M Futures public REST API",
             "symbol": symbol.upper(), "interval": interval, "count": len(rows), "klines": rows}
 
@@ -1918,7 +1918,7 @@ async def spot_technical_analysis(
         closes = [float(row[4]) for row in rows]
         indicators = calculate_indicators(closes)
     except Exception as exc:
-        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error_code": "UPSTREAM_UNAVAILABLE", "error_type": type(exc).__name__}) from exc
     required_indicator_paths = {
         "ema_20": indicators.get("ema_20"),
         "ema_50": indicators.get("ema_50"),
@@ -1973,7 +1973,7 @@ async def spot_price_levels(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error_code": "UPSTREAM_UNAVAILABLE", "error_type": type(exc).__name__}) from exc
     return {
         "status": "COMPLETED" if support_resistance["status"] == "COMPLETED" and fibonacci["status"] == "COMPLETED" else "INCOMPLETE",
         "source": "Binance Spot public REST klines",
@@ -2011,7 +2011,7 @@ async def spot_volume_structure(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error_code": "UPSTREAM_UNAVAILABLE", "error_type": type(exc).__name__}) from exc
     sections = [vwap["status"], volume_profile["status"], market_structure["status"]]
     return {
         "status": "COMPLETED" if all(s == "COMPLETED" for s in sections) else "INCOMPLETE",
@@ -2448,7 +2448,7 @@ async def spot_klines(
     try:
         rows = await get_spot_provider().klines(symbol, interval, limit)
     except Exception as exc:
-        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error_code": "UPSTREAM_UNAVAILABLE", "error_type": type(exc).__name__}) from exc
     return {
         "status": "COMPLETED",
         "source": "Binance Spot public REST API",
