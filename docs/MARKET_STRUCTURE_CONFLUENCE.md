@@ -82,3 +82,8 @@ For one selected saved confluence snapshot, the dashboard can request a bounded 
 `GET /api/v1/history/market-confluence/{market}/{symbol}/{snapshot_id}/price-path?price_interval=1h&hours=720`
 
 The endpoint returns future candles, percentage change from the stored reference price, candle-continuity coverage, and a descriptive comparison between the saved BULLISH/BEARISH bias and the final observed market move. MIXED/UNKNOWN biases are not assigned a directional comparison. The dashboard defaults to 1-hour candles over up to 30 days; 15m, 30m, 2h and 4h are selectable. Only one selected snapshot is loaded at a time to bound response size. If the target horizon has not matured, the API reports a pending status rather than treating partial data as a completed outcome. Local candle gaps are reported and never interpolated. This is a descriptive historical visualization, not a strategy backtest or trading signal.
+
+
+## Bias-specific historical accuracy
+
+The forward performance endpoint reports a `bias_breakdown` for every horizon (1h, 4h, 24h, 48h, 72h, 15d and 30d). BULLISH and BEARISH snapshots have separate sample counts, directional-positive fraction, mean directional return and complete-candle-coverage count. MIXED and UNKNOWN snapshots remain visible in the sample breakdown but do not receive a directional accuracy percentage. These are descriptive historical outcomes for the locally stored snapshots and candles, not a validated prediction hit rate or strategy profitability estimate. Interpret the percentages together with sample size and coverage completeness.
