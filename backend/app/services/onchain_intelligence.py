@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Any
-from app.providers.evm_rpc import EVMRPCProvider
+from app.providers.evm_rpc import EVMRPCProvider, TRANSFER_TOPIC
 
 
 def _validate_evm_address(address: str) -> None:
