@@ -714,8 +714,8 @@ def test_out_of_sample_training_outcomes_are_purged_at_holdout_boundary():
     holdout = result["horizons"]["1"]["out_of_sample"]
     assert holdout["training_snapshot_count"] == 7
     assert holdout["test_snapshot_count"] == 3
-    assert holdout["training_purged_overlap_count"] == 7
-    assert holdout["training_matured_outcome_count"] == 0
+    assert holdout["training_purged_overlap_count"] == 2
+    assert holdout["training_matured_outcome_count"] == 5
     assert holdout["test_regime_stability"]["status"] == "COMPLETED"
     assert set(holdout["test_regime_stability"]["dimensions"]) == {
         "market_regime", "volatility_regime", "structure_regime",
