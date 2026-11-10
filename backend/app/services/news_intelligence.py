@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from app.providers.news_rss import RSSNewsProvider, map_news_to_symbols, normalize_news_item
+from app.services.news_verification import verify_news_items
 
 
 def _within_window(item: dict[str, Any], cutoff: datetime) -> bool:
@@ -25,6 +26,9 @@ async def collect_news_intelligence(
     symbols: list[str],
     hours: int = 72,
     limit: int = 100,
+    primary_domains: set[str] | None = None,
+    independent_domains: set[str] | None = None,
+    stale_after_hours: int = 168,
 ) -> dict[str, Any]:
     fetched = await provider.collect(sources)
     normalized = [normalize_news_item(item) for item in fetched["items"]]
@@ -35,7 +39,13 @@ async def collect_news_intelligence(
     for item in fresh:
         unique.setdefault(item["id"], item)
     mapped = map_news_to_symbols(list(unique.values()), symbols)
-    mapped.sort(key=lambda item: item.get("published_at") or "", reverse=True)
+    verified = verify_news_items(
+        mapped,
+        primary_domains=primary_domains or set(),
+        independent_domains=independent_domains or set(),
+        stale_after_hours=stale_after_hours,
+    )
+    verified.sort(key=lambda item: item.get("published_at") or "", reverse=True)
     status = "COMPLETED" if sources and fetched["failed_sources"] == 0 else (
         "INCOMPLETE" if sources else "BLOCKED"
     )
@@ -49,11 +59,16 @@ async def collect_news_intelligence(
         "failure_details": fetched["failures"],
         "raw_item_count": len(fetched["items"]),
         "unique_url_count": len(unique),
-        "returned_count": min(len(mapped), limit),
-        "items": mapped[:limit],
+        "returned_count": min(len(verified), limit),
+        "verification_status_counts": {
+            label: sum(1 for item in verified if item["verification_status"] == label)
+            for label in ("CONFIRMED", "PARTIALLY_CONFIRMED", "UNVERIFIED", "EXPIRED", "FALSE")
+        },
+        "items": verified[:limit],
         "verification_policy": (
-            "Every item remains UNVERIFIED. Feed presence is not independent confirmation; "
-            "verification and catalyst classification are separate future stages."
+            "CONFIRMED means a configured primary-domain item has a similar-title candidate "
+            "from a configured independent domain. It is an automated corroboration signal, "
+            "not proof of factual truth. FALSE is never assigned automatically."
         ),
         "coverage_warning": (
             "Only configured RSS/Atom feeds were queried. This is not a complete global news scan. "
