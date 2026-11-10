@@ -57,3 +57,7 @@ Configuration:
 - `EVM_INDEX_MAX_TOTAL_BLOCKS=10000`
 
 The request range is capped by EVM_INDEX_MAX_TOTAL_BLOCKS, and each chunk is capped at 2000 blocks. SQLite storage is local to the running instance; ephemeral hosting filesystems may lose it on restart or redeploy. Use a persistent disk or external database for production history retention.
+
+GET /api/v1/onchain/evm/token/{contract}/history/flows?from_block=...&to_block=...&decimals=18&limit=50
+
+Aggregates sender/receiver flows from locally indexed logs, returning the highest net receivers and senders. Amounts are calculated from raw integer token units before conversion. This is an address-flow view for stored records, not a holder-balance ranking, owner attribution, or complete chain view unless indexed coverage spans the requested range.
