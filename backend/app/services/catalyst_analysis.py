@@ -86,6 +86,23 @@ def analyze_catalysts(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 ),
                 "expected_horizon": sorted({match["expected_horizon"] for match in matches}),
                 "heuristic_score": score,
+                "catalyst_score_0_100": None,
+                "catalyst_score_status": "NOT_ESTABLISHED",
+                "catalyst_score_components": {
+                    "catalyst_importance_25": None,
+                    "source_reliability_20": None,
+                    "surprise_factor_15": None,
+                    "observed_market_reaction_15": None,
+                    "adoption_or_demand_impact_10": None,
+                    "potential_duration_5": None,
+                    "news_momentum_5": None,
+                    "execution_probability_5": None,
+                },
+                "catalyst_score_limitation": (
+                    "The available RSS title/summary and keyword rules do not provide verified "
+                    "component observations for the requested weighted 0-100 score. The heuristic "
+                    "score is a triage rank only and is not converted into a weighted catalyst score."
+                ),
                 "matched_terms": matched_terms,
                 "bullish_context_terms": bullish_hits,
                 "bearish_context_terms": bearish_hits,
