@@ -370,7 +370,11 @@ def test_regime_bias_breakdown_reports_confidence_and_overlap_reliability():
         item["analyzed_at_ms"] = index * 1_000_000
         item["payload"] = {"evidence": [{
             "source": "MARKET_REGIME",
-            "detail": {"regime": "TREND"},
+            "detail": {
+                "regime": "TREND",
+                "volatility_regime": "HIGH",
+                "structure_regime": "EXPANSION",
+            },
         }]}
         rows.append(item)
 
@@ -424,3 +428,10 @@ def test_regime_bias_alignment_breakdown_separates_alignment_groups():
     assert grouped["BULLISH"]["ALIGNED"]["positive_fraction"] == 1.0
     assert grouped["BULLISH"]["ALIGNED"]["sample_size_status"] == "LOW_SAMPLE_SIZE"
     assert grouped["BULLISH"]["ALIGNED"]["positive_fraction_ci_95_wilson"] is not None
+
+    volatility = result["horizons"]["1"]["regime_bias_alignment_breakdown"]["volatility_regime"]["HIGH"]
+    structure = result["horizons"]["1"]["regime_bias_alignment_breakdown"]["structure_regime"]["EXPANSION"]
+    assert volatility["BULLISH"]["ALIGNED"]["sample_size"] == 2
+    assert volatility["BEARISH"]["CONFLICTING"]["sample_size"] == 2
+    assert structure["BULLISH"]["CONFLICTING"]["sample_size"] == 1
+    assert structure["BEARISH"]["ALIGNED"]["sample_size"] == 1
