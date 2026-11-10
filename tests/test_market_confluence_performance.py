@@ -58,3 +58,29 @@ def test_missing_future_candles_remain_pending():
     assert result["horizons"]["1"]["status"] == "INSUFFICIENT_FUTURE_DATA"
     assert result["horizons"]["1"]["pending_or_not_matured"] == 1
     assert result["horizons"]["1"]["directional_positive_fraction"] is None
+
+
+
+def test_all_seven_horizons_are_reported_and_one_month_is_30_days():
+    evaluator = MarketConfluencePerformance(SnapshotStore([]), KlineStore())
+    result = evaluator.evaluate("USD_M", "BTCUSDT", "1h", "1h", 10)
+    assert set(result["horizons"]) == {"1", "4", "24", "48", "72", "360", "720"}
+    assert result["horizons"]["360"]["horizon_days"] == 15
+    assert result["horizons"]["720"]["horizon_days"] == 30
+    assert result["method"]["one_month"].startswith("30 fixed days")
+
+
+def test_hourly_candles_are_the_default_resolution():
+    evaluator = MarketConfluencePerformance(SnapshotStore([]), KlineStore())
+    result = evaluator.evaluate("USD_M", "BTCUSDT")
+    assert result["price_interval"] == "1h"
+
+
+def test_one_minute_interval_rejected_for_long_horizon_query():
+    evaluator = MarketConfluencePerformance(SnapshotStore([]), KlineStore())
+    try:
+        evaluator.evaluate("USD_M", "BTCUSDT", price_interval="1m")
+    except ValueError as exc:
+        assert "price_interval" in str(exc)
+    else:
+        raise AssertionError("1m interval must be rejected to avoid truncating the 30-day candle window")
