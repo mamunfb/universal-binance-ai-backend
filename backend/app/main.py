@@ -406,6 +406,18 @@ async def cross_chain_token_intelligence(
                 concentration = {
                     "status": chain_snapshot["status"],
                     "snapshot_block": chain_snapshot.get("snapshot_block"),
+                    "snapshot_block_timestamp": chain_snapshot.get("snapshot_block_timestamp"),
+                    "snapshot_timestamp_status": chain_snapshot.get("snapshot_timestamp_status", "UNAVAILABLE"),
+                    "snapshot_block_time": (
+                        datetime.fromtimestamp(
+                            chain_snapshot["snapshot_block_timestamp"], timezone.utc
+                        ).isoformat()
+                        if chain_snapshot.get("snapshot_block_timestamp") is not None else None
+                    ),
+                    "snapshot_age_seconds": (
+                        max(0, int(datetime.now(timezone.utc).timestamp()) - chain_snapshot["snapshot_block_timestamp"])
+                        if chain_snapshot.get("snapshot_block_timestamp") is not None else None
+                    ),
                     "token": chain_snapshot.get("token"),
                     "verified_wallet_count": len(verified_wallets),
                     "queried_wallet_count": len(chain_snapshot.get("wallets", [])),
@@ -448,7 +460,11 @@ async def cross_chain_token_intelligence(
                     and concentration_status in {"COMPLETED", "EMPTY"}
                     else "INCOMPLETE"
                 ),
-                "freshness_note": "Snapshot block height is reported; wall-clock age cannot be determined because block timestamps are not fetched by this endpoint.",
+                "freshness_note": (
+                    "Snapshot age is calculated from the chain block timestamp and measured at API response time."
+                    if concentration.get("snapshot_timestamp_status") == "AVAILABLE"
+                    else "Block timestamp is unavailable from the RPC; snapshot age cannot be calculated."
+                ),
             },
             "chain_id": flow["chain_id"],
             "chain_name": flow.get("chain_name"),
