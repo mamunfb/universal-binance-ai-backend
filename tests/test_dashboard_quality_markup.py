@@ -83,3 +83,11 @@ def test_dashboard_displays_sample_gated_horizon_comparison_rankings():
     assert "ranking.ranked" in html
     assert "ranking.excluded" in html
     assert "historical descriptive comparisons" in html
+
+def test_dashboard_displays_historical_regime_performance_leaderboard():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "Historical performance leaderboard" in html
+    assert "historical_leaderboard" in html
+    assert "ranking.ranked" in html
+    assert "ranking.excluded" in html
+    assert "Groups are ranked within each horizon and regime dimension" in html
