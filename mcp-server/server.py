@@ -588,6 +588,27 @@ def analyze_order_flow_intelligence(
 
 
 @mcp.tool()
+def analyze_liquidity_sweep_confirmation(
+    market: str, symbol: str, interval: str = "5m", limit: int = 300,
+    equal_level_tolerance_bps: float = 8.0,
+) -> dict:
+    """Correlate local OHLC sweep candidates with nearby aggregate trades, sampled depth, OI and funding."""
+    if market not in {"SPOT", "USD_M", "COIN_M"}:
+        raise ValueError("market must be SPOT, USD_M or COIN_M")
+    if interval not in {"1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d"}:
+        raise ValueError("Unsupported candle interval")
+    if not 30 <= limit <= 1000:
+        raise ValueError("limit must be between 30 and 1000")
+    if not 0.1 <= equal_level_tolerance_bps <= 100:
+        raise ValueError("equal_level_tolerance_bps must be between 0.1 and 100")
+    return _get(
+        f"/api/v1/analysis/liquidity-sweep-confirmation/{market}/{quote(symbol.upper(), safe='')}",
+        {"interval": interval, "limit": limit,
+         "equal_level_tolerance_bps": equal_level_tolerance_bps},
+    )
+
+
+@mcp.tool()
 def analyze_multi_timeframe_order_flow(
     market: str, symbol: str,
     periods: str = "5m,15m,1h,4h,1d",
