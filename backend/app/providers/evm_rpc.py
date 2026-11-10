@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+import asyncio
 import math
 import httpx
 
@@ -10,13 +11,17 @@ TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523
 class EVMRPCProvider:
     """Minimal read-only JSON-RPC provider for EVM-compatible networks."""
 
-    def __init__(self, rpc_url: str, timeout_seconds: float = 20.0) -> None:
+    def __init__(self, rpc_url: str, timeout_seconds: float = 20.0,
+                 retry_attempts: int = 2) -> None:
         if not isinstance(rpc_url, str) or not rpc_url.startswith("https://"):
             raise ValueError("EVM RPC endpoint must use HTTPS")
         if isinstance(timeout_seconds, bool) or not isinstance(timeout_seconds, (int, float)) or not math.isfinite(timeout_seconds) or timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be a positive number")
+        if isinstance(retry_attempts, bool) or not isinstance(retry_attempts, int) or not 0 <= retry_attempts <= 3:
+            raise ValueError("retry_attempts must be an integer between 0 and 3")
         self.rpc_url = rpc_url
         self.timeout_seconds = float(timeout_seconds)
+        self.retry_attempts = retry_attempts
         self._request_id = 0
 
     async def _rpc(self, method: str, params: list[Any], client: httpx.AsyncClient | None = None) -> Any:
@@ -26,9 +31,20 @@ class EVMRPCProvider:
         if client is None:
             client = httpx.AsyncClient(timeout=httpx.Timeout(self.timeout_seconds))
         try:
-            response = await client.post(self.rpc_url, json=payload)
-            response.raise_for_status()
-            data = response.json()
+            for attempt in range(self.retry_attempts + 1):
+                try:
+                    response = await client.post(self.rpc_url, json=payload)
+                    response.raise_for_status()
+                    data = response.json()
+                    break
+                except httpx.HTTPStatusError as exc:
+                    status = exc.response.status_code
+                    if status not in (429, 500, 502, 503, 504) or attempt >= self.retry_attempts:
+                        raise
+                except httpx.TransportError:
+                    if attempt >= self.retry_attempts:
+                        raise
+                await asyncio.sleep(min(0.1 * (2 ** attempt), 0.5))
         finally:
             if owns_client:
                 await client.aclose()
