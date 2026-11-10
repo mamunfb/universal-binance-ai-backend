@@ -29,8 +29,8 @@ def test_detects_buy_side_sweep_and_aligned_trade_flow():
         if item["sweep_type"] == "BUY_SIDE_LIQUIDITY_SWEEP_CANDIDATE"
         and item["level"] == 105.0
     )
-    assert candidate["aggressor_flow"]["confirmation"] == "OPPOSING_AGGRESSOR_FLOW"
-    assert candidate["confirmation_status"] == "OHLC_ONLY_CANDIDATE"
+    assert candidate["aggressor_flow"]["confirmation"] == "ALIGNED_AGGRESSOR_FLOW"
+    assert candidate["confirmation_status"] == "SINGLE_SOURCE_CANDIDATE"
     assert candidate["volume_profile"]["status"] == "COMPLETED"
     assert candidate["volume_profile"]["poc"] is not None
 
