@@ -137,3 +137,22 @@ async def test_futures_scanner_rejects_malformed_upstream_shape():
     assert result["status"] == "FAILED"
     assert result["error_code"] == "UPSTREAM_INVALID_RESPONSE"
     assert result["results"] == []
+
+
+async def test_futures_scanner_includes_dated_contracts_by_default():
+    class AllContractProvider(FakeFuturesProvider):
+        async def all_24h_tickers(self):
+            return [
+                {"symbol": "AAAUSDT", "lastPrice": "12.5", "priceChangePercent": "2.0", "quoteVolume": "900000"},
+                {"symbol": "BBBUSD_260626", "lastPrice": "100", "priceChangePercent": "-1.0", "quoteVolume": "1200000"},
+            ]
+
+    result = await scan_futures_markets(AllContractProvider())
+    assert result["status"] == "COMPLETED"
+    assert result["quote_asset_filter"] is None
+    assert result["perpetual_only"] is False
+    assert result["total_available_contracts"] == 3
+    assert result["eligible_symbols"] == 2
+    assert result["scanned_symbols"] == 2
+    assert {row["contract_type"] for row in result["results"]} == {"PERPETUAL", "CURRENT_QUARTER"}
+    assert result["unique_underlying_count"] == 2
