@@ -118,6 +118,26 @@ def _get(path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
 
 
 @mcp.tool()
+def inspect_historical_kline_coverage(
+    market: str, symbol: str, interval: str,
+    start_time_ms: int, end_time_ms: int,
+) -> dict:
+    """Check whether every expected UTC candle open exists in local storage.
+
+    A COMPLETE result means only that the local store contains every expected
+    open time in the requested range; it is not an exchange completeness guarantee.
+    """
+    if market not in {"SPOT", "USD_M", "COIN_M"}:
+        raise ValueError("market must be SPOT, USD_M, or COIN_M")
+    if start_time_ms < 0 or end_time_ms < start_time_ms:
+        raise ValueError("Require 0 <= start_time_ms <= end_time_ms")
+    return _get(
+        f"/api/v1/history/klines/{market}/{quote(symbol.upper(), safe='')}/coverage",
+        {"interval": interval, "start_time_ms": start_time_ms, "end_time_ms": end_time_ms},
+    )
+
+
+@mcp.tool()
 def get_spot_klines(symbol: str, interval: str = "1h", limit: int = 100) -> dict:
     """Get read-only Binance Spot OHLCV candles for a symbol and interval."""
     if not 1 <= limit <= 1000:
