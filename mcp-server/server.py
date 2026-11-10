@@ -236,6 +236,21 @@ def get_stored_funding_rate_history(
 
 
 @mcp.tool()
+def analyze_combined_derivatives_intelligence(
+    symbol: str, period: str = "1h", limit: int = 100,
+) -> dict:
+    """Analyze exact timestamp intersections of stored OI, account ratio, taker ratio and funding context."""
+    if period not in {"5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "1d"}:
+        raise ValueError("Unsupported derivatives period")
+    if not 2 <= limit <= 500:
+        raise ValueError("limit must be between 2 and 500")
+    return _get(
+        f"/api/v1/analysis/derivatives/combined/{quote(symbol.upper(), safe='')}",
+        {"period": period, "limit": limit},
+    )
+
+
+@mcp.tool()
 def get_stored_derivatives_ratio_history(
     symbol: str, ratio_type: str, period: str = "1h",
     start_time_ms: int | None = None, end_time_ms: int | None = None,
