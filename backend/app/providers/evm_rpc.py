@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+import math
 import httpx
 
 TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
@@ -12,7 +13,7 @@ class EVMRPCProvider:
     def __init__(self, rpc_url: str, timeout_seconds: float = 20.0) -> None:
         if not isinstance(rpc_url, str) or not rpc_url.startswith("https://"):
             raise ValueError("EVM RPC endpoint must use HTTPS")
-        if isinstance(timeout_seconds, bool) or not isinstance(timeout_seconds, (int, float)) or timeout_seconds <= 0:
+        if isinstance(timeout_seconds, bool) or not isinstance(timeout_seconds, (int, float)) or not math.isfinite(timeout_seconds) or timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be a positive number")
         self.rpc_url = rpc_url
         self.timeout_seconds = float(timeout_seconds)
