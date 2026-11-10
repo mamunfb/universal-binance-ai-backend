@@ -28,6 +28,9 @@ def test_cross_chain_erc20_snapshot_pins_calls_to_observed_block(monkeypatch):
             return 1
         async def block_number(self):
             return 123
+        async def block_timestamp(self, block_number):
+            assert block_number == 123
+            return 1700000000
         async def eth_call(self, contract, data, block="latest"):
             calls.append((data[:10], block))
             if data == "0x18160ddd":
@@ -44,6 +47,8 @@ def test_cross_chain_erc20_snapshot_pins_calls_to_observed_block(monkeypatch):
     result = asyncio.run(cross_chain_erc20_snapshot(config, "usd-coin", [ADDRESS]))
     assert result["status"] == "COMPLETED"
     assert result["chains"][0]["snapshot_block"] == 123
+    assert result["chains"][0]["snapshot_block_timestamp"] == 1700000000
+    assert result["chains"][0]["snapshot_timestamp_status"] == "AVAILABLE"
     assert result["chains"][0]["wallets"][0]["balance_tokens"] == 2.5
     assert calls and all(block == "0x7b" for _, block in calls)
 
