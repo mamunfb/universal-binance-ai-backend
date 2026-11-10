@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 import hmac
 from datetime import datetime, timezone
+import json
 from typing import Literal
 from uuid import uuid4
 
@@ -80,35 +81,69 @@ async def request_tracking_middleware(request: Request, call_next):
 
     if request.url.path.startswith("/api/"):
         configured_key = settings.personal_api_key
-        if settings.app_env.lower() in {"production", "prod"} and len(configured_key) < 32:
+        try:
+            client_keys = json.loads(settings.ai_client_api_keys or "{}")
+            if not isinstance(client_keys, dict) or any(
+                not isinstance(name, str) or not isinstance(key, str)
+                for name, key in client_keys.items()
+            ):
+                raise ValueError("AI_CLIENT_API_KEYS must be a JSON object of client names to keys")
+        except (TypeError, ValueError, json.JSONDecodeError):
+            client_keys = None
+
+        production = settings.app_env.lower() in {"production", "prod"}
+        has_valid_client_keys = (
+            isinstance(client_keys, dict)
+            and all(
+                isinstance(client_keys.get(name), str) and len(client_keys[name]) >= 32
+                for name in ("chatgpt", "gemini", "manus")
+            )
+        )
+        if production and (
+            client_keys is None
+            or not has_valid_client_keys
+            and len(configured_key) < 32
+        ):
             response = JSONResponse(
                 status_code=503,
                 content=_error_payload(
                     "AUTH_NOT_CONFIGURED",
-                    "Private API authentication is not securely configured.",
+                    "Configure strong private API keys for all AI clients or a strong owner key.",
                     request_id=request_id,
                 ),
             )
             response.headers["X-Request-ID"] = request_id
             return response
 
-        if configured_key:
+        if configured_key or client_keys:
             authorization = request.headers.get("authorization", "")
             scheme, _, supplied_key = authorization.partition(" ")
-            if scheme.lower() != "bearer" or not supplied_key or not hmac.compare_digest(
-                supplied_key.encode("utf-8"), configured_key.encode("utf-8")
-            ):
+            matched_client = None
+            if scheme.lower() == "bearer" and supplied_key:
+                if isinstance(client_keys, dict):
+                    for client_name, client_key in client_keys.items():
+                        if hmac.compare_digest(
+                            supplied_key.encode("utf-8"), client_key.encode("utf-8")
+                        ):
+                            matched_client = client_name
+                            break
+                if configured_key and hmac.compare_digest(
+                    supplied_key.encode("utf-8"), configured_key.encode("utf-8")
+                ):
+                    matched_client = "owner"
+            if matched_client is None:
                 response = JSONResponse(
                     status_code=401,
                     content=_error_payload(
                         "UNAUTHORIZED",
-                        "A valid Bearer API key is required.",
+                        "A valid private Bearer API key is required.",
                         request_id=request_id,
                     ),
                     headers={"WWW-Authenticate": "Bearer"},
                 )
                 response.headers["X-Request-ID"] = request_id
                 return response
+            request.state.ai_client = matched_client
 
     response = await call_next(request)
     response.headers["X-Request-ID"] = request_id
