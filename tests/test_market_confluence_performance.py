@@ -266,3 +266,51 @@ def test_walk_forward_requires_four_snapshots():
     assert walk["status"] == "INSUFFICIENT_SNAPSHOTS"
     assert walk["fold_count"] == 0
     assert walk["test_directional_positive_fraction"] is None
+
+
+def test_wilson_interval_and_minimum_sample_warning_are_reported():
+    from app.services.market_confluence_performance import _directional_statistics
+
+    small = _directional_statistics([
+        {"directional_positive": True},
+        {"directional_positive": False},
+    ])
+    assert small["positive_fraction"] == 0.5
+    assert small["sample_size_status"] == "LOW_SAMPLE_SIZE"
+    assert small["minimum_sample_size"] == 30
+    interval = small["positive_fraction_ci_95_wilson"]
+    assert interval["method"] == "Wilson score interval, nominal 95%"
+    assert 0.09 < interval["lower"] < 0.10
+    assert 0.90 < interval["upper"] < 0.91
+
+    adequate = _directional_statistics(
+        [{"directional_positive": index < 15} for index in range(30)]
+    )
+    assert adequate["sample_size_status"] == "SAMPLE_SIZE_AT_LEAST_30"
+
+
+def test_zero_directional_samples_have_no_confidence_interval():
+    from app.services.market_confluence_performance import _directional_statistics
+
+    result = _directional_statistics([])
+    assert result["sample_size_status"] == "NO_DIRECTIONAL_SAMPLES"
+    assert result["positive_fraction"] is None
+    assert result["positive_fraction_ci_95_wilson"] is None
+
+
+def test_walk_forward_and_holdout_include_wilson_intervals():
+    rows = []
+    for index, bias in enumerate(
+        ["BULLISH", "BULLISH", "BEARISH", "BEARISH", "BULLISH", "BEARISH"], start=1
+    ):
+        item = snapshot(bias)
+        item["snapshot_id"] = f"ci-{index}"
+        item["analyzed_at_ms"] = index * 1_000_000
+        rows.append(item)
+    result = MarketConfluencePerformance(SnapshotStore(rows), KlineStore()).evaluate(
+        "USD_M", "BTCUSDT", "1h", "1h", 10
+    )
+    horizon = result["horizons"]["1"]
+    assert horizon["walk_forward"]["test_directional_positive_fraction_ci_95_wilson"] is not None
+    assert horizon["walk_forward"]["sample_size_status"] == "LOW_SAMPLE_SIZE"
+    assert horizon["out_of_sample"]["test_directional_positive_fraction_ci_95_wilson"] is not None
