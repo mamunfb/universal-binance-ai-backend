@@ -261,3 +261,12 @@ WebSocket stream or historical liquidity tracker. See
 - `get_stored_order_book_history` reads locally captured samples by market and symbol.
 - The collector is disabled by default. Enable it only on a persistent, single-process deployment with explicit `ORDER_BOOK_COLLECTOR_JOBS`.
 - History begins at deployment/enablement and is sampled periodically; it is not exchange-wide historical backfill.
+
+
+### Liquidity behavior and aggregate trade flow
+
+- `get_aggregate_trade_collector_status` reports the optional trade stream collector state.
+- `get_stored_aggregate_trades` reads locally stored public aggregate trades.
+- `analyze_liquidity_behavior` compares the latest two sampled order-book snapshots with trades in that interval and reports candidate liquidity withdrawal/absorption patterns.
+- Enable the aggregate-trade collector separately from the order-book collector. Both must be enabled for the same market/symbol to produce useful combined analysis.
+- Results are heuristic candidates only; no proof of spoofing, manipulation, or institutional activity is claimed.
