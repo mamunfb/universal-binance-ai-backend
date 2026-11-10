@@ -236,11 +236,25 @@ class EVMTransferStore:
                 "flow_direction": "NET_INFLOW" if net > 0 else "NET_OUTFLOW" if net < 0 else "NEUTRAL",
             })
         activity.sort(key=lambda item: abs(int(item["net_received_raw"])), reverse=True)
+        inflows = [item for item in activity if int(item["net_received_raw"]) > 0]
+        outflows = [item for item in activity if int(item["net_received_raw"]) < 0]
+        collective_net_raw = sum(int(item["net_received_raw"]) for item in activity)
+        cohort = {
+            "net_inflow_wallet_count": len(inflows),
+            "net_outflow_wallet_count": len(outflows),
+            "neutral_wallet_count": len(activity) - len(inflows) - len(outflows),
+            "collective_net_received_raw": str(collective_net_raw),
+            "collective_net_received_tokens": collective_net_raw / scale,
+            "direction": "NET_INFLOW" if collective_net_raw > 0 else "NET_OUTFLOW" if collective_net_raw < 0 else "NEUTRAL",
+            "inflow_wallet_addresses": [item["address"] for item in inflows],
+            "outflow_wallet_addresses": [item["address"] for item in outflows],
+        }
         return {
             "verified_smart_money_wallets_found": len(activity),
             "wallets": activity[:limit],
+            "cohort_summary": cohort,
             "matched_transfer_count": len(rows),
-            "warning": "Only operator-verified smart_money registry addresses are included. Metrics reflect stored ERC-20 Transfer logs in this block range, not portfolio holdings, intent, realized profit, or a prediction. Coverage must be checked separately.",
+            "warning": "Only operator-verified smart_money registry addresses are included. Cohort direction is a net sum of observed ERC-20 transfers among those addresses, not evidence of coordinated intent, exchange trading, portfolio holdings, realized profit, or a prediction. Coverage must be checked separately.",
         }
 
     def coverage(self, chain_id: int, contract: str) -> list[dict[str, Any]]:
