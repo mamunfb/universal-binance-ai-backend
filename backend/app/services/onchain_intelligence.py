@@ -139,6 +139,10 @@ async def analyze_erc20_activity(provider: EVMRPCProvider, contract: str, from_b
 
 
 async def get_evm_wallet_snapshot(provider: EVMRPCProvider, addresses: list[str]) -> dict[str, Any]:
+    if not isinstance(addresses, list):
+        raise ValueError("addresses must be a list of EVM wallet addresses")
+    for address in addresses:
+        _validate_evm_address(address)
     chain_id, block = await provider.chain_id(), await provider.block_number()
     try:
         block_timestamp = await provider.block_timestamp(block)
@@ -154,7 +158,8 @@ async def get_evm_wallet_snapshot(provider: EVMRPCProvider, addresses: list[str]
                              "native_balance": balance / 10**18, "status": "COMPLETED"})
         except Exception as exc:
             balances.append({"address": address.lower(), "status": "FAILED",
-                             "error": f"{type(exc).__name__}: {str(exc)[:250]}"})
+                             "error": "BALANCE_UNAVAILABLE",
+                             "error_type": type(exc).__name__})
     return {
         "status": "COMPLETED" if balances and all(x["status"] == "COMPLETED" for x in balances) else "INCOMPLETE",
         "generated_at": datetime.now(timezone.utc).isoformat(), "chain_id": chain_id,
