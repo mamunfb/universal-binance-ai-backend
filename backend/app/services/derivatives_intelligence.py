@@ -1,4 +1,5 @@
 import asyncio
+import math
 from datetime import datetime, timezone
 from typing import Any
 
@@ -7,18 +8,29 @@ from app.providers.binance_futures import BinanceFuturesProvider
 
 def _float(value: Any) -> float | None:
     try:
-        return float(value)
-    except (TypeError, ValueError):
+        if isinstance(value, bool):
+            return None
+        number = float(value)
+        return number if math.isfinite(number) else None
+    except (TypeError, ValueError, OverflowError):
         return None
 
 
 def summarize_order_book(book: dict[str, Any], levels: int = 20) -> dict[str, Any]:
-    bids = book.get("bids", [])[:levels]
-    asks = book.get("asks", [])[:levels]
-    parsed_bids = [(_float(row[0]), _float(row[1])) for row in bids if len(row) >= 2]
-    parsed_asks = [(_float(row[0]), _float(row[1])) for row in asks if len(row) >= 2]
-    parsed_bids = [(p, q) for p, q in parsed_bids if p is not None and q is not None]
-    parsed_asks = [(p, q) for p, q in parsed_asks if p is not None and q is not None]
+    raw_bids = book.get("bids", [])
+    raw_asks = book.get("asks", [])
+    bids = raw_bids[:levels] if isinstance(raw_bids, list) else []
+    asks = raw_asks[:levels] if isinstance(raw_asks, list) else []
+    parsed_bids = [
+        (_float(row[0]), _float(row[1]))
+        for row in bids if isinstance(row, (list, tuple)) and len(row) >= 2
+    ]
+    parsed_asks = [
+        (_float(row[0]), _float(row[1]))
+        for row in asks if isinstance(row, (list, tuple)) and len(row) >= 2
+    ]
+    parsed_bids = [(p, q) for p, q in parsed_bids if p is not None and q is not None and p > 0 and q > 0]
+    parsed_asks = [(p, q) for p, q in parsed_asks if p is not None and q is not None and p > 0 and q > 0]
 
     if not parsed_bids or not parsed_asks:
         return {
@@ -40,6 +52,21 @@ def summarize_order_book(book: dict[str, Any], levels: int = 20) -> dict[str, An
     best_ask = parsed_asks[0][0]
     midpoint = (best_bid + best_ask) / 2 if best_bid + best_ask else None
     spread = best_ask - best_bid
+    if best_ask <= best_bid:
+        return {
+            "status": "INCOMPLETE",
+            "levels_requested": levels,
+            "bid_levels_received": len(parsed_bids),
+            "ask_levels_received": len(parsed_asks),
+            "best_bid": best_bid,
+            "best_ask": best_ask,
+            "spread": None,
+            "spread_bps": None,
+            "bid_notional": None,
+            "ask_notional": None,
+            "depth_imbalance": None,
+            "note": "Invalid or crossed order book; spread and depth metrics withheld.",
+        }
     bid_notional = sum(price * quantity for price, quantity in parsed_bids)
     ask_notional = sum(price * quantity for price, quantity in parsed_asks)
     total = bid_notional + ask_notional
@@ -68,7 +95,8 @@ async def _capture(name: str, awaitable: Any) -> dict[str, Any]:
     try:
         return {"status": "COMPLETED", "data": await awaitable}
     except Exception as exc:
-        return {"status": "FAILED", "error": str(exc)}
+        return {"status": "FAILED", "error": "UPSTREAM_UNAVAILABLE",
+                "error_type": type(exc).__name__}
 
 
 async def get_derivatives_intelligence(
