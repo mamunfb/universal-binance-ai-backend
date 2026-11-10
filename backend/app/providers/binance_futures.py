@@ -31,6 +31,14 @@ class BinanceFuturesProvider:
             response.raise_for_status()
             return response.json()
 
+    async def price_ticker(self, symbol: str) -> dict[str, Any]:
+        if not symbol or not symbol.strip():
+            raise ValueError("symbol must not be empty")
+        data = await self._get(f"{self.prefix}/ticker/price", {"symbol": symbol.upper()})
+        if not isinstance(data, dict):
+            raise ValueError(f"Unexpected Binance {self.market} price ticker response")
+        return data
+
     async def exchange_info(self) -> dict[str, Any]:
         data = await self._get(f"{self.prefix}/exchangeInfo")
         if not isinstance(data, dict) or not isinstance(data.get("symbols"), list):
