@@ -14,6 +14,11 @@ class Settings(BaseSettings):
     historical_kline_database_path: str = "data/historical_klines.sqlite3"
     funding_rate_database_path: str = "data/funding_rates.sqlite3"
     open_interest_database_path: str = "data/open_interest.sqlite3"
+    derivatives_collector_enabled: bool = False
+    derivatives_collector_jobs: str = "[]"
+    derivatives_collector_poll_seconds: int = 60
+    derivatives_collector_funding_limit: int = 1000
+    derivatives_collector_open_interest_limit: int = 500
     historical_collector_enabled: bool = False
     historical_collector_jobs: str = "[]"
     historical_collector_poll_seconds: int = 30
