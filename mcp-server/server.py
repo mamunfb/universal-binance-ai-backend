@@ -42,6 +42,24 @@ BASE_URL, CLIENT_NAME, API_KEY = _load_credentials()
 mcp = FastMCP(f"Personal Crypto Intelligence ({CLIENT_NAME})")
 
 
+
+def _post(path: str, payload: dict[str, Any]) -> dict[str, Any]:
+    """Send an authenticated, fixed-path JSON request to the private API."""
+    try:
+        with httpx.Client(timeout=30.0) as client:
+            response = client.post(f"{BASE_URL}{path}", json=payload,
+                headers={"Authorization": f"Bearer {API_KEY}", "Accept": "application/json"})
+    except httpx.RequestError:
+        return {"status":"FAILED","error":{"code":"UPSTREAM_CONNECTION_ERROR","message":"The private API could not be reached."},"retryable":True}
+    try:
+        body=response.json()
+    except ValueError:
+        body=None
+    if not response.is_success:
+        return {"status":"FAILED","http_status":response.status_code,"response":body,"retryable":response.status_code in {429,502,503,504}}
+    return body if isinstance(body,dict) else {"status":"FAILED","error":{"code":"UPSTREAM_INVALID_RESPONSE"}}
+
+
 def _get(path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
     """Call a fixed read-only API path and preserve structured evidence and errors."""
     try:
@@ -585,6 +603,40 @@ def analyze_order_flow_intelligence(
     )
 
 
+
+
+
+@mcp.tool()
+def get_market_confluence_history(market: str, symbol: str, interval: str = "1h", limit: int = 100) -> dict:
+    """Read locally saved Market Structure + Order Flow confluence snapshots."""
+    if market not in {"SPOT","USD_M","COIN_M"} or not 1 <= limit <= 1000: raise ValueError("Invalid market or limit")
+    return _get(f"/api/v1/history/market-confluence/{market}/{quote(symbol.upper(),safe='')}",{"interval":interval,"limit":limit})
+
+
+@mcp.tool()
+def save_market_confluence_snapshot(
+    market: str, symbol: str, interval: str, analyzed_at_ms: int,
+    bias: str, alignment: str, reference_price: float | None = None,
+    reference_close_time_ms: int | None = None, evidence_json: str = "{}",
+) -> dict:
+    """Persist one descriptive snapshot for later outcome evaluation; no trade is placed."""
+    if market not in {"SPOT","USD_M","COIN_M"} or bias not in {"BULLISH","BEARISH","MIXED","UNKNOWN"}: raise ValueError("Invalid market or bias")
+    try: evidence=json.loads(evidence_json)
+    except json.JSONDecodeError as exc: raise ValueError("evidence_json must be valid JSON") from exc
+    payload={"market":market,"symbol":symbol.upper(),"interval":interval,"analyzed_at_ms":analyzed_at_ms,
+        "confluence":{"bias":bias,"alignment":alignment},
+        "reference":{"price":reference_price,"close_time_ms":reference_close_time_ms},"evidence":evidence}
+    return _post("/api/v1/history/market-confluence/snapshots",payload)
+
+
+@mcp.tool()
+def evaluate_market_confluence_performance(
+    market: str, symbol: str, interval: str = "1h", price_interval: str = "1m", limit: int = 200,
+) -> dict:
+    """Evaluate descriptive forward outcomes for saved confluence snapshots."""
+    if market not in {"SPOT","USD_M","COIN_M"} or not 1 <= limit <= 1000: raise ValueError("Invalid market or limit")
+    return _get(f"/api/v1/analysis/market-confluence-performance/{market}/{quote(symbol.upper(),safe='')}",
+        {"interval":interval,"price_interval":price_interval,"limit":limit})
 
 
 @mcp.tool()
