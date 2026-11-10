@@ -64,3 +64,39 @@ Response status:
 - `NO_STORED_DATA`: no expected candles exist in the requested range.
 
 The response includes expected/stored/missing counts, coverage ratio, gap start/end open times, and any stored timestamps that do not fit the expected interval grid. Requests are capped at 100,000 expected candles to bound work. This is a local database completeness check, not proof that the exchange history itself is complete or that every stored candle is final/authentic. Backtests should reject or explicitly account for any range whose coverage status is not `COMPLETE`.
+
+
+## Scheduled historical collector
+
+The optional background collector can poll an explicit allow-list of market/symbol/interval series and persist new candles into the same idempotent SQLite store. It is disabled by default.
+
+Configuration:
+
+```env
+HISTORICAL_KLINE_DATABASE_PATH=data/historical_klines.sqlite3
+HISTORICAL_COLLECTOR_ENABLED=true
+HISTORICAL_COLLECTOR_JOBS=[{"market":"SPOT","symbol":"BTCUSDT","interval":"1m"},{"market":"USD_M","symbol":"BTCUSDT","interval":"5m"},{"market":"COIN_M","symbol":"BTCUSD_PERP","interval":"1h"}]
+HISTORICAL_COLLECTOR_POLL_SECONDS=30
+HISTORICAL_COLLECTOR_INITIAL_LIMIT=500
+```
+
+The example jobs are illustrative only; confirm that each symbol is currently listed and tradable on the selected Binance market before enabling it. The job list is limited to 100 explicit series. Poll interval must be 10–3,600 seconds; initial limit must be 1–1,500 (Spot requests are capped at 1,000).
+
+On first run for a series, the collector stores the latest configured initial window. On later runs it requests from the newest locally stored candle open time (inclusive), intentionally overlapping the latest candle so an exchange candle that was still forming can be updated. If the process was offline long enough to miss more than one REST response page, subsequent cycles continue from the latest stored timestamp until caught up. Repeated overlapping requests are safe because storage is keyed by market, symbol, interval, and candle open time.
+
+Status endpoint:
+
+```http
+GET /api/v1/history/collector/status
+```
+
+The endpoint reports enabled/running state, configured jobs, cycle counts, last success, and per-job results. Failed jobs are recorded without stopping the other configured jobs.
+
+Operational constraints:
+- Enable only on an always-on process with persistent disk. Scale-to-zero services cannot provide continuous collection.
+- Run one collector process per SQLite database. Multiple replicas can race and duplicate upstream requests.
+- The collector is sequential, not a high-throughput bulk downloader. Keep the configured job list small and respect Binance request limits.
+- The initial window is not a full historical backfill. Older history must be loaded separately and checked with the coverage endpoint.
+- Collection is best-effort. Verify gaps with Historical Coverage Engine; do not assume every expected candle arrived.
+- The latest candle may be incomplete while its interval is open. The collector deliberately refreshes it; downstream backtests should exclude candles that were not closed at the evaluation timestamp.
+- This collector stores candles only. Funding-rate and open-interest history collectors are separate future work.
