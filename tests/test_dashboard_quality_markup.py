@@ -43,3 +43,8 @@ def test_dashboard_shows_collector_last_cycle_results_and_errors():
 def test_dashboard_displays_actual_source_period_when_reported():
     html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
     assert "x.period?'<p><b>Stored period:</b> '+escapeHtml(x.period)" in html
+
+def test_dashboard_displays_future_clock_skew_separately_from_age():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "Future clock skew (ms):" in html
+    assert "x.future_skew_ms??'—'" in html
