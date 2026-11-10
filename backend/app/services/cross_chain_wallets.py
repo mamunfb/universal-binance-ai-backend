@@ -79,7 +79,8 @@ async def cross_chain_native_wallet_snapshot(configs: list[dict[str, Any]],
             return {
                 "status": "COMPLETED" if all(w["status"] == "COMPLETED" for w in wallets) else "INCOMPLETE",
                 "chain_id": actual_chain_id, "chain_name": config["chain_name"],
-                "snapshot_block": block, "snapshot_block_timestamp": block_timestamp,
+                "snapshot_block": block, "snapshot_block_number": block,
+                "snapshot_block_timestamp": block_timestamp,
                 "snapshot_timestamp_status": timestamp_status,
                 "snapshot_block_time": (
                     datetime.fromtimestamp(block_timestamp, timezone.utc).isoformat()
