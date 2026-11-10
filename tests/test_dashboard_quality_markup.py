@@ -169,3 +169,13 @@ def test_dashboard_displays_observed_regime_transitions_and_manual_adaptation_st
     assert "regime_transition_analysis" in html
     assert "signal_adaptation_status" in html
     assert "Pre-transition outcomes closing at or after the change are excluded" in html
+
+
+def test_dashboard_escapes_dynamic_api_content_in_html_renderers():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "escapeHtml(x.source)" in html
+    assert "escapeHtml(x.direction||'NO DIRECTION')" in html
+    assert "escapeHtml(JSON.stringify(x.detail||{},null,2))" in html
+    assert "escapeHtml(JSON.stringify(r,null,2))" in html
+    assert "escapeHtml(x.snapshot_id.slice(0,10))" in html
+    assert "escapeHtml(h.label)" in html
