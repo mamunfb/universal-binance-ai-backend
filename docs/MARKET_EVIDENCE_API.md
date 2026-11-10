@@ -8,7 +8,7 @@ This read-only research endpoint combines the following existing sources for one
 
 - Binance Spot multi-timeframe trend structure (15m, 1h, 4h, 1d).
 - Latest Spot and USDⓈ-M Futures price basis and latest funding record.
-- USDⓈ-M open interest, global long/short account ratio, taker buy/sell ratio, and order-book snapshot.
+- USDⓈ-M current open interest and historical change across the returned sample, global long/short account ratio, taker buy/sell ratio, and order-book snapshot.
 - Spot 1h OHLCV-based VWAP, approximate volume profile, and rule-based market structure.
 - Configured RSS/Atom news catalyst triage and corroboration status.
 
@@ -28,7 +28,7 @@ News candidates are included for signal review only when their item-level verifi
 
 - Sources are requested concurrently and are not an atomic exchange snapshot; timestamps can differ.
 - The endpoint currently uses Binance Spot and USDⓈ-M Futures, not cross-exchange market breadth.
-- Funding, account ratios, taker ratios, open interest and order-book depth have distinct meanings and must not be collapsed into a single directional indicator.
+- Funding, account ratios, taker ratios, open-interest changes and order-book depth have distinct meanings and must not be collapsed into a single directional indicator. Open-interest growth alone does not identify whether new positions are long or short.
 - OHLCV volume profile assigns each candle's volume to a typical-price bin; it is an approximation, not trade-level volume-at-price.
 - News coverage is limited to configured feeds. Keyword rules and configured independent-source corroboration are triage aids, not factual guarantees or price-impact measurements.
 - Missing or incomplete evidence must not be interpreted as zero activity or as confirmation of a thesis.
