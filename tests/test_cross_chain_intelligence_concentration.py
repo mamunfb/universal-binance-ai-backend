@@ -58,7 +58,7 @@ def test_unified_intelligence_adds_verified_wallet_balance_concentration(monkeyp
     assert quality["balance_wallets_succeeded"] == 1
     assert quality["chain_result_status"] == "COMPLETED"
     assert "age is calculated from the chain block timestamp" in quality["freshness_note"]
-    assert result["data_quality_summary"]["successful_balance_snapshot_chains"] == 1
+    assert result["data_quality_summary"]["chains_with_successful_balance_snapshot"] == 1
 
 
 def test_unified_intelligence_refuses_biased_partial_wallet_snapshot(monkeypatch):
