@@ -35,6 +35,7 @@ from app.services.historical_klines import HistoricalKlineStore
 from app.services.funding_rates import FundingRateStore
 from app.services.open_interest import OpenInterestStore
 from app.services.derivatives_ratio_store import DerivativesRatioStore
+from app.services.combined_derivatives_intelligence import CombinedDerivativesIntelligence
 from app.services.derivatives_collector import DerivativesHistoryCollector
 from app.services.funding_open_interest_analysis import FundingOpenInterestAnalysis
 from app.services.advanced_derivatives_analysis import AdvancedDerivativesAnalysis, DerivativesSignalStore
@@ -1411,6 +1412,21 @@ async def collect_historical_open_interest(
             "status": "FAILED", "error": "OPEN_INTEREST_COLLECTION_UNAVAILABLE",
             "error_type": type(exc).__name__,
         }) from exc
+
+
+@app.get("/api/v1/analysis/derivatives/combined/{symbol}", tags=["analysis"])
+async def analyze_combined_derivatives_intelligence(
+    symbol: str,
+    period: Literal["5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "1d"] = "1h",
+    limit: int = Query(default=100, ge=2, le=500),
+) -> dict:
+    try:
+        engine = CombinedDerivativesIntelligence(
+            open_interest_store, funding_rate_store, derivatives_ratio_store
+        )
+        return await asyncio.to_thread(engine.analyze, symbol, period, limit)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @app.post("/api/v1/history/derivatives-ratios/USD_M/{ratio_type}/{symbol}/collect", tags=["history"])
