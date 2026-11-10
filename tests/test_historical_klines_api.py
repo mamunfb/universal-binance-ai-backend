@@ -42,7 +42,8 @@ def test_historical_kline_collection_sanitizes_upstream_failure(monkeypatch):
     monkeypatch.setattr(main, "get_spot_provider", lambda: BrokenSpot())
     response = client.post("/api/v1/history/klines/SPOT/BTCUSDT/collect")
     assert response.status_code == 502
-    assert response.json()["detail"]["error"] == "HISTORICAL_KLINE_COLLECTION_UNAVAILABLE"
+    assert response.json()["error"]["code"] == "UPSTREAM_ERROR"
+    assert "HISTORICAL_KLINE_COLLECTION_UNAVAILABLE" in str(response.json()["error"]["details"])
     assert "provider secret" not in response.text
 
 
