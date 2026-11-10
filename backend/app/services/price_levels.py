@@ -23,7 +23,7 @@ def _cluster_levels(points: list[tuple[float, int]], tolerance_pct: float) -> li
             None,
         )
         if match is None:
-            clusters.append({"prices": [price], "indices": [index]})
+            clusters.append({"prices": [price], "indices": [index], "price": price})
         else:
             match["prices"].append(price)
             match["indices"].append(index)
