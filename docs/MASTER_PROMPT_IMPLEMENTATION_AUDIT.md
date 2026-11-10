@@ -221,3 +221,42 @@ Before any further feature coding, inspect the implementation already written, c
 - Phase 02: **LOCKED**.
 - No later-phase feature was implemented or unlocked.
 - **Pre-Coding Full Audit: INCOMPLETE.** Confirmed in-scope correctness/security defects found in the inspected areas were fixed and regression-tested, but the exhaustive review of every existing service/module and local/deployment runtime state is not yet evidenced. Do not begin new Phase 01 feature implementation until the remaining audit coverage and limitations are resolved or explicitly accepted as blockers.
+
+
+## Continued audit checkpoint — scanner security and documentation review
+
+### Additional confirmed defect corrected
+3. **P2 — Spot scanner exception leakage.** `backend/app/services/market_scanner.py` returned `str(exc)` when the Spot provider failed. A configured custom endpoint or transport error could include a URL/query value in the exception text. The response now returns a stable `UPSTREAM_UNAVAILABLE` code, a fixed message and exception type only. Regression test `test_scan_reports_upstream_failure_without_fabricating_zero_market_result` now injects a token-bearing URL and asserts the token is not returned.
+- Code commit: `75bd2d3affa7877fcdd5be58ef5f524e33e9f71f`.
+- Regression test commit: `898b21e731ad15e9636ae401bb652abf03a2ea8d`.
+- GitHub Actions run `42926963128` on that code/test checkpoint: **SUCCESS**, dashboard JavaScript syntax passed, **525 passed, 2 warnings**.
+
+### Documentation contract corrections
+- `docs/API.md`: Spot scanner's omitted quote filter means all quote assets, not USDT only.
+- `docs/FUTURES_API.md`: default scan includes all active TRADING contract types, including dated contracts; perpetual-only is an explicit narrowing filter. COIN-M derived notional is explicitly distinguished from native exchange quote volume.
+- `README.md`: Futures scanner coverage description corrected to include currently trading perpetual and dated contracts.
+- Documentation commits: `f9b5fa24ae7621c753c1efdbfb92a526343b00de`, `91a73c713b6bb3a62352158fc0d357cb076ae08a`, `339788dae314ee22af4764fb5c487e7fe07c6f4d`.
+
+### Expanded repository inventory / audit evidence
+- Enumerated the recursive repository tree and inventoried all backend providers, service modules, 84 FastAPI route declarations, MCP tool registrations, configuration files, Dockerfile, CI workflow and test modules.
+- Reviewed market scanner/provider contracts and selected storage/collector paths, including SQLite validation/idempotency, environment configuration, API authentication/error handling, background-task lifecycle and MCP request handling.
+- The MCP server has one persistence action, `save_market_confluence_snapshot`, routed through POST to local SQLite. It does not place/cancel/modify trades or withdraw funds, but it means the MCP surface is not strictly read-only in the literal sense. **DEFERRED / architecture acceptance review:** decide whether this local snapshot-save action is acceptable under the final read-only MCP requirement or should be moved outside MCP.
+- **P2 / API resilience gap:** Spot and Futures REST provider adapters currently apply request timeouts but do not implement a shared retry/backoff or explicit rate-limit/Retry-After policy. Phase 01 must disclose upstream rate-limit outcomes and must not silently turn them into complete scans. The integration architecture acceptance item remains open.
+- `docs/FUTURES_API.md` previously claimed the COIN-M ticker exposed quote volume, while the implementation derives a notional proxy from baseVolume × lastPrice when quoteVolume is absent. Documentation now describes the derivation and unit caveat; this derived metric still needs explicit product acceptance and source/units evidence before being used for cross-market ranking.
+- Existing tests cover Spot/Futures scanner normal, missing-ticker, malformed-response and upstream-failure cases, but do not yet verify a per-symbol reason ledger, missing book ticker accounting, or all-symbol depth completeness.
+
+### Checks not run / still unverified
+- Ruff is declared as a dev dependency in `pyproject.toml`, but the checked-in GitHub Actions workflow runs only dashboard JavaScript syntax and pytest. Ruff was not run locally because this remote repository interface does not provide a local checkout or shell in the repository workspace.
+- Type checking and a dedicated security scanner are not configured in the workflow and were not executed.
+- Live Binance endpoint/rate-limit behavior and intended deployment persistence/clock synchronization remain unverified.
+- Remote GitHub operations cannot establish the user's local working-tree status; it remains UNVERIFIED.
+- The audit has inventoried the codebase and reviewed high-risk paths, but a line-by-line acceptance review of every existing analysis/storage service and all 84 routes is not yet complete.
+
+### Updated gate decision
+- Confirmed Spot exception leakage fix: **FIXED + regression-tested**.
+- Previous Futures Boolean validation and dashboard HTML escaping fixes remain **FIXED + regression-tested**.
+- Spot Phase 01: **IN_PROGRESS**.
+- Futures Phase 01: **IN_PROGRESS**.
+- Combined Phase 01: **INCOMPLETE**.
+- Phase 02: **LOCKED**.
+- Pre-Coding Full Audit: **INCOMPLETE**. Do not start new Phase 01 feature implementation until remaining code review, static/security checks and runtime limitations have been completed or explicitly recorded as accepted blockers.
