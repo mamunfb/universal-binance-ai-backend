@@ -73,3 +73,12 @@ The performance endpoint now evaluates seven fixed horizons from each saved snap
 The default comparison candle is 1h, so the endpoint compares the market using hourly OHLC candles. Optional resolutions are 15m, 30m, 2h, 4h, 6h, 8h, 12h and 1d. 1m, 3m and 5m are intentionally excluded because a 30-day query would exceed the local 5,000-candle history query limit and could silently truncate the early part of the comparison window.
 
 Each horizon reports sample count, pending observations, missing reference prices, directional-positive fraction, average directional return, favorable/adverse excursion, and candle continuity coverage. A horizon is not a completed observation until a local candle closes at or after its target time. Partial or gapped candle sequences are flagged and are not silently filled.
+
+
+## Snapshot Price Path API
+
+For one selected saved confluence snapshot, the dashboard can request a bounded local OHLC path:
+
+`GET /api/v1/history/market-confluence/{market}/{symbol}/{snapshot_id}/price-path?price_interval=1h&hours=720`
+
+The endpoint returns future candles, percentage change from the stored reference price, candle-continuity coverage, and a descriptive comparison between the saved BULLISH/BEARISH bias and the final observed market move. MIXED/UNKNOWN biases are not assigned a directional comparison. The dashboard defaults to 1-hour candles over up to 30 days; 15m, 30m, 2h and 4h are selectable. Only one selected snapshot is loaded at a time to bound response size. If the target horizon has not matured, the API reports a pending status rather than treating partial data as a completed outcome. Local candle gaps are reported and never interpolated. This is a descriptive historical visualization, not a strategy backtest or trading signal.
