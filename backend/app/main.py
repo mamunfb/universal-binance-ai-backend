@@ -528,7 +528,6 @@ async def evm_token_concentration(contract: str) -> dict:
     try:
         provider = get_evm_provider()
         chain_id = await provider.chain_id()
-        block_number = await provider.block_number()
         registry = load_wallet_registry(settings.evm_wallet_registry, chain_id)
         tracked = {
             f"{item.get('label', 'unknown')}:{item.get('entity_name') or item['address']}": item["address"]
@@ -559,7 +558,11 @@ async def evm_token_concentration(contract: str) -> dict:
         return {
             "status": snapshot["status"],
             "chain_id": chain_id,
-            "snapshot_block_number": block_number,
+            "snapshot_block_number": snapshot["snapshot_block"],
+            "snapshot_block_timestamp": snapshot["snapshot_block_timestamp"],
+            "snapshot_timestamp_status": snapshot["snapshot_timestamp_status"],
+            "snapshot_block_time": snapshot["snapshot_block_time"],
+            "snapshot_age_seconds": snapshot["snapshot_age_seconds"],
             "snapshot_at": datetime.now(timezone.utc).isoformat(),
             "token": snapshot["token"],
             "tracked_wallet_concentration": concentration,
@@ -568,7 +571,7 @@ async def evm_token_concentration(contract: str) -> dict:
             "tracked_addresses_combined_balance_tokens": snapshot["tracked_addresses_combined_balance_tokens"],
             "tracked_addresses_combined_share_of_total_supply_pct": snapshot["tracked_addresses_combined_share_of_total_supply_pct"],
             "registry_status": registry["status"],
-            "warning": "Only verified operator-registry addresses are included. This is not a complete holder ranking or full token concentration analysis. Balance calls may be served at different latest blocks by the RPC; snapshot_block_number is the block observed before calls began.",
+            "warning": "Only verified operator-registry addresses are included. This is not a complete holder ranking or full token concentration analysis. All token metadata, supply, and tracked balances are read at the same pinned block; timestamp-derived freshness is unavailable if the RPC does not return block metadata.",
         }
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
