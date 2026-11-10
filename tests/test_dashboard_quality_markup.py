@@ -161,3 +161,12 @@ def test_dashboard_displays_chronological_regime_degradation_screen():
     assert "POTENTIAL_DEGRADATION_SCREEN" in html
     assert "positive_fraction_change_percentage_points" in html
     assert "not a significance test" in html
+
+
+def test_dashboard_displays_observed_regime_transitions_and_manual_adaptation_status():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "Observed regime transitions" in html
+    assert "regime_transition_analysis" in html
+    assert "POTENTIAL_POST_TRANSITION_DEGRADATION" in html
+    assert "MANUAL_REVIEW_ONLY" in html
+    assert "Pre-transition outcomes closing at or after the change are excluded" in html
