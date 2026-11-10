@@ -188,3 +188,65 @@ async def test_open_interest_history_rejects_invalid_limit(monkeypatch, limit):
     monkeypatch.setattr("app.providers.binance_futures.httpx.AsyncClient", fail_if_called)
     with pytest.raises(ValueError, match="limit"):
         await BinanceFuturesProvider("USD_M").open_interest_history("BTCUSDT", limit=limit)
+
+
+@pytest.mark.parametrize(
+    ("market", "expected_base", "prefix"),
+    [
+        ("USD_M", "https://fapi.binance.com", "/fapi/v1"),
+        ("COIN_M", "https://dapi.binance.com", "/dapi/v1"),
+    ],
+)
+async def test_premium_index_and_funding_info_use_market_specific_public_endpoints(
+    monkeypatch, market, expected_base, prefix
+):
+    clients = []
+
+    class MetadataClient(FakeAsyncClient):
+        async def get(self, path, params=None):
+            self.calls.append((path, params))
+            if path.endswith("/premiumIndex"):
+                return FakeResponse({
+                    "symbol": "BTCUSDT" if market == "USD_M" else "BTCUSD_PERP",
+                    "markPrice": "101", "indexPrice": "100",
+                    "lastFundingRate": "0.0001", "nextFundingTime": 1700000000000,
+                    "time": 1699999999000,
+                })
+            return FakeResponse([{
+                "symbol": "BTCUSDT" if market == "USD_M" else "BTCUSD_PERP",
+                "fundingIntervalHours": 4,
+            }])
+
+    def client_factory(**kwargs):
+        client = MetadataClient(**kwargs)
+        clients.append(client)
+        return client
+
+    monkeypatch.setattr("app.providers.binance_futures.httpx.AsyncClient", client_factory)
+    provider = BinanceFuturesProvider(market)
+    premium = await provider.premium_index("btcusdt" if market == "USD_M" else "btcusd_perp")
+    funding = await provider.funding_info()
+
+    assert clients[0].kwargs["base_url"] == expected_base
+    assert clients[0].calls == [
+        (f"{prefix}/premiumIndex", {"symbol": "BTCUSDT" if market == "USD_M" else "BTCUSD_PERP"}),
+    ]
+    assert premium["markPrice"] == "101"
+    assert funding[0]["fundingIntervalHours"] == 4
+
+
+async def test_coinm_funding_history_uses_coinm_endpoint(monkeypatch):
+    clients = []
+
+    class FundingClient(FakeAsyncClient):
+        async def get(self, path, params=None):
+            self.calls.append((path, params))
+            return FakeResponse([{"symbol": "BTCUSD_PERP", "fundingRate": "0.0001"}])
+
+    monkeypatch.setattr(
+        "app.providers.binance_futures.httpx.AsyncClient",
+        lambda **kwargs: clients.append(FundingClient(**kwargs)) or clients[-1],
+    )
+    result = await BinanceFuturesProvider("COIN_M").funding_rate("BTCUSD_PERP")
+    assert result[0]["fundingRate"] == "0.0001"
+    assert clients[0].calls[0][0] == "/dapi/v1/fundingRate"
