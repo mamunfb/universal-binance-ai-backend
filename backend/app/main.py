@@ -32,6 +32,7 @@ from app.services.catalyst_analysis import analyze_catalysts
 from app.services.trade_risk import build_trade_risk_plan
 from app.services.signal_lifecycle import build_signal_lifecycle
 from app.services.research_readiness import build_phase_readiness
+from app.services.qualification_gates import evaluate_qualification_gates
 from app.providers.evm_rpc import EVMRPCProvider
 from app.services.onchain_intelligence import analyze_erc20_activity, get_evm_wallet_snapshot, get_erc20_token_snapshot
 from app.services.evm_transfer_store import EVMTransferStore, index_erc20_transfer_history
@@ -1871,6 +1872,14 @@ async def market_evidence_snapshot(symbol: str) -> dict:
     return build_market_evidence_snapshot(
         normalized, multi, basis, derivatives, volume, catalysts
     )
+
+
+@app.post("/api/v1/analysis/qualification-gates", tags=["analysis"])
+async def qualification_gates(payload: dict[str, Any] = Body(...)) -> dict:
+    try:
+        return evaluate_qualification_gates(**payload)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @app.post("/api/v1/analysis/signal-lifecycle", tags=["analysis"])
