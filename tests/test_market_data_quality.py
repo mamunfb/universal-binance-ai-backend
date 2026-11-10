@@ -99,5 +99,5 @@ def test_current_open_candle_is_in_progress_not_stale(tmp_path):
     )
     source = result["sources"]["historical_klines"]
     assert source["freshness"] == "IN_PROGRESS"
-    assert source["status"] == "HEALTHY"
+    assert source["status"] == "DEGRADED"
     assert source["time_until_close_ms"] == 29_999
