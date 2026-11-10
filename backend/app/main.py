@@ -1334,7 +1334,7 @@ async def get_market_confluence_history(
 @app.get("/api/v1/analysis/market-confluence-performance/{market}/{symbol}", tags=["analysis"])
 async def evaluate_market_confluence_performance(
     market: Literal["SPOT", "USD_M", "COIN_M"], symbol: str,
-    interval: str = "1h", price_interval: str = "1m",
+    interval: str = "1h", price_interval: str = "1h",
     limit: int = Query(default=200, ge=1, le=1000),
 ) -> dict:
     try:
