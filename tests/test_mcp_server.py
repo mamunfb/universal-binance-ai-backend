@@ -76,6 +76,24 @@ def test_rejects_insecure_production_url(monkeypatch):
         _execute_server_module()
 
 
+def test_stored_funding_history_tool_uses_read_only_api_route(monkeypatch):
+    server = _load_server(monkeypatch)
+    captured = {}
+
+    def fake_get(path, params=None):
+        captured["path"] = path
+        captured["params"] = params
+        return {"status": "COMPLETED", "events": []}
+
+    monkeypatch.setattr(server, "_get", fake_get)
+    result = server.get_stored_funding_rate_history(
+        "btcusdt", start_time_ms=100, end_time_ms=200, limit=25
+    )
+    assert result["status"] == "COMPLETED"
+    assert captured["path"] == "/api/v1/history/funding-rates/USD_M/BTCUSDT"
+    assert captured["params"] == {"start_time_ms": 100, "end_time_ms": 200, "limit": 25}
+
+
 def test_rejects_invalid_token_limits(monkeypatch):
     server = _load_server(monkeypatch)
     with pytest.raises(ValueError, match="limit"):
