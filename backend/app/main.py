@@ -1084,6 +1084,61 @@ async def coinm_market_scan(
     return result
 
 
+@app.get("/api/v1/markets/futures/scan-all", tags=["markets"])
+async def all_futures_market_scan(
+    min_quote_volume: float = Query(default=0.0, ge=0.0),
+    perpetual_only: bool = False,
+) -> dict:
+    """Scan USDⓈ-M and COIN-M contract universes and report combined coverage."""
+    usdm, coinm = await asyncio.gather(
+        scan_futures_markets(
+            get_futures_provider("USD_M"), quote_asset=None,
+            min_quote_volume=min_quote_volume, perpetual_only=perpetual_only,
+        ),
+        scan_futures_markets(
+            get_futures_provider("COIN_M"), quote_asset=None,
+            min_quote_volume=min_quote_volume, perpetual_only=perpetual_only,
+        ),
+    )
+    by_asset: dict[str, list[dict]] = {}
+    for market_result in (usdm, coinm):
+        for contract in market_result.get("results", []):
+            base = str(contract.get("base_asset") or contract.get("symbol") or "UNKNOWN")
+            by_asset.setdefault(base, []).append({
+                "market": contract.get("market"),
+                "symbol": contract.get("symbol"),
+                "contract_type": contract.get("contract_type"),
+                "margin_asset": contract.get("margin_asset"),
+                "quote_asset": contract.get("quote_asset"),
+                "quote_volume_24h": contract.get("quote_volume_24h"),
+            })
+    unique_coins = [
+        {"base_asset": base, "contracts": contracts}
+        for base, contracts in sorted(by_asset.items())
+    ]
+    statuses = (usdm.get("status"), coinm.get("status"))
+    return {
+        "status": "COMPLETED" if all(value == "COMPLETED" for value in statuses) else "INCOMPLETE",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "source": "Binance USDⓈ-M and COIN-M public Futures REST APIs",
+        "perpetual_only": perpetual_only,
+        "total_available_contracts": (
+            usdm.get("total_available_contracts", 0) + coinm.get("total_available_contracts", 0)
+        ),
+        "eligible_contracts": usdm.get("eligible_symbols", 0) + coinm.get("eligible_symbols", 0),
+        "successfully_scanned_contracts": usdm.get("scanned_symbols", 0) + coinm.get("scanned_symbols", 0),
+        "failed_contracts": usdm.get("failed_symbols", 0) + coinm.get("failed_symbols", 0),
+        "unique_underlying_count": len(unique_coins),
+        "unique_underlyings": unique_coins,
+        "markets": {"USD_M": usdm, "COIN_M": coinm},
+        "coverage_warning": (
+            "Coverage is combined across both contract families. Contracts remain separately identified; "
+            "this endpoint does not choose a primary contract because comparable order-book spread, depth, "
+            "funding and execution suitability must be checked before selecting one."
+        ),
+    }
+
+
 @app.get("/api/v1/markets/futures/usdm/klines/{symbol}", tags=["markets"])
 async def usdm_klines(
     symbol: str,
