@@ -107,7 +107,7 @@ The smart-money endpoint accepts optional `window_blocks` (default 1000) and ret
 
 GET /api/v1/onchain/evm/token/{contract}/concentration
 
-Reads the ERC-20 total supply and balances for verified addresses in the operator registry, then groups the observed balances by registry label (for example `smart_money`, `exchange`, `fund`). The response includes a block number observed before balance calls begin, snapshot time, per-group balance and percentage of total supply, plus failed balance calls. The underlying RPC calls use the provider's latest-state `eth_call`; unless the provider supports a pinned block tag in a future implementation, balances are not guaranteed to be from one atomic block snapshot. Only up to 50 registry addresses are supported by the existing snapshot service. This is not a full holder ranking or complete token concentration metric.
+Reads the ERC-20 total supply and balances for verified addresses in the operator registry, then groups the observed balances by registry label (for example `smart_money`, `exchange`, `fund`). The response includes the pinned snapshot block, optional block timestamp and age, per-group balance and percentage of total supply, plus failed balance calls. Token metadata, supply, and all tracked balances are read at the same explicit block tag. If the RPC cannot return block metadata, the snapshot remains usable while timestamp-derived freshness is marked unavailable. Only up to 50 registry addresses are supported by the existing snapshot service. This is not a full holder ranking or complete token concentration metric.
 
 ### Cross-chain native wallet snapshots
 
