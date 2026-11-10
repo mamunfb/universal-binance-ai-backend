@@ -101,7 +101,23 @@ Do not declare the project complete merely because Phase 20 code exists. After S
 - Document deployment/configuration, secrets setup, API limits, provider dependencies, monitoring, recovery, known limitations and safe usage.
 - Only then mark overall project COMPLETE and create the final closure record/release.
 
-## 3. Mandatory phase gate — no exceptions
+## 3. Mandatory pre-coding audit of existing implementation
+
+Before adding any new feature code in every coding session, audit the work already present in the repository. This applies at initial project start and every restart.
+
+1. Map and inspect the existing architecture and code relevant to the project: providers, scanners, services, routes, schemas, configuration, persistence, background jobs, MCP interface, tests and security-sensitive components.
+2. Compare the current implementation with both canonical prompts, this complete scope, the current phase checklist, API documentation/contracts and previously accepted evidence.
+3. Run available existing tests and relevant lint, type, static analysis, import/build and security checks. Inspect actual failures and warnings; old CI success is not proof of current correctness.
+4. Search for incorrect business logic/formulas/units, Spot-Futures mixing, incorrect API assumptions, incomplete market coverage, silent skips, missing failure ledgers, stale data represented as live, timestamp/timezone errors, unsafe defaults, credential leakage, race conditions, unhandled errors, contract mismatches and inadequate regression coverage.
+5. Create an audit finding for each issue: severity, affected file/component and line where possible, reproducible evidence, impact, classification (confirmed defect or suspected risk), and recommended action.
+6. Fix confirmed defects before new feature coding when they affect the current authorized phase, shared foundations, security, data integrity or already accepted functionality. Add regression tests where practical and rerun affected checks.
+7. Do not use the audit to bypass phase locks. A defect exclusively belonging to a locked later-phase feature must be documented as DEFERRED / PHASE N LOCKED, not implemented early. Fix a later-area defect only when it is necessary to protect current-phase correctness, security or data integrity; explain the justification in the audit.
+8. If a fix needs unavailable credentials, provider access, data or clarification, mark it BLOCKED with the exact resolution needed. Do not invent a workaround or change code speculatively.
+9. New current-phase feature coding may begin only after the pre-coding audit is complete, confirmed in-scope defects are fixed or explicitly blocked, and regression checks are reviewed.
+
+Every session's audit record must state inspected areas, commands/checks and actual results, confirmed defects, corrections, regression tests, suspected risks, deferred later-phase findings, blockers and whether the audit gate is COMPLETE or INCOMPLETE.
+
+## 4. Mandatory phase gate — no exceptions
 
 For each phase number N:
 1. Read the canonical SPOT and FUTURES requirements for phase N.
@@ -119,7 +135,7 @@ No skipping, parallel phase advancement, inferred completion, phase merging or p
 Later-phase code may be inspected for dependencies, but must not be enhanced as later-phase implementation before its paired phase is authorized. Only changes strictly necessary for the current phase are allowed.
 If blocked, record exact missing API/provider/credential/data/decision and the smallest required resolution. Do not silently bypass the blocker.
 
-## 4. Paired phase ledger — source of truth for resume
+## 5. Paired phase ledger — source of truth for resume
 
 | Phase | SPOT | FUTURES | Combined | Next phase |
 |---|---|---|---|---|
@@ -146,7 +162,7 @@ If blocked, record exact missing API/provider/credential/data/decision and the s
 
 Ledger note: Phase 01 detailed outstanding criteria and evidence are maintained in docs/MASTER_PROMPT_IMPLEMENTATION_AUDIT.md. The audit and this ledger must be updated after every accepted work increment. Do not mark any checkbox complete without code/test/evidence references.
 
-## 5. Phase completion evidence template
+## 6. Phase completion evidence template
 
 For each market-specific phase record:
 - Canonical prompt file and exact phase heading/subheading.
@@ -162,16 +178,17 @@ For each market-specific phase record:
 - Reviewer decision: ACCEPTED or NOT ACCEPTED.
 - Commit SHA and PR link.
 
-## 6. Repository workflow and restart procedure
+## 7. Repository workflow and restart procedure
 - Work on the existing audit branch / pull request unless the user explicitly directs otherwise.
 - Keep canonical prompt files unchanged unless the user explicitly supplies a replacement.
 - Keep this scope file, paired ledger and implementation audit synchronized.
 - At the start of every resumed coding session, read both canonical prompts first, then this scope, then the implementation audit/ledger, then inspect current branch, commits, CI and working tree.
+- Before any new feature coding, complete the mandatory audit in Section 3: inspect the code written so far, verify correctness against the specifications, fix confirmed in-scope errors, add regression tests and record deferred/blocked findings.
 - Determine the earliest phase not COMPLETE in both markets. Resume that exact phase and market sequence; never trust conversational memory over repository state.
 - Before editing, state the current phase, Spot/Futures statuses, exact next task and acceptance evidence.
 - After editing, run appropriate tests, update ledger/audit, commit to the work branch and report verified links/results. Do not merge or modify main without explicit authorization.
 
-## 7. Current restart checkpoint
+## 8. Current restart checkpoint
 - Current branch: work/dual-master-prompt-audit
 - Current PR: https://github.com/mamunfb/universal-binance-ai-backend/pull/1 (draft)
 - Current active phase: Phase 01 only.
@@ -182,5 +199,6 @@ For each market-specific phase record:
 - Phase 16 experimental code described in earlier audit history was reverted/deferred; do not reintroduce it before paired Phase 16 authorization.
 - main branch has not been changed by this workstream.
 
-## 8. Change log
+## 9. Change log
 - 1.0: Establish complete project scope from pre-phase configuration/global/API architecture through all 20 paired phases, post-phase protocols, research quality, execution safety, activation/revalidation and final closure. Establish restart contract and full paired ledger.
+- 1.1: Add a mandatory pre-coding audit gate requiring review of existing implementation, correction of confirmed in-scope defects, regression testing, and explicit deferral of locked later-phase work.
