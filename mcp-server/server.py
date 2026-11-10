@@ -380,6 +380,24 @@ def get_liquidation_collector_status() -> dict:
 
 
 @mcp.tool()
+def analyze_order_book_liquidity(
+    market: str, symbol: str, limit: int = 100, wall_multiplier: float = 3.0,
+) -> dict:
+    """Read a Binance order-book snapshot and calculate visible liquidity metrics."""
+    if market not in {"SPOT", "USD_M", "COIN_M"}:
+        raise ValueError("Unsupported market")
+    allowed = {1, 5, 10, 20, 50, 100, 500, 1000} if market == "SPOT" else {5, 10, 20, 50, 100, 500, 1000}
+    if limit not in allowed:
+        raise ValueError("Unsupported order book limit for market")
+    if not 1 <= wall_multiplier <= 20:
+        raise ValueError("wall_multiplier must be between 1 and 20")
+    return _get(
+        f"/api/v1/analysis/order-book/{market}/{quote(symbol.upper(), safe='')}",
+        {"limit": limit, "wall_multiplier": wall_multiplier},
+    )
+
+
+@mcp.tool()
 def analyze_smart_money_market_structure(
     market: str, symbol: str, interval: str = "1h", limit: int = 300,
     swing_left: int = 3, swing_right: int = 3,
