@@ -15,7 +15,13 @@ def _validate_evm_address(address: str) -> None:
 
 
 def _topic_address(topic: str) -> str | None:
-    if not isinstance(topic, str) or len(topic) != 66:
+    if not isinstance(topic, str) or len(topic) != 66 or not topic.startswith("0x"):
+        return None
+    try:
+        int(topic[2:], 16)
+    except ValueError:
+        return None
+    if topic[2:26] != "0" * 24:
         return None
     return "0x" + topic[-40:].lower()
 
@@ -31,10 +37,13 @@ async def analyze_erc20_activity(provider: EVMRPCProvider, contract: str, from_b
                                  exchange_addresses: dict[str, str] | None = None,
                                  whale_threshold_tokens: float = 100_000,
                                  max_block_span: int = 2000) -> dict[str, Any]:
-    if not 0 <= decimals <= 36:
-        raise ValueError("decimals must be between 0 and 36")
-    if whale_threshold_tokens < 0:
-        raise ValueError("whale_threshold_tokens cannot be negative")
+    _validate_evm_address(contract)
+    if isinstance(decimals, bool) or not isinstance(decimals, int) or not 0 <= decimals <= 36:
+        raise ValueError("decimals must be an integer between 0 and 36")
+    if (isinstance(whale_threshold_tokens, bool) or
+            not isinstance(whale_threshold_tokens, (int, float)) or
+            not __import__("math").isfinite(whale_threshold_tokens) or whale_threshold_tokens < 0):
+        raise ValueError("whale_threshold_tokens must be a finite non-negative number")
     if from_block < 0 or to_block < from_block:
         raise ValueError("Invalid block range")
     if to_block - from_block + 1 > max_block_span:
@@ -47,14 +56,30 @@ async def analyze_erc20_activity(provider: EVMRPCProvider, contract: str, from_b
     address_activity: dict[str, dict[str, int]] = {}
     total_raw = whale_count = exchange_in_raw = exchange_out_raw = 0
     exchange_flows: dict[str, dict[str, float]] = {}
+    malformed_log_count = 0
     for log in logs:
-        topics = log.get("topics") or []
-        if len(topics) < 3:
+        if not isinstance(log, dict):
+            malformed_log_count += 1
+            continue
+        topics = log.get("topics")
+        if (not isinstance(topics, list) or len(topics) != 3 or
+                topics[0] != "0x" + TRANSFER_TOPIC[2:].lower()):
+            malformed_log_count += 1
             continue
         sender, recipient = _topic_address(topics[1]), _topic_address(topics[2])
         if not sender or not recipient:
+            malformed_log_count += 1
             continue
-        raw_value = _hex_int(log.get("data"))
+        try:
+            data = log.get("data")
+            if not isinstance(data, str) or len(data) != 66:
+                raise ValueError("Transfer data must be a 32-byte hex word")
+            raw_value = _hex_int(data)
+            block_number = _hex_int(log["blockNumber"]) if log.get("blockNumber") is not None else None
+            log_index = _hex_int(log["logIndex"]) if log.get("logIndex") is not None else None
+        except (KeyError, TypeError, ValueError):
+            malformed_log_count += 1
+            continue
         amount = raw_value / (10 ** decimals)
         total_raw += raw_value
         address_activity.setdefault(sender, {"sent_raw": 0, "received_raw": 0, "transfer_count": 0})["sent_raw"] += raw_value
@@ -72,8 +97,8 @@ async def analyze_erc20_activity(provider: EVMRPCProvider, contract: str, from_b
             exchange_flows.setdefault(from_exchange, {"inflow": 0.0, "outflow": 0.0})["outflow"] += amount
         transfers.append({
             "transaction_hash": log.get("transactionHash"),
-            "block_number": _hex_int(log["blockNumber"]) if log.get("blockNumber") else None,
-            "log_index": _hex_int(log["logIndex"]) if log.get("logIndex") else None,
+            "block_number": block_number,
+            "log_index": log_index,
             "from_address": sender, "to_address": recipient,
             "amount_raw": str(raw_value), "amount_tokens": amount,
             "whale_candidate": is_whale,
@@ -81,9 +106,11 @@ async def analyze_erc20_activity(provider: EVMRPCProvider, contract: str, from_b
         })
     scale = 10 ** decimals
     return {
-        "status": "COMPLETED", "generated_at": datetime.now(timezone.utc).isoformat(),
+        "status": "INCOMPLETE" if malformed_log_count else "COMPLETED",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
         "contract_address": contract.lower(), "block_range": {"from": from_block, "to": to_block},
         "decimals": decimals, "transfer_count": len(transfers),
+        "malformed_log_count": malformed_log_count,
         "total_transfer_volume_tokens": total_raw / scale, "whale_candidate_count": whale_count,
         "exchange_flow": {
             "configured_labeled_address_count": len(labels),
