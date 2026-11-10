@@ -257,6 +257,58 @@ class EVMTransferStore:
             "warning": "Only operator-verified smart_money registry addresses are included. Cohort direction is a net sum of observed ERC-20 transfers among those addresses, not evidence of coordinated intent, exchange trading, portfolio holdings, realized profit, or a prediction. Coverage must be checked separately.",
         }
 
+    def smart_money_accumulation_trend(self, chain_id: int, contract: str,
+                                       from_block: int, to_block: int, decimals: int,
+                                       registry: dict[str, Any], window_blocks: int = 1000) -> dict[str, Any]:
+        if not 1 <= window_blocks <= 1_000_000:
+            raise ValueError("window_blocks must be between 1 and 1000000")
+        if not 0 <= decimals <= 36:
+            raise ValueError("decimals must be between 0 and 36")
+        verified = {
+            item["address"] for item in registry.get("wallets", [])
+            if item.get("label") == "smart_money" and item.get("verification_status") == "verified"
+        }
+        with sqlite3.connect(self.database_path) as connection:
+            rows = connection.execute("""
+                SELECT from_address, to_address, amount_raw, block_number
+                FROM evm_transfer_logs
+                WHERE chain_id=? AND contract_address=? AND block_number BETWEEN ? AND ? AND removed=0
+                ORDER BY block_number
+            """, (chain_id, contract.lower(), from_block, to_block)).fetchall()
+        bins: dict[int, dict[str, Any]] = {}
+        cumulative_raw = 0
+        scale = 10 ** decimals
+        for sender, recipient, amount_text, block in rows:
+            raw = int(amount_text)
+            net = (raw if recipient in verified else 0) - (raw if sender in verified else 0)
+            if not net:
+                continue
+            window_start = from_block + ((block - from_block) // window_blocks) * window_blocks
+            item = bins.setdefault(window_start, {"from_block": window_start,
+                "to_block": min(window_start + window_blocks - 1, to_block),
+                "net_flow_raw": 0, "transfer_events": 0})
+            item["net_flow_raw"] += net
+            item["transfer_events"] += 1
+        trend = []
+        for start in sorted(bins):
+            item = bins[start]
+            cumulative_raw += item["net_flow_raw"]
+            trend.append({
+                "from_block": item["from_block"], "to_block": item["to_block"],
+                "net_flow_raw": str(item["net_flow_raw"]),
+                "net_flow_tokens": item["net_flow_raw"] / scale,
+                "cumulative_net_flow_raw": str(cumulative_raw),
+                "cumulative_net_flow_tokens": cumulative_raw / scale,
+                "transfer_events": item["transfer_events"],
+                "direction": "ACCUMULATION" if item["net_flow_raw"] > 0 else "DISTRIBUTION" if item["net_flow_raw"] < 0 else "NEUTRAL",
+            })
+        return {
+            "window_blocks": window_blocks,
+            "window_count_with_activity": len(trend),
+            "windows": trend,
+            "warning": "Cumulative net flow starts at zero at the requested from_block. It is not a wallet balance or total holdings; windows without matching transfers are omitted.",
+        }
+
     def coverage(self, chain_id: int, contract: str) -> list[dict[str, Any]]:
         with sqlite3.connect(self.database_path) as connection:
             connection.row_factory = sqlite3.Row
