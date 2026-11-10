@@ -188,3 +188,8 @@ snapshot age in seconds when the RPC provides the timestamp. If timestamp lookup
 fails, the balance snapshot is retained and timestamp status is `UNAVAILABLE`.
 This prevents a response from mixing balances read at different moving
 `latest` blocks within the same snapshot.
+
+Standalone ERC-20 token snapshots also pin total supply, metadata, and every
+tracked-wallet balance call to one explicit block. Responses expose the block
+number and optional timestamp-derived freshness fields. Timestamp lookup failure
+does not discard successfully retrieved block-pinned token data.
