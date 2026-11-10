@@ -134,6 +134,12 @@ def get_spot_technical_analysis(symbol: str, interval: str = "1h", limit: int = 
 
 
 @mcp.tool()
+def get_spot_futures_basis(symbol: str) -> dict:
+    """Compare latest Spot and USD-M Futures prices, basis, and funding rate."""
+    return _get(f"/api/v1/analysis/spot-futures/basis/{quote(symbol.upper(), safe='')}")
+
+
+@mcp.tool()
 def get_futures_derivatives(symbol: str) -> dict:
     """Get read-only USD-M futures derivatives context for a symbol."""
     return _get(f"/api/v1/analysis/futures/usdm/derivatives/{quote(symbol.upper(), safe='')}")
