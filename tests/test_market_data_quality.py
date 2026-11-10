@@ -76,3 +76,14 @@ def test_stream_freshness_does_not_claim_gap_free_continuity(tmp_path):
     assert source["status"] == "NOT_MEASURABLE"
     assert source["freshness"] == "FRESH"
     assert source["continuity"] == "NOT_MEASURABLE"
+
+def test_database_schema_error_is_unknown_not_no_data(tmp_path):
+    broken_db = tmp_path / "broken.sqlite3"
+    broken_db.write_text("not a sqlite database")
+    result = MarketDataQualityEngine(
+        str(broken_db), str(tmp_path / "funding.sqlite3"),
+        str(tmp_path / "oi.sqlite3"), str(tmp_path / "ratios.sqlite3"),
+        str(tmp_path / "trades.sqlite3"), str(tmp_path / "book.sqlite3"),
+    ).inspect("SPOT", "BTCUSDT", "1m", lookback_hours=1, now_ms=1_700_000_100_000)
+    assert result["sources"]["historical_klines"]["status"] == "UNKNOWN"
+    assert result["sources"]["historical_klines"]["freshness"] == "UNKNOWN"
