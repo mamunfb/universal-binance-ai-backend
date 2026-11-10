@@ -236,6 +236,46 @@ def get_stored_funding_rate_history(
 
 
 @mcp.tool()
+def analyze_advanced_derivatives(
+    symbol: str, period: str = "1h", price_interval: str = "1h",
+    limit: int = 48, funding_abs_threshold: float = 0.001,
+    spike_mad_multiplier: float = 3.5,
+) -> dict:
+    """Analyze stored OI trend, acceleration, spikes, divergence, funding and liquidation context."""
+    if period not in {"5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "1d"}:
+        raise ValueError("Unsupported open-interest period")
+    if not 6 <= limit <= 500:
+        raise ValueError("limit must be between 6 and 500")
+    if not 0 <= funding_abs_threshold <= 0.1:
+        raise ValueError("funding_abs_threshold must be between 0 and 0.1")
+    if not 1 <= spike_mad_multiplier <= 10:
+        raise ValueError("spike_mad_multiplier must be between 1 and 10")
+    return _get(
+        f"/api/v1/analysis/derivatives/advanced/{quote(symbol.upper(), safe='')}",
+        {"period": period, "price_interval": price_interval, "limit": limit,
+         "funding_abs_threshold": funding_abs_threshold,
+         "spike_mad_multiplier": spike_mad_multiplier},
+    )
+
+
+@mcp.tool()
+def get_derivatives_signal_history(
+    symbol: str, period: str = "1h", start_time_ms: int | None = None,
+    end_time_ms: int | None = None, limit: int = 100,
+) -> dict:
+    """Read stored historical descriptive derivatives analysis snapshots."""
+    if period not in {"5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "1d"}:
+        raise ValueError("Unsupported open-interest period")
+    if not 1 <= limit <= 1000:
+        raise ValueError("limit must be between 1 and 1000")
+    return _get(
+        f"/api/v1/history/derivatives-signals/{quote(symbol.upper(), safe='')}",
+        {"period": period, "start_time_ms": start_time_ms,
+         "end_time_ms": end_time_ms, "limit": limit},
+    )
+
+
+@mcp.tool()
 def analyze_funding_open_interest(
     symbol: str, period: str = "1h", price_interval: str = "1h", limit: int = 24,
 ) -> dict:
