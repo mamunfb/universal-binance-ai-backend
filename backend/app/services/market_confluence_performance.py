@@ -193,6 +193,115 @@ def _degradation_comparison(
     }
 
 
+def _regime_transition_analysis(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Detect saved regime-label transitions and compare matured outcomes around each change."""
+    dimensions = ("market_regime", "volatility_regime", "structure_regime")
+    minimum_n = 30
+    threshold_pp = 10.0
+    ordered = sorted(rows, key=lambda row: int(row.get("analyzed_at_ms") or 0))
+    result: dict[str, Any] = {
+        "status": "COMPLETED" if ordered else "NO_MATURED_HOLDOUT_OUTCOMES",
+        "method": (
+            "Transitions are changes between consecutive regime labels saved with matured holdout snapshots. "
+            "For each transition, pre-transition outcomes are retained only when their outcome close time is "
+            "strictly before the transition timestamp; post-transition outcomes are snapshots in the new "
+            "regime segment. This is descriptive and does not establish that the regime change caused any "
+            "performance change. Immature snapshots are not represented."
+        ),
+        "minimum_directional_sample_size_per_side": minimum_n,
+        "degradation_screen_threshold_percentage_points": threshold_pp,
+        "dimensions": {},
+    }
+
+    def summarize(group: list[dict[str, Any]]) -> dict[str, Any]:
+        directional = [
+            row for row in group
+            if row.get("directional_positive") is not None
+            and row.get("directional_return_percent") is not None
+        ]
+        stats = _directional_statistics(directional)
+        return {
+            "snapshot_sample_size": len(group),
+            "directional_sample_size": len(directional),
+            "positive_fraction": stats["positive_fraction"],
+            "positive_fraction_ci_95_wilson": stats["positive_fraction_ci_95_wilson"],
+            "mean_directional_return_percent": (
+                sum(float(row["directional_return_percent"]) for row in directional) / len(directional)
+                if directional else None
+            ),
+        }
+
+    for dimension in dimensions:
+        points = []
+        seen_timestamps = set()
+        for row in ordered:
+            timestamp = int(row.get("analyzed_at_ms") or 0)
+            if timestamp in seen_timestamps:
+                continue
+            seen_timestamps.add(timestamp)
+            points.append((timestamp, str(row.get(dimension) or "UNCLASSIFIED")))
+        segments: list[dict[str, Any]] = []
+        for timestamp, label in points:
+            if not segments or segments[-1]["label"] != label:
+                segments.append({"label": label, "start_timestamp_ms": timestamp, "rows": []})
+            segments[-1]["rows"].extend(
+                row for row in ordered
+                if int(row.get("analyzed_at_ms") or 0) == timestamp
+            )
+        transitions = []
+        for index in range(1, len(segments)):
+            previous = segments[index - 1]
+            current = segments[index]
+            transition_time = current["start_timestamp_ms"]
+            pre_rows = [
+                row for row in previous["rows"]
+                if int(row.get("outcome_close_time_ms") or 0) < transition_time
+            ]
+            post_rows = current["rows"]
+            pre = summarize(pre_rows)
+            post = summarize(post_rows)
+            pre_n = pre["directional_sample_size"]
+            post_n = post["directional_sample_size"]
+            difference_pp = (
+                (post["positive_fraction"] - pre["positive_fraction"]) * 100
+                if pre["positive_fraction"] is not None and post["positive_fraction"] is not None
+                else None
+            )
+            if pre_n < minimum_n or post_n < minimum_n:
+                status = "INSUFFICIENT_TRANSITION_SAMPLES"
+                adaptation_status = "UNVALIDATED"
+            elif difference_pp is not None and difference_pp <= -threshold_pp:
+                status = "POTENTIAL_POST_TRANSITION_DEGRADATION"
+                adaptation_status = "MANUAL_REVIEW_ONLY"
+            else:
+                status = "NO_DEGRADATION_THRESHOLD_CROSSED"
+                adaptation_status = "MANUAL_REVIEW_ONLY"
+            transitions.append({
+                "from_regime": previous["label"],
+                "to_regime": current["label"],
+                "transition_timestamp_ms": transition_time,
+                "pre_transition": pre,
+                "post_transition": post,
+                "positive_fraction_change_percentage_points": difference_pp,
+                "status": status,
+                "signal_adaptation_status": adaptation_status,
+            })
+        latest = segments[-1] if segments else None
+        latest_stats = summarize(latest["rows"]) if latest else summarize([])
+        result["dimensions"][dimension] = {
+            "transition_count": len(transitions),
+            "latest_observed_regime": latest["label"] if latest else None,
+            "latest_regime_sample": latest_stats,
+            "latest_regime_sample_status": (
+                "SUFFICIENT_FOR_SCREENING_THRESHOLD"
+                if latest_stats["directional_sample_size"] >= minimum_n
+                else "INSUFFICIENT_FOR_SCREENING"
+            ),
+            "transitions": transitions,
+        }
+    return result
+
+
 def _signal_quality_assessment(rows: list[dict[str, Any]]) -> dict[str, Any]:
     """Evaluate explicit bullish/bearish confluence calls as an UP-vs-DOWN classifier."""
     eligible = [
@@ -785,6 +894,7 @@ class MarketConfluencePerformance:
                 "test_matured_outcome_count": len(test_outcomes),
                 "test_regime_stability": _out_of_sample_regime_stability(test_outcomes),
                 "regime_transition_degradation": _regime_transition_degradation(test_outcomes),
+                "regime_transition_analysis": _regime_transition_analysis(test_outcomes),
                 "training_directional_sample_size": len(train_directional),
                 "test_directional_sample_size": len(test_directional),
                 "test_positive_count": test_directional_stats["positive_count"],
