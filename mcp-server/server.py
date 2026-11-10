@@ -43,15 +43,78 @@ mcp = FastMCP(f"Personal Crypto Intelligence ({CLIENT_NAME})")
 
 
 def _get(path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Call only a fixed, read-only API path with the process-scoped client key."""
-    with httpx.Client(timeout=30.0) as client:
-        response = client.get(
-            f"{BASE_URL}{path}",
-            params=params,
-            headers={"Authorization": f"Bearer {API_KEY}", "Accept": "application/json"},
-        )
-        response.raise_for_status()
-        return response.json()
+    """Call a fixed read-only API path and preserve structured evidence and errors."""
+    try:
+        with httpx.Client(timeout=30.0) as client:
+            response = client.get(
+                f"{BASE_URL}{path}",
+                params=params,
+                headers={"Authorization": f"Bearer {API_KEY}", "Accept": "application/json"},
+            )
+    except httpx.RequestError:
+        return {
+            "status": "FAILED",
+            "error": {
+                "code": "UPSTREAM_CONNECTION_ERROR",
+                "message": "The private API could not be reached.",
+            },
+            "retryable": True,
+        }
+
+    request_id = response.headers.get("X-Request-ID")
+    try:
+        payload = response.json()
+    except ValueError:
+        payload = None
+
+    if not response.is_success:
+        body = payload if isinstance(payload, dict) else {}
+        nested = body.get("detail") if isinstance(body.get("detail"), dict) else body
+        error = nested.get("error") if isinstance(nested.get("error"), dict) else {}
+        code = error.get("code") or {
+            400: "BAD_REQUEST",
+            401: "UNAUTHORIZED",
+            403: "FORBIDDEN",
+            404: "NOT_FOUND",
+            422: "VALIDATION_ERROR",
+            429: "RATE_LIMITED",
+            502: "UPSTREAM_ERROR",
+            503: "SERVICE_UNAVAILABLE",
+            504: "UPSTREAM_TIMEOUT",
+        }.get(response.status_code, "HTTP_ERROR")
+        result = {
+            "status": "FAILED",
+            "http_status": response.status_code,
+            "error": {
+                "code": code,
+                "message": error.get("message") or "The private API request failed.",
+            },
+            "retryable": response.status_code in {429, 502, 503, 504},
+        }
+        details = error.get("details")
+        if details is not None:
+            result["error"]["details"] = details
+        body_request_id = body.get("request_id")
+        if request_id or body_request_id:
+            result["request_id"] = request_id or body_request_id
+        return result
+
+    if not isinstance(payload, dict):
+        result = {
+            "status": "FAILED",
+            "error": {
+                "code": "UPSTREAM_INVALID_RESPONSE",
+                "message": "The private API returned a non-object or invalid JSON response.",
+            },
+            "retryable": False,
+        }
+        if request_id:
+            result["request_id"] = request_id
+        return result
+
+    # Return the canonical API payload unchanged to retain source, timestamps,
+    # coverage, freshness, missing-data and warning fields.
+    return payload
 
 
 @mcp.tool()
