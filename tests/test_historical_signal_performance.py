@@ -65,3 +65,51 @@ def test_performance_evaluator_validates_cost_and_limit(tmp_path):
         engine.evaluate("BTCUSDT", round_trip_cost_bps=-1)
     with pytest.raises(ValueError):
         engine.evaluate("BTCUSDT", limit=0)
+
+
+def test_directional_signal_validation_requires_explicit_hypothesis_and_reports_wilson_interval():
+    from app.services.historical_signal_performance import (
+        _explicit_signal_direction, _signal_quality,
+    )
+
+    assert _explicit_signal_direction({
+        "positioning_context": {"classification": "PRICE_UP_OI_UP_BUILDUP_CANDIDATE"},
+    }) is None
+    assert _explicit_signal_direction({"signal_direction": "BUY"}) == "BULLISH"
+    assert _explicit_signal_direction({
+        "directional_signal": {"direction": "SHORT"},
+    }) == "BEARISH"
+    assert _explicit_signal_direction({"confluence": {"bias": "BULLISH"}}) == "BULLISH"
+
+    rows = [
+        {"signal_direction": "BULLISH", "gross_return_percent": 2.0},
+        {"signal_direction": "BULLISH", "gross_return_percent": -1.0},
+        {"signal_direction": "BEARISH", "gross_return_percent": -3.0},
+        {"signal_direction": "BEARISH", "gross_return_percent": 0.0},
+        {"signal_direction": None, "gross_return_percent": 5.0},
+    ]
+    result = _signal_quality(rows)
+    assert result["status"] == "DIRECTIONAL_HYPOTHESIS_AVAILABLE"
+    assert result["prediction_count"] == 4
+    assert result["scored_non_flat_count"] == 3
+    assert result["directional_hit_count"] == 2
+    assert result["directional_miss_count"] == 1
+    assert result["flat_outcome_count"] == 1
+    assert result["directional_hit_rate"] == pytest.approx(2 / 3)
+    assert result["directional_hit_rate_ci_95_wilson"]["lower"] < 2 / 3
+    assert result["directional_hit_rate_ci_95_wilson"]["upper"] > 2 / 3
+    assert result["false_positive_count"] is None
+    assert result["false_negative_count"] is None
+
+
+def test_directional_signal_validation_withholds_accuracy_without_explicit_signal():
+    from app.services.historical_signal_performance import _signal_quality
+
+    result = _signal_quality([
+        {"signal_direction": None, "gross_return_percent": 1.0},
+        {"signal_direction": None, "gross_return_percent": -1.0},
+    ])
+    assert result["status"] == "NO_EXPLICIT_DIRECTIONAL_HYPOTHESIS"
+    assert result["prediction_count"] == 0
+    assert result["directional_hit_rate"] is None
+    assert result["directional_hit_rate_ci_95_wilson"] is None
