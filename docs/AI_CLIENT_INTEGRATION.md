@@ -204,6 +204,7 @@ Available tools:
 - `get_stored_open_interest_history`
 - `analyze_funding_open_interest`
 - `analyze_advanced_derivatives`
+- `analyze_multi_timeframe_derivatives`
 - `get_derivatives_signal_history`
 - `get_liquidation_collector_status`
 
