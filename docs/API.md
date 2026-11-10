@@ -43,3 +43,8 @@ Query parameters:
 
 ## Scope limitation
 This first version only covers Binance Spot public endpoints. USDⓈ-M Futures, COIN-M Futures, news, on-chain data, order-book analytics, and technical indicator calculations are not implemented yet. Exchange responses are live and may be rate-limited or temporarily unavailable.
+
+
+## Futures market data
+
+See [FUTURES_API.md](./FUTURES_API.md) for USDⓈ-M and COIN-M market scanner and kline endpoints.
