@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     http_timeout_seconds: float = 15.0
     liquidation_collector_enabled: bool = False
     liquidation_database_path: str = "data/liquidations.sqlite3"
+    historical_kline_database_path: str = "data/historical_klines.sqlite3"
     news_rss_feeds: str = ""
     news_primary_source_domains: str = ""
     news_independent_source_domains: str = ""
