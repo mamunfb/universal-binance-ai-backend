@@ -380,6 +380,23 @@ def get_stored_open_interest_history(
 
 
 @mcp.tool()
+def inspect_market_data_quality(
+    market: str, symbol: str, interval: str = "1h", lookback_hours: int = 168
+) -> dict:
+    """Audit local candle coverage and local market-data freshness; does not prove stream continuity."""
+    if market not in {"SPOT", "USD_M", "COIN_M"}:
+        raise ValueError("market must be SPOT, USD_M or COIN_M")
+    if interval not in {"1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d"}:
+        raise ValueError("Unsupported candle interval")
+    if not 1 <= lookback_hours <= 2160:
+        raise ValueError("lookback_hours must be between 1 and 2160")
+    return _get(
+        f"/api/v1/quality/market-data/{market}/{quote(symbol.upper(), safe='')}",
+        {"interval": interval, "lookback_hours": lookback_hours},
+    )
+
+
+@mcp.tool()
 def get_historical_collector_status() -> dict:
     """Check whether scheduled historical candle collection is enabled and healthy."""
     return _get("/api/v1/history/collector/status")
