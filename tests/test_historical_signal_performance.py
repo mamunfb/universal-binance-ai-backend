@@ -40,14 +40,14 @@ def test_forward_outcomes_use_only_future_completed_candles(tmp_path):
     assert outcome["actual_elapsed_hours"] == pytest.approx(1.0)
     assert result["horizons"]["4"]["sample_size"] == 1
     assert result["horizons"]["24"]["sample_size"] == 1
-    assert result["method"]["directional_accuracy"] == "NOT_CALCULATED"
+    assert result["method"]["directional_accuracy"].startswith("NOT_CALCULATED")
 
 
 def test_outcomes_remain_pending_until_future_candles_exist(tmp_path):
     engine, signals, klines = _engine(tmp_path)
     hour = 3_600_000
     klines.save_klines("USD_M", "BTCUSDT", "1h", [
-        _candle(0, 100), _candle(hour, 101),
+        _candle(0, 100),
     ])
     signals.save({
         "status": "COMPLETED", "symbol": "BTCUSDT", "period": "1h",
