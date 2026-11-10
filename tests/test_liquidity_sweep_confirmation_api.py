@@ -31,7 +31,7 @@ def test_liquidity_sweep_confirmation_api_uses_local_stores(monkeypatch):
         def recent(self, market, symbol, limit, start_time_ms=None, end_time_ms=None):
             return [{
                 "trade_time_ms": candles[13]["open_time_ms"] + 1_000,
-                "quantity": 2.0, "aggressor_side": "SELL",
+                "price": 100.0, "quantity": 2.0, "notional": 200.0, "aggressor_side": "SELL",
             }]
 
     class BookStore:
