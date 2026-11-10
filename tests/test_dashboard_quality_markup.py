@@ -130,3 +130,16 @@ def test_dashboard_displays_data_quality_and_selection_risk_warnings():
     assert "INCOMPLETE_FUTURE_CANDLE_COVERAGE" not in html or "q.flags" in html
     assert "no multiple-comparison correction is applied" in html
     assert "do not estimate overfitting probability" in html
+
+
+def test_dashboard_displays_signal_quality_confusion_matrix_and_regime_breakdown():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "Signal quality validation" in html
+    assert "signal_quality" in html
+    assert "signal_quality_by_regime" in html
+    assert "Confusion matrix" in html
+    assert "true_positive" in html
+    assert "false_positive" in html
+    assert "true_negative" in html
+    assert "false_negative" in html
+    assert "do not include periods with no call" in html
