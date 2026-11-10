@@ -88,6 +88,13 @@ async def _token_on_chain(config: dict[str, Any], addresses: list[str],
                 "asset_id": config["asset_id"],
                 "error": "RPC chain_id does not match configured chain_id"}
     block = await provider.block_number()
+    try:
+        block_timestamp = await provider.block_timestamp(block)
+        timestamp_status = "AVAILABLE"
+    except Exception:
+        # Preserve usable block-pinned balances when an RPC omits block metadata.
+        block_timestamp = None
+        timestamp_status = "UNAVAILABLE"
     tag = hex(block)
     contract = config["contract_address"]
     total_supply, decimals, symbol, name = await asyncio.gather(
@@ -119,6 +126,8 @@ async def _token_on_chain(config: dict[str, Any], addresses: list[str],
         "asset_id": config["asset_id"], "chain_id": actual_chain_id,
         "chain_name": config["chain_name"], "contract_address": contract,
         "snapshot_block": block, "snapshot_block_tag": tag,
+        "snapshot_block_timestamp": block_timestamp,
+        "snapshot_timestamp_status": timestamp_status,
         "token": {"name": _text(name), "symbol": _text(symbol), "decimals": decimals_value,
                   "total_supply_raw": str(supply_raw),
                   "total_supply_tokens": supply_raw / (10 ** decimals_value)},
