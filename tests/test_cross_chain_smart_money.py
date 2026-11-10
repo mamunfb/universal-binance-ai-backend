@@ -60,3 +60,50 @@ def test_cross_chain_smart_money_reports_incomplete_coverage(monkeypatch):
     result = asyncio.run(cross_chain_verified_wallet_flows(
         configs, "sample", 10, 20, 18, "[]", FakeStore()))
     assert result["status"] == "INCOMPLETE"
+
+
+
+def test_cross_chain_smart_money_keeps_chain_failures_isolated(monkeypatch):
+    class FakeProvider:
+        def __init__(self, url, timeout):
+            self.url = url
+        async def chain_id(self):
+            return 1 if "chain-one" in self.url else 999
+
+    class FakeStore:
+        def range_coverage(self, chain_id, contract, start, end):
+            return {"complete": True, "gaps": []}
+        def smart_money_activity(self, *args):
+            return {"verified_smart_money_wallets_found": 0, "wallets": []}
+        def smart_money_accumulation_trend(self, *args):
+            return {"window_blocks": 1000, "windows": []}
+
+    monkeypatch.setattr("app.services.cross_chain_smart_money.EVMRPCProvider", FakeProvider)
+    configs = [
+        {"chain_id": 1, "asset_id": "sample", "contract_address": CONTRACT,
+         "rpc_url": "https://chain-one.example", "chain_name": "Chain One"},
+        {"chain_id": 56, "asset_id": "sample", "contract_address": "0x" + "4" * 40,
+         "rpc_url": "https://chain-two.example", "chain_name": "Chain Two"},
+    ]
+    result = asyncio.run(cross_chain_verified_wallet_flows(
+        configs, "sample", 10, 20, 18, "[]", FakeStore()))
+    assert result["status"] == "INCOMPLETE"
+    assert result["chains"][0]["status"] == "COMPLETED"
+    assert result["chains"][1]["status"] == "FAILED"
+    assert "chain_id does not match" in result["chains"][1]["error"]
+
+
+def test_cross_chain_smart_money_rejects_invalid_window_before_rpc():
+    class NeverCalledProvider:
+        def __init__(self, *args):
+            raise AssertionError("RPC must not be created for invalid window")
+
+    import pytest
+    from unittest.mock import patch
+
+    configs = [{"chain_id": 1, "asset_id": "sample", "contract_address": CONTRACT,
+                "rpc_url": "https://rpc.example", "chain_name": "Ethereum"}]
+    with patch("app.services.cross_chain_smart_money.EVMRPCProvider", NeverCalledProvider):
+        with pytest.raises(ValueError, match="window_blocks"):
+            asyncio.run(cross_chain_verified_wallet_flows(
+                configs, "sample", 10, 20, 18, "[]", object(), window_blocks=0))
