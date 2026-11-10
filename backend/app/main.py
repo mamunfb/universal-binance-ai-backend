@@ -32,6 +32,7 @@ from app.providers.evm_rpc import EVMRPCProvider
 from app.services.onchain_intelligence import analyze_erc20_activity, get_evm_wallet_snapshot, get_erc20_token_snapshot
 from app.services.evm_transfer_store import EVMTransferStore, index_erc20_transfer_history
 from app.services.historical_klines import HistoricalKlineStore
+from app.services.funding_rates import FundingRateStore
 from app.services.historical_coverage import HistoricalCoverageEngine
 from app.services.historical_collector import HistoricalKlineCollector
 from app.services.wallet_attribution import load_wallet_registry, annotate_wallet_addresses
@@ -44,6 +45,7 @@ liquidation_collector = LiquidationCollector(liquidation_store)
 news_provider = RSSNewsProvider(settings.http_timeout_seconds)
 evm_transfer_store = EVMTransferStore(settings.evm_transfer_database_path)
 historical_kline_store = HistoricalKlineStore(settings.historical_kline_database_path)
+funding_rate_store = FundingRateStore(settings.funding_rate_database_path)
 historical_collector: HistoricalKlineCollector | None = None
 
 
@@ -1292,6 +1294,54 @@ async def historical_collector_status() -> dict:
     if historical_collector is None:
         return {"status": "STARTING", "enabled": True}
     return historical_collector.status()
+
+
+@app.post("/api/v1/history/funding-rates/USD_M/{symbol}/collect", tags=["history"])
+async def collect_historical_funding_rates(
+    symbol: str,
+    start_time_ms: int | None = Query(default=None, ge=0),
+    end_time_ms: int | None = Query(default=None, ge=0),
+    limit: int = Query(default=1000, ge=1, le=1000),
+) -> dict:
+    normalized = symbol.strip().upper()
+    if not normalized:
+        raise HTTPException(status_code=422, detail="symbol must not be empty")
+    if start_time_ms is not None and end_time_ms is not None and end_time_ms < start_time_ms:
+        raise HTTPException(status_code=422, detail="end_time_ms must be >= start_time_ms")
+    try:
+        rows = await get_futures_provider("USD_M").funding_rate(
+            normalized, limit=limit, start_time_ms=start_time_ms, end_time_ms=end_time_ms
+        )
+        if not rows:
+            return {
+                "status": "NO_NEW_DATA", "market": "USD_M", "symbol": normalized,
+                "received_count": 0, "warning": "The exchange returned no funding events; no history was stored.",
+            }
+        return await asyncio.to_thread(
+            funding_rate_store.save, "USD_M", normalized, rows
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail={
+            "status": "FAILED", "error": "FUNDING_RATE_COLLECTION_UNAVAILABLE",
+            "error_type": type(exc).__name__,
+        }) from exc
+
+
+@app.get("/api/v1/history/funding-rates/USD_M/{symbol}", tags=["history"])
+async def get_historical_funding_rates(
+    symbol: str,
+    start_time_ms: int | None = Query(default=None, ge=0),
+    end_time_ms: int | None = Query(default=None, ge=0),
+    limit: int = Query(default=1000, ge=1, le=5000),
+) -> dict:
+    try:
+        return await asyncio.to_thread(
+            funding_rate_store.history, "USD_M", symbol, start_time_ms, end_time_ms, limit
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @app.post("/api/v1/history/klines/{market}/{symbol}/collect", tags=["history"])
