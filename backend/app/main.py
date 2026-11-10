@@ -1218,6 +1218,11 @@ async def multi_timeframe_order_flow(
     selected_periods = [item.strip() for item in periods.split(",") if item.strip()]
     if not selected_periods or len(selected_periods) > 9:
         raise HTTPException(status_code=422, detail="Select between 1 and 9 timeframes")
+    if len(set(selected_periods)) != len(selected_periods):
+        raise HTTPException(status_code=422, detail="Timeframes must be unique")
+    allowed_periods = {"5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "1d"}
+    if any(item not in allowed_periods for item in selected_periods):
+        raise HTTPException(status_code=422, detail="Unsupported timeframe")
     end_time_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
     longest_minutes = max(
         {"5m": 5, "15m": 15, "30m": 30, "1h": 60, "2h": 120,
