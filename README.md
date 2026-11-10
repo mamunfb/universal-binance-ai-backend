@@ -101,3 +101,8 @@ This software is for research and education. It does not provide guaranteed pred
 ## Historical market regime heuristic
 
 A descriptive endpoint classifies locally stored OHLC candles by relative volatility and price-path efficiency. It requires at least 40 stored candles, reports UNKNOWN when the baseline is insufficient, and does not produce forecasts or trade signals. See [Market Regime Analysis](docs/MARKET_REGIME_ANALYSIS.md).
+
+
+## Historical liquidation clusters
+
+Observed locally stored USD-M force-order snapshots can be grouped into configurable logarithmic price buckets. Coverage limits and partial-stream caveats are returned with each analysis. This is descriptive only, not a prediction of future liquidation levels. See [Liquidation Cluster Analysis](docs/LIQUIDATION_CLUSTER_ANALYSIS.md).
