@@ -518,4 +518,4 @@ def test_walk_forward_consistency_uses_only_folds_with_minimum_samples():
     assert result["folds_with_interval_above_50_percent"] == 1
     assert result["folds_with_interval_below_50_percent"] == 1
     assert result["folds_with_interval_including_50_percent"] == 1
-    assert result["positive_fraction_range"] == 0.4
+    assert abs(result["positive_fraction_range"] - 0.4) < 1e-9
