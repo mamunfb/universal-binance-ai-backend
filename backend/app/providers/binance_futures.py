@@ -51,12 +51,34 @@ class BinanceFuturesProvider:
             raise ValueError(f"Unexpected Binance {self.market} 24hr ticker response")
         return data
 
+    async def premium_index(self, symbol: str | None = None) -> dict[str, Any] | list[dict[str, Any]]:
+        """Fetch mark/index price, current funding rate and next funding time."""
+        if symbol is not None and not symbol.strip():
+            raise ValueError("symbol must not be empty")
+        params = {"symbol": symbol.upper()} if symbol else None
+        data = await self._get(f"{self.prefix}/premiumIndex", params)
+        if isinstance(data, dict):
+            if not data.get("symbol") or "markPrice" not in data or "indexPrice" not in data:
+                raise ValueError(f"Unexpected Binance {self.market} premium-index response")
+            return data
+        if isinstance(data, list) and all(
+            isinstance(item, dict) and item.get("symbol")
+            and "markPrice" in item and "indexPrice" in item for item in data
+        ):
+            return data
+        raise ValueError(f"Unexpected Binance {self.market} premium-index response")
+
+    async def funding_info(self) -> list[dict[str, Any]]:
+        """Fetch per-symbol funding interval adjustments, when present."""
+        data = await self._get(f"{self.prefix}/fundingInfo")
+        if not isinstance(data, list) or any(not isinstance(item, dict) for item in data):
+            raise ValueError(f"Unexpected Binance {self.market} funding-info response")
+        return data
+
     async def funding_rate(
         self, symbol: str, limit: int = 1000,
         start_time_ms: int | None = None, end_time_ms: int | None = None,
     ) -> list[dict[str, Any]]:
-        if self.market != "USD_M":
-            raise NotImplementedError("Funding history adapter is currently enabled for USD_M only")
         if not symbol or not symbol.strip():
             raise ValueError("symbol must not be empty")
         if not 1 <= limit <= 1000:
@@ -72,7 +94,7 @@ class BinanceFuturesProvider:
             params["startTime"] = start_time_ms
         if end_time_ms is not None:
             params["endTime"] = end_time_ms
-        data = await self._get("/fapi/v1/fundingRate", params)
+        data = await self._get(f"{self.prefix}/fundingRate", params)
         if not isinstance(data, list):
             raise ValueError("Unexpected funding rate response")
         return data
