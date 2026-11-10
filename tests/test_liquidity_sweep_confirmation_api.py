@@ -62,7 +62,7 @@ def test_liquidity_sweep_confirmation_api_uses_local_stores(monkeypatch):
     assert payload["collector_coverage"]["local_history_only"] is True
     assert any(
         item["level"] == 105.0
-        and item["aggressor_flow"]["confirmation"] == "OPPOSING_AGGRESSOR_FLOW"
+        and item["aggressor_flow"]["confirmation"] == "ALIGNED_AGGRESSOR_FLOW"
         for item in payload["sweep_candidates"]
     )
 
