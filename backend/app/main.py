@@ -1139,6 +1139,44 @@ async def all_futures_market_scan(
     }
 
 
+@app.get("/api/v1/markets/futures/{market}/premium-index/{symbol}", tags=["markets"])
+async def futures_premium_index(
+    market: Literal["USD_M", "COIN_M"], symbol: str,
+) -> dict:
+    try:
+        data = await get_futures_provider(market).premium_index(symbol)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail={
+            "status": "FAILED", "error": "FUTURES_PREMIUM_INDEX_UNAVAILABLE",
+            "market": market, "symbol": symbol.upper(),
+        }) from exc
+    return {
+        "status": "COMPLETED", "market": market, "symbol": symbol.upper(),
+        "source": f"Binance {market} public REST premiumIndex",
+        "generated_at": datetime.now(timezone.utc).isoformat(), "data": data,
+    }
+
+
+@app.get("/api/v1/markets/futures/{market}/funding-info", tags=["markets"])
+async def futures_funding_info(market: Literal["USD_M", "COIN_M"]) -> dict:
+    try:
+        data = await get_futures_provider(market).funding_info()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail={
+            "status": "FAILED", "error": "FUTURES_FUNDING_INFO_UNAVAILABLE",
+            "market": market,
+        }) from exc
+    return {
+        "status": "COMPLETED", "market": market,
+        "source": f"Binance {market} public REST fundingInfo",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "returned_count": len(data), "symbols_with_funding_adjustments": data,
+        "note": "This endpoint reports symbols with funding parameter adjustments; absence from the response does not by itself prove a non-standard interval.",
+    }
+
+
 @app.get("/api/v1/markets/futures/usdm/klines/{symbol}", tags=["markets"])
 async def usdm_klines(
     symbol: str,
