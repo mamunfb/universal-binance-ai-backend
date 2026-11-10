@@ -50,3 +50,10 @@ Observed timestamp deltas are included for inspection, but are not classified as
 The store validates finite, non-negative metrics, timestamps, symbol consistency, supported periods, and duplicate timestamps within a provider batch. SQLite upsert key: `(market, symbol, period, timestamp_ms)`.
 
 Open interest is a market-wide aggregate statistic for the selected contract and period; it is not a count of traders or a directional Buy/Sell signal. Stored history is only as complete as the data retrieved and successfully saved during Binance's documented availability window.
+
+
+## Combined derivatives analysis
+
+The read-only endpoint `GET /api/v1/analysis/derivatives/funding-open-interest/{symbol}` combines locally stored Open Interest records with overlapping USD-M klines and Funding Rate events. Query parameters include `period`, `price_interval`, and `limit`. It reports percentage changes and a descriptive price/OI co-movement label when price candles are available. The MCP equivalent is `analyze_funding_open_interest`.
+
+A rising open-interest value alongside rising or falling price is reported only as a positioning/build-up candidate. Aggregate open interest is not directional: every open contract has both a long and a short side, and these aggregate data do not identify which side initiated a position. Missing local price or funding records remain unavailable rather than being fabricated.
