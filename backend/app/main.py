@@ -156,6 +156,10 @@ async def index_evm_token_history(
         from_block = int(payload["from_block"])
         to_block = int(payload["to_block"])
         chunk_size = int(payload.get("chunk_size", 500))
+        if chunk_size > settings.evm_max_log_block_span:
+            raise ValueError(
+                f"chunk_size cannot exceed EVM_MAX_LOG_BLOCK_SPAN ({settings.evm_max_log_block_span})"
+            )
         return await index_erc20_transfer_history(
             get_evm_provider(), evm_transfer_store, contract, from_block, to_block,
             chunk_size, settings.evm_index_max_total_blocks,
