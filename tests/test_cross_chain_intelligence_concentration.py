@@ -18,11 +18,12 @@ def test_unified_intelligence_adds_verified_wallet_balance_concentration(monkeyp
 
     async def fake_flows(*args):
         return {"chains": [{"chain_id": 1, "chain_name": "Ethereum",
-                            "contract_address": contract, "status": "COMPLETED"}]}
+                            "contract_address": contract, "status": "COMPLETED",
+                            "coverage": {"complete": True, "gaps": []}}]}
 
     async def fake_cohorts(*args):
         return {"chains": [{"chain_id": 1, "contract_address": contract,
-                            "status": "COMPLETED"}]}
+                            "status": "COMPLETED", "coverage": {"complete": True, "gaps": []}}]}
 
     async def fake_snapshot(configs, asset_id, addresses, timeout):
         assert addresses == [address]
