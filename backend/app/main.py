@@ -1184,6 +1184,48 @@ async def all_futures_market_scan(
     }
 
 
+@app.get("/api/v1/markets/scan-all", tags=["markets"])
+async def all_market_families_scan() -> dict:
+    """Scan complete eligible Spot, USDⓈ-M and COIN-M symbol universes separately."""
+    spot, futures = await asyncio.gather(
+        scan_spot_markets(get_spot_provider(), quote_asset=None),
+        all_futures_market_scan(min_quote_volume=0.0, perpetual_only=False),
+    )
+    grouped: dict[str, dict[str, Any]] = {}
+    for row in spot.get("results", []):
+        base = str(row.get("base_asset") or row.get("symbol") or "UNKNOWN")
+        grouped.setdefault(base, {"base_asset": base, "spot_pairs": [], "futures_contracts": []})
+        grouped[base]["spot_pairs"].append(row.get("symbol"))
+    for row in futures.get("unique_underlyings", []):
+        base = str(row.get("base_asset") or "UNKNOWN")
+        grouped.setdefault(base, {"base_asset": base, "spot_pairs": [], "futures_contracts": []})
+        grouped[base]["futures_contracts"].extend(row.get("contracts", []))
+    raw_scan_complete = spot.get("status") == "COMPLETED" and futures.get("status") == "COMPLETED"
+    return {
+        "status": "COMPLETED" if raw_scan_complete else "INCOMPLETE",
+        "phase_status": "INCOMPLETE",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "markets": {"SPOT": spot, "FUTURES": futures},
+        "coverage": {
+            "spot_total_available_pairs": spot.get("total_available_pairs", 0),
+            "spot_eligible_pairs": spot.get("eligible_symbols", 0),
+            "spot_successfully_scanned_pairs": spot.get("scanned_symbols", 0),
+            "spot_failed_pairs": spot.get("failed_symbols", 0),
+            "futures_total_available_contracts": futures.get("total_available_contracts", 0),
+            "futures_eligible_contracts": futures.get("eligible_contracts", 0),
+            "futures_successfully_scanned_contracts": futures.get("successfully_scanned_contracts", 0),
+            "futures_failed_contracts": futures.get("failed_contracts", 0),
+            "unique_underlying_count": len(grouped),
+        },
+        "unique_underlyings": [grouped[key] for key in sorted(grouped)],
+        "phase_status_reason": (
+            "Raw symbol/ticker coverage is distinct from full Phase 01. Order-book depth, "
+            "recent-average volume surge, market-cap enrichment and complete risk-tag coverage remain incomplete."
+        ),
+        "trading_enabled": False,
+    }
+
+
 @app.get("/api/v1/markets/futures/{market}/premium-index/{symbol}", tags=["markets"])
 async def futures_premium_index(
     market: Literal["USD_M", "COIN_M"], symbol: str,
