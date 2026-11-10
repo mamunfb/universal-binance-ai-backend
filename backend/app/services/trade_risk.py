@@ -74,10 +74,6 @@ def _build_coinm_inverse_plan(
     asset = (settlement_asset or "").strip().upper()
     if not asset or len(asset) > 20:
         raise ValueError("settlement_asset is required for COIN_M inverse contracts")
-    if capital is not None and not (fee is not None and slip_bps is not None and funding is not None):
-        # Keep position sizing unavailable when the total adverse cost model is incomplete.
-        pass
-
     costs_complete = fee is not None and slip_bps is not None and funding is not None
     slip = slip_bps / 10000 if slip_bps is not None else None
     cost_rate = fee + slip if fee is not None and slip is not None else None
@@ -231,7 +227,7 @@ def build_trade_risk_plan(
     if contract_size_usd is not None or settlement_asset is not None:
         raise ValueError("contract_size_usd and settlement_asset are only valid for COIN_M")
 
-    if normalized_market == "LONG":
+    if normalized_direction == "LONG":
         gross_risk = entry - stop
         gross_rewards = [target - entry for target in targets]
     else:
