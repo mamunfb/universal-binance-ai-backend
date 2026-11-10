@@ -44,8 +44,13 @@ def calculate_indicators(closes: list[float]) -> dict[str, Any]:
 
     ema20 = _ema_series(closes, 20)[-1]
     ema50 = _ema_series(closes, 50)[-1]
+    ema100 = _ema_series(closes, 100)[-1]
     ema200 = _ema_series(closes, 200)[-1]
     rsi14 = _rsi(closes, 14)
+    sma20 = sum(closes[-20:]) / 20 if len(closes) >= 20 else None
+    sma50 = sum(closes[-50:]) / 50 if len(closes) >= 50 else None
+    sma100 = sum(closes[-100:]) / 100 if len(closes) >= 100 else None
+    sma200 = sum(closes[-200:]) / 200 if len(closes) >= 200 else None
 
     fast = _ema_series(closes, 12)
     slow = _ema_series(closes, 26)
@@ -73,7 +78,12 @@ def calculate_indicators(closes: list[float]) -> dict[str, Any]:
         "latest_close": closes[-1],
         "ema_20": ema20,
         "ema_50": ema50,
+        "ema_100": ema100,
         "ema_200": ema200,
+        "sma_20": sma20,
+        "sma_50": sma50,
+        "sma_100": sma100,
+        "sma_200": sma200,
         "rsi_14_wilder": rsi14,
         "macd_12_26": macd,
         "macd_signal_9": signal,
