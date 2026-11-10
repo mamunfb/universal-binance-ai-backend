@@ -1056,6 +1056,49 @@ def get_futures_provider(market: str) -> BinanceFuturesProvider:
     return BinanceFuturesProvider(market, timeout_seconds=settings.http_timeout_seconds)
 
 
+async def _preflight_probe(name: str, operation) -> dict:
+    try:
+        payload = await operation()
+        symbols = payload.get("symbols", []) if isinstance(payload, dict) else []
+        return {"name": name, "status": "AVAILABLE", "symbol_count": len(symbols)}
+    except Exception as exc:
+        return {"name": name, "status": "UNAVAILABLE", "error_type": type(exc).__name__}
+
+
+@app.get("/api/v1/research/preflight", tags=["research"])
+async def research_preflight() -> dict:
+    """Probe live Binance public market endpoints and disclose configured research capabilities."""
+    spot, usdm, coinm = await asyncio.gather(
+        _preflight_probe("BINANCE_SPOT", get_spot_provider().exchange_info()),
+        _preflight_probe("BINANCE_USDM", get_futures_provider("USD_M").exchange_info()),
+        _preflight_probe("BINANCE_COINM", get_futures_provider("COIN_M").exchange_info()),
+    )
+    feed_sources = parse_feed_sources(settings.news_rss_feeds)
+    onchain_status = "PARTIAL" if settings.evm_rpc_url or settings.evm_chain_rpc_urls.strip() not in {"", "[]"} else "UNAVAILABLE"
+    return {
+        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+        "market_data": {"spot": spot, "usdm": usdm, "coinm": coinm},
+        "capabilities": {
+            "binance_live_market_data": "AVAILABLE" if all(x["status"] == "AVAILABLE" for x in (spot, usdm, coinm)) else "PARTIAL" if any(x["status"] == "AVAILABLE" for x in (spot, usdm, coinm)) else "UNAVAILABLE",
+            "news_sources": "CONFIGURED" if feed_sources else "UNAVAILABLE",
+            "news_source_count": len(feed_sources),
+            "live_web_search": "NOT_ASSESSABLE_BY_BACKEND",
+            "code_execution": "AVAILABLE",
+            "onchain_provider": onchain_status,
+            "current_time": "PARTIAL_SERVER_CLOCK_NOT_NTP_VERIFIED",
+        },
+        "limitations": [
+            "This endpoint probes exchangeInfo connectivity only; it does not prove full market scan coverage or order-book availability.",
+            "Configured RSS feeds are not equivalent to complete global news search or independent claim verification.",
+            "The backend cannot inspect the AI runtime's separate live web-search entitlement.",
+            "On-chain provider configuration is not a successful chain RPC health check.",
+            "Server time is reported in UTC; synchronization accuracy is not independently verified.",
+        ],
+        "trading_enabled": False,
+        "api_credentials_required": False,
+    }
+
+
 @app.get("/api/v1/markets/futures/usdm/scan", tags=["markets"])
 async def usdm_market_scan(
     quote_asset: str | None = Query(default=None, min_length=2, max_length=12),
