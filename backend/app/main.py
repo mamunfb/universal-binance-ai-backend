@@ -8,7 +8,8 @@ from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Query, Body, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
+from pathlib import Path
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.config import settings
@@ -48,6 +49,8 @@ from app.services.order_flow_intelligence import analyze_order_flow
 from app.services.multi_timeframe_order_flow import analyze_multi_timeframe_order_flow
 from app.services.liquidity_sweep_confirmation import analyze_liquidity_sweep_confirmation
 from app.services.market_structure_confluence import analyze_market_structure_confluence
+from app.services.market_confluence_store import MarketConfluenceStore
+from app.services.market_confluence_performance import MarketConfluencePerformance
 from app.services.derivatives_collector import DerivativesHistoryCollector
 from app.services.funding_open_interest_analysis import FundingOpenInterestAnalysis
 from app.services.advanced_derivatives_analysis import AdvancedDerivativesAnalysis, DerivativesSignalStore
@@ -72,6 +75,8 @@ funding_rate_store = FundingRateStore(settings.funding_rate_database_path)
 open_interest_store = OpenInterestStore(settings.open_interest_database_path)
 derivatives_signal_store = DerivativesSignalStore(settings.derivatives_signal_database_path)
 derivatives_ratio_store = DerivativesRatioStore(settings.derivatives_ratio_database_path)
+market_confluence_store = MarketConfluenceStore(settings.market_confluence_database_path)
+market_confluence_performance = MarketConfluencePerformance(market_confluence_store, historical_kline_store)
 historical_collector: HistoricalKlineCollector | None = None
 derivatives_collector: DerivativesHistoryCollector | None = None
 
@@ -1280,6 +1285,11 @@ async def market_structure_confluence(
             analyze_market_structure_confluence,
             market, symbol, interval, structure, regime, order_flow, multi_flow, sweep,
         )
+        result["analyzed_at_ms"] = end_ms
+        closed_reference = next((c for c in reversed(candles) if int(c["close_time_ms"]) <= end_ms), None)
+        result["reference"] = {"price": float(closed_reference["close"]) if closed_reference else None,
+                               "close_time_ms": int(closed_reference["close_time_ms"]) if closed_reference else None,
+                               "basis": "last locally stored candle fully closed at or before analyzed_at_ms"}
         result["coverage"] = {
             "historical_candle_count": len(candles),
             "aggregate_trade_count": len(trades),
@@ -1299,6 +1309,43 @@ async def market_structure_confluence(
         return result
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+
+@app.post("/api/v1/history/market-confluence/snapshots", tags=["history"])
+async def save_market_confluence_snapshot(payload: dict = Body(...)) -> dict:
+    try:
+        return await asyncio.to_thread(market_confluence_store.save, payload)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.get("/api/v1/history/market-confluence/{market}/{symbol}", tags=["history"])
+async def get_market_confluence_history(
+    market: Literal["SPOT", "USD_M", "COIN_M"], symbol: str,
+    interval: str = "1h", limit: int = Query(default=100, ge=1, le=1000),
+) -> dict:
+    try:
+        return await asyncio.to_thread(market_confluence_store.history, market, symbol, interval, limit)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.get("/api/v1/analysis/market-confluence-performance/{market}/{symbol}", tags=["analysis"])
+async def evaluate_market_confluence_performance(
+    market: Literal["SPOT", "USD_M", "COIN_M"], symbol: str,
+    interval: str = "1h", price_interval: str = "1m",
+    limit: int = Query(default=200, ge=1, le=1000),
+) -> dict:
+    try:
+        return await asyncio.to_thread(market_confluence_performance.evaluate, market, symbol, interval, price_interval, limit)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.get("/dashboard", include_in_schema=False)
+async def market_research_dashboard():
+    return FileResponse(Path(__file__).resolve().parents[2] / "dashboard" / "index.html", media_type="text/html")
 
 
 @app.get("/api/v1/analysis/liquidity-sweep-confirmation/{market}/{symbol}", tags=["analysis"])
