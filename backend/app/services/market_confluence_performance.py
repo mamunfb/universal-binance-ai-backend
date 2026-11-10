@@ -56,6 +56,26 @@ def _directional_statistics(rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+
+def _non_overlapping_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Select a maximum-cardinality set of non-overlapping forward outcome windows."""
+    selected = []
+    last_end = None
+    # Earliest-finish interval scheduling gives a deterministic maximum-size subset.
+    for row in sorted(
+        rows,
+        key=lambda item: (int(item["outcome_close_time_ms"]), int(item["analyzed_at_ms"])),
+    ):
+        start = int(row["analyzed_at_ms"])
+        end = int(row["outcome_close_time_ms"])
+        if end <= start:
+            continue
+        if last_end is None or start > last_end:
+            selected.append(row)
+            last_end = end
+    return sorted(selected, key=lambda item: int(item["analyzed_at_ms"]))
+
+
 class MarketConfluencePerformance:
     """Descriptive forward outcomes for saved snapshots, not a strategy backtest."""
 
@@ -224,6 +244,8 @@ class MarketConfluencePerformance:
                     ]
                     fold_directional = [row for row in fold_rows if row["directional_positive"] is not None]
                     directional_stats = _directional_statistics(fold_directional)
+                    fold_non_overlapping = _non_overlapping_rows(fold_directional)
+                    fold_non_overlapping_stats = _directional_statistics(fold_non_overlapping)
                     positives = directional_stats["positive_count"]
                     walk_forward_folds.append({
                         "fold": fold_index + 1,
@@ -241,6 +263,10 @@ class MarketConfluencePerformance:
                         "test_directional_positive_fraction_ci_95_wilson": directional_stats["positive_fraction_ci_95_wilson"],
                         "minimum_directional_sample_size": directional_stats["minimum_sample_size"],
                         "sample_size_status": directional_stats["sample_size_status"],
+                        "non_overlapping_directional_sample_size": len(fold_non_overlapping),
+                        "non_overlapping_positive_fraction": fold_non_overlapping_stats["positive_fraction"],
+                        "non_overlapping_positive_fraction_ci_95_wilson": fold_non_overlapping_stats["positive_fraction_ci_95_wilson"],
+                        "overlap_excluded_count": len(fold_directional) - len(fold_non_overlapping),
                         "test_mean_directional_return_percent": (
                             sum(row["directional_return_percent"] for row in fold_directional) / len(fold_directional)
                             if fold_directional else None
@@ -255,6 +281,8 @@ class MarketConfluencePerformance:
             ]
             walk_forward_directional = [row for row in walk_forward_rows if row["directional_positive"] is not None]
             walk_forward_stats = _directional_statistics(walk_forward_directional)
+            walk_forward_non_overlapping = _non_overlapping_rows(walk_forward_directional)
+            walk_forward_non_overlapping_stats = _directional_statistics(walk_forward_non_overlapping)
             walk_forward_positive = walk_forward_stats["positive_count"]
             walk_forward = {
                 "method": "Expanding-window walk-forward evaluation of saved confluence outputs. Each fold trains only on earlier snapshot history; no model fitting or tuning is performed. Outcomes crossing the next test-fold boundary are excluded.",
@@ -273,6 +301,11 @@ class MarketConfluencePerformance:
                 "test_directional_positive_fraction_ci_95_wilson": walk_forward_stats["positive_fraction_ci_95_wilson"],
                 "minimum_directional_sample_size": walk_forward_stats["minimum_sample_size"],
                 "sample_size_status": walk_forward_stats["sample_size_status"],
+                "non_overlapping_directional_sample_size": len(walk_forward_non_overlapping),
+                "non_overlapping_positive_count": walk_forward_non_overlapping_stats["positive_count"],
+                "non_overlapping_positive_fraction": walk_forward_non_overlapping_stats["positive_fraction"],
+                "non_overlapping_positive_fraction_ci_95_wilson": walk_forward_non_overlapping_stats["positive_fraction_ci_95_wilson"],
+                "overlap_excluded_count": len(walk_forward_directional) - len(walk_forward_non_overlapping),
                 "test_mean_directional_return_percent": (
                     sum(row["directional_return_percent"] for row in walk_forward_directional)
                     / len(walk_forward_directional) if walk_forward_directional else None
@@ -281,6 +314,8 @@ class MarketConfluencePerformance:
                 "folds": walk_forward_folds,
             }
             test_directional_stats = _directional_statistics(test_directional)
+            holdout_non_overlapping = _non_overlapping_rows(test_directional)
+            holdout_non_overlapping_stats = _directional_statistics(holdout_non_overlapping)
             out_of_sample = {
                 "method": "Chronological holdout: earliest 70% of saved snapshots are the training period; latest 30% are the test period. No fitting or tuning is performed by this evaluator.",
                 "status": (
@@ -301,6 +336,11 @@ class MarketConfluencePerformance:
                 "test_directional_positive_fraction_ci_95_wilson": test_directional_stats["positive_fraction_ci_95_wilson"],
                 "minimum_directional_sample_size": test_directional_stats["minimum_sample_size"],
                 "sample_size_status": test_directional_stats["sample_size_status"],
+                "non_overlapping_directional_sample_size": len(holdout_non_overlapping),
+                "non_overlapping_positive_count": holdout_non_overlapping_stats["positive_count"],
+                "non_overlapping_positive_fraction": holdout_non_overlapping_stats["positive_fraction"],
+                "non_overlapping_positive_fraction_ci_95_wilson": holdout_non_overlapping_stats["positive_fraction_ci_95_wilson"],
+                "overlap_excluded_count": len(test_directional) - len(holdout_non_overlapping),
                 "test_mean_directional_return_percent": (
                     sum(row["directional_return_percent"] for row in test_directional) / len(test_directional)
                     if test_directional else None
@@ -309,6 +349,17 @@ class MarketConfluencePerformance:
                     row["future_candle_coverage_complete"] for row in test_outcomes
                 ),
                 "test_outcomes": test_outcomes,
+            }
+            non_overlapping_directional = _non_overlapping_rows(directional)
+            non_overlapping_stats = _directional_statistics(non_overlapping_directional)
+            dependence_adjusted = {
+                "method": "Maximum-cardinality interval scheduling over each outcome window [analyzed_at_ms, outcome_close_time_ms]. Only non-overlapping directional outcome windows are retained; this reduces repeated exposure but does not remove all serial dependence.",
+                "directional_sample_size": len(non_overlapping_directional),
+                "positive_count": non_overlapping_stats["positive_count"],
+                "negative_count": non_overlapping_stats["negative_count"],
+                "positive_fraction": non_overlapping_stats["positive_fraction"],
+                "positive_fraction_ci_95_wilson": non_overlapping_stats["positive_fraction_ci_95_wilson"],
+                "overlap_excluded_count": len(directional) - len(non_overlapping_directional),
             }
             bias_breakdown = {}
             for bias_name in ("BULLISH", "BEARISH", "MIXED", "UNKNOWN"):
@@ -390,6 +441,7 @@ class MarketConfluencePerformance:
                 "regime_bias_breakdown": regime_bias_breakdown,
                 "out_of_sample": out_of_sample,
                 "walk_forward": walk_forward,
+                "dependence_adjusted": dependence_adjusted,
                 "pending_or_not_matured": pending,
                 "missing_reference_price": missing_reference,
                 "coverage_complete_count": sum(row["future_candle_coverage_complete"] for row in outcomes),
@@ -434,6 +486,7 @@ class MarketConfluencePerformance:
                 "out_of_sample": "Chronological 70/30 holdout by snapshot analysis time. This is a temporal evaluation split, not a trained or tuned predictive model.",
                 "walk_forward": "Expanding-window temporal folds evaluate saved confluence outputs; no predictive model is trained or tuned. Outcomes crossing the next test fold boundary are excluded.",
                 "confidence_interval": "Nominal 95% Wilson score interval for the directional-positive fraction. The 30-sample threshold is a reporting flag, not a universal adequacy guarantee. The interval assumes independent Bernoulli observations and does not adjust for serial dependence or overlapping market horizons.",
+                "overlap_control": "A separate dependence_adjusted result uses maximum-cardinality interval scheduling to retain only non-overlapping [snapshot time, outcome close time] windows. This reduces direct outcome-window overlap but cannot eliminate broader serial dependence, regime clustering, or dependence between market observations.",
                 "mfe_mae": "Directional high/low excursion; not a stop/target simulation.",
                 "coverage": "Every outcome reports whether the local candle sequence is continuous from the first expected candle through its endpoint.",
             },
