@@ -151,6 +151,10 @@ Optional aggregate trade streams can be stored locally and compared with sampled
 `GET /api/v1/analysis/order-flow/{market}/{symbol}?lookback_minutes=60&bin_size_bps=5&value_area_pct=70` calculates a local aggregate-trade volume profile (POC, VAH, VAL), window-relative CVD, and price/CVD divergence candidates. It reads locally collected trades only; the collector is opt-in, does not backfill, and the result is not a trade signal. COIN-M notional remains a raw price-times-contract-quantity proxy. See [Order Flow Intelligence](docs/ORDER_FLOW_INTELLIGENCE.md). The MCP tool is `analyze_order_flow_intelligence`.
 
 
+## Market Data Quality Dashboard
+
+The private `/dashboard` page now includes a **Market Data Quality & Reliability** panel. It reuses the selected market, symbol and candle interval, allows a 1–2160 hour lookback, and displays per-source status, freshness, local record counts, candle coverage and collector runtime status. Stream continuity remains explicitly `NOT_MEASURABLE` where the stored data cannot prove gap-free capture. The page escapes API-provided text before rendering the quality panel.
+
 ## Market Data Quality & Reliability
 
 `GET /api/v1/quality/market-data/{market}/{symbol}?interval=1h&lookback_hours=168` audits locally stored candle coverage, freshness, funding/OI/ratio timestamps, and recent aggregate-trade/order-book samples. It also reports configured collector runtime status. Stream continuity is explicitly marked `NOT_MEASURABLE` where stored data cannot prove gap-free capture. The MCP tool is `inspect_market_data_quality`. See [Market Data Quality & Reliability](docs/MARKET_DATA_QUALITY.md).
