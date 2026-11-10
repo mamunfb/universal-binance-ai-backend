@@ -236,6 +236,21 @@ def get_stored_funding_rate_history(
 
 
 @mcp.tool()
+def analyze_funding_open_interest(
+    symbol: str, period: str = "1h", price_interval: str = "1h", limit: int = 24,
+) -> dict:
+    """Analyze locally stored USD-M price, open-interest and funding history together."""
+    if period not in {"5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "1d"}:
+        raise ValueError("Unsupported open-interest period")
+    if not 2 <= limit <= 500:
+        raise ValueError("limit must be between 2 and 500")
+    return _get(
+        f"/api/v1/analysis/derivatives/funding-open-interest/{quote(symbol.upper(), safe='')}",
+        {"period": period, "price_interval": price_interval, "limit": limit},
+    )
+
+
+@mcp.tool()
 def get_stored_open_interest_history(
     symbol: str, period: str = "1h", start_time_ms: int | None = None,
     end_time_ms: int | None = None, limit: int = 500,
