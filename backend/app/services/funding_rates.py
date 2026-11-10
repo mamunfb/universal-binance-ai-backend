@@ -68,6 +68,9 @@ class FundingRateStore:
             raise ValueError("symbol must not be empty")
         if not isinstance(rows, list) or not 1 <= len(rows) <= 1000:
             raise ValueError("rows must contain between 1 and 1000 funding events")
+        for row in rows:
+            if not isinstance(row, dict) or str(row.get("symbol", "")).upper() != symbol:
+                raise ValueError("Funding event symbol does not match requested symbol")
         normalized = [self._normalize(row) for row in rows]
         if len({row[0] for row in normalized}) != len(normalized):
             raise ValueError("Duplicate funding timestamps in provider response")
