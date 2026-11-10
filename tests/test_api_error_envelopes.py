@@ -184,3 +184,55 @@ def test_spot_futures_basis_route_returns_analysis(monkeypatch):
 def test_spot_futures_basis_route_rejects_empty_symbol():
     response = client.get("/api/v1/analysis/spot-futures/basis/%20")
     assert response.status_code == 422
+
+
+def test_market_evidence_route_aggregates_read_only_sections(monkeypatch):
+    import asyncio
+    from app import main
+
+    class FakeSpot:
+        async def klines(self, symbol, interval, limit):
+            return [[i, "100", "102", "99", "101", "10", i + 1] for i in range(limit)]
+
+    class FakeFutures:
+        market = "USD_M"
+
+    async def multi(*args, **kwargs):
+        return {"status": "COMPLETED", "timeframes": {
+            "1d": {"trend_structure": "BULLISH_STRUCTURE"},
+            "4h": {"trend_structure": "BULLISH_STRUCTURE"},
+        }}
+
+    async def basis(*args, **kwargs):
+        return {"status": "COMPLETED", "source": "test",
+                "price_comparison": {"status": "COMPLETED", "basis": 1,
+                                     "basis_percent": 0.5, "relationship": "FUTURES_PREMIUM"},
+                "funding": {"status": "COMPLETED", "funding_rate": 0.0001,
+                            "funding_time_ms": 123, "source": "test"}}
+
+    async def derivatives(*args, **kwargs):
+        return {"status": "COMPLETED", "sections": {}}
+
+    async def catalysts(*args, **kwargs):
+        return {"status": "COMPLETED", "items": []}
+
+    monkeypatch.setattr(main, "get_spot_provider", lambda: FakeSpot())
+    monkeypatch.setattr(main, "get_futures_provider", lambda market: FakeFutures())
+    monkeypatch.setattr(main, "analyze_multiple_timeframes", multi)
+    monkeypatch.setattr(main, "analyze_spot_futures_basis", basis)
+    monkeypatch.setattr(main, "get_derivatives_intelligence", derivatives)
+    monkeypatch.setattr(main, "news_catalysts", catalysts)
+    monkeypatch.setattr(main, "calculate_vwap", lambda rows: {
+        "status": "COMPLETED", "latest_vwap": 100, "latest_close": 101})
+    monkeypatch.setattr(main, "calculate_volume_profile", lambda rows: {
+        "status": "COMPLETED", "poc": {"price_mid": 100}, "vah": 102, "val": 99})
+    monkeypatch.setattr(main, "analyze_market_structure", lambda rows: {
+        "status": "COMPLETED", "trend_state": "BULLISH"})
+
+    result = asyncio.run(main.market_evidence_snapshot("btcusdt"))
+    assert result["status"] == "INCOMPLETE"
+    assert result["symbol"] == "BTCUSDT"
+    assert result["decision"]["status"] == "NO_TRADE_DECISION"
+    assert result["decision"]["buy_sell_signal"] is None
+    assert result["section_status"]["multi_timeframe"] == "COMPLETED"
+    assert result["section_status"]["spot_futures_basis"] == "COMPLETED"
