@@ -406,6 +406,7 @@ async def cross_chain_token_intelligence(
                 concentration = {
                     "status": chain_snapshot["status"],
                     "snapshot_block": chain_snapshot.get("snapshot_block"),
+                    "snapshot_block_number": chain_snapshot.get("snapshot_block_number", chain_snapshot.get("snapshot_block")),
                     "snapshot_block_timestamp": chain_snapshot.get("snapshot_block_timestamp"),
                     "snapshot_timestamp_status": chain_snapshot.get("snapshot_timestamp_status", "UNAVAILABLE"),
                     "snapshot_block_time": (
