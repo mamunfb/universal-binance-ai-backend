@@ -73,7 +73,7 @@ def test_rejects_insecure_production_url(monkeypatch):
     monkeypatch.setenv("APP_ENV", "production")
     sys.modules.pop(MODULE, None)
     with pytest.raises(RuntimeError, match="HTTPS"):
-        importlib.import_module(MODULE)
+        _execute_server_module()
 
 
 def test_rejects_invalid_token_limits(monkeypatch):
