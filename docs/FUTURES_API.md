@@ -7,7 +7,7 @@ The Futures provider uses public REST market-data endpoints and does not require
 - USDⓈ-M Futures: `https://fapi.binance.com/fapi/v1`
 - COIN-M Futures: `https://dapi.binance.com/dapi/v1`
 
-The scanner combines exchangeInfo symbol metadata with the 24-hour ticker response. It reports eligible, scanned, matched, and failed symbol counts. By default it includes TRADING perpetual contracts only. Set `perpetual_only=false` in the service layer to include other trading contract types.
+The scanner combines exchangeInfo symbol metadata with the 24-hour ticker response. It reports eligible, scanned, matched, and failed symbol counts. By default it includes all TRADING contract types returned by exchangeInfo, including perpetual and currently trading dated contracts. Set `perpetual_only=true` only when intentionally narrowing the scan.
 
 ## API endpoints
 
@@ -16,7 +16,7 @@ The scanner combines exchangeInfo symbol metadata with the 24-hour ticker respon
 - `GET /api/v1/markets/futures/usdm/klines/BTCUSDT?interval=1h&limit=500`
 - `GET /api/v1/markets/futures/coinm/klines/BTCUSD_PERP?interval=1h&limit=500`
 
-The exact symbols available depend on Binance exchange metadata at request time. COIN-M volume is reported in the exchange's quote-volume field; consumers should not assume it is directly comparable to USDⓈ-M volume without checking the contract and quote units.
+The exact symbols available depend on Binance exchange metadata at request time. USDⓈ-M ticker quote volume is returned by Binance. For COIN-M, where the ticker response supplies base-asset volume rather than a quote-volume field, the scanner derives a quote-notional proxy as `baseVolume × lastPrice` and labels it `DERIVED_BASE_VOLUME_TIMES_LAST_PRICE`. This is a calculated estimate, not a native exchange quote-volume observation; do not compare it blindly with USDⓈ-M quote volume or treat it as contract count.
 
 ## Limitations
 
