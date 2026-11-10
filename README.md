@@ -94,6 +94,11 @@ uvicorn app.main:app --app-dir backend --reload
 ```
 Open `/docs` for the interactive API documentation. See [personal AI client integration](docs/AI_CLIENT_INTEGRATION.md) for the five-client ChatGPT, Gemini, Manus, Claude, and Perplexity scope, private access, OpenAPI discovery, error handling, and deployment guidance.
 
+## Multi-timeframe order flow intelligence
+
+`GET /api/v1/analysis/order-flow/multi-timeframe/{market}/{symbol}?periods=5m,15m,1h,4h,1d` compares local aggregate-trade CVD, price/CVD divergence candidates, and POC/value-area context across rolling windows. The MCP tool is `analyze_multi_timeframe_order_flow`. Windows overlap and are not independent confirmations; results use locally captured trades only and do not backfill. See [Multi-Timeframe Order Flow](docs/MULTI_TIMEFRAME_ORDER_FLOW.md).
+
+
 ## Disclaimer
 This software is for research and education. It does not provide guaranteed predictions or financial advice. Crypto assets are volatile; users are responsible for their own decisions.
 
