@@ -379,6 +379,27 @@ def get_liquidation_collector_status() -> dict:
     return _get("/api/v1/analysis/futures/liquidations/status")
 
 
+@mcp.tool()
+def analyze_historical_market_regime(
+    market: str, symbol: str, interval: str = "1h", limit: int = 200,
+) -> dict:
+    """Classify locally stored candles into descriptive volatility and structure regimes."""
+    if market not in {"SPOT", "USD_M", "COIN_M"}:
+        raise ValueError("market must be SPOT, USD_M, or COIN_M")
+    if not 40 <= limit <= 1000:
+        raise ValueError("limit must be between 40 and 1000")
+    if interval not in {
+        "1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h",
+        "6h", "8h", "12h", "1d", "3d", "1w", "1M",
+    }:
+        raise ValueError("Unsupported candle interval")
+    return _get(
+        f"/api/v1/analysis/market-regime/{market}/{quote(symbol.upper(), safe='')}",
+        {"interval": interval, "limit": limit},
+    )
+
+
+
 if __name__ == "__main__":
     # stdio transport keeps the adapter local to its configured AI client process.
     mcp.run(transport="stdio")
