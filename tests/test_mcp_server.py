@@ -114,6 +114,39 @@ def test_stored_open_interest_history_tool_uses_read_only_api_route(monkeypatch)
     }
 
 
+def test_advanced_derivatives_mcp_tool_calls_fixed_analysis_route(monkeypatch):
+    server = _load_server(monkeypatch)
+    calls = []
+    monkeypatch.setattr(
+        server, "_get",
+        lambda path, params=None: calls.append((path, params)) or {"status": "COMPLETED"},
+    )
+    result = server.analyze_advanced_derivatives(
+        "btcusdt", "1h", "15m", 48, 0.002, 4.0
+    )
+    assert result["status"] == "COMPLETED"
+    assert calls == [(
+        "/api/v1/analysis/derivatives/advanced/BTCUSDT",
+        {"period": "1h", "price_interval": "15m", "limit": 48,
+         "funding_abs_threshold": 0.002, "spike_mad_multiplier": 4.0},
+    )]
+
+
+def test_derivatives_signal_history_mcp_tool_calls_fixed_route(monkeypatch):
+    server = _load_server(monkeypatch)
+    calls = []
+    monkeypatch.setattr(
+        server, "_get",
+        lambda path, params=None: calls.append((path, params)) or {"status": "COMPLETED"},
+    )
+    result = server.get_derivatives_signal_history("btcusdt", "1h", 10, 20, 50)
+    assert result["status"] == "COMPLETED"
+    assert calls == [(
+        "/api/v1/history/derivatives-signals/BTCUSDT",
+        {"period": "1h", "start_time_ms": 10, "end_time_ms": 20, "limit": 50},
+    )]
+
+
 def test_combined_funding_open_interest_mcp_tool_calls_analysis_route(monkeypatch):
     server = _load_server(monkeypatch)
     calls = []
