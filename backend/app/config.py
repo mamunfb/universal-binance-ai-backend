@@ -11,6 +11,12 @@ class Settings(BaseSettings):
     http_timeout_seconds: float = 15.0
     liquidation_collector_enabled: bool = False
     liquidation_database_path: str = "data/liquidations.sqlite3"
+    order_book_collector_enabled: bool = False
+    order_book_collector_jobs: str = "[]"
+    order_book_database_path: str = "data/order_book_history.sqlite3"
+    order_book_sample_interval_seconds: float = 1.0
+    order_book_snapshot_limit: int = 1000
+    order_book_stored_levels: int = 20
     historical_kline_database_path: str = "data/historical_klines.sqlite3"
     funding_rate_database_path: str = "data/funding_rates.sqlite3"
     open_interest_database_path: str = "data/open_interest.sqlite3"
