@@ -1,4 +1,5 @@
 import pytest
+from datetime import datetime, timezone
 
 from app.services.market_scanner import scan_spot_markets
 
@@ -151,3 +152,31 @@ async def test_scan_defaults_to_all_quote_assets_and_consolidates_base_assets():
     primary = {row["base_asset"]: row["primary_symbol"] for row in result["unique_coins"]}
     assert primary == {"AAA": "AAAUSDC", "BBB": "BBBFDUSD"}
     assert result["excluded_pair_counts"]["BREAK"] == 1
+
+
+async def test_spot_scanner_excludes_stable_pairs_fiat_and_leveraged_tokens_and_flags_new_listing():
+    now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+
+    class EligibilityProvider:
+        async def exchange_info(self):
+            return {"symbols": [
+                {"symbol": "AAAUSDT", "baseAsset": "AAA", "quoteAsset": "USDT", "status": "TRADING", "onboardDate": now_ms},
+                {"symbol": "USDCUSDT", "baseAsset": "USDC", "quoteAsset": "USDT", "status": "TRADING"},
+                {"symbol": "BTCEUR", "baseAsset": "BTC", "quoteAsset": "EUR", "status": "TRADING"},
+                {"symbol": "BTCUPUSDT", "baseAsset": "BTCUP", "quoteAsset": "USDT", "status": "TRADING"},
+            ]}
+
+        async def all_24h_tickers(self):
+            return [{"symbol": "AAAUSDT", "lastPrice": "2", "priceChangePercent": "1",
+                     "quoteVolume": "100", "highPrice": "2.1", "lowPrice": "1.9"}]
+
+        async def all_book_tickers(self):
+            return [{"symbol": "AAAUSDT", "bidPrice": "1.99", "askPrice": "2.01"}]
+
+    result = await scan_spot_markets(EligibilityProvider())
+    assert result["eligible_symbols"] == 1
+    assert result["scanned_symbols"] == 1
+    assert result["excluded_pair_counts"]["STABLECOIN_VS_STABLECOIN"] == 1
+    assert result["excluded_pair_counts"]["FIAT_PAIR"] == 1
+    assert result["excluded_pair_counts"]["LEVERAGED_TOKEN"] == 1
+    assert result["newly_listed_pairs_30d"][0]["symbol"] == "AAAUSDT"
