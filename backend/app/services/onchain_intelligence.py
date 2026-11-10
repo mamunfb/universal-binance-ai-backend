@@ -105,3 +105,77 @@ async def get_evm_wallet_snapshot(provider: EVMRPCProvider, addresses: list[str]
         "block_number": block, "wallet_count": len(addresses), "wallets": balances,
         "warning": "Native balances are snapshots; they do not identify owners or smart-money wallets.",
     }
+
+def _decode_abi_uint(value: str) -> int:
+    if not isinstance(value, str) or not value.startswith("0x"):
+        raise ValueError("Invalid ABI hex result")
+    return int(value, 16)
+
+
+def _decode_abi_text(value: str) -> str | None:
+    if not isinstance(value, str) or not value.startswith("0x"):
+        return None
+    raw = bytes.fromhex(value[2:])
+    if len(raw) < 32:
+        return None
+    offset = int.from_bytes(raw[:32], 'big')
+    if offset + 32 <= len(raw):
+        length = int.from_bytes(raw[offset:offset + 32], 'big')
+        start, end = offset + 32, offset + 32 + length
+        if end <= len(raw):
+            try:
+                return raw[start:end].decode("utf-8").rstrip("\\x00")
+            except UnicodeDecodeError:
+                pass
+    try:
+        return raw[:32].split(b"\\x00", 1)[0].decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+
+
+async def get_erc20_token_snapshot(provider: EVMRPCProvider, contract: str,
+                                  watch_addresses: dict[str, str]) -> dict[str, Any]:
+    if len(watch_addresses) > 50:
+        raise ValueError("At most 50 tracked addresses are supported per request")
+    total_raw = _decode_abi_uint(await provider.eth_call(contract, "0x18160ddd"))
+    decimals = _decode_abi_uint(await provider.eth_call(contract, "0x313ce567"))
+    if decimals > 36:
+        raise ValueError("Token decimals outside supported range 0..36")
+    symbol = _decode_abi_text(await provider.eth_call(contract, "0x95d89b41"))
+    name = _decode_abi_text(await provider.eth_call(contract, "0x06fdde03"))
+    scale = 10 ** decimals
+    holders = []
+    for label, address in watch_addresses.items():
+        _validate_address(address)
+        data = "0x70a08231" + address[2:].lower().rjust(64, "0")
+        try:
+            raw = _decode_abi_uint(await provider.eth_call(contract, data))
+            holders.append({
+                "label": label, "address": address.lower(), "balance_raw": str(raw),
+                "balance_tokens": raw / scale,
+                "share_of_total_supply_pct": (raw / total_raw * 100) if total_raw else None,
+                "status": "COMPLETED",
+            })
+        except Exception as exc:
+            holders.append({
+                "label": label, "address": address.lower(), "status": "FAILED",
+                "error": f"{type(exc).__name__}: {str(exc)[:250]}",
+            })
+    successful = [row for row in holders if row["status"] == "COMPLETED"]
+    tracked_raw = sum(int(row["balance_raw"]) for row in successful)
+    successful.sort(key=lambda row: row["balance_tokens"], reverse=True)
+    return {
+        "status": "COMPLETED" if len(successful) == len(holders) else "INCOMPLETE",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "contract_address": contract.lower(),
+        "token": {"name": name, "symbol": symbol, "decimals": decimals,
+                  "total_supply_raw": str(total_raw), "total_supply_tokens": total_raw / scale},
+        "tracked_address_count": len(watch_addresses),
+        "successful_address_count": len(successful),
+        "failed_address_count": len(holders) - len(successful),
+        "tracked_balances": successful,
+        "failed_balances": [row for row in holders if row["status"] == "FAILED"],
+        "tracked_addresses_combined_balance_tokens": tracked_raw / scale,
+        "tracked_addresses_combined_share_of_total_supply_pct": (tracked_raw / total_raw * 100 if total_raw else None),
+        "warning": "Only supplied/configured addresses are included; this is NOT complete holder distribution or top-holder discovery.",
+    }
