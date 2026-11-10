@@ -468,3 +468,14 @@ def test_horizon_comparison_ranks_only_metrics_with_at_least_30_samples():
     non_overlap = comparison["rankings"]["non_overlapping_positive_fraction"]
     assert all(row["sample_size"] >= 30 for row in non_overlap["ranked"])
     assert "composite score" in comparison["method"]
+
+    leaderboard = result["historical_leaderboard"]
+    assert leaderboard["status"] == "DESCRIPTIVE_ONLY"
+    market_one_hour = leaderboard["dimensions"]["market_regime"]["1"]
+    positive_groups = market_one_hour["rankings"]["positive_fraction"]
+    group = next(row for row in positive_groups["ranked"] if row["bias"] == "BULLISH")
+    assert group["sample_size"] == 30
+    assert group["rank"] == 1
+    assert all(row["sample_size"] >= 30 for row in positive_groups["ranked"])
+    assert all(row["reason"] == "BELOW_MINIMUM_SAMPLE_SIZE" for row in positive_groups["excluded"])
+    assert "not a forecast" in leaderboard["method"]
