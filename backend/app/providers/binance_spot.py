@@ -43,6 +43,14 @@ class BinanceSpotProvider:
             raise ValueError("Unexpected Binance 24hr ticker response")
         return data
 
+
+    async def all_book_tickers(self) -> list[dict[str, Any]]:
+        """Fetch best bid/ask for all Spot symbols in one public request."""
+        data = await self._get("/api/v3/ticker/bookTicker")
+        if not isinstance(data, list) or any(not isinstance(item, dict) for item in data):
+            raise ValueError("Unexpected Binance Spot book-ticker response")
+        return data
+
     async def order_book(self, symbol: str, limit: int = 100) -> dict[str, Any]:
         if not symbol or not symbol.strip():
             raise ValueError("symbol must not be empty")
