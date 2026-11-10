@@ -13,6 +13,31 @@ The repository is a substantial research-only Python/FastAPI foundation. It alre
 
 Do not replace the current project with a new application. Preserve its modules and extend them behind the existing provider/service/API boundaries. Keep Spot and Futures workflows separate while sharing only market-neutral utilities.
 
+## Mandatory paired-phase execution gate (user-directed)
+
+The two master prompts must advance in lockstep by phase number. This is a hard sequencing constraint, not a preference:
+
+1. Complete **SPOT Phase 01** in full.
+2. Complete **FUTURES Phase 01** in full.
+3. Verify both Phase 01 implementations and tests. Only when both are accepted may Phase 02 begin.
+4. Complete **SPOT Phase 02**, then **FUTURES Phase 02**; verify both before Phase 03.
+5. Repeat this paired sequence through Phase 20.
+6. Never start, implement, mark complete, or claim progress on Phase N+1 in either market while either SPOT or FUTURES Phase N remains incomplete.
+7. Existing reusable code from later phases may be inspected to understand dependencies, but it must not be modified as later-phase implementation until its paired phase is reached. Bug fixes necessary to make the current paired phase work are allowed; unrelated later-phase enhancements are deferred.
+8. A phase is complete only when every task and output required by both canonical prompts for that phase is implemented, tested, integrated, and its data limitations are explicitly represented. A green test suite alone is not proof that every prompt requirement is complete.
+9. If one market's phase is blocked by unavailable data, credentials, external provider, or exchange limitation, stop the sequence at that phase. Do not skip it to progress the other market. Record the exact blocker and request only the input or access needed to resolve it.
+10. Maintain a paired gate ledger with separate Spot and Futures statuses: NOT_STARTED, IN_PROGRESS, BLOCKED, or COMPLETE. The combined phase status is COMPLETE only when both are COMPLETE.
+11. The next phase is unlocked only by the paired completion rule. No phase may be silently skipped, merged, or declared complete by inference.
+12. At Phase 20, finish and verify both final reports before declaring the combined project finished.
+
+### Current paired-phase position
+
+- Current authorized phase: **PHASE 01 only**.
+- SPOT Phase 01: IN_PROGRESS — current scanner covers eligible exchange symbols/tickers and returned book tickers, but its own output explicitly lists missing all-symbol order-book depth, recent-average volume surge and market-cap enrichment.
+- FUTURES Phase 01: IN_PROGRESS — USD-M/COIN-M scanners exist, but all-contract depth, volume surge, relative strength, open-interest change and market-cap enrichment remain incomplete.
+- Phase 02 is LOCKED until both Phase 01 checklists are complete and verified.
+- No Phase 16 implementation is authorized at this stage. Any experimental Phase 16 work has been reverted/deferred; it must be revisited only after paired Phases 01–15 are accepted.
+
 ## Phase-by-phase capability audit
 
 | Phase | SPOT prompt | FUTURES prompt | Main gap / next work |
