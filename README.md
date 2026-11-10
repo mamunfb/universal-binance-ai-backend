@@ -131,3 +131,8 @@ An opt-in sequence-aware Binance diff-depth collector can maintain local Spot, U
 ## Liquidity behavior and aggregate trade flow
 
 Optional aggregate trade streams can be stored locally and compared with sampled order-book depth to report taker-flow imbalance, liquidity-withdrawal candidates and absorption candidates. Configure `AGGREGATE_TRADE_COLLECTOR_ENABLED` and `AGG_TRADE_COLLECTOR_JOBS` alongside the order-book collector. API: `GET /api/v1/analysis/liquidity-behavior/{market}/{symbol}`. This is heuristic research, not proof of spoofing or manipulation. See [Liquidity Behavior Intelligence](docs/LIQUIDITY_BEHAVIOR_INTELLIGENCE.md).
+
+
+## Aggregate trade order flow intelligence
+
+`GET /api/v1/analysis/order-flow/{market}/{symbol}?lookback_minutes=60&bin_size_bps=5&value_area_pct=70` calculates a local aggregate-trade volume profile (POC, VAH, VAL), window-relative CVD, and price/CVD divergence candidates. It reads locally collected trades only; the collector is opt-in, does not backfill, and the result is not a trade signal. COIN-M notional remains a raw price-times-contract-quantity proxy. See [Order Flow Intelligence](docs/ORDER_FLOW_INTELLIGENCE.md). The MCP tool is `analyze_order_flow_intelligence`.
