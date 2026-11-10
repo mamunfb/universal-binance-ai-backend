@@ -109,6 +109,10 @@ class BinanceFuturesProvider:
     async def klines(
         self, symbol: str, interval: str = "1h", limit: int = 500
     ) -> list[list[Any]]:
+        if not symbol or not symbol.strip():
+            raise ValueError("symbol must not be empty")
+        if not 1 <= limit <= 1500:
+            raise ValueError("limit must be between 1 and 1500")
         data = await self._get(
             f"{self.prefix}/klines",
             {"symbol": symbol.upper(), "interval": interval, "limit": limit},
