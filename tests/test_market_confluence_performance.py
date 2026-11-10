@@ -476,6 +476,13 @@ def test_horizon_comparison_ranks_only_metrics_with_at_least_30_samples():
     group = next(row for row in positive_groups["ranked"] if row["bias"] == "BULLISH")
     assert group["sample_size"] == 30
     assert group["rank"] == 1
+    assessment = group["reliability_assessment"]
+    assert assessment["classification"] == "INTERVAL_ABOVE_50_PERCENT"
+    assert assessment["directional_sample_size"] == 30
+    assert assessment["positive_fraction_ci_95_wilson_width"] is not None
+    assert assessment["coverage_complete_fraction"] == 1.0
+    assert assessment["overlap_sensitivity_absolute_gap"] is not None
+    assert market_one_hour["reliability_summary"]["group_count"] >= 1
     assert all(row["sample_size"] >= 30 for row in positive_groups["ranked"])
     assert all(row["reason"] == "BELOW_MINIMUM_SAMPLE_SIZE" for row in positive_groups["excluded"])
     assert "not a forecast" in leaderboard["method"]
