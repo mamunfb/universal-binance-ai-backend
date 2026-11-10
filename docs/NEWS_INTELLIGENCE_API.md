@@ -25,11 +25,11 @@ The first implementation supports RSS 2.0 and Atom. It normalizes titles, URLs, 
 - `COMPLETED`: every configured feed was fetched successfully.
 - `INCOMPLETE`: at least one configured feed failed.
 - `BLOCKED`: no feeds were configured.
-- Every item is explicitly `UNVERIFIED`. Feed ingestion is not fact-checking.
+- Every item passes through a conservative cross-source matching stage. Configure primary and independent publisher domains as described in NEWS_VERIFICATION.md. A matching primary plus independent domain yields CONFIRMED as an automated corroboration signal, not proof of factual truth; single-class evidence yields PARTIALLY_CONFIRMED; unclassified sources remain UNVERIFIED; old dated items become EXPIRED. FALSE is never assigned automatically.
 - Missing or unparseable publication dates are retained but cannot be reliably age-filtered.
 - URL deduplication is exact only; semantic duplicate detection is not implemented.
 - No global news coverage, sentiment score, catalyst score, or trading probability is claimed.
 
 ## Source policy
 
-Prefer primary sources: official project blogs, official exchange announcements, protocol governance posts, and regulator releases. Add reputable independent reporting as a separate source for corroboration. A later verification stage must compare independent sources and preserve direct URLs and timestamps. Never treat one feed item as confirmed merely because it appears in this API.
+Prefer primary sources: official project blogs, official exchange announcements, protocol governance posts, and regulator releases. Add reputable independent reporting as a separate source for corroboration. Verification evidence preserves the matching source domains, URLs, timestamps, and heuristic match scores. Read NEWS_VERIFICATION.md for configuration and limitations. Never treat automated corroboration as proof that every claim is true.
