@@ -1042,7 +1042,11 @@ async def usdm_derivatives_intelligence(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
+        raise HTTPException(status_code=502, detail={
+            "status": "FAILED",
+            "error": "DERIVATIVES_ANALYSIS_UNAVAILABLE",
+            "error_type": type(exc).__name__,
+        }) from exc
 
 
 @app.get("/api/v1/analysis/spot/technical/{symbol}", tags=["analysis"])
