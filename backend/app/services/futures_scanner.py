@@ -146,7 +146,12 @@ async def scan_futures_markets(
         results.append({
             "market": provider.market, "symbol": symbol,
             "base_asset": info.get("baseAsset"), "quote_asset": info.get("quoteAsset"),
-            "margin_asset": info.get("marginAsset"), "contract_type": info.get("contractType"),
+            "margin_asset": info.get("marginAsset"),
+            "settlement_asset": info.get("marginAsset"),
+            "contract_size_usd": (
+                _number(info.get("contractSize")) if provider.market == "COIN_M" else None
+            ),
+            "contract_type": info.get("contractType"),
             "delivery_date": info.get("deliveryDate"),
             "onboard_date_ms": info.get("onboardDate"),
             "onboard_date": (
