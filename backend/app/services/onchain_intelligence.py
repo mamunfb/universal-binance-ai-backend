@@ -26,6 +26,10 @@ async def analyze_erc20_activity(provider: EVMRPCProvider, contract: str, from_b
         raise ValueError("decimals must be between 0 and 36")
     if whale_threshold_tokens < 0:
         raise ValueError("whale_threshold_tokens cannot be negative")
+    if from_block < 0 or to_block < from_block:
+        raise ValueError("Invalid block range")
+    if to_block - from_block + 1 > max_block_span:
+        raise ValueError(f"Block range exceeds configured maximum of {max_block_span}")
     logs = await provider.token_transfer_logs(
         contract, from_block, to_block, max_block_span=max_block_span
     )
