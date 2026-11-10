@@ -172,6 +172,14 @@ class BinanceFuturesProvider:
             raise ValueError("Unexpected taker ratio response")
         return data
 
+
+    async def all_book_tickers(self) -> list[dict[str, Any]]:
+        """Fetch best bid/ask for all Futures symbols in one public request."""
+        data = await self._get(f"{self.prefix}/ticker/bookTicker")
+        if not isinstance(data, list) or any(not isinstance(item, dict) for item in data):
+            raise ValueError(f"Unexpected Binance {self.market} book-ticker response")
+        return data
+
     async def order_book(self, symbol: str, limit: int = 100) -> dict[str, Any]:
         if not symbol or not symbol.strip():
             raise ValueError("symbol must not be empty")
