@@ -207,3 +207,28 @@ async def test_futures_scanner_flags_newly_onboarded_contract():
     result = await scan_futures_markets(NewlyListedProvider())
     assert result["newly_listed_contracts_30d"][0]["symbol"] == "NEWUSDT"
     assert result["results"][0]["onboard_date_ms"] == now_ms
+
+
+async def test_futures_scanner_adds_mark_price_funding_and_basis_when_available():
+    class EnrichedProvider(FakeFuturesProvider):
+        async def all_book_tickers(self):
+            return [{"symbol": "AAAUSDT", "bidPrice": "12.4", "askPrice": "12.6"}]
+
+        async def premium_index(self):
+            return [{
+                "symbol": "AAAUSDT", "markPrice": "12.55", "indexPrice": "12.5",
+                "lastFundingRate": "0.0001", "nextFundingTime": 1790000000000,
+            }]
+
+        async def funding_info(self):
+            return [{"symbol": "AAAUSDT", "fundingIntervalHours": 4}]
+
+    result = await scan_futures_markets(EnrichedProvider(), quote_asset="USDT")
+    row = result["results"][0]
+    assert row["spread_bps"] > 0
+    assert row["mark_price"] == 12.55
+    assert row["index_price"] == 12.5
+    assert row["funding_rate"] == 0.0001
+    assert row["funding_interval_hours"] == 4
+    assert row["mark_index_basis_bps"] > 0
+    assert result["stage1_metrics"]["funding_rate"] == "AVAILABLE"
