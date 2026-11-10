@@ -95,6 +95,56 @@ def _reliability_assessment(stats: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _walk_forward_consistency(folds: list[dict[str, Any]]) -> dict[str, Any]:
+    """Summarize direction consistency only across folds meeting the reporting threshold."""
+    eligible = [
+        fold for fold in folds
+        if int(fold.get("test_directional_sample_size") or 0) >= 30
+        and fold.get("test_directional_positive_fraction") is not None
+        and fold.get("test_directional_positive_fraction_ci_95_wilson") is not None
+    ]
+    fractions = [float(fold["test_directional_positive_fraction"]) for fold in eligible]
+    above = sum(value > 0.5 for value in fractions)
+    at_or_below = len(fractions) - above
+    interval_above = interval_below = interval_includes = 0
+    for fold in eligible:
+        ci = fold["test_directional_positive_fraction_ci_95_wilson"]
+        if float(ci["lower"]) > 0.5:
+            interval_above += 1
+        elif float(ci["upper"]) < 0.5:
+            interval_below += 1
+        else:
+            interval_includes += 1
+    if not eligible:
+        status = "INSUFFICIENT_FOLD_EVIDENCE"
+    elif above == len(eligible):
+        status = "ALL_ELIGIBLE_FOLDS_ABOVE_50_PERCENT"
+    elif above == 0:
+        status = "ALL_ELIGIBLE_FOLDS_AT_OR_BELOW_50_PERCENT"
+    else:
+        status = "MIXED_DIRECTIONAL_RESULTS"
+    return {
+        "status": status,
+        "minimum_directional_sample_size_per_fold": 30,
+        "total_fold_count": len(folds),
+        "eligible_fold_count": len(eligible),
+        "insufficient_fold_count": len(folds) - len(eligible),
+        "folds_above_50_percent_point_estimate": above,
+        "folds_at_or_below_50_percent_point_estimate": at_or_below,
+        "folds_with_interval_above_50_percent": interval_above,
+        "folds_with_interval_below_50_percent": interval_below,
+        "folds_with_interval_including_50_percent": interval_includes,
+        "minimum_fold_positive_fraction": min(fractions) if fractions else None,
+        "maximum_fold_positive_fraction": max(fractions) if fractions else None,
+        "positive_fraction_range": max(fractions) - min(fractions) if fractions else None,
+        "interpretation": (
+            "Descriptive consistency across eligible chronological test folds only. "
+            "Folds below 30 directional observations are excluded; this threshold does not guarantee adequacy. "
+            "Fold intervals are nominal Wilson intervals and do not adjust for dependence."
+        ),
+    }
+
+
 
 def _non_overlapping_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Select a maximum-cardinality set of non-overlapping forward outcome windows."""
@@ -323,6 +373,7 @@ class MarketConfluencePerformance:
             walk_forward_non_overlapping = _non_overlapping_rows(walk_forward_directional)
             walk_forward_non_overlapping_stats = _directional_statistics(walk_forward_non_overlapping)
             walk_forward_positive = walk_forward_stats["positive_count"]
+            walk_forward_consistency = _walk_forward_consistency(walk_forward_folds)
             walk_forward = {
                 "method": "Expanding-window walk-forward evaluation of saved confluence outputs. Each fold trains only on earlier snapshot history; no model fitting or tuning is performed. Outcomes crossing the next test-fold boundary are excluded.",
                 "status": (
@@ -350,6 +401,7 @@ class MarketConfluencePerformance:
                     / len(walk_forward_directional) if walk_forward_directional else None
                 ),
                 "test_coverage_complete_count": sum(row["future_candle_coverage_complete"] for row in walk_forward_rows),
+                "consistency_assessment": walk_forward_consistency,
                 "folds": walk_forward_folds,
             }
             test_directional_stats = _directional_statistics(test_directional)
