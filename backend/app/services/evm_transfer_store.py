@@ -110,6 +110,48 @@ class EVMTransferStore:
             """, (chain_id, contract.lower(), from_block, to_block, limit)).fetchall()
             return [dict(row) for row in rows]
 
+    def address_flow_summary(self, chain_id: int, contract: str, from_block: int,
+                             to_block: int, decimals: int, limit: int = 50) -> dict[str, Any]:
+        if not 0 <= decimals <= 36:
+            raise ValueError("decimals must be between 0 and 36")
+        if not 1 <= limit <= 200:
+            raise ValueError("limit must be between 1 and 200")
+        with sqlite3.connect(self.database_path) as connection:
+            connection.row_factory = sqlite3.Row
+            rows = connection.execute("""
+                SELECT address, SUM(sent_raw) AS sent_raw, SUM(received_raw) AS received_raw,
+                       SUM(transfer_count) AS transfer_count
+                FROM (
+                    SELECT from_address AS address, SUM(CAST(amount_raw AS INTEGER)) AS sent_raw,
+                           0 AS received_raw, COUNT(*) AS transfer_count
+                    FROM evm_transfer_logs
+                    WHERE chain_id=? AND contract_address=? AND block_number BETWEEN ? AND ? AND removed=0
+                    GROUP BY from_address
+                    UNION ALL
+                    SELECT to_address AS address, 0 AS sent_raw,
+                           SUM(CAST(amount_raw AS INTEGER)) AS received_raw, COUNT(*) AS transfer_count
+                    FROM evm_transfer_logs
+                    WHERE chain_id=? AND contract_address=? AND block_number BETWEEN ? AND ? AND removed=0
+                    GROUP BY to_address
+                ) GROUP BY address
+            """, (chain_id, contract.lower(), from_block, to_block,
+                  chain_id, contract.lower(), from_block, to_block)).fetchall()
+        scale = 10 ** decimals
+        flows = [{
+            "address": row["address"],
+            "sent_tokens": int(row["sent_raw"] or 0) / scale,
+            "received_tokens": int(row["received_raw"] or 0) / scale,
+            "net_received_tokens": (int(row["received_raw"] or 0) - int(row["sent_raw"] or 0)) / scale,
+            "transfer_count": int(row["transfer_count"] or 0),
+        } for row in rows]
+        flows.sort(key=lambda item: item["net_received_tokens"], reverse=True)
+        return {
+            "transfer_counted_address_count": len(flows),
+            "top_net_receivers": flows[:limit],
+            "top_net_senders": sorted(flows, key=lambda item: item["net_received_tokens"])[:limit],
+            "warning": "Computed only from logs currently stored in SQLite for the requested range. Results are not complete unless indexed coverage spans the full requested range; address flow is not a holder balance or ownership attribution.",
+        }
+
     def coverage(self, chain_id: int, contract: str) -> list[dict[str, Any]]:
         with sqlite3.connect(self.database_path) as connection:
             connection.row_factory = sqlite3.Row
