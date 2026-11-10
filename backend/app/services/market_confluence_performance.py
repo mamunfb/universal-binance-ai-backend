@@ -108,6 +108,91 @@ def _out_of_sample_regime_stability(
     return result
 
 
+def _regime_transition_degradation(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Screen chronological holdout halves for within-regime directional degradation."""
+    ordered = sorted(rows, key=lambda row: int(row.get("analyzed_at_ms") or 0))
+    timestamps = sorted({int(row.get("analyzed_at_ms") or 0) for row in ordered})
+    split_index = len(timestamps) // 2
+    split_timestamp = timestamps[split_index] if split_index < len(timestamps) else None
+    early = [row for row in ordered if split_timestamp is not None and int(row.get("analyzed_at_ms") or 0) < split_timestamp]
+    late = [row for row in ordered if split_timestamp is not None and int(row.get("analyzed_at_ms") or 0) >= split_timestamp]
+    threshold_pp = 10.0
+    minimum_n = 30
+
+    def metrics(group: list[dict[str, Any]]) -> dict[str, Any]:
+        directional = [
+            row for row in group
+            if row.get("directional_positive") is not None
+            and row.get("directional_return_percent") is not None
+        ]
+        stats = _directional_statistics(directional)
+        return {
+            "sample_size": len(group),
+            "directional_sample_size": len(directional),
+            "positive_fraction": stats["positive_fraction"],
+            "positive_fraction_ci_95_wilson": stats["positive_fraction_ci_95_wilson"],
+            "mean_directional_return_percent": (
+                sum(float(row["directional_return_percent"]) for row in directional) / len(directional)
+                if directional else None
+            ),
+        }
+
+    output: dict[str, Any] = {
+        "status": "COMPLETED" if split_timestamp is not None else "INSUFFICIENT_HOLDOUT_PERIODS",
+        "method": (
+            "Chronological holdout outcomes split into early and late halves by unique signal timestamp. "
+            "Within each saved regime label, positive-fraction change is late minus early. "
+            "A decline of at least 10 percentage points is a screening heuristic only, not a statistical "
+            "test, proof of regime causality, or evidence of model overfitting."
+        ),
+        "split_timestamp_ms": split_timestamp,
+        "minimum_directional_sample_size_per_period": minimum_n,
+        "degradation_screen_threshold_percentage_points": threshold_pp,
+        "overall": {},
+        "dimensions": {},
+    }
+    overall_early = metrics(early)
+    overall_late = metrics(late)
+    output["overall"] = _degradation_comparison(overall_early, overall_late, minimum_n, threshold_pp)
+    for dimension in ("market_regime", "volatility_regime", "structure_regime"):
+        labels = sorted({str(row.get(dimension) or "UNCLASSIFIED") for row in ordered})
+        output["dimensions"][dimension] = {}
+        for label in labels:
+            group = [row for row in ordered if str(row.get(dimension) or "UNCLASSIFIED") == label]
+            group_early = [row for row in group if split_timestamp is not None and int(row.get("analyzed_at_ms") or 0) < split_timestamp]
+            group_late = [row for row in group if split_timestamp is not None and int(row.get("analyzed_at_ms") or 0) >= split_timestamp]
+            output["dimensions"][dimension][label] = _degradation_comparison(
+                metrics(group_early), metrics(group_late), minimum_n, threshold_pp
+            )
+    return output
+
+
+def _degradation_comparison(
+    early: dict[str, Any], late: dict[str, Any], minimum_n: int, threshold_pp: float,
+) -> dict[str, Any]:
+    early_n = int(early["directional_sample_size"])
+    late_n = int(late["directional_sample_size"])
+    early_fraction = early["positive_fraction"]
+    late_fraction = late["positive_fraction"]
+    difference_pp = (
+        (late_fraction - early_fraction) * 100
+        if early_fraction is not None and late_fraction is not None else None
+    )
+    status = (
+        "INSUFFICIENT_PERIOD_SAMPLES" if early_n < minimum_n or late_n < minimum_n
+        else "POTENTIAL_DEGRADATION_SCREEN" if difference_pp is not None and difference_pp <= -threshold_pp
+        else "NO_DEGRADATION_THRESHOLD_CROSSED"
+    )
+    return {
+        "status": status,
+        "early": early,
+        "late": late,
+        "positive_fraction_change_percentage_points": difference_pp,
+        "threshold_percentage_points": threshold_pp,
+        "minimum_directional_sample_size_per_period": minimum_n,
+    }
+
+
 def _signal_quality_assessment(rows: list[dict[str, Any]]) -> dict[str, Any]:
     """Evaluate explicit bullish/bearish confluence calls as an UP-vs-DOWN classifier."""
     eligible = [
@@ -699,6 +784,7 @@ class MarketConfluencePerformance:
                 "training_purged_overlap_count": training_purged_overlap_count,
                 "test_matured_outcome_count": len(test_outcomes),
                 "test_regime_stability": _out_of_sample_regime_stability(test_outcomes),
+                "regime_transition_degradation": _regime_transition_degradation(test_outcomes),
                 "training_directional_sample_size": len(train_directional),
                 "test_directional_sample_size": len(test_directional),
                 "test_positive_count": test_directional_stats["positive_count"],
