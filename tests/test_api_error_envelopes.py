@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.config import settings
 
 
 client = TestClient(app)
@@ -44,3 +45,37 @@ def test_successful_response_also_includes_request_id_header():
     response = client.get("/api/v1/analysis/futures/liquidations/status")
     assert response.status_code == 200
     assert len(response.headers["X-Request-ID"]) == 32
+
+
+
+def test_private_api_rejects_missing_or_invalid_bearer_key(monkeypatch):
+    monkeypatch.setattr(settings, "app_env", "development")
+    monkeypatch.setattr(settings, "personal_api_key", "test-owner-key-with-enough-entropy")
+    missing = client.get("/api/v1/analysis/futures/liquidations/status")
+    invalid = client.get(
+        "/api/v1/analysis/futures/liquidations/status",
+        headers={"Authorization": "Bearer wrong-key"},
+    )
+    assert missing.status_code == 401
+    assert invalid.status_code == 401
+    assert missing.json()["error"]["code"] == "UNAUTHORIZED"
+    assert missing.headers["WWW-Authenticate"] == "Bearer"
+    assert missing.headers["X-Request-ID"] == missing.json()["request_id"]
+
+
+def test_private_api_accepts_valid_bearer_key(monkeypatch):
+    monkeypatch.setattr(settings, "app_env", "development")
+    monkeypatch.setattr(settings, "personal_api_key", "test-owner-key-with-enough-entropy")
+    response = client.get(
+        "/api/v1/analysis/futures/liquidations/status",
+        headers={"Authorization": "Bearer test-owner-key-with-enough-entropy"},
+    )
+    assert response.status_code == 200
+
+
+def test_production_api_fails_closed_without_strong_key(monkeypatch):
+    monkeypatch.setattr(settings, "app_env", "production")
+    monkeypatch.setattr(settings, "personal_api_key", "")
+    response = client.get("/api/v1/analysis/futures/liquidations/status")
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "AUTH_NOT_CONFIGURED"
