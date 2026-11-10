@@ -202,6 +202,7 @@ Available tools:
 - `get_derivatives_collector_status`
 - `get_stored_funding_rate_history`
 - `get_stored_open_interest_history`
+- `analyze_funding_open_interest`
 - `get_liquidation_collector_status`
 
 All tools are read-only. No order, signing, withdrawal, or trade execution tool is exposed. MCP tool access remains subject to the backend's API authentication and route availability.
