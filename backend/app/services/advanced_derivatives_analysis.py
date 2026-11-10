@@ -245,6 +245,17 @@ class AdvancedDerivativesAnalysis:
             ),
         }
 
+        if price_change is None or latest_change is None:
+            co_movement = "INSUFFICIENT_PRICE_OR_OI_CONTEXT"
+        elif latest_change > 0 and price_change > 0:
+            co_movement = "PRICE_UP_OI_UP_BUILDUP_CANDIDATE"
+        elif latest_change > 0 and price_change < 0:
+            co_movement = "PRICE_DOWN_OI_UP_BUILDUP_CANDIDATE"
+        elif latest_change < 0:
+            co_movement = "OI_CONTRACTION_OR_POSITION_CLOSING_CANDIDATE"
+        else:
+            co_movement = "MIXED_OR_FLAT"
+
         if latest_change is None:
             trend = "UNAVAILABLE"
         elif latest_change > 0:
@@ -278,6 +289,13 @@ class AdvancedDerivativesAnalysis:
                 "observations": oi_changes,
             },
             "oi_spike": spike,
+            "positioning_context": {
+                "classification": co_movement,
+                "latest_price_change_percent": price_change,
+                "latest_oi_change_percent": latest_oi,
+                "directional_long_short_identification": "NOT_POSSIBLE_FROM_AGGREGATE_OPEN_INTEREST",
+                "note": "Each open contract has both a long and short side; co-movement is a descriptive candidate, not identification of which side initiated trades.",
+            },
             "price_oi_divergence": {
                 "latest_price_change_percent": price_change,
                 "latest_oi_change_percent": latest_oi,
