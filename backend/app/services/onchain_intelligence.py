@@ -141,6 +141,10 @@ async def get_evm_wallet_snapshot(provider: EVMRPCProvider, addresses: list[str]
             datetime.fromtimestamp(block_timestamp, timezone.utc).isoformat()
             if block_timestamp is not None else None
         ),
+        "snapshot_block_time": (
+            datetime.fromtimestamp(block_timestamp, timezone.utc).isoformat()
+            if block_timestamp is not None else None
+        ),
         "snapshot_age_seconds": (
             max(0, int(datetime.now(timezone.utc).timestamp()) - block_timestamp)
             if block_timestamp is not None else None
