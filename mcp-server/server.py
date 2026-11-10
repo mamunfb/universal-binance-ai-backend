@@ -236,6 +236,23 @@ def get_stored_funding_rate_history(
 
 
 @mcp.tool()
+def get_stored_open_interest_history(
+    symbol: str, period: str = "1h", start_time_ms: int | None = None,
+    end_time_ms: int | None = None, limit: int = 500,
+) -> dict:
+    """Read locally stored USD-M open-interest statistics for one period."""
+    if period not in {"5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "1d"}:
+        raise ValueError("Unsupported open-interest period")
+    if not 1 <= limit <= 5000:
+        raise ValueError("limit must be between 1 and 5000")
+    return _get(
+        f"/api/v1/history/open-interest/USD_M/{quote(symbol.upper(), safe='')}",
+        {"period": period, "start_time_ms": start_time_ms,
+         "end_time_ms": end_time_ms, "limit": limit},
+    )
+
+
+@mcp.tool()
 def get_historical_collector_status() -> dict:
     """Check whether scheduled historical candle collection is enabled and healthy."""
     return _get("/api/v1/history/collector/status")
