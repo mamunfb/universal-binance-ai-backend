@@ -6,7 +6,7 @@ A research-only backend for collecting public cryptocurrency market data, comput
 - Scan eligible Binance Spot, USDⓈ-M Futures, and COIN-M Futures markets where public endpoints support the requested data.
 - Normalize market data and report coverage, timestamps, failures, and missing fields.
 - Provide technical indicators and multi-timeframe market context.
-- Add news, on-chain, derivatives, and tokenomics providers only after source and license review.
+- Add external news feeds only after source and license review; on-chain and tokenomics providers remain planned.
 - Expose a stable REST API first; add MCP and AI-client adapters after the core API is tested.
 - Keep this project research-only: no order placement, withdrawals, or trading execution.
 
@@ -46,7 +46,7 @@ Futures coverage is based on exchangeInfo symbols marked TRADING and the selecte
 Upstream projects will be evaluated and integrated individually. They will not be blindly copied into this repository. Each source must have its license, maintenance status, security posture, and relevance reviewed first. See docs/REPOSITORY_IMPORT_PLAN.md.
 
 ## Current status
-The repository now includes Spot and Futures scanners/klines, Spot technical indicators, USDⓈ-M derivatives snapshots, multi-timeframe Spot analysis, a limited BTC/ETH context endpoint, and an opt-in liquidation snapshot collector. News intelligence, on-chain data, validated forecasting/backtesting, production database operations, and AI/MCP adapters remain future work. Upstream source code has NOT been copied into this repository; see docs/REPOSITORY_IMPORT_PLAN.md and docs/THIRD_PARTY_NOTICES.md.
+The repository now includes Spot and Futures scanners/klines, Spot technical indicators, USDⓈ-M derivatives snapshots, multi-timeframe Spot analysis, a limited BTC/ETH context endpoint, and an opt-in liquidation snapshot collector. News RSS/Atom ingestion is implemented as a first stage; independent news verification, catalyst analysis, on-chain data, validated forecasting/backtesting, production database operations, and AI/MCP adapters remain future work. Upstream source code has NOT been copied into this repository; see docs/REPOSITORY_IMPORT_PLAN.md and docs/THIRD_PARTY_NOTICES.md.
 
 ## Run locally
 ```bash
