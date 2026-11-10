@@ -1342,6 +1342,21 @@ async def evaluate_market_confluence_performance(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
+ 
+@app.get("/api/v1/history/market-confluence/{market}/{symbol}/{snapshot_id}/price-path", tags=["history"])
+async def get_market_confluence_price_path(
+    market: Literal["SPOT", "USD_M", "COIN_M"], symbol: str, snapshot_id: str,
+    price_interval: str = "1h",
+    hours: int = Query(default=720, ge=1, le=720),
+) -> dict:
+    try:
+        return await asyncio.to_thread(
+            market_confluence_performance.price_path,
+            market, symbol, snapshot_id, price_interval, hours,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404 if "not found" in str(exc).lower() else 422, detail=str(exc)) from exc
+
 
 @app.get("/dashboard", include_in_schema=False)
 async def market_research_dashboard():
