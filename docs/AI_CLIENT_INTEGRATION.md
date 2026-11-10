@@ -270,3 +270,12 @@ WebSocket stream or historical liquidity tracker. See
 - `analyze_liquidity_behavior` compares the latest two sampled order-book snapshots with trades in that interval and reports candidate liquidity withdrawal/absorption patterns.\n- `analyze_order_flow_intelligence` calculates local aggregate-trade volume profile (POC/VAH/VAL), window-relative CVD, and price/CVD divergence candidates. It reads stored trades only; see `docs/ORDER_FLOW_INTELLIGENCE.md`.
 - Enable the aggregate-trade collector separately from the order-book collector. Both must be enabled for the same market/symbol to produce useful combined analysis.
 - Results are heuristic candidates only; no proof of spoofing, manipulation, or institutional activity is claimed.
+
+
+### Multi-timeframe order flow
+
+The read-only MCP tool `analyze_multi_timeframe_order_flow` calls
+`GET /api/v1/analysis/order-flow/multi-timeframe/{market}/{symbol}`.
+It compares locally stored aggregate-trade CVD and volume-profile context
+across selected rolling windows. Overlapping windows are not independent
+confirmations. See `docs/MULTI_TIMEFRAME_ORDER_FLOW.md`.
