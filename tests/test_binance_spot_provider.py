@@ -53,6 +53,29 @@ async def test_spot_klines_passes_symbol_as_encoded_query_parameter(monkeypatch)
 
 
 @pytest.mark.parametrize("limit", [0, -1, 1001])
+async def test_spot_klines_passes_start_and_end_time_filters(monkeypatch):
+    clients = []
+
+    def client_factory(**kwargs):
+        client = FakeAsyncClient(**kwargs)
+        clients.append(client)
+        return client
+
+    monkeypatch.setattr("app.providers.binance_spot.httpx.AsyncClient", client_factory)
+    provider = BinanceSpotProvider("https://spot.example.test")
+    await provider.klines(
+        "BTCUSDT", interval="1m", limit=100,
+        start_time_ms=1700000000000, end_time_ms=1700006000000,
+    )
+    assert clients[0].calls == [(
+        "/api/v3/klines",
+        {
+            "symbol": "BTCUSDT", "interval": "1m", "limit": 100,
+            "startTime": 1700000000000, "endTime": 1700006000000,
+        },
+    )]
+
+
 async def test_spot_klines_rejects_out_of_range_limit_without_request(monkeypatch, limit):
     def fail_if_called(**_kwargs):
         raise AssertionError("network client must not be created for invalid limit")
