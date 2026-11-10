@@ -1239,9 +1239,12 @@ async def liquidity_sweep_confirmation(
         )
         oi_records, funding_events = [], []
         if market == "USD_M":
+            # Include a one-hour look-behind so nearest observations just before
+            # the candle window can still qualify under the engine's explicit lag.
+            derivatives_start_ms = max(0, start_ms - 60 * 60_000)
             oi_history, funding_history = await asyncio.gather(
-                asyncio.to_thread(open_interest_store.history, "USD_M", symbol, "1h", start_ms, end_ms, 500),
-                asyncio.to_thread(funding_rate_store.history, "USD_M", symbol, start_ms, end_ms, 100),
+                asyncio.to_thread(open_interest_store.history, "USD_M", symbol, "1h", derivatives_start_ms, end_ms, 500),
+                asyncio.to_thread(funding_rate_store.history, "USD_M", symbol, derivatives_start_ms, end_ms, 100),
             )
             oi_records = oi_history["records"]
             funding_events = funding_history["events"]
