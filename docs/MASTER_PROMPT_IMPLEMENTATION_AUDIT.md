@@ -290,3 +290,27 @@ The Spot scanner, Futures Boolean filter, dashboard HTML rendering, market-data 
 - Combined Phase 01: **INCOMPLETE**.
 - Phase 02: **LOCKED**.
 - Pre-Coding Full Audit: **INCOMPLETE**. No Phase 01 feature implementation is authorized until latest CI passes and remaining route/service, persistence, runtime, static-analysis and security coverage gaps are resolved or documented as blockers.
+
+
+## Verified combined security-fix checkpoint — 2026-11-11
+
+- Latest verified code/test checkpoint: `dcfb8faf5372c0a9f75088d9e7f79afb9b2c42c7`.
+- GitHub Actions run `42927721586`: **SUCCESS**.
+- Ruff core rules on reviewed security and Phase 01 files: **PASSED**.
+- Dashboard JavaScript syntax check: **PASSED**.
+- Full pytest suite: **528 passed, 2 warnings**.
+- The regression set includes Futures Boolean volume filter rejection, dashboard HTML escaping, Spot scanner exception sanitization, market-data API exception sanitization, cross-chain exception sanitization and RSS feed URL sanitization.
+- A dedicated paired phase ledger now exists at `docs/PAIRED_PHASE_LEDGER.md` and records SPOT/FUTURES Phase 01 as IN_PROGRESS, Combined Phase 01 INCOMPLETE, Phase 02 LOCKED.
+
+### Lint scope qualification
+- The full-repository broad Ruff scan previously reported 289 diagnostics (including import sorting, Bugbear and test-style findings).
+- The passing CI Ruff command intentionally covers core correctness rules `E4,E7,E9,F` on the reviewed security and Phase 01 files. It is **not** evidence that the entire repository is lint-clean.
+- Remaining broad lint debt is documented and must be handled in a dedicated quality pass; it does not authorize Phase 01 feature coding while the full pre-coding audit remains incomplete.
+
+### Gate status
+- Latest code checkpoint CI: **PASS**.
+- Pre-Coding Full Audit: **INCOMPLETE** — the latest checks pass, but line-by-line review of all 84 routes and every existing analysis/storage service, deployment/live-provider verification, full-repository static analysis and dedicated security scanning are not yet complete.
+- SPOT Phase 01: **IN_PROGRESS**.
+- FUTURES Phase 01: **IN_PROGRESS**.
+- Combined Phase 01: **INCOMPLETE**.
+- Phase 02: **LOCKED**.
