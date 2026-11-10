@@ -259,6 +259,12 @@ def get_historical_collector_status() -> dict:
 
 
 @mcp.tool()
+def get_derivatives_collector_status() -> dict:
+    """Check scheduled USD-M funding-rate and open-interest collection status."""
+    return _get("/api/v1/history/derivatives-collector/status")
+
+
+@mcp.tool()
 def get_liquidation_collector_status() -> dict:
     """Check whether the optional liquidation snapshot collector is enabled."""
     return _get("/api/v1/analysis/futures/liquidations/status")
