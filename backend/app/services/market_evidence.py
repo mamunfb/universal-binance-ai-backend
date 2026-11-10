@@ -97,6 +97,38 @@ def build_market_evidence_snapshot(
         else:
             limitations.append(f"{label} data is unavailable.")
 
+    oi_history = derivative_sections.get("open_interest_history", {})
+    history_rows = oi_history.get("data") if isinstance(oi_history, dict) else None
+    if _section_status(oi_history) == "COMPLETED" and isinstance(history_rows, list) and len(history_rows) >= 2:
+        try:
+            first_oi = float(history_rows[0]["sumOpenInterest"])
+            latest_oi = float(history_rows[-1]["sumOpenInterest"])
+            first_time = history_rows[0].get("timestamp")
+            latest_time = history_rows[-1].get("timestamp")
+            import math
+            valid_oi = (
+                math.isfinite(first_oi) and math.isfinite(latest_oi)
+                and first_oi > 0 and latest_oi > 0
+            )
+        except (KeyError, TypeError, ValueError, OverflowError):
+            valid_oi = False
+        if valid_oi:
+            evidence.append({
+                "category": "OPEN_INTEREST_HISTORY",
+                "status": "OBSERVED",
+                "first_value": first_oi,
+                "latest_value": latest_oi,
+                "change_percent": (latest_oi - first_oi) / first_oi * 100,
+                "first_timestamp_ms": first_time,
+                "latest_timestamp_ms": latest_time,
+                "source": derivatives.get("source"),
+                "warning": "Open-interest change alone does not identify long or short positioning.",
+            })
+        else:
+            limitations.append("Open-interest history contains invalid values.")
+    else:
+        limitations.append("Open-interest history coverage is insufficient for a change calculation.")
+
     order_book = derivative_sections.get("order_book", {})
     order_data = order_book.get("data", {}) if isinstance(order_book, dict) else {}
     if _section_status(order_book) == "COMPLETED" and _section_status(order_data) == "COMPLETED":
