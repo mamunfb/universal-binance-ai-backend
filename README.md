@@ -153,4 +153,4 @@ Optional aggregate trade streams can be stored locally and compared with sampled
 
 ## Private Market Research Dashboard
 
-After deployment, open `/dashboard` on the same private API origin. The dashboard runs confluence analysis, explicitly saves selected snapshots, reads saved history and evaluates forward 1h/4h/24h outcomes. It requires authentication and should not be exposed publicly without a secure deployment boundary.
+After deployment, open `/dashboard` on the same private API origin. The dashboard runs confluence analysis, explicitly saves selected snapshots, reads saved history and evaluates forward 1h/4h/24h/48h/72h/15-day/30-day outcomes using hourly candles by default. It requires authentication and should not be exposed publicly without a secure deployment boundary.
