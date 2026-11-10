@@ -59,6 +59,29 @@ async def test_futures_klines_use_market_specific_endpoint_and_query_params(
     ]
 
 
+async def test_futures_klines_pass_time_range_filters(monkeypatch):
+    clients = []
+
+    def client_factory(**kwargs):
+        client = FakeAsyncClient(**kwargs)
+        clients.append(client)
+        return client
+
+    monkeypatch.setattr("app.providers.binance_futures.httpx.AsyncClient", client_factory)
+    provider = BinanceFuturesProvider("USD_M")
+    await provider.klines(
+        "BTCUSDT", interval="5m", limit=300,
+        start_time_ms=1700000000000, end_time_ms=1700006000000,
+    )
+    assert clients[0].calls == [(
+        "/fapi/v1/klines",
+        {
+            "symbol": "BTCUSDT", "interval": "5m", "limit": 300,
+            "startTime": 1700000000000, "endTime": 1700006000000,
+        },
+    )]
+
+
 @pytest.mark.parametrize("limit", [0, -1, 1501])
 async def test_futures_klines_reject_out_of_range_limit(monkeypatch, limit):
     def fail_if_called(**_kwargs):
