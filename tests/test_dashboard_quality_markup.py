@@ -143,3 +143,12 @@ def test_dashboard_displays_signal_quality_confusion_matrix_and_regime_breakdown
     assert "true_negative" in html
     assert "false_negative" in html
     assert "do not include periods with no call" in html
+
+
+def test_dashboard_displays_purged_holdout_and_regime_stability_tables():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "training_purged_overlap_count" in html
+    assert "Holdout regime stability" in html
+    assert "test_regime_stability" in html
+    assert "coverage_complete_fraction" in html
+    assert "Regime groups are based only on labels saved at signal time" in html
