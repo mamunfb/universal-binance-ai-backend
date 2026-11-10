@@ -304,3 +304,8 @@ multi-timeframe flow and liquidity-sweep evidence. It reports agreement,
 conflicts and coverage; missing or neutral sources do not vote against
 available directional evidence. The output is descriptive, not a probability
 or trading recommendation. See `docs/MARKET_STRUCTURE_CONFLUENCE.md`.
+
+
+### Confluence snapshot history
+
+MCP tools: `save_market_confluence_snapshot`, `get_market_confluence_history`, and `evaluate_market_confluence_performance`. They save/read descriptive snapshots and evaluate later local candle movement. This is not a strategy backtest or validated win rate. See `docs/MARKET_STRUCTURE_CONFLUENCE.md`.
