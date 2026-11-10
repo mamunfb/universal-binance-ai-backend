@@ -165,3 +165,22 @@ def test_derivatives_route_sanitizes_unexpected_provider_exception(monkeypatch):
         assert "private-secret" not in detail
     else:
         raise AssertionError("Expected sanitized HTTP 502")
+
+
+def test_spot_futures_basis_route_returns_analysis(monkeypatch):
+    from app import main
+
+    async def fake_analysis(spot, futures, symbol):
+        return {"status": "COMPLETED", "symbol": symbol.upper(),
+                "price_comparison": {"basis_percent": 0.5}}
+
+    monkeypatch.setattr(main, "analyze_spot_futures_basis", fake_analysis)
+    response = client.get("/api/v1/analysis/spot-futures/basis/btcusdt")
+    assert response.status_code == 200
+    assert response.json()["symbol"] == "BTCUSDT"
+    assert response.json()["price_comparison"]["basis_percent"] == 0.5
+
+
+def test_spot_futures_basis_route_rejects_empty_symbol():
+    response = client.get("/api/v1/analysis/spot-futures/basis/%20")
+    assert response.status_code == 422
