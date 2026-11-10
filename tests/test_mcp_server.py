@@ -235,6 +235,18 @@ def test_spot_futures_basis_mcp_tool_calls_fixed_read_only_route(monkeypatch):
     assert calls == [("/api/v1/analysis/spot-futures/basis/BTCUSDT", None)]
 
 
+def test_historical_collector_status_mcp_tool_calls_fixed_route(monkeypatch):
+    server = _load_server(monkeypatch)
+    calls = []
+    monkeypatch.setattr(
+        server, "_get",
+        lambda path, params=None: calls.append((path, params)) or {"status": "DISABLED"},
+    )
+    result = server.get_historical_collector_status()
+    assert result["status"] == "DISABLED"
+    assert calls == [("/api/v1/history/collector/status", None)]
+
+
 def test_market_evidence_mcp_tool_calls_fixed_read_only_route(monkeypatch):
     server = _load_server(monkeypatch)
     calls = []
