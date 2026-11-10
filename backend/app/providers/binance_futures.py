@@ -142,9 +142,11 @@ class BinanceFuturesProvider:
         return data
 
     async def order_book(self, symbol: str, limit: int = 100) -> dict[str, Any]:
-        if self.market != "USD_M":
-            raise NotImplementedError("Order book adapter is currently enabled for USD_M only")
-        data = await self._get("/fapi/v1/depth", {"symbol": symbol.upper(), "limit": limit})
+        if not symbol or not symbol.strip():
+            raise ValueError("symbol must not be empty")
+        if limit not in {5, 10, 20, 50, 100, 500, 1000}:
+            raise ValueError("Unsupported futures order book limit")
+        data = await self._get(f"{self.prefix}/depth", {"symbol": symbol.upper(), "limit": limit})
         if not isinstance(data, dict) or "bids" not in data or "asks" not in data:
             raise ValueError("Unexpected order book response")
         return data
