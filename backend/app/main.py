@@ -197,6 +197,59 @@ async def get_evm_token_history(
         raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
 
 
+@app.get("/api/v1/onchain/evm/token/{contract}/concentration", tags=["on-chain"])
+async def evm_token_concentration(contract: str) -> dict:
+    try:
+        provider = get_evm_provider()
+        chain_id = await provider.chain_id()
+        block_number = await provider.block_number()
+        registry = load_wallet_registry(settings.evm_wallet_registry, chain_id)
+        tracked = {
+            f"{item.get('label', 'unknown')}:{item.get('entity_name') or item['address']}": item["address"]
+            for item in registry.get("wallets", [])
+            if item.get("verification_status") == "verified"
+            and item.get("label") in {"smart_money", "exchange", "fund", "market_maker", "protocol_treasury", "whale"}
+        }
+        snapshot = await get_erc20_token_snapshot(provider, contract, tracked)
+        grouped = {}
+        for row in snapshot["tracked_balances"]:
+            label = row["label"].split(":", 1)[0]
+            group = grouped.setdefault(label, {"wallet_count": 0, "balance_raw": 0})
+            group["wallet_count"] += 1
+            group["balance_raw"] += int(row["balance_raw"])
+        scale = 10 ** snapshot["token"]["decimals"]
+        concentration = {
+            label: {
+                "wallet_count": values["wallet_count"],
+                "balance_raw": str(values["balance_raw"]),
+                "balance_tokens": values["balance_raw"] / scale,
+                "share_of_total_supply_pct": (
+                    values["balance_raw"] / int(snapshot["token"]["total_supply_raw"]) * 100
+                    if int(snapshot["token"]["total_supply_raw"]) else None
+                ),
+            }
+            for label, values in grouped.items()
+        }
+        return {
+            "status": snapshot["status"],
+            "chain_id": chain_id,
+            "snapshot_block_number": block_number,
+            "snapshot_at": datetime.now(timezone.utc).isoformat(),
+            "token": snapshot["token"],
+            "tracked_wallet_concentration": concentration,
+            "tracked_balances": snapshot["tracked_balances"],
+            "failed_balances": snapshot["failed_balances"],
+            "tracked_addresses_combined_balance_tokens": snapshot["tracked_addresses_combined_balance_tokens"],
+            "tracked_addresses_combined_share_of_total_supply_pct": snapshot["tracked_addresses_combined_share_of_total_supply_pct"],
+            "registry_status": registry["status"],
+            "warning": "Only verified operator-registry addresses are included. This is not a complete holder ranking or full token concentration analysis. Balance calls may be served at different latest blocks by the RPC; snapshot_block_number is the block observed before calls began.",
+        }
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)[:300]}) from exc
+
+
 @app.get("/api/v1/onchain/evm/wallet-registry", tags=["on-chain"])
 async def evm_wallet_registry(addresses: str = "") -> dict:
     try:
