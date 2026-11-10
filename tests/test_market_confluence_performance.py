@@ -656,3 +656,67 @@ def test_signal_quality_assessment_withholds_metrics_without_bullish_or_bearish_
     assert result["prediction_sample_size"] == 0
     assert result["accuracy"] is None
     assert result["confusion_matrix"]["false_positive"] == 0
+
+
+def test_out_of_sample_regime_stability_reports_each_saved_regime_dimension():
+    from app.services.market_confluence_performance import _out_of_sample_regime_stability
+
+    rows = [
+        {
+            "market_regime": "TREND", "volatility_regime": "HIGH",
+            "structure_regime": "EXPANSION", "directional_positive": True,
+            "directional_return_percent": 1.5, "future_candle_coverage_complete": True,
+        },
+        {
+            "market_regime": "TREND", "volatility_regime": "HIGH",
+            "structure_regime": "EXPANSION", "directional_positive": False,
+            "directional_return_percent": -0.5, "future_candle_coverage_complete": False,
+        },
+        {
+            "market_regime": "RANGE", "volatility_regime": "LOW",
+            "structure_regime": "COMPRESSION", "directional_positive": True,
+            "directional_return_percent": 0.7, "future_candle_coverage_complete": True,
+        },
+    ]
+    result = _out_of_sample_regime_stability(rows)
+    assert result["status"] == "COMPLETED"
+    assert result["minimum_directional_sample_size_reporting_threshold"] == 30
+    trend = result["dimensions"]["market_regime"]["TREND"]
+    assert trend["sample_size"] == 2
+    assert trend["directional_sample_size"] == 2
+    assert trend["positive_fraction"] == 0.5
+    assert trend["sample_size_status"] == "LOW_SAMPLE_SIZE"
+    assert trend["coverage_complete_fraction"] == 0.5
+    assert result["dimensions"]["volatility_regime"]["HIGH"]["directional_sample_size"] == 2
+    assert result["dimensions"]["structure_regime"]["EXPANSION"]["positive_count"] == 1
+
+
+def test_out_of_sample_training_outcomes_are_purged_at_holdout_boundary():
+    rows = []
+    for index in range(10):
+        item = snapshot("BULLISH")
+        item["snapshot_id"] = f"purge-{index}"
+        item["analyzed_at_ms"] = index * 3_600_000
+        rows.append(item)
+
+    class BoundaryKlineStore:
+        def history(self, market, symbol, interval, start_time_ms, end_time_ms, limit):
+            close_time = end_time_ms - 3_600_000
+            return {"candles": [{
+                "open_time_ms": start_time_ms,
+                "close_time_ms": close_time,
+                "high": 102.0, "low": 98.0, "close": 101.0,
+            }]}
+
+    result = MarketConfluencePerformance(
+        SnapshotStore(rows), BoundaryKlineStore(),
+    ).evaluate("USD_M", "BTCUSDT", "1h", "1h", 20)
+    holdout = result["horizons"]["1"]["out_of_sample"]
+    assert holdout["training_snapshot_count"] == 7
+    assert holdout["test_snapshot_count"] == 3
+    assert holdout["training_purged_overlap_count"] == 7
+    assert holdout["training_matured_outcome_count"] == 0
+    assert holdout["test_regime_stability"]["status"] == "COMPLETED"
+    assert set(holdout["test_regime_stability"]["dimensions"]) == {
+        "market_regime", "volatility_regime", "structure_regime",
+    }
