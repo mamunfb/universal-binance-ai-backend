@@ -134,6 +134,12 @@ def get_spot_technical_analysis(symbol: str, interval: str = "1h", limit: int = 
 
 
 @mcp.tool()
+def get_market_evidence_snapshot(symbol: str) -> dict:
+    """Get a research-only multi-source market evidence summary; no trade signal."""
+    return _get(f"/api/v1/analysis/market-evidence/{quote(symbol.upper(), safe='')}")
+
+
+@mcp.tool()
 def get_spot_futures_basis(symbol: str) -> dict:
     """Compare latest Spot and USD-M Futures prices, basis, and funding rate."""
     return _get(f"/api/v1/analysis/spot-futures/basis/{quote(symbol.upper(), safe='')}")
