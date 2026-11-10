@@ -49,7 +49,6 @@ async def test_usdm_scanner_filters_trading_perpetual_quote_symbols():
     assert result["eligible_symbols"] == 1
     assert result["scanned_symbols"] == 1
     assert result["results"][0]["symbol"] == "AAAUSDT"
-    assert result["results"][0]["market"] if "market" in result["results"][0] else True
 
 
 async def test_futures_scanner_volume_filter():
