@@ -104,8 +104,9 @@ class MarketDataQualityEngine:
             "UNKNOWN" if candle_count < 0 else
             "NO_DATA" if candle_count == 0 else
             "STALE" if candle_freshness == "STALE" else
+            "DEGRADED" if candle_freshness == "IN_PROGRESS" else
             "DEGRADED" if coverage and coverage.get("status") == "INCOMPLETE" else
-            "HEALTHY" if coverage and coverage.get("status") == "COMPLETE" else "UNKNOWN"
+            "HEALTHY" if candle_freshness == "FRESH" and coverage and coverage.get("status") == "COMPLETE" else "UNKNOWN"
         )
 
         sources: dict[str, Any] = {
@@ -117,10 +118,11 @@ class MarketDataQualityEngine:
                 "latest_close_time_ms": latest_close,
                 "age_ms": max(0, now - latest_close) if latest_close is not None else None,
                 "time_until_close_ms": max(0, latest_close - now) if latest_close is not None else None,
+                "latest_candle_finality": "NOT_CONFIRMED" if latest_close is not None and latest_close > now else "CLOSE_TIME_PASSED" if latest_close is not None else "UNKNOWN",
                 "stale_after_ms": interval_ms * 2,
                 "coverage": coverage,
-                "duplicate_open_times": 0,
-                "duplicate_note": "The SQLite primary key prevents duplicate (market, symbol, interval, open_time_ms) rows.",
+                "duplicate_open_times": 0 if candle_count >= 0 else None,
+                "duplicate_note": "The SQLite primary key prevents duplicate (market, symbol, interval, open_time_ms) rows in a valid store; this is a schema guarantee, not an independently performed duplicate scan.",
             }
         }
 
