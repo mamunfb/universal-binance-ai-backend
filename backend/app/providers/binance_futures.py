@@ -43,6 +43,69 @@ class BinanceFuturesProvider:
             raise ValueError(f"Unexpected Binance {self.market} 24hr ticker response")
         return data
 
+    async def funding_rate(self, symbol: str, limit: int = 10) -> list[dict[str, Any]]:
+        if self.market != "USD_M":
+            raise NotImplementedError("Funding history adapter is currently enabled for USD_M only")
+        data = await self._get("/fapi/v1/fundingRate", {"symbol": symbol.upper(), "limit": limit})
+        if not isinstance(data, list):
+            raise ValueError("Unexpected funding rate response")
+        return data
+
+    async def open_interest(self, symbol: str) -> dict[str, Any]:
+        if self.market != "USD_M":
+            raise NotImplementedError("Open interest adapter is currently enabled for USD_M only")
+        data = await self._get("/fapi/v1/openInterest", {"symbol": symbol.upper()})
+        if not isinstance(data, dict):
+            raise ValueError("Unexpected open interest response")
+        return data
+
+    async def open_interest_history(
+        self, symbol: str, period: str = "1h", limit: int = 30
+    ) -> list[dict[str, Any]]:
+        if self.market != "USD_M":
+            raise NotImplementedError("Open interest history is currently enabled for USD_M only")
+        data = await self._get(
+            "/futures/data/openInterestHist",
+            {"symbol": symbol.upper(), "period": period, "limit": limit},
+        )
+        if not isinstance(data, list):
+            raise ValueError("Unexpected open interest history response")
+        return data
+
+    async def global_long_short_ratio(
+        self, symbol: str, period: str = "1h", limit: int = 30
+    ) -> list[dict[str, Any]]:
+        if self.market != "USD_M":
+            raise NotImplementedError("Global long/short ratio is currently enabled for USD_M only")
+        data = await self._get(
+            "/futures/data/globalLongShortAccountRatio",
+            {"symbol": symbol.upper(), "period": period, "limit": limit},
+        )
+        if not isinstance(data, list):
+            raise ValueError("Unexpected global long/short ratio response")
+        return data
+
+    async def taker_long_short_ratio(
+        self, symbol: str, period: str = "1h", limit: int = 30
+    ) -> list[dict[str, Any]]:
+        if self.market != "USD_M":
+            raise NotImplementedError("Taker ratio is currently enabled for USD_M only")
+        data = await self._get(
+            "/futures/data/takerlongshortRatio",
+            {"symbol": symbol.upper(), "period": period, "limit": limit},
+        )
+        if not isinstance(data, list):
+            raise ValueError("Unexpected taker ratio response")
+        return data
+
+    async def order_book(self, symbol: str, limit: int = 100) -> dict[str, Any]:
+        if self.market != "USD_M":
+            raise NotImplementedError("Order book adapter is currently enabled for USD_M only")
+        data = await self._get("/fapi/v1/depth", {"symbol": symbol.upper(), "limit": limit})
+        if not isinstance(data, dict) or "bids" not in data or "asks" not in data:
+            raise ValueError("Unexpected order book response")
+        return data
+
     async def klines(
         self, symbol: str, interval: str = "1h", limit: int = 500
     ) -> list[list[Any]]:
