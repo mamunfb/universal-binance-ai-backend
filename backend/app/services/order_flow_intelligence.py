@@ -120,19 +120,26 @@ def analyze_order_flow(
     accumulated = (
         buckets[poc_index]["buy_notional"] + buckets[poc_index]["sell_notional"]
     )
-    low_idx = high_idx = poc_index
+    ordered_bucket_indices = sorted(buckets)
+    poc_position = ordered_bucket_indices.index(poc_index)
+    low_position = high_position = poc_position
     while accumulated < target_value and len(selected) < len(buckets):
         candidates = []
-        for candidate in (low_idx - 1, high_idx + 1):
-            if candidate in buckets and candidate not in selected:
-                value = buckets[candidate]["buy_notional"] + buckets[candidate]["sell_notional"]
-                candidates.append((value, candidate))
+        for position in (low_position - 1, high_position + 1):
+            if 0 <= position < len(ordered_bucket_indices):
+                candidate = ordered_bucket_indices[position]
+                if candidate not in selected:
+                    value = buckets[candidate]["buy_notional"] + buckets[candidate]["sell_notional"]
+                    candidates.append((value, position, candidate))
         if not candidates:
             break
-        value, chosen = max(candidates, key=lambda item: (item[0], -item[1]))
+        value, chosen_position, chosen = max(candidates, key=lambda item: (item[0], -item[2]))
         selected.add(chosen)
         accumulated += value
-        low_idx, high_idx = min(low_idx, chosen), max(high_idx, chosen)
+        low_position = min(low_position, chosen_position)
+        high_position = max(high_position, chosen_position)
+    low_idx = ordered_bucket_indices[low_position]
+    high_idx = ordered_bucket_indices[high_position]
 
     first_price, last_price = valid[0]["price"], valid[-1]["price"]
     price_change_pct = (last_price - first_price) / first_price * 100.0
