@@ -10,14 +10,16 @@ class BinanceSpotProvider:
         self.base_url = base_url.rstrip("/")
         self.timeout_seconds = timeout_seconds
 
-    async def _get(self, path: str) -> Any:
+    async def _get(
+        self, path: str, params: dict[str, Any] | None = None
+    ) -> Any:
         timeout = httpx.Timeout(self.timeout_seconds)
         async with httpx.AsyncClient(
             base_url=self.base_url,
             timeout=timeout,
             headers={"User-Agent": "universal-binance-ai-backend/0.1.0"},
         ) as client:
-            response = await client.get(path)
+            response = await client.get(path, params=params)
             response.raise_for_status()
             return response.json()
 
@@ -36,8 +38,13 @@ class BinanceSpotProvider:
     async def klines(
         self, symbol: str, interval: str = "1h", limit: int = 500
     ) -> list[list[Any]]:
+        if not symbol or not symbol.strip():
+            raise ValueError("symbol must not be empty")
+        if not 1 <= limit <= 1000:
+            raise ValueError("limit must be between 1 and 1000")
         data = await self._get(
-            f"/api/v3/klines?symbol={symbol.upper()}&interval={interval}&limit={limit}"
+            "/api/v3/klines",
+            {"symbol": symbol.upper(), "interval": interval, "limit": limit},
         )
         if not isinstance(data, list):
             raise ValueError("Unexpected Binance klines response")
