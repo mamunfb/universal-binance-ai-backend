@@ -21,7 +21,7 @@ from app.services.news_verification import parse_domain_list
 from app.services.catalyst_analysis import analyze_catalysts
 from app.providers.evm_rpc import EVMRPCProvider
 from app.services.onchain_intelligence import analyze_erc20_activity, get_evm_wallet_snapshot, get_erc20_token_snapshot
-from app.services.evm_transfer_store import EVMTransferStore, index_erc20_transfer_history
+from app.services.evm_transfer_store import EVMTransferStore, index_erc20_transfer_history\nfrom app.services.wallet_attribution import load_wallet_registry, annotate_wallet_addresses
 
 liquidation_store = LiquidationStore(settings.liquidation_database_path)
 liquidation_collector = LiquidationCollector(liquidation_store)
@@ -190,6 +190,27 @@ async def get_evm_token_history(
             "indexed_coverage": evm_transfer_store.coverage(chain_id, contract),
             "warning": "Only stored indexed logs are returned. An empty result does not prove there were no transfers unless this range is fully covered.",
         }
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
+
+
+@app.get("/api/v1/onchain/evm/wallet-registry", tags=["on-chain"])
+async def evm_wallet_registry(addresses: str = "") -> dict:
+    try:
+        chain_id = await get_evm_provider().chain_id()
+        registry = load_wallet_registry(settings.evm_wallet_registry, chain_id)
+        if addresses.strip():
+            requested = [value.strip() for value in addresses.split(",") if value.strip()]
+            if len(requested) > 100:
+                raise ValueError("At most 100 addresses can be looked up per request")
+            return {
+                "status": registry["status"], "chain_id": chain_id,
+                "wallets": annotate_wallet_addresses(requested, registry),
+                "registry_warning": registry["warning"],
+            }
+        return registry
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
