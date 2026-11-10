@@ -42,6 +42,8 @@ from app.services.historical_signal_performance import HistoricalSignalPerforman
 from app.services.smart_money_structure import SmartMoneyMarketStructure
 from app.services.order_book_intelligence import analyze_order_book
 from app.services.order_book_stream import OrderBookHistoryStore, OrderBookStreamCollector
+from app.services.aggregate_trade_stream import AggregateTradeStore, AggregateTradeCollector
+from app.services.liquidity_behavior import analyze_liquidity_behavior
 from app.services.derivatives_collector import DerivativesHistoryCollector
 from app.services.funding_open_interest_analysis import FundingOpenInterestAnalysis
 from app.services.advanced_derivatives_analysis import AdvancedDerivativesAnalysis, DerivativesSignalStore
@@ -57,6 +59,8 @@ liquidation_store = LiquidationStore(settings.liquidation_database_path)
 liquidation_collector = LiquidationCollector(liquidation_store)
 order_book_history_store = OrderBookHistoryStore(settings.order_book_database_path)
 order_book_collector: OrderBookStreamCollector | None = None
+aggregate_trade_store = AggregateTradeStore(settings.aggregate_trade_database_path)
+aggregate_trade_collector: AggregateTradeCollector | None = None
 news_provider = RSSNewsProvider(settings.http_timeout_seconds)
 evm_transfer_store = EVMTransferStore(settings.evm_transfer_database_path)
 historical_kline_store = HistoricalKlineStore(settings.historical_kline_database_path)
@@ -70,7 +74,7 @@ derivatives_collector: DerivativesHistoryCollector | None = None
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    global historical_collector, derivatives_collector, order_book_collector
+    global historical_collector, derivatives_collector, order_book_collector, aggregate_trade_collector
     if settings.liquidation_collector_enabled:
         liquidation_collector.start()
     if settings.order_book_collector_enabled:
@@ -84,6 +88,12 @@ async def lifespan(_: FastAPI):
             stored_levels=settings.order_book_stored_levels,
         )
         order_book_collector.start()
+    if settings.aggregate_trade_collector_enabled:
+        aggregate_trade_collector = AggregateTradeCollector(
+            store=aggregate_trade_store,
+            jobs_json=settings.aggregate_trade_collector_jobs,
+        )
+        aggregate_trade_collector.start()
     if settings.derivatives_collector_enabled:
         derivatives_collector = DerivativesHistoryCollector(
             funding_store=funding_rate_store,
@@ -111,6 +121,9 @@ async def lifespan(_: FastAPI):
         if order_book_collector is not None:
             await order_book_collector.stop()
             order_book_collector = None
+        if aggregate_trade_collector is not None:
+            await aggregate_trade_collector.stop()
+            aggregate_trade_collector = None
         if derivatives_collector is not None:
             await derivatives_collector.stop()
             derivatives_collector = None
@@ -1125,6 +1138,72 @@ async def stored_order_book_history(
         "returned_count": len(rows), "samples": rows,
         "coverage_warning": "Only locally captured, sequence-synchronized samples are returned. No historical backfill is available.",
     }
+
+
+@app.get("/api/v1/history/aggregate-trades/status", tags=["history"])
+async def aggregate_trade_collector_status() -> dict:
+    if not settings.aggregate_trade_collector_enabled:
+        return {
+            "status": "DISABLED", "enabled": False,
+            "stored_trade_count": aggregate_trade_store.count(),
+            "message": "Set AGGREGATE_TRADE_COLLECTOR_ENABLED=true and configure AGG_TRADE_COLLECTOR_JOBS.",
+        }
+    if aggregate_trade_collector is None:
+        return {"status": "STARTING", "enabled": True}
+    return {"status": "RUNNING", **aggregate_trade_collector.status()}
+
+
+@app.get("/api/v1/history/aggregate-trades/{market}/{symbol}", tags=["history"])
+async def stored_aggregate_trades(
+    market: Literal["SPOT", "USD_M", "COIN_M"], symbol: str,
+    limit: int = Query(default=1000, ge=1, le=10000),
+    start_time_ms: int | None = Query(default=None, ge=0),
+    end_time_ms: int | None = Query(default=None, ge=0),
+) -> dict:
+    if start_time_ms is not None and end_time_ms is not None and end_time_ms < start_time_ms:
+        raise HTTPException(status_code=422, detail="end_time_ms must be >= start_time_ms")
+    rows = await asyncio.to_thread(
+        aggregate_trade_store.recent, market, symbol, limit, start_time_ms, end_time_ms
+    )
+    return {
+        "status": "COMPLETED", "market": market, "symbol": symbol.upper(),
+        "returned_count": len(rows), "trades": rows,
+        "coverage_warning": "Only locally captured aggregate trades are returned; no historical backfill is performed.",
+    }
+
+
+@app.get("/api/v1/analysis/liquidity-behavior/{market}/{symbol}", tags=["analysis"])
+async def liquidity_behavior_analysis(
+    market: Literal["SPOT", "USD_M", "COIN_M"], symbol: str,
+    min_removed_notional: float = Query(default=10000, ge=0, le=1e15),
+    min_aggressive_notional: float = Query(default=10000, ge=0, le=1e15),
+    max_absorption_move_bps: float = Query(default=2.0, ge=0, le=1000),
+    trade_price_band_bps: float = Query(default=2.0, ge=0, le=1000),
+) -> dict:
+    snapshots = await asyncio.to_thread(order_book_history_store.recent, market, symbol, 2)
+    if len(snapshots) < 2:
+        return {
+            "status": "INSUFFICIENT_DATA", "market": market, "symbol": symbol.upper(),
+            "reason": "At least two stored order-book samples are required.",
+            "order_book_collector_enabled": settings.order_book_collector_enabled,
+        }
+    snapshots = list(reversed(snapshots))
+    start_ms = int(snapshots[0].get("event_time_ms") or 0)
+    end_ms = int(snapshots[-1].get("event_time_ms") or 0)
+    trades = await asyncio.to_thread(
+        aggregate_trade_store.recent, market, symbol, 10000, start_ms, end_ms
+    )
+    result = await asyncio.to_thread(
+        analyze_liquidity_behavior, snapshots, trades, market, symbol,
+        min_removed_notional, min_aggressive_notional,
+        max_absorption_move_bps, trade_price_band_bps,
+    )
+    result["collector_coverage"] = {
+        "order_book_collector_enabled": settings.order_book_collector_enabled,
+        "aggregate_trade_collector_enabled": settings.aggregate_trade_collector_enabled,
+        "aggregate_trade_samples_available": len(trades),
+    }
+    return result
 
 
 @app.get("/api/v1/analysis/order-book/{market}/{symbol}", tags=["analysis"])
