@@ -1069,9 +1069,9 @@ async def _preflight_probe(name: str, operation) -> dict:
 async def research_preflight() -> dict:
     """Probe live Binance public market endpoints and disclose configured research capabilities."""
     spot, usdm, coinm = await asyncio.gather(
-        _preflight_probe("BINANCE_SPOT", get_spot_provider().exchange_info()),
-        _preflight_probe("BINANCE_USDM", get_futures_provider("USD_M").exchange_info()),
-        _preflight_probe("BINANCE_COINM", get_futures_provider("COIN_M").exchange_info()),
+        _preflight_probe("BINANCE_SPOT", get_spot_provider().exchange_info),
+        _preflight_probe("BINANCE_USDM", get_futures_provider("USD_M").exchange_info),
+        _preflight_probe("BINANCE_COINM", get_futures_provider("COIN_M").exchange_info),
     )
     feed_sources = parse_feed_sources(settings.news_rss_feeds)
     onchain_status = "PARTIAL" if settings.evm_rpc_url or settings.evm_chain_rpc_urls.strip() not in {"", "[]"} else "UNAVAILABLE"
