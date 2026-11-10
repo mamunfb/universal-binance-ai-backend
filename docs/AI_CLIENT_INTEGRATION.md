@@ -196,6 +196,9 @@ Available tools:
 - `get_market_evidence_snapshot`
 - `get_news_intelligence`
 - `get_cross_chain_token_intelligence`
+- `get_stored_historical_klines`
+- `inspect_historical_kline_coverage`
+- `get_historical_collector_status`
 - `get_liquidation_collector_status`
 
 All tools are read-only. No order, signing, withdrawal, or trade execution tool is exposed. MCP tool access remains subject to the backend's API authentication and route availability.
