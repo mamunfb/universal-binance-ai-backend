@@ -49,3 +49,18 @@ A missing or neutral source contributes no vote; it is not counted as evidence f
 ## MCP
 
 Read-only MCP tool: `analyze_market_structure_confluence`. It calls the REST endpoint; it does not duplicate the analysis engine or execute trades.
+
+
+## Snapshot history and outcomes
+
+- Save a selected analysis: `POST /api/v1/history/market-confluence/snapshots` with the complete analysis response.
+- Read snapshots: `GET /api/v1/history/market-confluence/{market}/{symbol}?interval=1h&limit=100`.
+- Evaluate forward outcomes: `GET /api/v1/analysis/market-confluence-performance/{market}/{symbol}?interval=1h&price_interval=1m&limit=200`.
+- The analysis response includes `analyzed_at_ms` and a reference close only when the candle was fully closed at analysis time.
+- Future evaluation uses candles with `open_time_ms > analyzed_at_ms`; absent future observations remain pending.
+- MIXED/UNKNOWN snapshots are retained but excluded from directional aggregates. Directional-positive fraction is descriptive, not a validated strategy hit rate.
+- No execution, fees, slippage, funding, leverage, stop or target simulation is included.
+
+## Dashboard
+
+The same-origin dashboard is served at `/dashboard`. Use HTTPS and a strong private API key. Do not put credentials in prompts or public client-side source.
