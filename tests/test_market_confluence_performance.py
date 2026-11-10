@@ -412,7 +412,11 @@ def test_regime_bias_alignment_breakdown_separates_alignment_groups():
         item["alignment"] = alignment
         item["payload"] = {"evidence": [{
             "source": "MARKET_REGIME",
-            "detail": {"regime": "TREND"},
+            "detail": {
+                "regime": "TREND",
+                "volatility_regime": "HIGH",
+                "structure_regime": "EXPANSION",
+            },
         }]}
         rows.append(item)
 
