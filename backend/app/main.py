@@ -56,6 +56,7 @@ from app.services.funding_open_interest_analysis import FundingOpenInterestAnaly
 from app.services.advanced_derivatives_analysis import AdvancedDerivativesAnalysis, DerivativesSignalStore
 from app.services.multi_timeframe_derivatives import MultiTimeframeDerivativesAnalysis
 from app.services.historical_coverage import HistoricalCoverageEngine
+from app.services.market_data_quality import MarketDataQualityEngine
 from app.services.historical_collector import HistoricalKlineCollector
 from app.services.wallet_attribution import load_wallet_registry, annotate_wallet_addresses
 from app.services.cross_chain_wallets import parse_chain_rpc_configs, cross_chain_native_wallet_snapshot
@@ -2069,6 +2070,52 @@ async def collect_historical_klines(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail={"status": "FAILED", "error": "HISTORICAL_KLINE_COLLECTION_UNAVAILABLE", "error_type": type(exc).__name__}) from exc
+
+
+@app.get("/api/v1/quality/market-data/{market}/{symbol}", tags=["quality"])
+async def inspect_market_data_quality(
+    market: Literal["SPOT", "USD_M", "COIN_M"],
+    symbol: str,
+    interval: Literal["1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d"] = "1h",
+    lookback_hours: int = Query(default=168, ge=1, le=2160),
+) -> dict:
+    engine = MarketDataQualityEngine(
+        settings.historical_kline_database_path,
+        settings.funding_rate_database_path,
+        settings.open_interest_database_path,
+        settings.derivatives_ratio_database_path,
+        settings.aggregate_trade_database_path,
+        settings.order_book_database_path,
+    )
+    try:
+        report = await asyncio.to_thread(
+            engine.inspect, market, symbol, interval, lookback_hours
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    report["collectors"] = {
+        "historical_klines": (
+            historical_collector.status() if historical_collector is not None else
+            {"status": "DISABLED", "enabled": False} if not settings.historical_collector_enabled else
+            {"status": "STARTING", "enabled": True}
+        ),
+        "derivatives": (
+            derivatives_collector.status() if derivatives_collector is not None else
+            {"status": "DISABLED", "enabled": False} if not settings.derivatives_collector_enabled else
+            {"status": "STARTING", "enabled": True}
+        ),
+        "aggregate_trades": (
+            aggregate_trade_collector.status() if aggregate_trade_collector is not None else
+            {"status": "DISABLED", "enabled": False} if not settings.aggregate_trade_collector_enabled else
+            {"status": "STARTING", "enabled": True}
+        ),
+        "order_book": (
+            order_book_collector.status() if order_book_collector is not None else
+            {"status": "DISABLED", "enabled": False} if not settings.order_book_collector_enabled else
+            {"status": "STARTING", "enabled": True}
+        ),
+    }
+    return report
 
 
 @app.get("/api/v1/history/klines/{market}/{symbol}/coverage", tags=["history"])
