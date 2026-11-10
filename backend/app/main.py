@@ -511,11 +511,58 @@ async def cross_chain_token_intelligence(
             1 for item in chains if item["data_quality"]["balance_snapshot_status"] == "COMPLETED"
         ),
     }
+    overall_status = "COMPLETED" if chains and all(
+        item["status"] == "COMPLETED" for item in chains
+    ) else "INCOMPLETE"
+    data_quality = {
+        "status": overall_status,
+        "coverage": {
+            **quality_counts,
+            "total_chains": len(chains),
+            "requested_block_range": {"from": from_block, "to": to_block},
+        },
+        "freshness": {
+            "balance_snapshots_with_timestamp": sum(
+                1 for item in chains
+                if item["data_quality"]["balance_snapshot_timestamp_status"] == "AVAILABLE"
+            ),
+            "balance_snapshots_without_timestamp": sum(
+                1 for item in chains
+                if item["data_quality"]["balance_snapshot_status"] in {"COMPLETED", "EMPTY"}
+                and item["data_quality"]["balance_snapshot_timestamp_status"] != "AVAILABLE"
+            ),
+            "chain_snapshots": [
+                {
+                    "chain_id": item["chain_id"],
+                    "snapshot_block": item["data_quality"]["balance_snapshot_block"],
+                    "snapshot_block_number": item["data_quality"]["balance_snapshot_block_number"],
+                    "snapshot_block_timestamp": item["data_quality"]["balance_snapshot_block_timestamp"],
+                    "timestamp_status": item["data_quality"]["balance_snapshot_timestamp_status"],
+                    "snapshot_block_time": item["data_quality"]["balance_snapshot_block_time"],
+                    "snapshot_age_seconds": item["data_quality"]["balance_snapshot_age_seconds"],
+                }
+                for item in chains
+            ],
+            "note": "Freshness is available only when the RPC returns a block timestamp; age is measured at API response time.",
+        },
+        "limitations": [
+            "Indexed transfer flows reflect only locally indexed ranges; inspect per-chain coverage gaps.",
+            "Token transfers do not prove trades, ownership, deposits, withdrawals, or investment intent.",
+            "Wallet labels are operator-maintained; evidence fields are not independently authenticated by this service.",
+            "Balance concentration includes only configured verified registry wallets, not all token holders.",
+            "Block heights and token decimals are chain-specific and must not be compared across chains as if they shared one timeline.",
+            "The asset_id is an operator-defined grouping key and does not prove economic equivalence between contracts.",
+        ],
+        "interpretation_notes": [
+            "Treat INCOMPLETE results as partial evidence, not a complete market picture.",
+            "Treat EMPTY concentration as no configured verified wallets, not zero ownership by the wider cohort.",
+            "A missing block timestamp means freshness is unknown, not that the snapshot is stale.",
+        ],
+    }
     return {
+        "data_quality": data_quality,
         "data_quality_summary": quality_counts,
-        "status": "COMPLETED" if chains and all(
-            item["status"] == "COMPLETED" for item in chains
-        ) else "INCOMPLETE",
+        "status": overall_status,
         "asset_id": asset_id.lower(),
         "requested_range": {"from": from_block, "to": to_block},
         "decimals_used": decimals,
