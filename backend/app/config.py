@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     evm_transfer_database_path: str = "data/evm_transfers.sqlite3"
     evm_index_max_total_blocks: int = 10000
     evm_wallet_registry: str = "[]"
+    evm_chain_rpc_urls: str = "[]"
 
     model_config = SettingsConfigDict(
         env_file=".env",
