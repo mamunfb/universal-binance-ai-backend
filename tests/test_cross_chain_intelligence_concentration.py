@@ -28,6 +28,8 @@ def test_unified_intelligence_adds_verified_wallet_balance_concentration(monkeyp
         assert addresses == [address]
         return {"chains": [{
             "status": "COMPLETED", "snapshot_block": 500,
+            "snapshot_block_timestamp": 1700000000,
+            "snapshot_timestamp_status": "AVAILABLE",
             "token": {"decimals": 2, "total_supply_raw": "10000"},
             "wallets": [{"address": address, "status": "COMPLETED",
                          "balance_raw": "250", "balance_tokens": 2.5}],
@@ -45,13 +47,17 @@ def test_unified_intelligence_adds_verified_wallet_balance_concentration(monkeyp
     concentration = result["chains"][0]["verified_wallet_concentration"]
     assert result["status"] == "COMPLETED"
     assert concentration["snapshot_block"] == 500
+    assert concentration["snapshot_block_timestamp"] == 1700000000
+    assert concentration["snapshot_timestamp_status"] == "AVAILABLE"
+    assert concentration["snapshot_block_time"] is not None
+    assert concentration["snapshot_age_seconds"] >= 0
     assert concentration["by_label"]["exchange"]["balance_tokens"] == 2.5
     assert concentration["by_label"]["exchange"]["share_of_total_supply_pct"] == 2.5
     quality = result["chains"][0]["data_quality"]
     assert quality["balance_snapshot_block"] == 500
     assert quality["balance_wallets_succeeded"] == 1
     assert quality["chain_result_status"] == "COMPLETED"
-    assert "wall-clock age cannot be determined" in quality["freshness_note"]
+    assert "age is calculated from the chain block timestamp" in quality["freshness_note"]
     assert result["data_quality_summary"]["successful_balance_snapshot_chains"] == 1
 
 
