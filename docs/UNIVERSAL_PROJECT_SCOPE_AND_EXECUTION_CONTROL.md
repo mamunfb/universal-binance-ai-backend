@@ -225,3 +225,10 @@ For each market-specific phase record:
 - Sanitized raw provider exception disclosure in Spot/Futures market-data API routes, cross-chain token intelligence and RSS feed failures; added regression tests.
 - A broad Ruff check identified 289 existing diagnostics. CI now runs core Ruff correctness rules (`E4,E7,E9,F`) pending verification; full lint debt remains documented in the implementation audit.
 - Latest combined test/lint CI verification is pending. Pre-Coding Full Audit remains INCOMPLETE; no Phase 01 feature implementation has started.
+
+
+## 13. Verified security regression checkpoint — 2026-11-11
+- Latest verified code/test checkpoint `dcfb8faf5372c0a9f75088d9e7f79afb9b2c42c7`: GitHub Actions SUCCESS; Ruff core checks, dashboard JavaScript syntax and pytest all passed; 528 tests passed with 2 warnings.
+- A dedicated paired phase ledger is maintained at `docs/PAIRED_PHASE_LEDGER.md`.
+- The broad repository Ruff scan reported 289 pre-existing diagnostics. CI currently checks core Ruff correctness rules on the reviewed security and Phase 01 files only; repository-wide lint cleanliness is not claimed.
+- Pre-Coding Full Audit remains INCOMPLETE; SPOT/FUTURES Phase 01 remain IN_PROGRESS; Combined Phase 01 INCOMPLETE; Phase 02 LOCKED.
