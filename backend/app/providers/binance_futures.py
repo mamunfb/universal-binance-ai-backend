@@ -86,14 +86,31 @@ class BinanceFuturesProvider:
         return data
 
     async def open_interest_history(
-        self, symbol: str, period: str = "1h", limit: int = 30
+        self, symbol: str, period: str = "1h", limit: int = 30,
+        start_time_ms: int | None = None, end_time_ms: int | None = None,
     ) -> list[dict[str, Any]]:
         if self.market != "USD_M":
             raise NotImplementedError("Open interest history is currently enabled for USD_M only")
-        data = await self._get(
-            "/futures/data/openInterestHist",
-            {"symbol": symbol.upper(), "period": period, "limit": limit},
-        )
+        if not symbol or not symbol.strip():
+            raise ValueError("symbol must not be empty")
+        if period not in {"5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "1d"}:
+            raise ValueError("Unsupported open-interest period")
+        if not 1 <= limit <= 500:
+            raise ValueError("limit must be between 1 and 500")
+        if start_time_ms is not None and start_time_ms < 0:
+            raise ValueError("start_time_ms must be non-negative")
+        if end_time_ms is not None and end_time_ms < 0:
+            raise ValueError("end_time_ms must be non-negative")
+        if start_time_ms is not None and end_time_ms is not None and end_time_ms < start_time_ms:
+            raise ValueError("end_time_ms must be >= start_time_ms")
+        params: dict[str, Any] = {
+            "symbol": symbol.upper(), "period": period, "limit": limit,
+        }
+        if start_time_ms is not None:
+            params["startTime"] = start_time_ms
+        if end_time_ms is not None:
+            params["endTime"] = end_time_ms
+        data = await self._get("/futures/data/openInterestHist", params)
         if not isinstance(data, list):
             raise ValueError("Unexpected open interest history response")
         return data
