@@ -380,6 +380,54 @@ def get_liquidation_collector_status() -> dict:
 
 
 @mcp.tool()
+def get_aggregate_trade_collector_status() -> dict:
+    """Check optional Binance aggregate trade stream collector status."""
+    return _get("/api/v1/history/aggregate-trades/status")
+
+
+@mcp.tool()
+def get_stored_aggregate_trades(
+    market: str, symbol: str, limit: int = 1000,
+    start_time_ms: int | None = None, end_time_ms: int | None = None,
+) -> dict:
+    """Read locally captured Binance aggregate trades and inferred taker side."""
+    if market not in {"SPOT", "USD_M", "COIN_M"}:
+        raise ValueError("market must be SPOT, USD_M or COIN_M")
+    if not 1 <= limit <= 10000:
+        raise ValueError("limit must be between 1 and 10000")
+    if start_time_ms is not None and start_time_ms < 0:
+        raise ValueError("start_time_ms must be non-negative")
+    if end_time_ms is not None and end_time_ms < 0:
+        raise ValueError("end_time_ms must be non-negative")
+    if start_time_ms is not None and end_time_ms is not None and end_time_ms < start_time_ms:
+        raise ValueError("end_time_ms must be >= start_time_ms")
+    return _get(
+        f"/api/v1/history/aggregate-trades/{market}/{quote(symbol.upper(), safe='')}",
+        {"limit": limit, "start_time_ms": start_time_ms, "end_time_ms": end_time_ms},
+    )
+
+
+@mcp.tool()
+def analyze_liquidity_behavior(
+    market: str, symbol: str, min_removed_notional: float = 10000,
+    min_aggressive_notional: float = 10000, max_absorption_move_bps: float = 2,
+    trade_price_band_bps: float = 2,
+) -> dict:
+    """Analyze sampled liquidity changes, approximate trade flow and candidate absorption/pulling patterns."""
+    if market not in {"SPOT", "USD_M", "COIN_M"}:
+        raise ValueError("market must be SPOT, USD_M or COIN_M")
+    return _get(
+        f"/api/v1/analysis/liquidity-behavior/{market}/{quote(symbol.upper(), safe='')}",
+        {
+            "min_removed_notional": min_removed_notional,
+            "min_aggressive_notional": min_aggressive_notional,
+            "max_absorption_move_bps": max_absorption_move_bps,
+            "trade_price_band_bps": trade_price_band_bps,
+        },
+    )
+
+
+@mcp.tool()
 def get_order_book_stream_status() -> dict:
     """Check optional sequence-aware order-book stream collector status."""
     return _get("/api/v1/history/order-book/status")
