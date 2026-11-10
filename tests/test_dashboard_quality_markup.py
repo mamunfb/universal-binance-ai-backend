@@ -91,3 +91,14 @@ def test_dashboard_displays_historical_regime_performance_leaderboard():
     assert "ranking.ranked" in html
     assert "ranking.excluded" in html
     assert "Groups are ranked within each horizon and regime dimension" in html
+
+
+def test_dashboard_displays_subgroup_reliability_assessment_diagnostics():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "Evidence assessment" in html
+    assert "Wilson CI width" in html
+    assert "Overlap gap" in html
+    assert "Coverage complete" in html
+    assert "reliability_assessment" in html
+    assert "reliability_summary" in html
+    assert "not a predictive reliability score" in html
