@@ -63,7 +63,11 @@ async def news_intelligence(
     requested_symbols = [value.strip().upper() for value in symbols.split(",") if value.strip()]
     sources = parse_feed_sources(settings.news_rss_feeds)
     return await collect_news_intelligence(
-        news_provider, sources, requested_symbols, hours=hours, limit=limit,\n        primary_domains=parse_domain_list(settings.news_primary_source_domains),\n        independent_domains=parse_domain_list(settings.news_independent_source_domains),\n        stale_after_hours=settings.news_stale_after_hours,\n    )
+        news_provider, sources, requested_symbols, hours=hours, limit=limit,
+        primary_domains=parse_domain_list(settings.news_primary_source_domains),
+        independent_domains=parse_domain_list(settings.news_independent_source_domains),
+        stale_after_hours=settings.news_stale_after_hours,
+    )
 
 @app.get("/api/v1/news/catalysts", tags=["news"])
 async def news_catalysts(
