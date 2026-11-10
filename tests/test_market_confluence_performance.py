@@ -606,3 +606,45 @@ def test_data_quality_risk_assessment_marks_small_samples_and_does_not_claim_cle
     assert assessment["status"] == "WARNINGS_PRESENT"
     assert assessment["flags"][0]["code"] == "LOW_DIRECTIONAL_SAMPLE_SIZE"
     assert assessment["overfitting_assessment"]["status"] == "NOT_DIRECTLY_TESTED"
+
+
+def test_signal_quality_assessment_confusion_matrix_and_flat_outcome_handling():
+    from app.services.market_confluence_performance import _signal_quality_assessment
+
+    rows = [
+        {"bias": "BULLISH", "market_return_percent": 2.0},
+        {"bias": "BULLISH", "market_return_percent": -1.0},
+        {"bias": "BEARISH", "market_return_percent": -3.0},
+        {"bias": "BEARISH", "market_return_percent": 1.0},
+        {"bias": "BULLISH", "market_return_percent": 0.0},
+        {"bias": "MIXED", "market_return_percent": 4.0},
+    ]
+    result = _signal_quality_assessment(rows)
+    assert result["status"] == "LOW_SAMPLE_SIZE"
+    assert result["prediction_sample_size"] == 5
+    assert result["scored_non_flat_sample_size"] == 4
+    assert result["flat_outcome_count"] == 1
+    assert result["confusion_matrix"] == {
+        "true_positive": 1, "false_positive": 1,
+        "true_negative": 1, "false_negative": 1,
+    }
+    assert result["accuracy"] == 0.5
+    assert result["precision"] == 0.5
+    assert result["recall"] == 0.5
+    assert result["specificity"] == 0.5
+    assert result["f1_score"] == 0.5
+    assert result["accuracy_ci_95_wilson"] is not None
+    assert "periods with no call" in result["interpretation"]
+
+
+def test_signal_quality_assessment_withholds_metrics_without_bullish_or_bearish_calls():
+    from app.services.market_confluence_performance import _signal_quality_assessment
+
+    result = _signal_quality_assessment([
+        {"bias": "MIXED", "market_return_percent": 1.0},
+        {"bias": "UNKNOWN", "market_return_percent": -1.0},
+    ])
+    assert result["status"] == "NO_DIRECTIONAL_CALLS"
+    assert result["prediction_sample_size"] == 0
+    assert result["accuracy"] is None
+    assert result["confusion_matrix"]["false_positive"] == 0
