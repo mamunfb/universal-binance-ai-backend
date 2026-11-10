@@ -149,6 +149,8 @@ async def test_futures_scanner_includes_dated_contracts_by_default():
 
     result = await scan_futures_markets(AllContractProvider())
     assert result["status"] == "COMPLETED"
+    assert result["phase_status"] == "INCOMPLETE"
+    assert "order_book_depth" in result["stage1_missing_metrics"]
     assert result["quote_asset_filter"] is None
     assert result["perpetual_only"] is False
     assert result["total_available_contracts"] == 3
