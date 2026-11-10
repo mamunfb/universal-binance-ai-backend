@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 import hmac
 from datetime import datetime, timezone
@@ -18,6 +19,7 @@ from app.services.market_scanner import scan_spot_markets
 from app.services.futures_scanner import scan_futures_markets
 from app.services.derivatives_intelligence import get_derivatives_intelligence
 from app.services.spot_futures_basis import analyze_spot_futures_basis
+from app.services.market_evidence import build_market_evidence_snapshot
 from app.services.multi_timeframe import analyze_multiple_timeframes, analyze_btc_market_condition
 from app.services.liquidation_collector import LiquidationCollector, LiquidationStore
 from app.services.price_levels import analyze_support_resistance, calculate_fibonacci_levels
@@ -1064,6 +1066,60 @@ async def spot_futures_basis_intelligence(symbol: str) -> dict:
             "error": "SPOT_FUTURES_ANALYSIS_UNAVAILABLE",
             "error_type": type(exc).__name__,
         }) from exc
+
+
+@app.get("/api/v1/analysis/market-evidence/{symbol}", tags=["analysis"])
+async def market_evidence_snapshot(symbol: str) -> dict:
+    normalized = symbol.strip().upper()
+    if not normalized:
+        raise HTTPException(status_code=422, detail="symbol must not be empty")
+
+    spot = get_spot_provider()
+    futures = get_futures_provider("USD_M")
+
+    async def capture(awaitable):
+        try:
+            return await awaitable
+        except Exception as exc:
+            return {"status": "FAILED", "error": "UPSTREAM_UNAVAILABLE",
+                    "error_type": type(exc).__name__}
+
+    async def volume_snapshot():
+        rows = await spot.klines(normalized, "1h", 300)
+        vwap = calculate_vwap(rows)
+        profile = calculate_volume_profile(rows)
+        structure = analyze_market_structure(rows)
+        sections = (vwap["status"], profile["status"], structure["status"])
+        return {
+            "status": "COMPLETED" if all(value == "COMPLETED" for value in sections) else "INCOMPLETE",
+            "source": "Binance Spot public REST klines",
+            "symbol": normalized,
+            "interval": "1h",
+            "candle_count": len(rows),
+            "vwap": vwap,
+            "volume_profile": profile,
+            "market_structure": structure,
+            "warning": "OHLCV-based approximations only; not trade-level volume-at-price.",
+        }
+
+    base_asset = normalized
+    for quote in ("USDT", "USDC", "BUSD", "FDUSD", "BTC", "ETH", "BNB"):
+        if normalized.endswith(quote) and len(normalized) > len(quote):
+            base_asset = normalized[:-len(quote)]
+            break
+
+    multi_task = capture(analyze_multiple_timeframes(spot, normalized))
+    basis_task = capture(analyze_spot_futures_basis(spot, futures, normalized))
+    derivatives_task = capture(get_derivatives_intelligence(futures, normalized))
+    volume_task = capture(volume_snapshot())
+    news_task = capture(news_catalysts(symbols=base_asset, hours=72, limit=50))
+
+    multi, basis, derivatives, volume, catalysts = await asyncio.gather(
+        multi_task, basis_task, derivatives_task, volume_task, news_task
+    )
+    return build_market_evidence_snapshot(
+        normalized, multi, basis, derivatives, volume, catalysts
+    )
 
 
 @app.get("/api/v1/analysis/spot/technical/{symbol}", tags=["analysis"])
