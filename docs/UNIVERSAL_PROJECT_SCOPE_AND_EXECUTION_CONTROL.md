@@ -210,3 +210,12 @@ For each market-specific phase record:
 - SPOT Phase 01 and FUTURES Phase 01 remain IN_PROGRESS; Combined Phase 01 remains INCOMPLETE; Phase 02 remains LOCKED.
 - The pre-coding full audit remains INCOMPLETE because not every existing service/module and local/deployment runtime state has been exhaustively verified. No new Phase 01 feature coding is authorized until that audit gate is completed.
 - Local working-tree status is UNVERIFIED because the remote GitHub interface does not expose local uncommitted files.
+
+
+## 11. Continued audit checkpoint — 2026-11-11
+- Additional Spot scanner upstream-exception disclosure defect fixed and regression-tested; details and evidence are recorded in `docs/MASTER_PROMPT_IMPLEMENTATION_AUDIT.md`.
+- Verified code/test checkpoint `898b21e731ad15e9636ae401bb652abf03a2ea8d`: GitHub Actions passed, including dashboard JavaScript syntax and 525 pytest tests (2 warnings).
+- API/Futures/README documentation was corrected for default market coverage and COIN-M derived quote-notional units.
+- Remaining audit items include provider rate-limit/retry policy, full per-symbol/per-contract failure reasons, all-eligible depth coverage, source-specific timestamps/freshness, review of all existing routes/services, static/security tooling and deployment/runtime verification.
+- The MCP adapter contains a local SQLite snapshot-save POST tool; its compatibility with the literal final read-only MCP acceptance requirement needs an explicit architecture decision.
+- Pre-Coding Full Audit remains INCOMPLETE. SPOT/FUTURES Phase 01 remain IN_PROGRESS; combined Phase 01 INCOMPLETE; Phase 02 LOCKED.
