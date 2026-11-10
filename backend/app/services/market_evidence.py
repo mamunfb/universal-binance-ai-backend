@@ -138,8 +138,9 @@ def build_market_evidence_snapshot(
     ]
     evidence.append({
         "category": "NEWS_CATALYSTS",
-        "status": "OBSERVED" if confirmed else (
-            "INCOMPLETE" if _section_status(catalysts) != "COMPLETED" else "NO_CONFIRMED_CANDIDATES"
+        "status": (
+            "INCOMPLETE" if _section_status(catalysts) != "COMPLETED" else
+            "OBSERVED" if confirmed else "NO_CONFIRMED_CANDIDATES"
         ),
         "confirmed_signal_review_candidates": len(confirmed),
         "candidates": [
