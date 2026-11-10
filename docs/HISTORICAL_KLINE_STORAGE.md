@@ -46,3 +46,21 @@ The response includes source and collection time for each candle. `coverage.cont
 - Uses SQLite primary-key upserts to make overlapping collection idempotent.
 - This first iteration does not persist funding rates or open-interest history, run scheduled collection, or perform backtests.
 - No profitability, forecast, or trading recommendation is produced.
+
+
+## Historical coverage inspection
+
+Inspect an explicit, UTC-aligned candle-open range before using stored candles in research or backtests:
+
+```http
+GET /api/v1/history/klines/{market}/{symbol}/coverage?interval=1h&start_time_ms=...&end_time_ms=...
+```
+
+Both range endpoints are inclusive candle **open times** and must align to the selected interval. Fixed intervals use UTC epoch boundaries; weekly candles use Monday 00:00 UTC; monthly candles use the first day of each month at 00:00 UTC. The engine checks every expected candle open against the local store and groups consecutive missing candles into gap ranges.
+
+Response status:
+- `COMPLETE`: every expected open time in the requested range exists locally.
+- `INCOMPLETE`: some, but not all, expected candles exist.
+- `NO_STORED_DATA`: no expected candles exist in the requested range.
+
+The response includes expected/stored/missing counts, coverage ratio, gap start/end open times, and any stored timestamps that do not fit the expected interval grid. Requests are capped at 100,000 expected candles to bound work. This is a local database completeness check, not proof that the exchange history itself is complete or that every stored candle is final/authentic. Backtests should reject or explicitly account for any range whose coverage status is not `COMPLETE`.
