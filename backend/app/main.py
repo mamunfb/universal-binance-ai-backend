@@ -47,6 +47,7 @@ from app.services.liquidity_behavior import analyze_liquidity_behavior
 from app.services.order_flow_intelligence import analyze_order_flow
 from app.services.multi_timeframe_order_flow import analyze_multi_timeframe_order_flow
 from app.services.liquidity_sweep_confirmation import analyze_liquidity_sweep_confirmation
+from app.services.market_structure_confluence import analyze_market_structure_confluence
 from app.services.derivatives_collector import DerivativesHistoryCollector
 from app.services.funding_open_interest_analysis import FundingOpenInterestAnalysis
 from app.services.advanced_derivatives_analysis import AdvancedDerivativesAnalysis, DerivativesSignalStore
@@ -1207,6 +1208,97 @@ async def liquidity_behavior_analysis(
         "aggregate_trade_samples_available": len(trades),
     }
     return result
+
+
+@app.get("/api/v1/analysis/market-structure-confluence/{market}/{symbol}", tags=["analysis"])
+async def market_structure_confluence(
+    market: Literal["SPOT", "USD_M", "COIN_M"], symbol: str,
+    interval: str = "1h",
+    limit: int = Query(default=300, ge=40, le=1000),
+    periods: str = "15m,1h,4h,1d",
+    bin_size_bps: float = Query(default=5.0, ge=0.1, le=500),
+    value_area_pct: float = Query(default=70.0, ge=50, le=99),
+) -> dict:
+    allowed_intervals = {"1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d"}
+    if interval not in allowed_intervals:
+        raise HTTPException(status_code=422, detail="Unsupported candle interval")
+    selected_periods = [item.strip() for item in periods.split(",") if item.strip()]
+    allowed_periods = {"5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "1d"}
+    if not selected_periods or len(selected_periods) > 9 or len(set(selected_periods)) != len(selected_periods):
+        raise HTTPException(status_code=422, detail="Select 1 to 9 unique timeframes")
+    if any(item not in allowed_periods for item in selected_periods):
+        raise HTTPException(status_code=422, detail="Unsupported order-flow timeframe")
+    end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+    longest_minutes = max(
+        {"5m": 5, "15m": 15, "30m": 30, "1h": 60, "2h": 120,
+         "4h": 240, "6h": 360, "12h": 720, "1d": 1440}[item]
+        for item in selected_periods
+    )
+    try:
+        history, trades = await asyncio.gather(
+            asyncio.to_thread(historical_kline_store.history, market, symbol, interval, None, None, limit),
+            asyncio.to_thread(
+                aggregate_trade_store.recent, market, symbol, 50000,
+                end_ms - max(longest_minutes, 1440) * 60_000, end_ms,
+            ),
+        )
+        candles = history["candles"]
+        if len(candles) < 40:
+            return {
+                "status": "INSUFFICIENT_DATA", "market": market, "symbol": symbol.upper(),
+                "interval": interval, "available_candles": len(candles),
+                "required_candles": 40, "confluence": {
+                    "bias": "UNKNOWN", "alignment": "INSUFFICIENT_DIRECTIONAL_EVIDENCE",
+                },
+                "historical_coverage": history.get("coverage"),
+            }
+        structure, regime = await asyncio.gather(
+            asyncio.to_thread(SmartMoneyMarketStructure(historical_kline_store).analyze,
+                              market, symbol, interval, limit, 3, 3),
+            asyncio.to_thread(MarketRegimeAnalysis(historical_kline_store).analyze,
+                              market, symbol, interval, max(40, min(limit, 200))),
+        )
+        flow_end = end_ms
+        flow_start = flow_end - 60 * 60_000
+        order_flow = await asyncio.to_thread(
+            analyze_order_flow, trades, market, symbol, flow_start, flow_end,
+            bin_size_bps, value_area_pct,
+        )
+        multi_flow = await asyncio.to_thread(
+            analyze_multi_timeframe_order_flow, trades, market, symbol,
+            end_ms, selected_periods, bin_size_bps, value_area_pct,
+        )
+        book_samples = await asyncio.to_thread(
+            order_book_history_store.recent, market, symbol, 2000,
+            int(candles[0]["open_time_ms"]), int(candles[-1]["close_time_ms"]),
+        )
+        sweep = await asyncio.to_thread(
+            analyze_liquidity_sweep_confirmation,
+            candles, trades, book_samples, market, symbol, [], [],
+        )
+        result = await asyncio.to_thread(
+            analyze_market_structure_confluence,
+            market, symbol, interval, structure, regime, order_flow, multi_flow, sweep,
+        )
+        result["coverage"] = {
+            "historical_candle_count": len(candles),
+            "aggregate_trade_count": len(trades),
+            "aggregate_trade_query_limit": 50000,
+            "aggregate_trade_limit_reached": len(trades) >= 50000,
+            "order_book_sample_count": len(book_samples),
+            "local_history_only": True,
+            "backfill_performed": False,
+            "historical_kline_coverage": history.get("coverage"),
+        }
+        result["configuration"] = {
+            "order_flow_window_minutes": 60,
+            "multi_timeframe_periods": selected_periods,
+            "volume_profile_bin_size_bps": bin_size_bps,
+            "value_area_pct": value_area_pct,
+        }
+        return result
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @app.get("/api/v1/analysis/liquidity-sweep-confirmation/{market}/{symbol}", tags=["analysis"])
