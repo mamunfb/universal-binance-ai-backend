@@ -5,6 +5,15 @@ from typing import Any
 from app.providers.evm_rpc import EVMRPCProvider
 
 
+def _validate_evm_address(address: str) -> None:
+    if not isinstance(address, str) or len(address) != 42 or not address.startswith("0x"):
+        raise ValueError("Expected a 20-byte 0x-prefixed EVM address")
+    try:
+        int(address[2:], 16)
+    except ValueError as exc:
+        raise ValueError("Invalid hexadecimal EVM address") from exc
+
+
 def _topic_address(topic: str) -> str | None:
     if not isinstance(topic, str) or len(topic) != 66:
         return None
@@ -159,7 +168,7 @@ async def get_erc20_token_snapshot(provider: EVMRPCProvider, contract: str,
     scale = 10 ** decimals
     holders = []
     for label, address in watch_addresses.items():
-        _validate_address(address)
+        _validate_evm_address(address)
         data = "0x70a08231" + address[2:].lower().rjust(64, "0")
         try:
             raw = _decode_abi_uint(await provider.eth_call(contract, data))
