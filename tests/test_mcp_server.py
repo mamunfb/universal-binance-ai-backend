@@ -1,11 +1,13 @@
 """Contract tests for the private MCP adapter."""
-import importlib
-import os
+import importlib.util
+import json
+from pathlib import Path
 import sys
 
 import pytest
 
 MODULE = "mcp_server.server"
+SERVER_PATH = Path(__file__).resolve().parents[1] / "mcp-server" / "server.py"
 
 
 def _load_server(monkeypatch, client_name="chatgpt", base_url="https://api.example.test"):
@@ -15,10 +17,16 @@ def _load_server(monkeypatch, client_name="chatgpt", base_url="https://api.examp
     }
     monkeypatch.setenv("PERSONAL_API_BASE_URL", base_url)
     monkeypatch.setenv("MCP_CLIENT_NAME", client_name)
-    monkeypatch.setenv("AI_CLIENT_API_KEYS", __import__("json").dumps(keys))
+    monkeypatch.setenv("AI_CLIENT_API_KEYS", json.dumps(keys))
     monkeypatch.setenv("APP_ENV", "production")
     sys.modules.pop(MODULE, None)
-    return importlib.import_module(MODULE)
+    spec = importlib.util.spec_from_file_location(MODULE, SERVER_PATH)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Unable to load MCP adapter from {SERVER_PATH}")
+    server = importlib.util.module_from_spec(spec)
+    sys.modules[MODULE] = server
+    spec.loader.exec_module(server)
+    return server
 
 
 def test_mcp_registers_only_read_only_tool_surface(monkeypatch):
