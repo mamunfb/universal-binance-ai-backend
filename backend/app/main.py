@@ -35,8 +35,8 @@ app = FastAPI(
     title=settings.app_name,
     version="0.1.0",
     description=(
-        "Research-only crypto market data API. Initial release covers Binance Spot "
-        "public market data; other markets and intelligence providers are planned."
+        "Research-only crypto market data API with Binance Spot/Futures market data, "
+        "technical analysis, derivatives snapshots, and optional liquidation collection."
     ),
 )
 
@@ -214,7 +214,7 @@ async def spot_price_levels(
     except Exception as exc:
         raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
     return {
-        "status": "COMPLETED" if support_resistance["status"] == "COMPLETED" else "INCOMPLETE",
+        "status": "COMPLETED" if support_resistance["status"] == "COMPLETED" and fibonacci["status"] == "COMPLETED" else "INCOMPLETE",
         "source": "Binance Spot public REST klines",
         "symbol": symbol.upper(),
         "interval": interval,
