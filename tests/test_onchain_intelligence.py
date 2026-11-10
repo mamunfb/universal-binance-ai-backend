@@ -3,7 +3,7 @@ import httpx
 import pytest
 
 from app.providers.evm_rpc import EVMRPCProvider, TRANSFER_TOPIC
-from app.services.onchain_intelligence import analyze_erc20_activity, get_evm_wallet_snapshot
+from app.services.onchain_intelligence import analyze_erc20_activity, get_evm_wallet_snapshot, get_erc20_token_snapshot
 
 ADDRESS_A = "0x" + "1" * 40
 ADDRESS_B = "0x" + "2" * 40
@@ -73,3 +73,30 @@ async def test_rpc_provider_json_rpc_contract():
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
         provider = EVMRPCProvider("https://rpc.example.test")
         assert await provider._rpc("eth_chainId", [], client=client) == "0x1"
+
+
+async def test_erc20_snapshot_reports_tracked_share_not_full_distribution():
+    class FakeProvider:
+        async def eth_call(self, contract, data):
+            if data == "0x18160ddd": return hex(1_000_000 * 10**6)
+            if data == "0x313ce567": return hex(6)
+            if data == "0x95d89b41":
+                return "0x" + (32).to_bytes(32, "big").hex() + (3).to_bytes(32, "big").hex() + b"ABC".ljust(32, b"\\x00").hex()
+            if data == "0x06fdde03":
+                return "0x" + (32).to_bytes(32, "big").hex() + (7).to_bytes(32, "big").hex() + b"Example".ljust(32, b"\\x00").hex()
+            if data.endswith(ADDRESS_A[2:].rjust(64, "0")): return hex(250_000 * 10**6)
+            raise AssertionError(data)
+    result = await get_erc20_token_snapshot(FakeProvider(), CONTRACT, {"wallet-a": ADDRESS_A})
+    assert result["token"]["symbol"] == "ABC"
+    assert result["token"]["name"] == "Example"
+    assert result["tracked_balances"][0]["balance_tokens"] == 250_000
+    assert result["tracked_addresses_combined_share_of_total_supply_pct"] == 25
+    assert "NOT complete holder distribution" in result["warning"]
+
+
+async def test_erc20_snapshot_caps_watchlist_before_rpc():
+    class FakeProvider:
+        async def eth_call(self, *args):
+            raise AssertionError("Should reject before RPC")
+    with pytest.raises(ValueError):
+        await get_erc20_token_snapshot(FakeProvider(), CONTRACT, {str(i): ADDRESS_A for i in range(51)})
