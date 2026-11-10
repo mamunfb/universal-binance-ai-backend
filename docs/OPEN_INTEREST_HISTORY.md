@@ -12,7 +12,20 @@ This implementation supports USD-M only. An optional scheduled derivatives colle
 
 ```env
 OPEN_INTEREST_DATABASE_PATH=data/open_interest.sqlite3
+DERIVATIVES_COLLECTOR_ENABLED=false
+DERIVATIVES_COLLECTOR_JOBS=[]
+DERIVATIVES_COLLECTOR_POLL_SECONDS=60
+DERIVATIVES_COLLECTOR_OPEN_INTEREST_LIMIT=500
 ```
+
+To poll Open Interest automatically, add a job to the JSON allow-list and explicitly enable the collector:
+
+```env
+DERIVATIVES_COLLECTOR_ENABLED=true
+DERIVATIVES_COLLECTOR_JOBS=[{"type":"OPEN_INTEREST","symbol":"BTCUSDT","period":"1h"}]
+```
+
+Use one persistent application process and persistent disk for SQLite. The collector is sequential and refreshes from the latest stored timestamp (inclusive), which makes overlapping polls idempotent. Binance only exposes the latest month of this statistics series; an old local timestamp outside that window may not be recoverable by this collector.
 
 ## Collect
 
