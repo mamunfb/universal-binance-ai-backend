@@ -8,6 +8,69 @@ from app.services.advanced_derivatives_analysis import DerivativesSignalStore
 from app.services.historical_klines import HistoricalKlineStore
 
 
+def _explicit_signal_direction(analysis: dict[str, Any]) -> str | None:
+    """Read only an explicit directional hypothesis; never infer one from descriptive OI labels."""
+    candidate = analysis.get("signal_direction")
+    if candidate is None:
+        candidate = (analysis.get("directional_signal") or {}).get("direction")
+    if candidate is None:
+        candidate = (analysis.get("confluence") or {}).get("bias")
+    normalized = str(candidate or "").strip().upper()
+    if normalized in {"BULLISH", "BUY", "LONG", "UP"}:
+        return "BULLISH"
+    if normalized in {"BEARISH", "SELL", "SHORT", "DOWN"}:
+        return "BEARISH"
+    return None
+
+
+def _wilson_interval(successes: int, total: int) -> dict[str, float] | None:
+    if total <= 0:
+        return None
+    z = 1.959963984540054
+    p = successes / total
+    denominator = 1 + z * z / total
+    center = (p + z * z / (2 * total)) / denominator
+    margin = z * math.sqrt((p * (1 - p) / total) + (z * z / (4 * total * total))) / denominator
+    return {"lower": max(0.0, center - margin), "upper": min(1.0, center + margin)}
+
+
+def _signal_quality(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    predicted = [row for row in rows if row.get("signal_direction") in {"BULLISH", "BEARISH"}]
+    correct = 0
+    adverse = 0
+    flat = 0
+    for row in predicted:
+        value = float(row["gross_return_percent"])
+        aligned = value > 0 if row["signal_direction"] == "BULLISH" else value < 0
+        opposed = value < 0 if row["signal_direction"] == "BULLISH" else value > 0
+        correct += int(aligned)
+        adverse += int(opposed)
+        flat += int(value == 0)
+    scored = correct + adverse
+    hit_rate = correct / scored if scored else None
+    return {
+        "status": "DIRECTIONAL_HYPOTHESIS_AVAILABLE" if predicted else "NO_EXPLICIT_DIRECTIONAL_HYPOTHESIS",
+        "prediction_count": len(predicted),
+        "scored_non_flat_count": scored,
+        "directional_hit_count": correct,
+        "directional_miss_count": adverse,
+        "flat_outcome_count": flat,
+        "directional_hit_rate": hit_rate,
+        "directional_hit_rate_ci_95_wilson": _wilson_interval(correct, scored),
+        "false_positive_count": None,
+        "false_negative_count": None,
+        "false_positive_negative_limitation": (
+            "Cannot be computed from selected directional snapshots alone. False positives/negatives require "
+            "a defined binary event label and an evaluation universe that includes both signal and non-signal cases."
+        ),
+        "interpretation": (
+            "Hit rate compares an explicitly stored BULLISH/BEARISH hypothesis with the sign of the subsequent "
+            "gross close-to-close return. Flat outcomes are excluded from the hit-rate denominator. This is "
+            "observational and does not include execution, fees, or a validated event label."
+        ),
+    }
+
+
 class HistoricalSignalPerformance:
     """Evaluate forward price outcomes for stored descriptive snapshots; never infer trades."""
 
@@ -54,6 +117,12 @@ class HistoricalSignalPerformance:
         for snapshot in snapshots:
             analysis = snapshot["analysis"]
             signal_time = int(snapshot["end_time_ms"])
+            signal_direction = _explicit_signal_direction(analysis)
+            market_regime = (
+                (analysis.get("market_regime") or {}).get("market_regime")
+                or (analysis.get("regime") or {}).get("market_regime")
+                or "UNCLASSIFIED"
+            )
             # Baseline is the last candle fully closed at or before the snapshot timestamp.
             candles = self.klines.history(
                 "USD_M", symbol, price_interval,
@@ -106,14 +175,33 @@ class HistoricalSignalPerformance:
                         or analysis.get("trend", {}).get("direction")
                         or "UNCLASSIFIED"
                     ),
+                    "signal_direction": signal_direction,
+                    "market_regime": str(market_regime),
+                    "directional_outcome": (
+                        "HIT" if signal_direction == "BULLISH" and gross > 0
+                        or signal_direction == "BEARISH" and gross < 0
+                        else "MISS" if signal_direction == "BULLISH" and gross < 0
+                        or signal_direction == "BEARISH" and gross > 0
+                        else "FLAT" if signal_direction and gross == 0
+                        else "NOT_SCORABLE"
+                    ),
                 })
 
         summaries: dict[str, Any] = {}
         for key, rows in horizons.items():
             returns = [r["gross_return_percent"] for r in rows]
             net_returns = [r["net_hypothetical_return_percent"] for r in rows]
+            signal_quality = _signal_quality(rows)
+            regime_groups: dict[str, list[dict[str, Any]]] = {}
+            for row in rows:
+                regime_groups.setdefault(row["market_regime"], []).append(row)
             summaries[key] = {
                 "horizon_hours": int(key),
+                "signal_quality": signal_quality,
+                "signal_quality_by_market_regime": {
+                    regime: _signal_quality(group_rows)
+                    for regime, group_rows in sorted(regime_groups.items())
+                },
                 "status": "COMPLETED" if rows else "INSUFFICIENT_FUTURE_DATA",
                 "sample_size": len(rows),
                 "pending_or_not_yet_matured": pending[key],
@@ -141,12 +229,12 @@ class HistoricalSignalPerformance:
                 "baseline": "Last locally stored candle fully closed at or before the signal snapshot timestamp.",
                 "future_endpoint": "First later candle whose close timestamp is at or after the requested horizon; actual elapsed time is reported.",
                 "mfe_mae": "High/low excursion from baseline close across future candles through the selected endpoint.",
-                "directional_accuracy": "NOT_CALCULATED; stored descriptive classifications do not define a validated directional entry hypothesis.",
+                "directional_accuracy": "Calculated only when a snapshot contains an explicit BULLISH/BEARISH signal_direction, directional_signal.direction, or confluence.bias; descriptive OI classifications are never converted into predictions.",
                 "fees_and_slippage": "Only the caller-supplied round-trip basis-point deduction is applied; this is not actual execution cost.",
             },
             "limitations": [
                 "This is an observational forward-outcome study of stored snapshots, not a trading strategy backtest.",
-                "No directional accuracy or win rate is claimed; positive-return fraction is not signal hit rate.",
+                "Directional hit rate is reported only for snapshots with an explicit directional hypothesis; positive-return fraction is not signal hit rate. False-positive/false-negative counts require a binary event label and non-signal evaluation universe and are therefore withheld.",
                 "Results depend on local candle coverage and may be biased by missing or selectively collected snapshots.",
                 "No market impact, funding payments, liquidation, position sizing, leverage, or execution simulation is included.",
                 "The selected candle close can occur after the exact requested horizon; actual elapsed time is included.",
