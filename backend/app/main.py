@@ -441,7 +441,7 @@ async def cross_chain_token_flows(
                 results.append({
                     "status": "FAILED", "chain_id": item["chain_id"],
                     "chain_name": item["chain_name"], "contract_address": item["contract_address"],
-                    "error": f"{type(exc).__name__}: {str(exc)[:250]}",
+                    "error": "CHAIN_FLOW_UNAVAILABLE", "error_type": type(exc).__name__,
                 })
         return {
             "status": "COMPLETED" if results and all(x["status"] == "COMPLETED" for x in results) else "INCOMPLETE",
