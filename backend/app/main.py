@@ -19,6 +19,8 @@ from app.providers.news_rss import RSSNewsProvider, parse_feed_sources
 from app.services.news_intelligence import collect_news_intelligence
 from app.services.news_verification import parse_domain_list
 from app.services.catalyst_analysis import analyze_catalysts
+from app.providers.evm_rpc import EVMRPCProvider
+from app.services.onchain_intelligence import analyze_erc20_activity, get_evm_wallet_snapshot
 
 liquidation_store = LiquidationStore(settings.liquidation_database_path)
 liquidation_collector = LiquidationCollector(liquidation_store)
@@ -93,6 +95,63 @@ async def news_catalysts(
             "Confirm with technical, liquidity, derivatives, and risk checks."
         ),
     }
+
+
+
+def get_evm_provider() -> EVMRPCProvider:
+    if not settings.evm_rpc_url:
+        raise HTTPException(status_code=503, detail={"status": "BLOCKED", "message": "EVM_RPC_URL is not configured."})
+    try:
+        return EVMRPCProvider(settings.evm_rpc_url, settings.http_timeout_seconds)
+    except ValueError as exc:
+        raise HTTPException(status_code=503, detail={"status": "BLOCKED", "error": str(exc)}) from exc
+
+
+def parse_exchange_addresses(raw: str) -> dict[str, str]:
+    result: dict[str, str] = {}
+    for entry in raw.split(","):
+        if "=" not in entry:
+            continue
+        label, address = entry.split("=", 1)
+        if label.strip() and address.strip():
+            result[label.strip()] = address.strip()
+    return result
+
+
+@app.get("/api/v1/onchain/evm/wallets", tags=["on-chain"])
+async def evm_wallet_snapshots(addresses: str = Query(..., min_length=42, max_length=5000)) -> dict:
+    requested = [value.strip() for value in addresses.split(",") if value.strip()]
+    if not 1 <= len(requested) <= 50:
+        raise HTTPException(status_code=422, detail="Provide between 1 and 50 wallet addresses.")
+    try:
+        return await get_evm_wallet_snapshot(get_evm_provider(), requested)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
+
+
+@app.get("/api/v1/onchain/evm/token/{contract}/activity", tags=["on-chain"])
+async def evm_token_activity(
+    contract: str,
+    from_block: int = Query(..., ge=0),
+    to_block: int = Query(..., ge=0),
+    decimals: int = Query(..., ge=0, le=36),
+    whale_threshold_tokens: float = Query(default=100000, ge=0),
+) -> dict:
+    try:
+        if to_block < from_block:
+            raise ValueError("to_block must be greater than or equal to from_block")
+        return await analyze_erc20_activity(
+            get_evm_provider(), contract, from_block, to_block, decimals,
+            exchange_addresses=parse_exchange_addresses(settings.evm_exchange_addresses),
+            whale_threshold_tokens=whale_threshold_tokens,
+            max_block_span=settings.evm_max_log_block_span,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
 
 
 @app.get("/health", tags=["system"])
