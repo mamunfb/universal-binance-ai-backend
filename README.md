@@ -67,6 +67,10 @@ The read-only endpoint `GET /api/v1/analysis/derivatives/advanced/{symbol}` eval
 
 Completed snapshots are stored idempotently in `DERIVATIVES_SIGNAL_DATABASE_PATH` and can be read through `GET /api/v1/history/derivatives-signals/{symbol}`. The MCP tools are `analyze_advanced_derivatives` and `get_derivatives_signal_history`. Liquidation context is incomplete: Binance's force-order stream is not a complete liquidation tape, and absence of stored events does not establish that no liquidations occurred. These outputs are descriptive research evidence, not trade instructions.
 
+## Combined derivatives intelligence
+
+`GET /api/v1/analysis/derivatives/combined/{symbol}?period=1h&limit=100` joins locally stored USD-M open-interest, global long/short account ratio and taker buy/sell ratio only where all three have exactly matching timestamps. It reports changes over the common aligned window and shows the latest funding event separately, because funding timestamps do not necessarily match ratio intervals. No missing values are forward-filled or interpolated. At least two exact matches are required. The MCP tool is `analyze_combined_derivatives_intelligence`.
+
 ## Stored futures account and taker ratios
 
 Manual collection endpoints store Binance USD-M global long/short account ratio and taker buy/sell ratio observations in a dedicated SQLite database:
