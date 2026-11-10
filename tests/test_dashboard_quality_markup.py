@@ -75,3 +75,11 @@ def test_dashboard_displays_alignment_breakdowns_for_all_regime_dimensions():
     assert "Volatility regime" in html
     assert "Structure regime" in html
     assert "(h.regime_bias_alignment_breakdown||{})[dimension]||{}" in html
+
+def test_dashboard_displays_sample_gated_horizon_comparison_rankings():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "Seven-horizon comparative rankings" in html
+    assert "horizon_comparison" in html
+    assert "ranking.ranked" in html
+    assert "ranking.excluded" in html
+    assert "historical descriptive comparisons" in html
