@@ -226,8 +226,8 @@ def test_cross_chain_intelligence_sanitizes_provider_exception(monkeypatch):
     result = asyncio.run(main.cross_chain_token_intelligence(
         "asset", from_block=1, to_block=2, decimals=18
     ))
-    assert result["chains"][0]["entity_flows"]["error"] == "UPSTREAM_UNAVAILABLE"
-    assert result["chains"][0]["concentration"]["error"] == "UPSTREAM_UNAVAILABLE"
+    assert result["chains"][0]["verified_entity_flows"]["error"] == "UPSTREAM_UNAVAILABLE"
+    assert result["chains"][0]["verified_wallet_concentration"]["error"] == "UPSTREAM_UNAVAILABLE"
     assert "private-token" not in str(result)
 
 
