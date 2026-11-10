@@ -56,6 +56,11 @@ def test_unified_intelligence_adds_verified_wallet_balance_concentration(monkeyp
     assert concentration["by_label"]["exchange"]["share_of_total_supply_pct"] == 2.5
     quality = result["chains"][0]["data_quality"]
     assert quality["balance_snapshot_block"] == 500
+    assert quality["balance_snapshot_block_number"] == 500
+    assert quality["balance_snapshot_block_timestamp"] == 1700000000
+    assert quality["balance_snapshot_timestamp_status"] == "AVAILABLE"
+    assert quality["balance_snapshot_block_time"] is not None
+    assert quality["balance_snapshot_age_seconds"] >= 0
     assert quality["balance_wallets_succeeded"] == 1
     assert quality["chain_result_status"] == "COMPLETED"
     assert "age is calculated from the chain block timestamp" in quality["freshness_note"]
