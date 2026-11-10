@@ -185,3 +185,29 @@ async def test_erc20_snapshot_rejects_invalid_contract_and_watchlist_before_rpc(
         await get_erc20_token_snapshot(FakeProvider(), CONTRACT, {"bad-wallet": "0x1234"})
     with pytest.raises(ValueError):
         await get_erc20_token_snapshot(FakeProvider(), CONTRACT, {" ": ADDRESS_A})
+
+
+async def test_wallet_snapshot_rejects_invalid_addresses_before_rpc():
+    class FakeProvider:
+        async def chain_id(self):
+            raise AssertionError("Must validate addresses before RPC")
+    with pytest.raises(ValueError):
+        await get_evm_wallet_snapshot(FakeProvider(), [ADDRESS_A, "not-an-address"])
+
+
+def test_wallet_snapshot_does_not_expose_provider_exception_message():
+    class FakeProvider:
+        async def chain_id(self):
+            return 1
+        async def block_number(self):
+            return 123
+        async def block_timestamp(self, block_number):
+            return 1700000000
+        async def native_balance(self, address, block="latest"):
+            raise RuntimeError("https://rpc.example/key=secret-token")
+
+    result = asyncio.run(get_evm_wallet_snapshot(FakeProvider(), [ADDRESS_A]))
+    failed = result["wallets"][0]
+    assert failed["status"] == "FAILED"
+    assert failed["error"] == "BALANCE_UNAVAILABLE"
+    assert "secret-token" not in str(result)
