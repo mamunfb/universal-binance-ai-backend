@@ -118,3 +118,10 @@ Each performance horizon now includes `walk_forward`. With at least four chronol
 For each fold, the API reports training/test snapshot counts, test time bounds, matured outcomes, directional sample counts, positive fraction, mean directional return and complete candle coverage. To prevent a test outcome from spilling into the next fold's time window, outcomes whose endpoint candle closes at or after the next fold's first snapshot time are excluded from that fold. The final fold has no later-fold cutoff. Aggregate walk-forward metrics are computed only from the retained fold test outcomes.
 
 This is a walk-forward temporal evaluation of already-saved confluence outputs, not model training, parameter tuning, or a full trading strategy backtest. Folds may have few matured outcomes, especially for long horizons; insufficient samples and coverage gaps must be treated as limitations, not evidence of zero performance. The dashboard shows fold-level and aggregate test-only metrics.
+
+
+## Confidence intervals and sample-size warnings
+
+Walk-forward folds, the aggregate walk-forward result, and the chronological holdout now include a nominal 95% Wilson score interval for the directional-positive fraction. A result with fewer than 30 directional samples is flagged LOW_SAMPLE_SIZE; 30 is a practical reporting warning threshold only, not a universal statistical guarantee and not a filter that removes observations. Zero directional samples produce a null fraction and no interval.
+
+The Wilson interval is a binomial interval and assumes independent Bernoulli observations. Market snapshots can be serially dependent, and forward outcome windows can overlap, so the reported interval does not correct for those dependencies and may understate uncertainty. It is not a confidence interval for profitability, expected return, or future strategy performance. Always read it with the raw sample count, candle coverage and fold structure.
