@@ -14,6 +14,7 @@ from app.services.derivatives_intelligence import get_derivatives_intelligence
 from app.services.multi_timeframe import analyze_multiple_timeframes, analyze_btc_market_condition
 from app.services.liquidation_collector import LiquidationCollector, LiquidationStore
 from app.services.price_levels import analyze_support_resistance, calculate_fibonacci_levels
+from app.services.volume_structure import calculate_vwap, calculate_volume_profile, analyze_market_structure
 
 liquidation_store = LiquidationStore(settings.liquidation_database_path)
 liquidation_collector = LiquidationCollector(liquidation_store)
@@ -222,6 +223,46 @@ async def spot_price_levels(
         "support_resistance": support_resistance,
         "fibonacci": fibonacci,
         "warning": "Technical reference calculations only; not trading signals or guaranteed support/resistance.",
+    }
+
+
+@app.get("/api/v1/analysis/spot/volume-structure/{symbol}", tags=["analysis"])
+async def spot_volume_structure(
+    symbol: str,
+    interval: Literal["15m", "1h", "4h", "1d"] = "1h",
+    limit: int = Query(default=300, ge=20, le=1000),
+    anchor_index: int = Query(default=0, ge=0),
+    profile_bins: int = Query(default=48, ge=5, le=200),
+    value_area_pct: float = Query(default=0.70, ge=0.5, le=0.95),
+    pivot_left: int = Query(default=3, ge=1, le=20),
+    pivot_right: int = Query(default=3, ge=1, le=20),
+) -> dict:
+    try:
+        rows = await get_spot_provider().klines(symbol, interval, limit)
+        if anchor_index >= len(rows):
+            raise ValueError("anchor_index must be smaller than returned candle count")
+        vwap = calculate_vwap(rows, anchor_index=anchor_index)
+        volume_profile = calculate_volume_profile(
+            rows, bins=profile_bins, value_area_pct=value_area_pct
+        )
+        market_structure = analyze_market_structure(
+            rows, pivot_left=pivot_left, pivot_right=pivot_right
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
+    sections = [vwap["status"], volume_profile["status"], market_structure["status"]]
+    return {
+        "status": "COMPLETED" if all(s == "COMPLETED" for s in sections) else "INCOMPLETE",
+        "source": "Binance Spot public REST klines",
+        "symbol": symbol.upper(),
+        "interval": interval,
+        "candle_count": len(rows),
+        "vwap": vwap,
+        "volume_profile": volume_profile,
+        "market_structure": market_structure,
+        "warning": "OHLCV-based approximations only. No trade-level volume-at-price, order-book liquidity map, or guaranteed trading signal is provided.",
     }
 
 
