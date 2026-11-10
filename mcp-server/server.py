@@ -631,7 +631,7 @@ def save_market_confluence_snapshot(
 
 @mcp.tool()
 def evaluate_market_confluence_performance(
-    market: str, symbol: str, interval: str = "1h", price_interval: str = "1m", limit: int = 200,
+    market: str, symbol: str, interval: str = "1h", price_interval: str = "1h", limit: int = 200,
 ) -> dict:
     """Evaluate descriptive forward outcomes for saved confluence snapshots."""
     if market not in {"SPOT","USD_M","COIN_M"} or not 1 <= limit <= 1000: raise ValueError("Invalid market or limit")
