@@ -317,6 +317,75 @@ async def cross_chain_smart_money(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
+@app.get("/api/v1/onchain/evm/cross-chain/token/{asset_id}/intelligence", tags=["on-chain"])
+async def cross_chain_token_intelligence(
+    asset_id: str,
+    from_block: int = Query(..., ge=0),
+    to_block: int = Query(..., ge=0),
+    decimals: int = Query(..., ge=0, le=36),
+    limit: int = Query(default=50, ge=1, le=200),
+    window_blocks: int = Query(default=1000, ge=1, le=1000000),
+) -> dict:
+    """Combine indexed address flows and verified smart-money cohort flows by chain."""
+    if to_block < from_block:
+        raise HTTPException(status_code=422, detail="to_block must be >= from_block")
+    configs = parse_chain_token_configs(settings.evm_chain_token_contracts)
+    if not any(item["asset_id"] == asset_id.lower() for item in configs):
+        raise HTTPException(status_code=404, detail="No configured contracts for this asset_id")
+    flows = await cross_chain_token_flows(
+        asset_id, from_block, to_block, decimals, limit,
+    )
+    cohorts = await cross_chain_verified_wallet_flows(
+        configs, asset_id, from_block, to_block, decimals,
+        settings.evm_wallet_registry, evm_transfer_store,
+        settings.http_timeout_seconds, limit, window_blocks,
+    )
+    cohort_by_chain = {
+        (item["chain_id"], item.get("contract_address", "").lower()): item
+        for item in cohorts["chains"]
+        if item.get("contract_address")
+    }
+    chains = []
+    for flow in flows["chains"]:
+        key = (flow["chain_id"], flow.get("contract_address", "").lower())
+        cohort = cohort_by_chain.get(key)
+        chains.append({
+            "chain_id": flow["chain_id"],
+            "chain_name": flow.get("chain_name"),
+            "contract_address": flow.get("contract_address"),
+            "status": (
+                "COMPLETED"
+                if flow["status"] == "COMPLETED"
+                and cohort is not None and cohort["status"] == "COMPLETED"
+                else "INCOMPLETE"
+            ),
+            "address_flows": flow,
+            "verified_smart_money": cohort or {
+                "status": "UNAVAILABLE",
+                "warning": "No matching cohort result for this chain and contract.",
+            },
+        })
+    return {
+        "status": "COMPLETED" if chains and all(
+            item["status"] == "COMPLETED" for item in chains
+        ) else "INCOMPLETE",
+        "asset_id": asset_id.lower(),
+        "requested_range": {"from": from_block, "to": to_block},
+        "decimals_used": decimals,
+        "chain_count": len(chains),
+        "chains": chains,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "warning": (
+            "Research-only composite of locally indexed ERC-20 transfers and "
+            "operator-verified smart_money registry flows. Coverage gaps or RPC "
+            "failures make results incomplete. Token transfers do not prove trades, "
+            "wallet ownership, or investment intent. This endpoint does not "
+            "measure holder concentration or live balances; cross-chain block "
+            "numbers and token decimals must be interpreted per chain."
+        ),
+    }
+
+
 @app.get("/api/v1/onchain/evm/token/{contract}/concentration", tags=["on-chain"])
 async def evm_token_concentration(contract: str) -> dict:
     try:
