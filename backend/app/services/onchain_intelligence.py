@@ -35,6 +35,7 @@ async def analyze_erc20_activity(provider: EVMRPCProvider, contract: str, from_b
     )
     labels = {address.lower(): name for name, address in (exchange_addresses or {}).items()}
     transfers: list[dict[str, Any]] = []
+    address_activity: dict[str, dict[str, int]] = {}
     total_raw = whale_count = exchange_in_raw = exchange_out_raw = 0
     exchange_flows: dict[str, dict[str, float]] = {}
     for log in logs:
@@ -47,6 +48,10 @@ async def analyze_erc20_activity(provider: EVMRPCProvider, contract: str, from_b
         raw_value = _hex_int(log.get("data"))
         amount = raw_value / (10 ** decimals)
         total_raw += raw_value
+        address_activity.setdefault(sender, {"sent_raw": 0, "received_raw": 0, "transfer_count": 0})["sent_raw"] += raw_value
+        address_activity.setdefault(recipient, {"sent_raw": 0, "received_raw": 0, "transfer_count": 0})["received_raw"] += raw_value
+        address_activity[sender]["transfer_count"] += 1
+        address_activity[recipient]["transfer_count"] += 1
         is_whale = amount >= whale_threshold_tokens
         whale_count += int(is_whale)
         from_exchange, to_exchange = labels.get(sender), labels.get(recipient)
@@ -78,8 +83,16 @@ async def analyze_erc20_activity(provider: EVMRPCProvider, contract: str, from_b
             "by_exchange": exchange_flows,
             "interpretation_warning": "Transfers to/from configured addresses do not prove sales or accumulation.",
         },
+        "address_activity_in_requested_block_range": sorted([
+            {"address": address, "sent_tokens": values["sent_raw"] / scale,
+             "received_tokens": values["received_raw"] / scale,
+             "net_received_tokens": (values["received_raw"] - values["sent_raw"]) / scale,
+             "transfer_count": values["transfer_count"]}
+            for address, values in address_activity.items()
+        ], key=lambda row: abs(row["net_received_tokens"]), reverse=True),
         "transfers": transfers,
         "limitations": [
+            "Address activity is limited to the requested block range; it is not a holder ranking or full balance snapshot.",
             "Whale threshold is token quantity, not USD value.",
             "Address labels are operator-configured and not independently verified.",
             "ERC-20 logs exclude native transfers and non-EVM chains.",
