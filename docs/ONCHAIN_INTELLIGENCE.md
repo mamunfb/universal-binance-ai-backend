@@ -149,3 +149,12 @@ GET /api/v1/onchain/evm/cross-chain/token/{asset_id}/smart-money?from_block=...&
 Combines locally indexed ERC-20 transfer flows for the configured contracts under an asset_id, separately by chain, and filters wallet activity to operator-registry entries labeled `smart_money` with `verification_status=verified`. Other labels (including fund, market_maker, protocol_treasury, and whale) are not included in this specific cohort. Entries pending review, unverified, rejected, or labeled exchange/unknown are excluded. The response reports per-chain coverage and becomes INCOMPLETE if any selected chain has missing indexed blocks. Configure registry entries with the matching chain_id and evidence for that chain; do not assume the same address is the same entity on every chain. The service does not independently authenticate registry evidence. The decimals parameter is applied to all selected contracts and must be correct and consistent.
 
 Each chain also returns `accumulation_trend`, grouped into block windows controlled by `window_blocks` (default 1000; allowed 1–1,000,000). Window direction is labeled NET_INFLOW or NET_OUTFLOW based on cohort-level net transfer flow. Transfers between two verified cohort wallets offset each other. Only windows with non-zero cohort net flow are returned. `cumulative_net_flow` starts at zero at the requested from_block; it is a cumulative transfer-flow sum, not a balance, holdings estimate, or proof of buying/selling. Trend reliability depends on complete indexed coverage; inspect each chain’s coverage before interpreting it. Activity and cohort net flow are not trading intent, profitability, or a price forecast.
+
+
+### Unified cross-chain indexed intelligence
+
+GET /api/v1/onchain/evm/cross-chain/token/{asset_id}/intelligence?from_block=100&to_block=200&decimals=18&limit=50&window_blocks=1000
+
+Combines the existing per-chain indexed address-flow summary and verified smart-money cohort transfer-flow trend into one response. Each chain retains its own status, contract address, indexed coverage, and underlying data. Missing cohort results and incomplete indexed coverage do not count as complete. The endpoint is read-only and does not index missing history.
+
+This endpoint deliberately does **not** claim live wallet balances, holder concentration, exchange trade intent, or a unified cross-chain block timeline. Configure EVM_CHAIN_TOKEN_CONTRACTS and EVM_WALLET_REGISTRY, and index the requested ERC-20 log ranges first. The supplied decimals must match each selected contract.
