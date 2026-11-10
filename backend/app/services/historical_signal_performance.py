@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from statistics import median
 from typing import Any
 
 from app.services.advanced_derivatives_analysis import DerivativesSignalStore
@@ -29,8 +30,8 @@ class HistoricalSignalPerformance:
             raise ValueError("Invalid symbol")
         if not 1 <= limit <= 1000:
             raise ValueError("limit must be between 1 and 1000")
-        if not price_interval or len(price_interval) > 5:
-            raise ValueError("Invalid price interval")
+        if price_interval not in {"1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d", "3d", "1w", "1M"}:
+            raise ValueError("Unsupported price interval")
         if not math.isfinite(round_trip_cost_bps) or not 0 <= round_trip_cost_bps <= 500:
             raise ValueError("round_trip_cost_bps must be between 0 and 500")
 
@@ -56,8 +57,8 @@ class HistoricalSignalPerformance:
             # Baseline is the last candle fully closed at or before the snapshot timestamp.
             candles = self.klines.history(
                 "USD_M", symbol, price_interval,
-                start_time_ms=max(0, signal_time - 7 * 24 * 60 * 60 * 1000),
-                end_time_ms=signal_time + 24 * 60 * 60 * 1000 + 7 * 24 * 60 * 60 * 1000,
+                start_time_ms=max(0, signal_time - 40 * 24 * 60 * 60 * 1000),
+                end_time_ms=signal_time + 24 * 60 * 60 * 1000 + 40 * 24 * 60 * 60 * 1000,
                 limit=5000,
             )["candles"]
             baseline_candidates = [c for c in candles if c["close_time_ms"] <= signal_time]
@@ -117,7 +118,7 @@ class HistoricalSignalPerformance:
                 "sample_size": len(rows),
                 "pending_or_not_yet_matured": pending[key],
                 "mean_gross_return_percent": sum(returns) / len(returns) if rows else None,
-                "median_gross_return_percent": sorted(returns)[len(returns) // 2] if rows else None,
+                "median_gross_return_percent": median(returns) if rows else None,
                 "mean_net_hypothetical_return_percent": sum(net_returns) / len(net_returns) if rows else None,
                 "positive_return_fraction": sum(value > 0 for value in returns) / len(returns) if rows else None,
                 "mean_maximum_favorable_excursion_percent": (
