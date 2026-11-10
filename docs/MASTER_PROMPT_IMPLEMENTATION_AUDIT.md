@@ -4,7 +4,7 @@ Audit basis:
 - Repository: \`mamunfb/universal-binance-ai-backend\`
 - Baseline branch: \`main\`, commit \`dfef59340c08fd20ba858efb78016ff8ff4e3997\`
 - Spot prompt: \`master-prompts/MASTER_PROMPT_01_SPOT.md\`
-- Futures prompt: canonical user-uploaded \`universal_crypto_master_prompt_futures.md\`
+- Futures prompt: canonical user-uploaded \`universal_crypto_master_prompt_futures.md\`, copied verbatim to \`master-prompts/MASTER_PROMPT_02_FUTURES.md\` on this branch
 - Review method: static review of repository tree, README, API routes, providers, analysis services, readiness map, and selected tests. This document is not a claim that all tests or live endpoints were executed.
 
 ## Executive result
@@ -64,8 +64,8 @@ Do not replace the current project with a new application. Preserve its modules 
 
 ## First implementation sequence
 
-1. Finish and validate COIN-M inverse risk arithmetic; expose Binance COIN-M contract face value and settlement asset from scanner results.
-2. Add the exact canonical Master Prompt 02 file to \`master-prompts/\` without rewriting or shortening it.
+1. [BRANCH IMPLEMENTED — CI VALIDATION PENDING] Add COIN-M inverse risk arithmetic; expose Binance COIN-M contract face value and settlement asset from scanner results.
+2. [BRANCH IMPLEMENTED] Add the canonical Master Prompt 02 file to \`master-prompts/\` from the uploaded source text.
 3. Implement a market-aware 20-phase orchestration contract that keeps SPOT and FUTURES phase status separate and never upgrades an incomplete phase to completed.
 4. Complete Phase 01 Stage-1 data coverage using rate-limit-aware collection, per-symbol failure accounting and explicit missing-metric reporting.
 5. Integrate the Phase 02–07 candidate pipeline and enforce data freshness / source traceability.
