@@ -12,13 +12,20 @@ def _finite(value: Any) -> float | None:
     return number if math.isfinite(number) else None
 
 
-def _nearest(rows: list[dict[str, Any]], timestamp: int, key: str, max_lag_ms: int) -> dict[str, Any] | None:
+def _nearest(
+    rows: list[dict[str, Any]], timestamp: int, key: str, max_lag_ms: int,
+    direction: str | None = None,
+) -> dict[str, Any] | None:
     candidates = []
     for row in rows:
         value = row.get(key)
         try:
             value = int(value)
         except (TypeError, ValueError, OverflowError):
+            continue
+        if direction == "before" and value > timestamp:
+            continue
+        if direction == "after" and value < timestamp:
             continue
         lag = abs(value - timestamp)
         if lag <= max_lag_ms:
@@ -195,14 +202,19 @@ def analyze_liquidity_sweep_confirmation(
             else "FLAT_OR_INSUFFICIENT_TRADE_FLOW"
         )
 
-        before = _nearest(order_book_samples, timestamp, "event_time_ms", order_book_max_lag_ms)
-        after = _nearest(order_book_samples, end, "event_time_ms", order_book_max_lag_ms)
+        before = _nearest(order_book_samples, timestamp, "event_time_ms", order_book_max_lag_ms, "before")
+        after = _nearest(order_book_samples, end, "event_time_ms", order_book_max_lag_ms, "after")
         before_bid, after_bid = _depth_notional(before, "bids"), _depth_notional(after, "bids")
         before_ask, after_ask = _depth_notional(before, "asks"), _depth_notional(after, "asks")
         if None not in (before_bid, after_bid, before_ask, after_ask):
             bid_change_pct = ((after_bid - before_bid) / before_bid * 100) if before_bid else None
             ask_change_pct = ((after_ask - before_ask) / before_ask * 100) if before_ask else None
-            book_status = "SAMPLED_DEPTH_CHANGED" if bid_change_pct is not None or ask_change_pct is not None else "UNAVAILABLE"
+            book_status = (
+                "SAMPLED_DEPTH_CHANGED"
+                if (bid_change_pct is not None and abs(bid_change_pct) >= 0.01)
+                or (ask_change_pct is not None and abs(ask_change_pct) >= 0.01)
+                else "PAIRED_SAMPLES_NO_MATERIAL_CHANGE"
+            )
         else:
             bid_change_pct = ask_change_pct = None
             book_status = "NO_NEARBY_PAIRED_SAMPLES"
