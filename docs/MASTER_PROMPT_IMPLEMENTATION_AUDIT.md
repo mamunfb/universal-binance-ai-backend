@@ -641,3 +641,16 @@ The Spot scanner, Futures Boolean filter, dashboard HTML rendering, market-data 
 
 ### Audit boundary
 - These changes close only specific input-validation defects. The full service/provider line-by-line audit and route-level behavioral/security audit remain incomplete; no Phase 01 acceptance gate is being marked complete.
+
+
+## Liquidity sweep and performance API boundary review — 2026-11-11
+
+### Liquidity sweep correction verified
+- Commit `f43f4a6f81aa2cf2100c83f681d6d4bf8b851e9c`; Actions run `42960668769`: **SUCCESS**, Ruff and dashboard JavaScript syntax passed, pytest **602 passed, 2 warnings**.
+- Sweep confirmation now strictly validates candle timestamps and request windows, rejects Boolean OHLC, ignores malformed trade timestamps, and avoids integer truncation when pairing nearest timestamp context.
+
+### Performance evaluator request-argument correction (CI pending)
+- `MarketConfluencePerformance.evaluate` and `price_path` now require integer, non-Boolean `limit` and `hours` bounds.
+- Regression tests added for Boolean and fractional request values.
+- Commit `78b9831806e7dd084b226e5b7826e2b67919f371`; CI pending.
+- This does not complete the broader historical performance service audit; its persisted timestamp and numeric assumptions still require continued review.

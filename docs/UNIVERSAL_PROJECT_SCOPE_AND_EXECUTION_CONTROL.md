@@ -331,3 +331,10 @@ For each market-specific phase record:
 - Liquidity behavior code/test commit `923369a5b2bb9a17a0a887b17f175e22788fb65a` passed CI run `42960545107`: targeted Ruff passed, dashboard JS passed, pytest **600 passed, 2 warnings**.
 - Liquidity sweep code/test commit `f43f4a6f81aa2cf2100c83f681d6d4bf8b851e9c` is queued/in progress at this checkpoint; do not claim verified until its job log is inspected.
 - Paired Phase 01 statuses remain unchanged; Phase 02 remains LOCKED.
+
+
+## 26. Liquidity sweep and performance request-boundary verification — 2026-11-11
+- Liquidity sweep validation commit `f43f4a6f81aa2cf2100c83f681d6d4bf8b851e9c` passed Actions run `42960668769`: targeted Ruff passed, dashboard JavaScript syntax passed, pytest **602 passed, 2 warnings**.
+- Market confluence performance evaluator now rejects Boolean/fractional `limit` and `hours` request arguments instead of allowing Boolean-as-int or non-integer bounds. Regression tests cover evaluate and price_path.
+- Performance argument validation code/test commit: `78b9831806e7dd084b226e5b7826e2b67919f371`; CI pending.
+- No phase acceptance status changes.

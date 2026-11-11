@@ -250,3 +250,10 @@ Resume by completing the pre-coding audit gate, review current CI and static-ana
 - Liquidity behavior strict input validation commit `923369a5b2bb9a17a0a887b17f175e22788fb65a`: CI **SUCCESS**, pytest **600 passed, 2 warnings**.
 - Liquidity sweep confirmation timestamp/numeric validation commit `f43f4a6f81aa2cf2100c83f681d6d4bf8b851e9c`: CI pending at checkpoint.
 - SPOT Phase 01 IN_PROGRESS; FUTURES Phase 01 IN_PROGRESS; Combined Phase 01 INCOMPLETE; Phase 02 LOCKED.
+
+
+### Liquidity sweep and performance argument checkpoint — 2026-11-11
+
+- Liquidity sweep confirmation correction commit `f43f4a6f81aa2cf2100c83f681d6d4bf8b851e9c`: CI **SUCCESS**, pytest **602 passed, 2 warnings**.
+- Market confluence performance strict limit/hour argument validation commit `78b9831806e7dd084b226e5b7826e2b67919f371`: CI pending.
+- Paired phase remains SPOT Phase 01 IN_PROGRESS; FUTURES Phase 01 IN_PROGRESS; Combined Phase 01 INCOMPLETE; Phase 02 LOCKED.
