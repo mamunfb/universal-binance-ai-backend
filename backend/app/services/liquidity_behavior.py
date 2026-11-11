@@ -78,7 +78,10 @@ def analyze_liquidity_behavior(
         if stamp is None or notional is None or notional < 0 or price is None or price <= 0 or side not in {"BUY", "SELL"}:
             rejected_trades += 1
             continue
-        valid_trades.append(row)
+        valid_trades.append({
+            **row, "trade_time_ms": stamp, "price": price,
+            "notional": notional, "aggressor_side": side,
+        })
     ordered = sorted(valid_snapshots, key=lambda row: (row["event_time_ms"], row.get("update_id", 0)))
     ordered_trades = sorted(valid_trades, key=lambda row: row["trade_time_ms"])
     base = {
