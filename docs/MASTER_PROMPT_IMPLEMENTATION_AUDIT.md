@@ -464,3 +464,22 @@ The Spot scanner, Futures Boolean filter, dashboard HTML rendering, market-data 
 - SPOT Phase 01: IN_PROGRESS; FUTURES Phase 01: IN_PROGRESS; Combined Phase 01: INCOMPLETE; Phase 02: LOCKED.
 - No new Phase 01 feature coding is authorized until the mandatory audit gate is completed or exact unresolved items are formally resolved as blockers under the scope. This checkpoint changes documentation only; it does not claim phase acceptance.
 - No trading order execution, cancellation, modification, withdrawal or wallet-signing capability was introduced.
+
+
+## Binance REST retry/backoff correction — 4ecf7805578df40b6d80628144e100b454ace044 (2026-11-11)
+
+### Finding and implementation
+- Confirmed existing gap: Spot and Futures public REST adapters performed a single GET attempt and had no shared bounded retry/backoff or explicit handling of Binance `Retry-After`.
+- Binance official Spot REST documentation states that HTTP 429 indicates a rate-limit breach, that clients must back off, that repeated violations can lead to HTTP 418 IP bans, and that `Retry-After` is supplied on 429/418 responses. Official reference: https://developers.binance.com/en/docs/products/spot/rest-api . The Binance Futures/general API documentation describes the corresponding 429/418 and IP-weight behaviour: https://developers.binance.com/en/docs/products/derivatives-trading-portfolio-margin-pro/general-info .
+- Added market-neutral helper `backend/app/providers/http_retry.py` for idempotent GETs: bounded attempts; numeric and HTTP-date Retry-After parsing; exponential fallback for absent/invalid headers; bounded backoff for transport errors and HTTP 5xx; immediate stop on HTTP 418 to avoid another request during an IP ban.
+- Integrated the helper into `BinanceSpotProvider._get` and `BinanceFuturesProvider._get`. Spot and Futures endpoints, symbols, calculations and response contracts remain separate.
+- Added `tests/test_binance_http_retry.py` covering 429 Retry-After, 418 immediate stop, 503 retry, transport retry, missing-header backoff and HTTP-date parsing. Updated provider test doubles and expanded the CI Ruff target list to include the changed provider files and new tests.
+- Commit: `4ecf7805578df40b6d80628144e100b454ace044` (`fix(api): honor Binance rate limits with bounded GET retries`).
+
+### Verification status at documentation time
+- GitHub Actions run `42957685379` for commit `4ecf7805578df40b6d80628144e100b454ace044` was IN_PROGRESS; no test or lint pass is claimed yet. Recheck the completed run and inspect its actual job log before accepting this correction.
+- No live Binance 429/418 test was performed. Retry behaviour is fixture-tested only pending CI.
+- The scanner does not yet expose a structured per-symbol retry/failure ledger; that remains a Phase 01 acceptance item.
+- Pre-Coding Full Audit remains INCOMPLETE because the complete line-by-line review of all 80 API routes and 54 provider/service modules and the MCP architecture decision remain outstanding. This change fixes one confirmed shared API-reliability gap; it does not close the audit gate.
+- SPOT Phase 01: IN_PROGRESS; FUTURES Phase 01: IN_PROGRESS; Combined Phase 01: INCOMPLETE; Phase 02: LOCKED.
+- No order execution or wallet action was introduced.

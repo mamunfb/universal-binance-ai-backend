@@ -160,3 +160,13 @@ Resume by completing the pre-coding audit gate, review current CI and static-ana
 - Pre-Coding Full Audit remains **INCOMPLETE**. Provider retry/Retry-After handling, MCP snapshot-save architecture acceptance, live deployment/Binance connectivity, type/security scanning and local working-tree status remain unresolved/unverified.
 - SPOT Phase 01: **IN_PROGRESS**; FUTURES Phase 01: **IN_PROGRESS**; Combined Phase 01: **INCOMPLETE**; Phase 02: **LOCKED**.
 - No Phase 01 feature implementation was changed in this checkpoint because the mandatory pre-coding audit gate remains open. Resume by completing that gate; then start with SPOT Phase 01 only.
+
+
+### Provider retry/backoff correction — 2026-11-11
+
+- Commit `4ecf7805578df40b6d80628144e100b454ace044`: added shared bounded GET retry helper and integrated it into the separate Spot and Futures REST adapters.
+- HTTP 429 honours numeric/HTTP-date `Retry-After`; missing/invalid header uses exponential fallback; transport/5xx retry is bounded; HTTP 418 is not retried.
+- Added tests for 429, 418, 503, transport failure, fallback backoff and HTTP-date parsing; expanded Ruff targets for both adapters and new tests.
+- CI run `42957685379` was **IN_PROGRESS** at documentation time. No pass is claimed pending final run/job-log verification.
+- No live Binance rate-limit test; per-symbol/per-contract retry failure evidence remains outstanding.
+- Pre-Coding Full Audit remains **INCOMPLETE**; SPOT/FUTURES Phase 01 remain **IN_PROGRESS**; Combined Phase 01 **INCOMPLETE**; Phase 02 **LOCKED**.

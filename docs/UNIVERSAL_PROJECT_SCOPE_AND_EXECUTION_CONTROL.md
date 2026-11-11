@@ -242,3 +242,13 @@ For each market-specific phase record:
 - The mandatory pre-coding audit is still INCOMPLETE: the 80 routes and 54 provider/service files have not all received line-by-line acceptance review; deployment/live Binance connectivity, type checking, dedicated security scanning and local working-tree state remain unverified; provider retry/Retry-After policy and the MCP snapshot-save architecture decision remain open.
 - Active phase remains paired Phase 01 only. SPOT Phase 01 and FUTURES Phase 01 remain IN_PROGRESS; Combined Phase 01 remains INCOMPLETE; Phase 02 remains LOCKED.
 - No Phase 01 feature code was changed in this session because the scope's mandatory pre-coding audit gate has not yet been satisfied. No trading/order execution feature was added.
+
+
+## 15. Provider rate-limit resilience correction — 4ecf7805578df40b6d80628144e100b454ace044
+- Added `backend/app/providers/http_retry.py` as a market-neutral transport helper for idempotent public-data GET requests only.
+- Integrated the helper into the separate Spot and USDⓈ-M / COIN-M Futures provider adapters without combining their endpoint paths or market calculations.
+- HTTP 429 honors numeric or HTTP-date `Retry-After`; when absent/invalid it uses bounded exponential backoff. Transport errors and HTTP 5xx receive bounded retries. HTTP 418 (IP ban) is raised immediately and is not retried.
+- Added retry regression tests for 429 header handling, 418 no-retry behavior, 503, transport failure, missing Retry-After fallback and HTTP-date parsing. Extended targeted Ruff CI coverage to the changed providers and new helper/tests.
+- Commit: `4ecf7805578df40b6d80628144e100b454ace044`. GitHub Actions run `42957685379` was IN_PROGRESS when this checkpoint was written; do not treat tests as passed until its completed job log is reviewed.
+- This is a correction to the documented API-reliability audit gap, not Phase 01 scanner feature acceptance. Spot/Futures Phase 01 remain IN_PROGRESS; Phase 02 remains LOCKED.
+- No signed endpoints, order placement, cancellation, modification, withdrawal or wallet action was added.
