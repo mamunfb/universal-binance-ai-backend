@@ -123,3 +123,11 @@ Resume by completing the pre-coding audit gate, review current CI and static-ana
 - Enumerated 80 API route decorators; targeted review covered auth/error middleware, scanners/preflight, EVM indexing, confluence persistence, derivatives collection/history, and market-data history/quality. This is not yet a full line-by-line audit of all routes.
 - Spot/Futures providers use 15-second defaults but no shared retry/backoff or explicit Retry-After handling. No live exchange connectivity test performed.
 - Full audit remains INCOMPLETE. Spot Phase 01 and Futures Phase 01 remain IN_PROGRESS; Phase 02 LOCKED; no feature coding started.
+
+
+### Order-book Futures sequence fix — 2026-11-11
+
+- Fixed Futures first-event snapshot bridge: now accepts snapshot overlap (`U <= lastUpdateId <= u`) or direct continuation (`pu == lastUpdateId`); subsequent events require `pu == previous u`. Spot keeps its distinct `lastUpdateId + 1` bridge rule.
+- Added strict integer validation for update IDs and regression cases for valid overlap/direct continuation, unbridged gap, malformed IDs, and Spot behavior. Legacy Futures fixture now includes `pu`.
+- Final CI: run `42932203177` at `d4b4820d6c1d3a7c94716608fce00eaf55139cb9` **SUCCESS**; Ruff including order-book service/tests passed; dashboard JS passed; **548 passed, 2 warnings**. Earlier interim CI failures were resolved (old fixture lacked `pu`; lint found unused test import).
+- No live stream test. Full audit remains INCOMPLETE; both Phase 01 tracks IN_PROGRESS; Phase 02 LOCKED; no Phase 01 feature coding started.
