@@ -338,3 +338,8 @@ For each market-specific phase record:
 - Market confluence performance evaluator now rejects Boolean/fractional `limit` and `hours` request arguments instead of allowing Boolean-as-int or non-integer bounds. Regression tests cover evaluate and price_path.
 - Performance argument validation code/test commit: `78b9831806e7dd084b226e5b7826e2b67919f371`; CI pending.
 - No phase acceptance status changes.
+
+
+## 27. Performance evaluator argument validation — verified (2026-11-11)
+- Code/test commit `78b9831806e7dd084b226e5b7826e2b67919f371`; Actions run `42960815725`: **SUCCESS**. Actual job log confirms Ruff passed, dashboard JavaScript syntax passed, pytest **603 passed, 2 warnings**.
+- Strict non-Boolean integer validation for performance evaluator `limit` and `hours` is verified. This is request-boundary hardening only; no paired phase acceptance criteria are closed by this fix.

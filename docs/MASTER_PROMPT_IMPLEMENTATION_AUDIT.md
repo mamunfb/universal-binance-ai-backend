@@ -654,3 +654,8 @@ The Spot scanner, Futures Boolean filter, dashboard HTML rendering, market-data 
 - Regression tests added for Boolean and fractional request values.
 - Commit `78b9831806e7dd084b226e5b7826e2b67919f371`; CI pending.
 - This does not complete the broader historical performance service audit; its persisted timestamp and numeric assumptions still require continued review.
+
+
+## Performance evaluator argument validation — verified CI evidence (2026-11-11)
+- Code/test commit `78b9831806e7dd084b226e5b7826e2b67919f371`; Actions run `42960815725`: **SUCCESS**. Actual job log: targeted Ruff passed, dashboard JavaScript syntax passed, pytest **603 passed, 2 warnings**.
+- `evaluate(limit=...)` and `price_path(hours=...)` reject Boolean/fractional bounds. This closes only those public request argument checks; deeper historical outcome parsing remains under review.
