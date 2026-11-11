@@ -526,3 +526,19 @@ The Spot scanner, Futures Boolean filter, dashboard HTML rendering, market-data 
 - Five new parameterized cases passed: Boolean Spot kline limit, Boolean history timestamp, Boolean cross-chain decimals, Boolean aggregate-trade timestamp and Boolean research-snapshot timestamp. All assert rejection before the `_get` or `_post` call is made.
 - The exact 565-pass count belongs to code/test commit `ae93896350a0cd4128a7a919bf32cace61582522`, not automatically to the later docs-only checkpoint.
 - No phase acceptance status changed. Full audit remains INCOMPLETE because all 54 provider/service modules have not been completed line-by-line and the MCP local snapshot-persistence architecture decision remains open.
+
+
+## Scanner Boolean numeric-response validation — 2026-11-11
+
+### Confirmed defect and correction
+- Direct source review found that both `backend/app/services/market_scanner.py` and `backend/app/services/futures_scanner.py` called `float(value)` without excluding Boolean inputs. In Python, Boolean values are numerically coercible; malformed upstream values such as `true` could therefore be accepted as numeric price/percentage/volume data.
+- Both scanner `_number` helpers now return unavailable (`None`) for Boolean values before numeric conversion. Existing finite-number checks remain in place.
+- Added Spot regression coverage for Boolean `lastPrice`, `priceChangePercent`, and `quoteVolume`; Futures coverage for the same USDⓈ-M fields plus the COIN-M `baseVolume` fallback path. Tests require the affected eligible market row to be counted as failed rather than included as a valid result.
+- Code/test commit: `d2a51830fc09ccbd819ecbf000415cd5c2d4b56d`.
+
+### Verification and gate
+- CI for this commit must complete successfully before the correction is marked verified. No test count or CI pass is claimed at this point.
+- This closes only the Boolean numeric-coercion defect in the two scanner parsers. It does not resolve per-symbol failure ledgers, all-contract/all-pair order-book depth, recent-average volume surge, market-cap enrichment, or other Phase 01 gaps.
+- Provider/service inventory remains 54 source modules (excluding package initializer files); a complete line-by-line review of all modules and the full route surface remains incomplete. The MCP local snapshot-save architecture decision, type/security scanning, and live deployment/provider checks remain open.
+- Pre-Coding Full Audit: INCOMPLETE. SPOT Phase 01: IN_PROGRESS. FUTURES Phase 01: IN_PROGRESS. Combined Phase 01: INCOMPLETE. Phase 02: LOCKED.
+- No order execution or wallet capability was added.

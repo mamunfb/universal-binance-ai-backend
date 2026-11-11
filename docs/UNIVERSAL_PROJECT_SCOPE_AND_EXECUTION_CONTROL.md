@@ -275,3 +275,12 @@ For each market-specific phase record:
 - Code commit `ae93896350a0cd4128a7a919bf32cace61582522`; GitHub Actions run `42958954122`: **SUCCESS**.
 - Actual job log confirms targeted Ruff passed, dashboard JavaScript syntax passed, pytest **565 passed, 2 warnings**. The five new parameterized Boolean-as-integer cases passed.
 - Current docs checkpoint commit follows the verified code/test commit; exact 565 count is attributed to `ae93896350a0cd4128a7a919bf32cace61582522`.
+
+
+## 19. Scanner Boolean numeric-response validation — 2026-11-11
+- Confirmed that both Phase 01 scanner helpers converted values with `float(value)` without rejecting Python Boolean values. Because `bool` is accepted by Python's numeric conversion, malformed Boolean ticker fields could become plausible numeric values.
+- Both Spot and Futures scanner numeric parsers now reject Boolean values before conversion.
+- Regression tests cover Spot lastPrice / priceChangePercent / quoteVolume; USDⓈ-M Futures equivalents; and COIN-M baseVolume fallback.
+- Code/test commit: `d2a51830fc09ccbd819ecbf000415cd5c2d4b56d`. CI verification is pending; no test pass is claimed yet.
+- This is a confirmed Phase 01 data-integrity bug fix. It does not complete the scanner's remaining coverage requirements or advance the paired phase gate.
+- Pre-Coding Full Audit remains INCOMPLETE; SPOT Phase 01 and FUTURES Phase 01 remain IN_PROGRESS; Combined Phase 01 remains INCOMPLETE; Phase 02 remains LOCKED.

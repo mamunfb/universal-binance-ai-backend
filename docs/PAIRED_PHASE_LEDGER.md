@@ -196,3 +196,13 @@ Resume by completing the pre-coding audit gate, review current CI and static-ana
 - Targeted Ruff passed; dashboard JavaScript syntax passed; pytest **565 passed, 2 warnings**. Five Boolean-as-integer boundary regression cases passed.
 - Exact count belongs to the code/test commit above; subsequent docs-only HEAD is a separate commit.
 - Pre-Coding Full Audit remains INCOMPLETE; SPOT/FUTURES Phase 01 remain IN_PROGRESS; Combined Phase 01 INCOMPLETE; Phase 02 LOCKED.
+
+
+### Phase 01 scanner Boolean numeric-response correction — 2026-11-11
+
+- Confirmed and fixed Boolean-to-number coercion in the Spot and Futures scanner numeric parsers. Boolean ticker values are now treated as invalid/missing data, not numeric prices, percentages or volumes.
+- Added regression cases for Spot ticker numeric fields, USDⓈ-M Futures ticker numeric fields, and the COIN-M base-volume-derived notional fallback.
+- Code/test commit: `d2a51830fc09ccbd819ecbf000415cd5c2d4b56d`.
+- CI verification is pending; do not mark this fix CI-verified until the actual run and job log are checked.
+- Phase status unchanged: SPOT Phase 01 IN_PROGRESS; FUTURES Phase 01 IN_PROGRESS; Combined Phase 01 INCOMPLETE; Phase 02 LOCKED.
+- Full pre-coding audit remains INCOMPLETE; remaining scanner acceptance criteria are unchanged.
