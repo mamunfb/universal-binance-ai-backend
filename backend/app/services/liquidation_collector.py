@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import math
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -18,12 +19,17 @@ def normalize_force_order(message: dict[str, Any]) -> dict[str, Any] | None:
     order = message["o"]
     try:
         avg_price = float(order.get("ap") or 0)
+        original_qty = float(order.get("q") or 0)
+        last_filled_qty = float(order.get("l") or 0)
         filled_qty = float(order.get("z") or 0)
         event_time = int(message["E"])
         trade_time = int(order.get("T") or event_time)
-        if avg_price < 0 or filled_qty < 0:
+        numeric_values = (avg_price, original_qty, last_filled_qty, filled_qty)
+        if any(not math.isfinite(value) or value < 0 for value in numeric_values):
             return None
-    except (TypeError, ValueError, KeyError):
+        if event_time < 0 or trade_time < 0:
+            return None
+    except (TypeError, ValueError, KeyError, OverflowError):
         return None
     return {
         "event_time_ms": event_time,
@@ -35,8 +41,8 @@ def normalize_force_order(message: dict[str, Any]) -> dict[str, Any] | None:
         "order_type": order.get("o"),
         "status": order.get("X"),
         "average_price": avg_price,
-        "original_quantity": float(order.get("q") or 0),
-        "last_filled_quantity": float(order.get("l") or 0),
+        "original_quantity": original_qty,
+        "last_filled_quantity": last_filled_qty,
         "cumulative_filled_quantity": filled_qty,
         "approx_cumulative_notional": avg_price * filled_qty,
         "raw_json": json.dumps(message, separators=(",", ":"), ensure_ascii=False),
