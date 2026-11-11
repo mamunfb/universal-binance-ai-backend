@@ -259,3 +259,26 @@ def test_save_chunk_rejects_invalid_index_scope_before_writing(
     with pytest.raises(ValueError):
         store.save_chunk(chain_id, contract, start, end, [])
     assert store.coverage(1, CONTRACT) == []
+
+
+@pytest.mark.parametrize("from_block, to_block, chunk_size, max_total_blocks", [
+    (True, 10, 2, 10),
+    (1, 10, True, 10),
+    (1, 10, 2, False),
+    (-1, 10, 2, 10),
+    (10, 1, 2, 10),
+])
+def test_indexer_rejects_invalid_integer_controls_before_provider_calls(
+    tmp_path, from_block, to_block, chunk_size, max_total_blocks
+):
+    store = EVMTransferStore(str(tmp_path / "history.sqlite3"))
+
+    class FakeProvider:
+        async def chain_id(self):
+            raise AssertionError("Provider must not be called for invalid controls")
+
+    with pytest.raises(ValueError):
+        asyncio.run(index_erc20_transfer_history(
+            FakeProvider(), store, CONTRACT, from_block, to_block,
+            chunk_size, max_total_blocks,
+        ))
