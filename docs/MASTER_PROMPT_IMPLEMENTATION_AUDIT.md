@@ -666,3 +666,13 @@ The Spot scanner, Futures Boolean filter, dashboard HTML rendering, market-data 
 - Regression tests cover Boolean/fractional time and numeric query controls.
 - Code/test commit `f3bc28e1b37a896ddd4034440523f897b4d45c27`; CI pending at documentation checkpoint.
 - This does not verify the truthfulness/completeness of the upstream liquidation snapshot stream; the collector still explicitly documents partial-feed limitations.
+
+
+## RSS feed network-boundary correction — 2026-11-11
+
+- Source review confirmed the RSS provider followed redirects and read each response body fully before parsing, with no byte ceiling. A configured HTTPS feed could therefore redirect to another destination, and a large feed response could consume unbounded memory before item-level truncation.
+- Provider commit: `046bba3b253a99b70076a68344fe8d3a468291f6`; regression-test commit: `cf36eb8a1608bca207c9882ae0778a8560b951b3`.
+- Redirect following is explicitly disabled on feed requests, including when a caller supplies an AsyncClient. Feed bodies are consumed incrementally and rejected once the configurable 1 MiB default limit is exceeded. Invalid size-limit configuration is rejected.
+- Regression tests cover a redirect response, oversized streamed content, and invalid size-limit values. GitHub Actions run `42962156783` was queued at the time of this documentation entry; no CI pass is claimed until its completed job log is checked.
+- This is a provider-level reliability/security correction only. It does not complete the full provider/service or route audit, nor does it change any paired-phase status.
+- SPOT Phase 01: IN_PROGRESS; FUTURES Phase 01: IN_PROGRESS; Combined Phase 01: INCOMPLETE; Phase 02: LOCKED. No order execution or wallet capability was added.
