@@ -411,3 +411,14 @@ The Spot scanner, Futures Boolean filter, dashboard HTML rendering, market-data 
 - Provider review reconfirmed Spot and Futures REST adapters have 15-second default timeouts and response-shape checks on many endpoints, but no common retry/backoff or Retry-After policy. No live Binance request was performed.
 - Existing API auth behavior remains: authentication is enforced on `/api/*` when a key is configured; production fails closed if neither a valid client-key configuration nor a strong owner key is available. `/health` remains outside the private API middleware by design.
 - Full audit gate remains INCOMPLETE; paired Phase 01 remains IN_PROGRESS on both Spot and Futures; Phase 02 remains LOCKED. No Phase 01 feature coding started.
+
+
+## Order-book sequence synchronization correction — 2026-11-11
+
+- Review of `OrderBookStreamCollector._validate_sequence` found the initial Futures snapshot bridge reused the Spot `lastUpdateId + 1` rule and did not verify the Futures `pu` link on the first accepted event. That could accept a first Futures diff event with `U == lastUpdateId + 1` even when `pu` did not equal the snapshot ID, allowing a missed update gap to be treated as synchronized.
+- Corrected initial USD-M/COIN-M validation to require either (a) the first event overlaps the snapshot ID (`U <= lastUpdateId <= u`) or (b) it directly continues from the snapshot (`pu == lastUpdateId`). Subsequent Futures events still require `pu == previous u`. Spot retains its separate `U <= lastUpdateId + 1 <= u` rule.
+- Added strict integer validation for `U`, `u`, and Futures `pu` so booleans/fractional values are not truncated into plausible sequence numbers. Added regression coverage for overlap, direct continuation, an unbridged gap, malformed IDs, and unchanged Spot rules. Updated an older Futures fixture to include the required `pu` field.
+- CI checkpoint `d4b4820d6c1d3a7c94716608fce00eaf55139cb9`, run `42932203177`: **SUCCESS**; targeted Ruff checks passed including `order_book_stream.py` and `test_order_book_stream.py`; dashboard JS syntax passed; pytest **548 passed, 2 warnings**.
+- Intermediate CI attempts exposed two test-harness issues (legacy Futures fixture omitted `pu`; newly linted test contained an unused import). Both were corrected; the final checkpoint above is green.
+- Protocol references reviewed: Binance COIN-M Futures diff-depth event schema documents `U`, `u`, and `pu` (https://developers.binance.info/en/docs/catalog/core-trading-derivatives-trading-coin-m-futures/api/ws-streams); Binance Spot's official WebSocket stream documentation describes the separate Spot snapshot-bridge rule (https://github.com/binance/binance-spot-api-docs/blob/master/web-socket-streams.md).
+- No live WebSocket connection was performed. Full Pre-Coding Audit remains INCOMPLETE; this is a correctness fix to an existing collector, not Phase 01 feature coding.
