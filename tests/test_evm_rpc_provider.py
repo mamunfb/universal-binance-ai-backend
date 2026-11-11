@@ -209,3 +209,38 @@ def test_rpc_validates_error_envelope_and_does_not_echo_provider_message():
             assert "provider secret detail" not in str(exc.value)
 
     asyncio.run(run())
+
+
+def test_block_header_returns_normalized_hashes_and_checks_requested_number(monkeypatch):
+    provider = EVMRPCProvider("https://rpc.example")
+    async def fake_rpc(method, params, client=None):
+        assert method == "eth_getBlockByNumber"
+        return {
+            "number": "0x64",
+            "hash": "0x" + "A" * 64,
+            "parentHash": "0x" + "B" * 64,
+        }
+    monkeypatch.setattr(provider, "_rpc", fake_rpc)
+    result = asyncio.run(provider.block_header(100))
+    assert result == {
+        "number": 100,
+        "hash": "0x" + "a" * 64,
+        "parent_hash": "0x" + "b" * 64,
+    }
+
+
+def test_block_header_rejects_wrong_height_and_malformed_hash(monkeypatch):
+    provider = EVMRPCProvider("https://rpc.example")
+    async def wrong_height(method, params, client=None):
+        return {"number": "0x65", "hash": "0x" + "a" * 64,
+                "parentHash": "0x" + "b" * 64}
+    monkeypatch.setattr(provider, "_rpc", wrong_height)
+    with pytest.raises(ValueError, match="does not match"):
+        asyncio.run(provider.block_header(100))
+
+    async def malformed_hash(method, params, client=None):
+        return {"number": "0x64", "hash": "0x1234",
+                "parentHash": "0x" + "b" * 64}
+    monkeypatch.setattr(provider, "_rpc", malformed_hash)
+    with pytest.raises(ValueError, match="invalid hash"):
+        asyncio.run(provider.block_header(100))
