@@ -14,16 +14,24 @@ STREAM_URL = "wss://fstream.binance.com/market/ws/!forceOrder@arr"
 
 
 def normalize_force_order(message: dict[str, Any]) -> dict[str, Any] | None:
-    if message.get("e") != "forceOrder" or not isinstance(message.get("o"), dict):
+    if not isinstance(message, dict) or message.get("e") != "forceOrder" or not isinstance(message.get("o"), dict):
         return None
     order = message["o"]
     try:
-        avg_price = float(order.get("ap") or 0)
-        original_qty = float(order.get("q") or 0)
-        last_filled_qty = float(order.get("l") or 0)
-        filled_qty = float(order.get("z") or 0)
-        event_time = int(message["E"])
-        trade_time = int(order.get("T") or event_time)
+        raw_quantities = (order.get("ap") or 0, order.get("q") or 0,
+                          order.get("l") or 0, order.get("z") or 0)
+        if any(isinstance(value, bool) for value in raw_quantities):
+            return None
+        raw_event_time = message["E"]
+        raw_trade_time = order.get("T") or raw_event_time
+        if any(isinstance(value, bool) or not isinstance(value, int)
+               for value in (raw_event_time, raw_trade_time)):
+            return None
+        avg_price, original_qty, last_filled_qty, filled_qty = (
+            float(value) for value in raw_quantities
+        )
+        event_time = raw_event_time
+        trade_time = raw_trade_time
         numeric_values = (avg_price, original_qty, last_filled_qty, filled_qty)
         if any(not math.isfinite(value) or value < 0 for value in numeric_values):
             return None

@@ -72,3 +72,14 @@ def test_open_interest_history_validates_period_bounds_and_limit(tmp_path):
         store.history("USD_M", "BTCUSDT", "1h", 20, 10)
     with pytest.raises(ValueError, match="limit"):
         store.history("USD_M", "BTCUSDT", "1h", limit=5001)
+
+
+@pytest.mark.parametrize("row", [
+    record(timestamp=True), record(timestamp=1.5),
+    record(amount=True), record(value=True), record(supply=True),
+])
+def test_open_interest_store_rejects_boolean_and_fractional_numeric_fields(tmp_path, row):
+    store = OpenInterestStore(str(tmp_path / "oi.sqlite3"))
+    with pytest.raises(ValueError):
+        store.save("USD_M", "BTCUSDT", "1h", [row])
+    assert store.history("USD_M", "BTCUSDT", "1h")["returned_count"] == 0
