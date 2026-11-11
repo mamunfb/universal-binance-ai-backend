@@ -138,6 +138,9 @@ class EVMTransferStore:
 
     def history(self, chain_id: int, contract: str, from_block: int, to_block: int,
                 limit: int = 1000) -> list[dict[str, Any]]:
+        contract = _validate_index_scope(chain_id, contract, from_block, to_block)
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 100_000:
+            raise ValueError("limit must be an integer between 1 and 100000")
         with sqlite3.connect(self.database_path) as connection:
             connection.row_factory = sqlite3.Row
             rows = connection.execute("""
@@ -152,6 +155,11 @@ class EVMTransferStore:
 
     def address_flow_summary(self, chain_id: int, contract: str, from_block: int,
                              to_block: int, decimals: int, limit: int = 50) -> dict[str, Any]:
+        contract = _validate_index_scope(chain_id, contract, from_block, to_block)
+        if isinstance(decimals, bool) or not isinstance(decimals, int) or not 0 <= decimals <= 36:
+            raise ValueError("decimals must be an integer between 0 and 36")
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 200:
+            raise ValueError("limit must be an integer between 1 and 200")
         if not 0 <= decimals <= 36:
             raise ValueError("decimals must be between 0 and 36")
         if not 1 <= limit <= 200:
@@ -193,6 +201,7 @@ class EVMTransferStore:
 
     def range_coverage(self, chain_id: int, contract: str, from_block: int,
                        to_block: int) -> dict[str, Any]:
+        contract = _validate_index_scope(chain_id, contract, from_block, to_block)
         ranges = self.coverage(chain_id, contract)
         relevant = sorted(
             (max(from_block, row["from_block"]), min(to_block, row["to_block"]))
@@ -222,6 +231,11 @@ class EVMTransferStore:
     def smart_money_activity(self, chain_id: int, contract: str, from_block: int,
                              to_block: int, decimals: int, registry: dict[str, Any],
                              limit: int = 100) -> dict[str, Any]:
+        contract = _validate_index_scope(chain_id, contract, from_block, to_block)
+        if isinstance(decimals, bool) or not isinstance(decimals, int) or not 0 <= decimals <= 36:
+            raise ValueError("decimals must be an integer between 0 and 36")
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 1000:
+            raise ValueError("limit must be an integer between 1 and 1000")
         if not 0 <= decimals <= 36:
             raise ValueError("decimals must be between 0 and 36")
         with sqlite3.connect(self.database_path) as connection:
@@ -300,6 +314,11 @@ class EVMTransferStore:
     def smart_money_accumulation_trend(self, chain_id: int, contract: str,
                                        from_block: int, to_block: int, decimals: int,
                                        registry: dict[str, Any], window_blocks: int = 1000) -> dict[str, Any]:
+        contract = _validate_index_scope(chain_id, contract, from_block, to_block)
+        if isinstance(decimals, bool) or not isinstance(decimals, int) or not 0 <= decimals <= 36:
+            raise ValueError("decimals must be an integer between 0 and 36")
+        if isinstance(window_blocks, bool) or not isinstance(window_blocks, int) or not 1 <= window_blocks <= 1_000_000:
+            raise ValueError("window_blocks must be an integer between 1 and 1000000")
         if not 1 <= window_blocks <= 1_000_000:
             raise ValueError("window_blocks must be between 1 and 1000000")
         if not 0 <= decimals <= 36:
@@ -352,6 +371,9 @@ class EVMTransferStore:
 
     def verified_label_flows(self, chain_id: int, contract: str, from_block: int,
                              to_block: int, decimals: int, registry: dict[str, Any]) -> dict[str, Any]:
+        contract = _validate_index_scope(chain_id, contract, from_block, to_block)
+        if isinstance(decimals, bool) or not isinstance(decimals, int) or not 0 <= decimals <= 36:
+            raise ValueError("decimals must be an integer between 0 and 36")
         """Aggregate indexed transfer flow for verified registry labels, cancelling cohort-internal transfers."""
         if not 0 <= decimals <= 36:
             raise ValueError("decimals must be between 0 and 36")
