@@ -107,3 +107,10 @@ Resume by completing the pre-coding audit gate, review current CI and static-ana
 - MCP integer argument boundary review (Boolean-as-integer) remains pending framework-level validation tests.
 - PR #1 OPEN / DRAFT / unmerged; main unchanged; 77 commits ahead / 0 behind.
 - Pre-Coding Full Audit INCOMPLETE; SPOT Phase 01 IN_PROGRESS; FUTURES Phase 01 IN_PROGRESS; combined Phase 01 INCOMPLETE; Phase 02 LOCKED.
+
+
+### Confirmed authentication fix — 2026-11-11
+
+- Production auth previously allowed a weak AI-client key to match if a separate strong owner key satisfied the startup gate. Middleware now matches only client keys with length >=32; regression test checks weak-key 401 and strong owner-key success.
+- Commits: `ffad59b3f906c49ffc539838a289357f18d3d548` (fix), `205c2fa2a36f72709748803c01de3e535c6b575e` (test). CI pending verification at time of ledger update.
+- No Phase 01 feature work started; paired Phase 01 remains incomplete and Phase 02 locked.
