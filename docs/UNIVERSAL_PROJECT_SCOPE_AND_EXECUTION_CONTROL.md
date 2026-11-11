@@ -400,3 +400,15 @@ The RSS provider now disables redirects and enforces a configurable streamed res
 - Latest combined GitHub Actions run `42967937288`: **SUCCESS**; Ruff passed, dashboard JavaScript syntax passed, pytest **634 passed, 2 warnings**.
 - The tests enforce canonical 32-byte ABI event data; early test-fixture runs exposed shorter noncanonical sample data and those fixtures were corrected before the final successful run.
 - Full EVM indexing/reorg/route audit remains open. This checkpoint does not constitute full project audit completion or phase acceptance. SPOT and FUTURES Phase 01 remain IN_PROGRESS; combined Phase 01 remains INCOMPLETE; Phase 02 remains LOCKED.
+
+
+## EVM transfer re-indexing and history coverage checkpoint — 2026-11-11
+
+- Duplicate `transactionHash/logIndex` identities within a single RPC chunk are now rejected before any database write; this prevents conflicting duplicate payload entries from silently overwriting one another while inflating the chunk transfer count.
+- Added regression coverage for atomic rejection of duplicate log identities and for `removed=true` tombstones: removed logs are excluded from history, and a subsequent canonical replay can restore the same identity as active.
+- The read-only `GET /api/v1/onchain/evm/token/{contract}/history` route previously returned `COMPLETED` regardless of gaps. It now calculates requested-range coverage and reports `INCOMPLETE` unless the entire requested interval is covered. API tests cover complete and incomplete ranges.
+- Duplicate/reorg-behavior code commit: `a1dcba2d905df322f8f72d60431d3b2ebde2ad78`; test commit: `0070c1faaf123e99eca321fe4591e6a047d0829c`.
+- History coverage route commit: `a39703b46c25a629f898d9c007071b6a55936aee`; API test commit: `89b96fe52e18a345e8c24f283baece7b9aea12b2`.
+- Duplicate/replay regression CI run `42968331186`: **SUCCESS**, Ruff and dashboard JavaScript syntax passed, pytest **636 passed, 2 warnings**. History route implementation CI run `42968449219`: **SUCCESS**, pytest **636 passed, 2 warnings**. The final API-test commit CI is still running at this checkpoint; do not treat its result as verified until the run completes.
+- Reorganization support is only partially addressed: the store honors explicit `removed=true` log tombstones and permits replay, but does not yet persist per-block hashes or independently detect/reconcile a provider's changed canonical chain. That remains an open audit item.
+- Overall EVM store/API audit remains open. No phase acceptance is claimed. SPOT and FUTURES Phase 01 remain IN_PROGRESS; combined Phase 01 remains INCOMPLETE; Phase 02 remains LOCKED.
