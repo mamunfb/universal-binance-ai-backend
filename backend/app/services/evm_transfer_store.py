@@ -173,6 +173,14 @@ class EVMTransferStore:
                     previous and previous[0] != parent_hash
                 )
                 if mismatch:
+                    if previous_unchanged_checkpoint is None:
+                        prior_anchor = connection.execute(
+                            """SELECT block_number FROM evm_block_headers
+                               WHERE chain_id=? AND block_number<?
+                               ORDER BY block_number DESC LIMIT 1""",
+                            (chain_id, number),
+                        ).fetchone()
+                        previous_unchanged_checkpoint = prior_anchor[0] if prior_anchor else None
                     earliest_possible = (
                         previous_unchanged_checkpoint + 1
                         if previous_unchanged_checkpoint is not None
