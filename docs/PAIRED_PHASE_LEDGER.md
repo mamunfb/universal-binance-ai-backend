@@ -69,7 +69,7 @@ A paired Phase N is complete only when both SPOT Phase N and FUTURES Phase N are
 - No new Phase 01 feature coding is authorized until the remaining audit coverage and latest CI/static-check results are reviewed.
 - Confirmed fixes and their regression evidence are maintained in `docs/MASTER_PROMPT_IMPLEMENTATION_AUDIT.md`.
 - Latest successful CI evidence before the most recent combined security fixes: 527 passed, 2 warnings at commit `f35e8a777c46cbc6e0bc6e840e4b81597a17318b`.
-- Latest combined security-fix tests and core Ruff check: pending CI at time of this ledger update.
+- Latest combined security-fix tests and core Ruff check: PASSED at commit `dcfb8faf5372c0a9f75088d9e7f79afb9b2c42c7`; 528 tests passed, 2 warnings.
 - Local working-tree status: UNVERIFIED through the remote GitHub interface.
 - PR #1: OPEN / DRAFT; do not merge without explicit user approval.
 - Main branch: unchanged.
