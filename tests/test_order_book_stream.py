@@ -116,3 +116,17 @@ def test_spot_depth_first_event_keeps_spot_update_id_rule(tmp_path):
             "SPOT", {"U": 102, "u": 105}, last_id=100, first_event=True,
         )
 
+
+@pytest.mark.parametrize("event", [
+    {"U": 100.5, "u": 101, "pu": 99},
+    {"U": 100, "u": True, "pu": 99},
+    {"U": 100, "u": 101, "pu": 99.5},
+])
+def test_futures_depth_sequence_rejects_non_integer_update_ids(tmp_path, event):
+    collector = OrderBookStreamCollector(
+        OrderBookHistoryStore(str(tmp_path / "malformed.sqlite3")),
+        lambda: None, lambda _market: None,
+    )
+    with pytest.raises(RuntimeError, match="DEPTH_INVALID_SEQUENCE_ID"):
+        collector._validate_sequence("USD_M", event, last_id=100, first_event=True)
+
