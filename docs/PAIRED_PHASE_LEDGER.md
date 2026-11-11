@@ -89,3 +89,11 @@ Resume by completing the pre-coding audit gate, review current CI and static-ana
 
 - EVM index route now rejects Boolean/fractional JSON block numbers and chunk sizes before provider calls; route-level regression tests added.
 - Prior Ruff-only CI failures were traced to a semicolon in the pre-existing snapshot test file newly brought into the targeted lint set; test formatting has been corrected. Latest full CI on the newest API-test/docs commit is pending.
+
+
+### Verified latest code/test checkpoint
+
+- Commit `6a19418c531913e83a93a55479c3ff3c0ca9d746`, CI run `42929655489`: **SUCCESS**.
+- Ruff core checks: passed; dashboard JavaScript syntax: passed; pytest: **537 passed, 2 warnings**.
+- This includes strict EVM block request validation, sanitized EVM indexer errors, and market-confluence numeric validation regressions.
+- Later documentation-only commits still need CI confirmation on the latest HEAD.
