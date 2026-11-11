@@ -68,3 +68,51 @@ def test_sample_calculates_spread_and_depth(tmp_path):
     assert row["best_ask"] == 101.0
     assert row["spread_bps"] > 0
     assert row["depth_imbalance"] < 0  # Ask-side price-weighted notional exceeds bid-side notional.
+
+@pytest.mark.parametrize("market", ["USD_M", "COIN_M"])
+def test_futures_depth_first_event_accepts_snapshot_overlap(tmp_path, market):
+    collector = OrderBookStreamCollector(
+        OrderBookHistoryStore(str(tmp_path / f"{market}.sqlite3")),
+        lambda: None, lambda _market: None,
+    )
+    collector._validate_sequence(
+        market, {"U": 99, "u": 101, "pu": 98}, last_id=100, first_event=True,
+    )
+
+
+@pytest.mark.parametrize("market", ["USD_M", "COIN_M"])
+def test_futures_depth_first_event_accepts_direct_pu_continuation(tmp_path, market):
+    collector = OrderBookStreamCollector(
+        OrderBookHistoryStore(str(tmp_path / f"{market}.sqlite3")),
+        lambda: None, lambda _market: None,
+    )
+    collector._validate_sequence(
+        market, {"U": 101, "u": 105, "pu": 100}, last_id=100, first_event=True,
+    )
+
+
+@pytest.mark.parametrize("market", ["USD_M", "COIN_M"])
+def test_futures_depth_first_event_rejects_unbridged_update_gap(tmp_path, market):
+    collector = OrderBookStreamCollector(
+        OrderBookHistoryStore(str(tmp_path / f"{market}.sqlite3")),
+        lambda: None, lambda _market: None,
+    )
+    with pytest.raises(RuntimeError, match="DEPTH_INITIAL_SEQUENCE_GAP"):
+        collector._validate_sequence(
+            market, {"U": 101, "u": 105, "pu": 99}, last_id=100, first_event=True,
+        )
+
+
+def test_spot_depth_first_event_keeps_spot_update_id_rule(tmp_path):
+    collector = OrderBookStreamCollector(
+        OrderBookHistoryStore(str(tmp_path / "spot.sqlite3")),
+        lambda: None, lambda _market: None,
+    )
+    collector._validate_sequence(
+        "SPOT", {"U": 99, "u": 101}, last_id=100, first_event=True,
+    )
+    with pytest.raises(RuntimeError, match="DEPTH_INITIAL_SEQUENCE_GAP"):
+        collector._validate_sequence(
+            "SPOT", {"U": 102, "u": 105}, last_id=100, first_event=True,
+        )
+
