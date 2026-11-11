@@ -269,3 +269,8 @@ Resume by completing the pre-coding audit gate, review current CI and static-ana
 
 - Added strict non-Boolean integer validation for liquidation cluster time bounds, limit, bucket width and minimum event count. Commit `f3bc28e1b37a896ddd4034440523f897b4d45c27`; CI pending.
 - Phase status unchanged: SPOT Phase 01 IN_PROGRESS; FUTURES Phase 01 IN_PROGRESS; Combined Phase 01 INCOMPLETE; Phase 02 LOCKED.
+
+
+## Provider audit note — 2026-11-11
+
+RSS provider redirect following is disabled and streamed feed responses are capped at 1 MiB by default. Tests cover redirect, oversize and invalid limit cases. Code/test commits: `046bba3b253a99b70076a68344fe8d3a468291f6`, `cf36eb8a1608bca207c9882ae0778a8560b951b3`. CI run `42962156783` pending verification at this checkpoint. Paired Phase 01 remains INCOMPLETE; Phase 02 remains LOCKED.
