@@ -134,3 +134,56 @@ def test_rpc_does_not_retry_client_error():
 def test_provider_rejects_invalid_retry_attempts(attempts):
     with pytest.raises(ValueError, match="retry_attempts"):
         EVMRPCProvider("https://rpc.example", retry_attempts=attempts)
+
+
+@pytest.mark.parametrize("url", [
+    "https://", "https:///missing-host", "https://user:pass@rpc.example",
+    "https://rpc.example/path#fragment", "https://rpc.example:bad/path",
+    "http://rpc.example",
+])
+def test_provider_rejects_malformed_or_credentialed_endpoint(url):
+    with pytest.raises(ValueError, match="valid HTTPS URL"):
+        EVMRPCProvider(url)
+
+
+@pytest.mark.parametrize("max_bytes", [0, -1, True, 1.5])
+def test_provider_rejects_invalid_response_size_limit(max_bytes):
+    with pytest.raises(ValueError, match="max_response_bytes"):
+        EVMRPCProvider("https://rpc.example", max_response_bytes=max_bytes)
+
+
+def test_rpc_does_not_follow_redirect_even_when_client_allows_it():
+    calls = []
+
+    def handler(request):
+        calls.append(request.url)
+        return httpx.Response(
+            307, headers={"Location": "https://internal.example/metadata"}
+        )
+
+    async def run():
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(handler), follow_redirects=True
+        ) as client:
+            provider = EVMRPCProvider("https://rpc.example", retry_attempts=0)
+            with pytest.raises(httpx.HTTPStatusError):
+                await provider._rpc("eth_chainId", [], client=client)
+
+    asyncio.run(run())
+    assert len(calls) == 1
+    assert str(calls[0]) == "https://rpc.example"
+
+
+def test_rpc_rejects_oversized_response_while_streaming():
+    def handler(request):
+        return httpx.Response(200, content=b"x" * 256)
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            provider = EVMRPCProvider(
+                "https://rpc.example", retry_attempts=0, max_response_bytes=64
+            )
+            with pytest.raises(ValueError, match="byte limit"):
+                await provider._rpc("eth_chainId", [], client=client)
+
+    asyncio.run(run())
