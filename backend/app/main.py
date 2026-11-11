@@ -413,9 +413,19 @@ async def index_evm_token_history(
     payload: dict = Body(..., example={"from_block": 1000000, "to_block": 1001000, "chunk_size": 500}),
 ) -> dict:
     try:
-        from_block = int(payload["from_block"])
-        to_block = int(payload["to_block"])
-        chunk_size = int(payload.get("chunk_size", 500))
+        raw_from_block = payload["from_block"]
+        raw_to_block = payload["to_block"]
+        raw_chunk_size = payload.get("chunk_size", 500)
+        for field, value in (
+            ("from_block", raw_from_block),
+            ("to_block", raw_to_block),
+            ("chunk_size", raw_chunk_size),
+        ):
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise ValueError(f"{field} must be an integer")
+        from_block = raw_from_block
+        to_block = raw_to_block
+        chunk_size = raw_chunk_size
         if chunk_size > settings.evm_max_log_block_span:
             raise ValueError(
                 f"chunk_size cannot exceed EVM_MAX_LOG_BLOCK_SPAN ({settings.evm_max_log_block_span})"
