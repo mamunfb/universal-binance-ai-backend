@@ -300,3 +300,24 @@ def test_market_evidence_route_aggregates_read_only_sections(monkeypatch):
     assert result["decision"]["buy_sell_signal"] is None
     assert result["section_status"]["multi_timeframe"] == "COMPLETED"
     assert result["section_status"]["spot_futures_basis"] == "COMPLETED"
+
+
+
+def test_evm_index_route_rejects_boolean_and_fractional_block_numbers():
+    import asyncio
+    from app import main
+
+    contract = "0x" + "1" * 40
+    invalid_payloads = [
+        {"from_block": True, "to_block": 100, "chunk_size": 10},
+        {"from_block": 1, "to_block": 100.5, "chunk_size": 10},
+        {"from_block": 1, "to_block": 100, "chunk_size": False},
+    ]
+    for payload in invalid_payloads:
+        try:
+            asyncio.run(main.index_evm_token_history(contract, payload))
+        except Exception as exc:
+            assert getattr(exc, "status_code", None) == 422
+            assert "must be an integer" in str(getattr(exc, "detail", ""))
+        else:
+            raise AssertionError("Invalid JSON numeric values must be rejected")
