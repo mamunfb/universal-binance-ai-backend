@@ -387,3 +387,16 @@ The RSS provider now disables redirects and enforces a configurable streamed res
 - Implementation commit `b5ff75782f87c0b526bb5b126a64d3492c44d950`; test commit `6549471718ef4c90b9047f0d52378b3705173673`.
 - GitHub Actions run `42967489250` on the test commit: **SUCCESS**; targeted Ruff passed, dashboard JavaScript syntax passed, and pytest **621 passed, 2 warnings**. Implementation-only run `42967453504` also passed with 619 tests.
 - Remaining EVM route/store audit is still open; this correction does not complete the route security review or the overall audit. Paired Phase 01 remains INCOMPLETE; Phase 02 remains LOCKED.
+
+
+## EVM transfer index validation checkpoint — 2026-11-11
+
+- `EVMTransferStore.save_chunk` now validates chain ID and requested block range, requires a list of logs, accepts only the ERC-20 Transfer event signature, validates transaction/block/log/data hex fields and 32-byte transfer data, validates indexed address topic padding, rejects malformed `removed` flags, and checks any returned log contract address against the requested contract.
+- Store query methods now validate chain/contract/block scopes and strict non-Boolean integer controls for limits, decimals, and window sizes.
+- The historical indexer now validates block bounds, chunk size and total-block limit before RPC calls, and rejects invalid provider chain IDs/latest block numbers.
+- Regression tests cover wrong event signatures, contract mismatch, malformed removed flags, invalid scope values, and Boolean integer controls.
+- Code commits: `1acf62a6af082fc908c6c3599b857faecd824e24`, `054c4c2af077905debee1e16c5e326c78ce6dabd`, `73e225579162c845b8fd039d377633a63b71c146`.
+- Test commits: `9d51a666dce0879456a2e0a33736b4663ce8842f`, `c6578e3af919577c13e8dd5354303d4665b38e12`, `16eb50261625fac8837060763c8403ebb84b17eb`, `f5ad937d353bd6f5e2f372949934d57db68dff5f`, `ef80f5c372dbc8f0a0ba01133a7911a0ddc1d626`.
+- Latest combined GitHub Actions run `42967937288`: **SUCCESS**; Ruff passed, dashboard JavaScript syntax passed, pytest **634 passed, 2 warnings**.
+- The tests enforce canonical 32-byte ABI event data; early test-fixture runs exposed shorter noncanonical sample data and those fixtures were corrected before the final successful run.
+- Full EVM indexing/reorg/route audit remains open. This checkpoint does not constitute full project audit completion or phase acceptance. SPOT and FUTURES Phase 01 remain IN_PROGRESS; combined Phase 01 remains INCOMPLETE; Phase 02 remains LOCKED.
