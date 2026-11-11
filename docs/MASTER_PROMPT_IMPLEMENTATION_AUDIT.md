@@ -432,3 +432,11 @@ The Spot scanner, Futures Boolean filter, dashboard HTML rendering, market-data 
 - CI run 42933491101 on 29db479fb82cdd9a90b86f81300d15f9b8dc234c: SUCCESS; targeted Ruff checks passed; dashboard JavaScript syntax passed; pytest 550 passed, 2 warnings.
 - Intermediate runs: 42933359688 failed because the new tests initially omitted the asyncio import; 42933385702 then exposed that the cancellation test needed to gather the expected cancelled task rather than await it as a successful completion. Both test-harness issues were corrected before the successful run above.
 - No live WebSocket test or real queue-saturation integration test against Binance was performed. Full Pre-Coding Audit remains INCOMPLETE; this is a collector correctness fix, not Phase 01 feature coding.
+
+
+## Order-book REST snapshot sequence-ID validation — 2026-11-11
+
+- Continued review found the order-book collector coerced the REST snapshot lastUpdateId through int(), which could silently truncate a fractional value or accept a Boolean as an integer before diff-stream sequence checks began.
+- Added strict snapshot update-ID validation: only a non-Boolean Python integer is accepted; malformed values cause an explicit DEPTH_INVALID_SNAPSHOT_UPDATE_ID reconnect path. Added regression tests for fractional, Boolean, string, and valid integer inputs.
+- CI run 42933697618 on 716709c26781b52300dc77188161196962a268a5: SUCCESS; targeted Ruff checks passed; dashboard JavaScript syntax passed; pytest 554 passed, 2 warnings.
+- No live REST snapshot or WebSocket exchange call was performed. This is an existing collector correctness fix; full Pre-Coding Audit remains INCOMPLETE and no Phase 01 feature coding has started.
