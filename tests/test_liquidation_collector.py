@@ -51,7 +51,6 @@ def test_invalid_message_is_ignored():
 
 def test_invalid_or_non_finite_force_order_quantities_are_ignored():
     import copy
-    import pytest
 
     cases = (
         ("q", "not-a-number"),
