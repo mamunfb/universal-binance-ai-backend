@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from typing import Any
+from urllib.parse import urlsplit
 import asyncio
+import json
 import math
 import httpx
 
@@ -11,17 +13,34 @@ TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523
 class EVMRPCProvider:
     """Minimal read-only JSON-RPC provider for EVM-compatible networks."""
 
-    def __init__(self, rpc_url: str, timeout_seconds: float = 20.0,
-                 retry_attempts: int = 2) -> None:
-        if not isinstance(rpc_url, str) or not rpc_url.startswith("https://"):
-            raise ValueError("EVM RPC endpoint must use HTTPS")
+    def __init__(
+        self, rpc_url: str, timeout_seconds: float = 20.0,
+        retry_attempts: int = 2, max_response_bytes: int = 2_097_152,
+    ) -> None:
+        if not isinstance(rpc_url, str):
+            raise ValueError("EVM RPC endpoint must be a valid HTTPS URL")
+        try:
+            parsed_url = urlsplit(rpc_url)
+            valid_url = (
+                parsed_url.scheme == "https" and bool(parsed_url.hostname)
+                and parsed_url.username is None and parsed_url.password is None
+                and parsed_url.fragment == "" and parsed_url.port != 0
+                and not any(character.isspace() for character in rpc_url)
+            )
+        except ValueError:
+            valid_url = False
+        if not valid_url:
+            raise ValueError("EVM RPC endpoint must be a valid HTTPS URL without credentials or fragment")
         if isinstance(timeout_seconds, bool) or not isinstance(timeout_seconds, (int, float)) or not math.isfinite(timeout_seconds) or timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be a positive number")
         if isinstance(retry_attempts, bool) or not isinstance(retry_attempts, int) or not 0 <= retry_attempts <= 3:
             raise ValueError("retry_attempts must be an integer between 0 and 3")
+        if isinstance(max_response_bytes, bool) or not isinstance(max_response_bytes, int) or max_response_bytes < 1:
+            raise ValueError("max_response_bytes must be a positive integer")
         self.rpc_url = rpc_url
         self.timeout_seconds = float(timeout_seconds)
         self.retry_attempts = retry_attempts
+        self.max_response_bytes = max_response_bytes
         self._request_id = 0
 
     async def _rpc(self, method: str, params: list[Any], client: httpx.AsyncClient | None = None) -> Any:
@@ -33,9 +52,18 @@ class EVMRPCProvider:
         try:
             for attempt in range(self.retry_attempts + 1):
                 try:
-                    response = await client.post(self.rpc_url, json=payload)
-                    response.raise_for_status()
-                    data = response.json()
+                    chunks: list[bytes] = []
+                    total_bytes = 0
+                    async with client.stream(
+                        "POST", self.rpc_url, json=payload, follow_redirects=False
+                    ) as response:
+                        response.raise_for_status()
+                        async for chunk in response.aiter_bytes():
+                            total_bytes += len(chunk)
+                            if total_bytes > self.max_response_bytes:
+                                raise ValueError("JSON-RPC response exceeds configured byte limit")
+                            chunks.append(chunk)
+                    data = json.loads(b"".join(chunks))
                     break
                 except httpx.HTTPStatusError as exc:
                     status = exc.response.status_code
