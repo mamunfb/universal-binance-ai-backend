@@ -7,7 +7,9 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any
+from functools import wraps
+import inspect
+from typing import Any, get_args, get_type_hints
 from urllib.parse import quote
 
 import httpx
@@ -40,6 +42,34 @@ def _load_credentials() -> tuple[str, str, str]:
 
 BASE_URL, CLIENT_NAME, API_KEY = _load_credentials()
 mcp = FastMCP(f"Personal Crypto Intelligence ({CLIENT_NAME})")
+
+
+def _reject_boolean_integer_arguments(function):
+    """Reject JSON booleans where MCP tool parameters require integers.
+
+    Python treats bool as a subclass of int. MCP arguments are untrusted input,
+    so validate the declared integer parameters before any range check or API call.
+    """
+    signature = inspect.signature(function)
+    try:
+        annotations = get_type_hints(function)
+    except (NameError, TypeError):
+        annotations = function.__annotations__
+    integer_parameters = {
+        name for name, annotation in annotations.items()
+        if annotation is int or int in get_args(annotation)
+    }
+
+    @wraps(function)
+    def validated(*args, **kwargs):
+        bound = signature.bind(*args, **kwargs)
+        for name in integer_parameters:
+            value = bound.arguments.get(name)
+            if isinstance(value, bool):
+                raise ValueError(f"{name} must be an integer, not a boolean")
+        return function(*args, **kwargs)
+
+    return validated
 
 
 
@@ -136,6 +166,7 @@ def _get(path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
 
 
 @mcp.tool()
+@_reject_boolean_integer_arguments
 def inspect_historical_kline_coverage(
     market: str, symbol: str, interval: str,
     start_time_ms: int, end_time_ms: int,
@@ -156,6 +187,7 @@ def inspect_historical_kline_coverage(
 
 
 @mcp.tool()
+@_reject_boolean_integer_arguments
 def get_spot_klines(symbol: str, interval: str = "1h", limit: int = 100) -> dict:
     """Get read-only Binance Spot OHLCV candles for a symbol and interval."""
     if not 1 <= limit <= 1000:
@@ -164,6 +196,7 @@ def get_spot_klines(symbol: str, interval: str = "1h", limit: int = 100) -> dict
 
 
 @mcp.tool()
+@_reject_boolean_integer_arguments
 def get_stored_historical_klines(market: str, symbol: str, interval: str = "1h", limit: int = 1000) -> dict:
     """Read locally stored historical OHLCV candles; does not collect or modify data."""
     if market not in {"SPOT", "USD_M", "COIN_M"}:
@@ -176,6 +209,7 @@ def get_stored_historical_klines(market: str, symbol: str, interval: str = "1h",
     )
 
 @mcp.tool()
+@_reject_boolean_integer_arguments
 def get_spot_technical_analysis(symbol: str, interval: str = "1h", limit: int = 500) -> dict:
     """Get the backend's read-only Spot technical indicator analysis."""
     if not 1 <= limit <= 1000:
@@ -184,24 +218,28 @@ def get_spot_technical_analysis(symbol: str, interval: str = "1h", limit: int = 
 
 
 @mcp.tool()
+@_reject_boolean_integer_arguments
 def get_market_evidence_snapshot(symbol: str) -> dict:
     """Get a research-only multi-source market evidence summary; no trade signal."""
     return _get(f"/api/v1/analysis/market-evidence/{quote(symbol.upper(), safe='')}")
 
 
 @mcp.tool()
+@_reject_boolean_integer_arguments
 def get_spot_futures_basis(symbol: str) -> dict:
     """Compare latest Spot and USD-M Futures prices, basis, and funding rate."""
     return _get(f"/api/v1/analysis/spot-futures/basis/{quote(symbol.upper(), safe='')}")
 
 
 @mcp.tool()
+@_reject_boolean_integer_arguments
 def get_futures_derivatives(symbol: str) -> dict:
     """Get read-only USD-M futures derivatives context for a symbol."""
     return _get(f"/api/v1/analysis/futures/usdm/derivatives/{quote(symbol.upper(), safe='')}")
 
 
 @mcp.tool()
+@_reject_boolean_integer_arguments
 def get_news_intelligence(symbols: str = "BTC,ETH", hours: int = 72, limit: int = 100) -> dict:
     """Get source-aware crypto news intelligence; this is not a price forecast."""
     if not 1 <= hours <= 720 or not 1 <= limit <= 500:
@@ -210,6 +248,7 @@ def get_news_intelligence(symbols: str = "BTC,ETH", hours: int = 72, limit: int 
 
 
 @mcp.tool()
+@_reject_boolean_integer_arguments
 def get_cross_chain_token_intelligence(
     asset_id: str,
     from_block: int,
@@ -240,6 +279,7 @@ def get_cross_chain_token_intelligence(
 
 
 @mcp.tool()
+@_reject_boolean_integer_arguments
 def get_stored_funding_rate_history(
     symbol: str, start_time_ms: int | None = None,
     end_time_ms: int | None = None, limit: int = 1000,
@@ -254,6 +294,7 @@ def get_stored_funding_rate_history(
 
 
 @mcp.tool()
+@_reject_boolean_integer_arguments
 def analyze_combined_derivatives_intelligence(
     symbol: str, period: str = "1h", limit: int = 100,
 ) -> dict:
@@ -269,6 +310,7 @@ def analyze_combined_derivatives_intelligence(
 
 
 @mcp.tool()
+@_reject_boolean_integer_arguments
 def get_stored_derivatives_ratio_history(
     symbol: str, ratio_type: str, period: str = "1h",
     start_time_ms: int | None = None, end_time_ms: int | None = None,
@@ -289,6 +331,7 @@ def get_stored_derivatives_ratio_history(
 
 
 @mcp.tool()
+@_reject_boolean_integer_arguments
 def analyze_multi_timeframe_derivatives(
     symbol: str, periods: str = "5m,15m,1h,4h,1d", limit: int = 48,
 ) -> dict:
@@ -308,6 +351,7 @@ def analyze_multi_timeframe_derivatives(
 
 
 @mcp.tool()
+@_reject_boolean_integer_arguments
 def analyze_advanced_derivatives(
     symbol: str, period: str = "1h", price_interval: str = "1h",
     limit: int = 48, funding_abs_threshold: float = 0.001,
@@ -331,6 +375,7 @@ def analyze_advanced_derivatives(
 
 
 @mcp.tool()
+@_reject_boolean_integer_arguments
 def get_derivatives_signal_history(
     symbol: str, period: str = "1h", start_time_ms: int | None = None,
     end_time_ms: int | None = None, limit: int = 100,
@@ -348,6 +393,7 @@ def get_derivatives_signal_history(
 
 
 @mcp.tool()
+@_reject_boolean_integer_arguments
 def analyze_funding_open_interest(
     symbol: str, period: str = "1h", price_interval: str = "1h", limit: int = 24,
 ) -> dict:
@@ -363,6 +409,7 @@ def analyze_funding_open_interest(
 
 
 @mcp.tool()
+@_reject_boolean_integer_arguments
 def get_stored_open_interest_history(
     symbol: str, period: str = "1h", start_time_ms: int | None = None,
     end_time_ms: int | None = None, limit: int = 500,
@@ -380,6 +427,7 @@ def get_stored_open_interest_history(
 
 
 @mcp.tool()
+@_reject_boolean_integer_arguments
 def inspect_market_data_quality(
     market: str, symbol: str, interval: str = "1h", lookback_hours: int = 168
 ) -> dict:
@@ -397,30 +445,35 @@ def inspect_market_data_quality(
 
 
 @mcp.tool()
+@_reject_boolean_integer_arguments
 def get_historical_collector_status() -> dict:
     """Check whether scheduled historical candle collection is enabled and healthy."""
     return _get("/api/v1/history/collector/status")
 
 
 @mcp.tool()
+@_reject_boolean_integer_arguments
 def get_derivatives_collector_status() -> dict:
     """Check scheduled USD-M funding-rate and open-interest collection status."""
     return _get("/api/v1/history/derivatives-collector/status")
 
 
 @mcp.tool()
+@_reject_boolean_integer_arguments
 def get_liquidation_collector_status() -> dict:
     """Check whether the optional liquidation snapshot collector is enabled."""
     return _get("/api/v1/analysis/futures/liquidations/status")
 
 
 @mcp.tool()
+@_reject_boolean_integer_arguments
 def get_aggregate_trade_collector_status() -> dict:
     """Check optional Binance aggregate trade stream collector status."""
     return _get("/api/v1/history/aggregate-trades/status")
 
 
 @mcp.tool()
+@_reject_boolean_integer_arguments
 def get_stored_aggregate_trades(
     market: str, symbol: str, limit: int = 1000,
     start_time_ms: int | None = None, end_time_ms: int | None = None,
@@ -443,6 +496,7 @@ def get_stored_aggregate_trades(
 
 
 @mcp.tool()
+@_reject_boolean_integer_arguments
 def analyze_liquidity_behavior(
     market: str, symbol: str, min_removed_notional: float = 10000,
     min_aggressive_notional: float = 10000, max_absorption_move_bps: float = 2,
@@ -463,12 +517,14 @@ def analyze_liquidity_behavior(
 
 
 @mcp.tool()
+@_reject_boolean_integer_arguments
 def get_order_book_stream_status() -> dict:
     """Check optional sequence-aware order-book stream collector status."""
     return _get("/api/v1/history/order-book/status")
 
 
 @mcp.tool()
+@_reject_boolean_integer_arguments
 def get_stored_order_book_history(
     market: str, symbol: str, limit: int = 100,
     start_time_ms: int | None = None, end_time_ms: int | None = None,
@@ -491,6 +547,7 @@ def get_stored_order_book_history(
 
 
 @mcp.tool()
+@_reject_boolean_integer_arguments
 def analyze_order_book_liquidity(
     market: str, symbol: str, limit: int = 100, wall_multiplier: float = 3.0,
 ) -> dict:
@@ -509,6 +566,7 @@ def analyze_order_book_liquidity(
 
 
 @mcp.tool()
+@_reject_boolean_integer_arguments
 def analyze_smart_money_market_structure(
     market: str, symbol: str, interval: str = "1h", limit: int = 300,
     swing_left: int = 3, swing_right: int = 3,
@@ -533,6 +591,7 @@ def analyze_smart_money_market_structure(
 
 
 @mcp.tool()
+@_reject_boolean_integer_arguments
 def analyze_historical_market_regime(
     market: str, symbol: str, interval: str = "1h", limit: int = 200,
 ) -> dict:
@@ -554,6 +613,7 @@ def analyze_historical_market_regime(
 
 
 @mcp.tool()
+@_reject_boolean_integer_arguments
 def evaluate_historical_signal_performance(
     symbol: str, period: str = "1h", price_interval: str = "1h",
     limit: int = 500, round_trip_cost_bps: float = 0.0,
@@ -573,6 +633,7 @@ def evaluate_historical_signal_performance(
 
 
 @mcp.tool()
+@_reject_boolean_integer_arguments
 def analyze_liquidation_clusters(
     symbol: str, start_time_ms: int | None = None,
     end_time_ms: int | None = None, limit: int = 5000,
@@ -600,6 +661,7 @@ def analyze_liquidation_clusters(
 
 
 @mcp.tool()
+@_reject_boolean_integer_arguments
 def analyze_order_flow_intelligence(
     market: str, symbol: str, lookback_minutes: int = 60,
     bin_size_bps: float = 5.0, value_area_pct: float = 70.0,
@@ -624,6 +686,7 @@ def analyze_order_flow_intelligence(
 
 
 @mcp.tool()
+@_reject_boolean_integer_arguments
 def get_market_confluence_history(market: str, symbol: str, interval: str = "1h", limit: int = 100) -> dict:
     """Read locally saved Market Structure + Order Flow confluence snapshots."""
     if market not in {"SPOT","USD_M","COIN_M"} or not 1 <= limit <= 1000: raise ValueError("Invalid market or limit")
@@ -631,6 +694,7 @@ def get_market_confluence_history(market: str, symbol: str, interval: str = "1h"
 
 
 @mcp.tool()
+@_reject_boolean_integer_arguments
 def save_market_confluence_snapshot(
     market: str, symbol: str, interval: str, analyzed_at_ms: int,
     bias: str, alignment: str, reference_price: float | None = None,
@@ -647,6 +711,7 @@ def save_market_confluence_snapshot(
 
 
 @mcp.tool()
+@_reject_boolean_integer_arguments
 def evaluate_market_confluence_performance(
     market: str, symbol: str, interval: str = "1h", price_interval: str = "1h", limit: int = 200,
 ) -> dict:
@@ -657,6 +722,7 @@ def evaluate_market_confluence_performance(
 
 
 @mcp.tool()
+@_reject_boolean_integer_arguments
 def analyze_market_structure_confluence(
     market: str, symbol: str, interval: str = "1h", limit: int = 300,
     periods: str = "15m,1h,4h,1d",
@@ -687,6 +753,7 @@ def analyze_market_structure_confluence(
 
 
 @mcp.tool()
+@_reject_boolean_integer_arguments
 def analyze_liquidity_sweep_confirmation(
     market: str, symbol: str, interval: str = "5m", limit: int = 300,
     equal_level_tolerance_bps: float = 8.0,
@@ -708,6 +775,7 @@ def analyze_liquidity_sweep_confirmation(
 
 
 @mcp.tool()
+@_reject_boolean_integer_arguments
 def analyze_multi_timeframe_order_flow(
     market: str, symbol: str,
     periods: str = "5m,15m,1h,4h,1d",
