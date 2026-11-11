@@ -80,12 +80,24 @@ class EVMRPCProvider:
             raise ValueError("Unexpected JSON-RPC response")
         if data.get("jsonrpc") != "2.0":
             raise ValueError("JSON-RPC response has an invalid protocol version")
-        if data.get("id") != payload["id"]:
+        response_id = data.get("id")
+        if type(response_id) is not int or response_id != payload["id"]:
             raise ValueError("JSON-RPC response id does not match request")
-        if data.get("error") is not None:
-            raise RuntimeError(f"JSON-RPC {method} failed: {data['error']}")
-        if "result" not in data:
-            raise ValueError(f"JSON-RPC {method} response has no result")
+        has_result = "result" in data
+        has_error = "error" in data
+        if has_result == has_error:
+            raise ValueError(f"JSON-RPC {method} response must contain exactly one of result or error")
+        if has_error:
+            error = data["error"]
+            if (
+                not isinstance(error, dict)
+                or isinstance(error.get("code"), bool)
+                or not isinstance(error.get("code"), int)
+                or not isinstance(error.get("message"), str)
+                or not error["message"].strip()
+            ):
+                raise ValueError("JSON-RPC error object has an invalid shape")
+            raise RuntimeError(f"JSON-RPC {method} failed with error code {error['code']}")
         return data["result"]
 
     async def chain_id(self) -> int:
