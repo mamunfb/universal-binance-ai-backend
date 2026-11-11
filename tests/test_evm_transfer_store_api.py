@@ -23,6 +23,9 @@ class FakeFlowStore:
             "warning": "Local indexed data only",
         }
 
+    def history(self, chain_id, contract, from_block, to_block, limit):
+        return []
+
     def range_coverage(self, chain_id, contract, from_block, to_block):
         return {
             "complete": self.complete,
@@ -57,6 +60,32 @@ def test_evm_history_flows_api_reports_completed_only_for_full_coverage(monkeypa
     response = client.get(
         f"/api/v1/onchain/evm/token/{'0x' + 'a' * 40}/history/flows",
         params={"from_block": 100, "to_block": 110, "decimals": 18},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "COMPLETED"
+    assert body["indexed_coverage"]["complete"] is True
+    assert body["indexed_coverage"]["gaps"] == []
+
+
+def test_evm_history_api_reports_incomplete_when_index_has_gaps(monkeypatch):
+    _configure(monkeypatch, complete=False)
+    response = client.get(
+        f"/api/v1/onchain/evm/token/{'0x' + 'a' * 40}/history",
+        params={"from_block": 100, "to_block": 110},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "INCOMPLETE"
+    assert body["indexed_coverage"]["complete"] is False
+    assert body["indexed_coverage"]["gaps"] == [{"from": 101, "to": 110}]
+
+
+def test_evm_history_api_reports_completed_only_for_full_coverage(monkeypatch):
+    _configure(monkeypatch, complete=True)
+    response = client.get(
+        f"/api/v1/onchain/evm/token/{'0x' + 'a' * 40}/history",
+        params={"from_block": 100, "to_block": 110},
     )
     assert response.status_code == 200
     body = response.json()
