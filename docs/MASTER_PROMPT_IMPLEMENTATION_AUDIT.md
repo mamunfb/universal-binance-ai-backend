@@ -676,3 +676,12 @@ The Spot scanner, Futures Boolean filter, dashboard HTML rendering, market-data 
 - Regression tests cover a redirect response, oversized streamed content, and invalid size-limit values. GitHub Actions run `42962156783` was queued at the time of this documentation entry; no CI pass is claimed until its completed job log is checked.
 - This is a provider-level reliability/security correction only. It does not complete the full provider/service or route audit, nor does it change any paired-phase status.
 - SPOT Phase 01: IN_PROGRESS; FUTURES Phase 01: IN_PROGRESS; Combined Phase 01: INCOMPLETE; Phase 02: LOCKED. No order execution or wallet capability was added.
+
+
+### RSS feed correction — CI verified
+
+- Code/test commit `cf36eb8a1608bca207c9882ae0778a8560b951b3`; GitHub Actions run `42962156783`: **SUCCESS**.
+- Actual job log confirms targeted Ruff passed, dashboard JavaScript syntax passed, and pytest **607 passed, 2 warnings**.
+- The two pytest warnings are existing Starlette/httpx TestClient and FastAPI parameter deprecations. The workflow also emits a Node.js 20 deprecation notice during cleanup.
+- This CI run verifies the RSS redirect/size-limit change and regression tests at the code/test commit. Later documentation-only commits have their own CI runs and must be checked independently.
+- Paired Phase 01 remains IN_PROGRESS for Spot and Futures; combined Phase 01 remains INCOMPLETE; Phase 02 remains LOCKED. Full pre-coding audit remains open.
