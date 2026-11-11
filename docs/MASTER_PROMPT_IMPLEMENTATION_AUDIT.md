@@ -367,3 +367,18 @@ The Spot scanner, Futures Boolean filter, dashboard HTML rendering, market-data 
 - API fix: c791d00262211141a45b2bf0ab0f1b777e13c27c.
 - Regression test: 6a19418c531913e83a93a55479c3ff3c0ca9d746.
 - CI for the expanded persistence/EVM Ruff and regression suite is being rerun on the latest branch head; earlier runs correctly failed at Ruff before reaching pytest due to a pre-existing semicolon in the snapshot test, which has since been reformatted. Do not treat those failed runs as test failures.
+
+
+## Verified persistence and EVM validation checkpoint — 2026-11-11
+
+- Verified code/test checkpoint: `6a19418c531913e83a93a55479c3ff3c0ca9d746`.
+- GitHub Actions run `42929655489`: **SUCCESS**.
+- Ruff core checks on the reviewed security/storage/API files: **PASSED**.
+- Dashboard JavaScript syntax: **PASSED**.
+- Pytest: **537 passed, 2 warnings**.
+- This checkpoint verifies the market-confluence numeric validation tests, EVM indexer exception sanitization test, and EVM route rejection tests for Boolean/fractional block values.
+- Documentation/ledger commits after this code/test checkpoint are not themselves included in that run; the current docs HEAD requires its own CI result.
+
+### Current audit boundary
+- Pre-Coding Full Audit remains **INCOMPLETE**. The review has improved coverage of persistence and collector paths but has not completed a line-by-line acceptance review of every API route, analysis/storage module, MCP action, deployment/runtime setting or live provider behavior.
+- SPOT Phase 01: **IN_PROGRESS**; FUTURES Phase 01: **IN_PROGRESS**; Combined Phase 01: **INCOMPLETE**; Phase 02: **LOCKED**.
