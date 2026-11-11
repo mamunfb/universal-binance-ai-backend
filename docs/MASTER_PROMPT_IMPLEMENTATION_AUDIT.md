@@ -360,3 +360,10 @@ The Spot scanner, Futures Boolean filter, dashboard HTML rendering, market-data 
 - EVM indexer error disclosure: **FIXED + regression test added; CI pending**.
 - Pre-Coding Full Audit: **INCOMPLETE**.
 - SPOT Phase 01: **IN_PROGRESS**; FUTURES Phase 01: **IN_PROGRESS**; Combined Phase 01: **INCOMPLETE**; Phase 02: **LOCKED**.
+
+
+### Additional EVM API input-validation correction — 2026-11-11
+10. **P2 — EVM history index route coerced JSON Boolean/fractional block values.** The route previously applied int() directly to request-body fields, which accepted true as 1 and truncated fractional numbers. It now requires from_block, to_block and chunk_size to be JSON integers (Boolean is explicitly rejected) before any provider call. Added direct route regression tests for all three malformed cases.
+- API fix: c791d00262211141a45b2bf0ab0f1b777e13c27c.
+- Regression test: 6a19418c531913e83a93a55479c3ff3c0ca9d746.
+- CI for the expanded persistence/EVM Ruff and regression suite is being rerun on the latest branch head; earlier runs correctly failed at Ruff before reaching pytest due to a pre-existing semicolon in the snapshot test, which has since been reformatted. Do not treat those failed runs as test failures.
