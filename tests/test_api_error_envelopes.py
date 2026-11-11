@@ -124,6 +124,27 @@ def test_unknown_ai_client_key_is_rejected(monkeypatch):
     assert response.status_code == 401
 
 
+
+def test_production_rejects_weak_client_key_even_when_owner_key_is_configured(monkeypatch):
+    monkeypatch.setattr(settings, "app_env", "production")
+    monkeypatch.setattr(settings, "personal_api_key", "owner-key-" + "o" * 40)
+    monkeypatch.setattr(
+        settings, "ai_client_api_keys",
+        '{"chatgpt":"weak-client-key"}',
+    )
+    weak = client.get(
+        "/api/v1/analysis/futures/liquidations/status",
+        headers={"Authorization": "Bearer weak-client-key"},
+    )
+    owner = client.get(
+        "/api/v1/analysis/futures/liquidations/status",
+        headers={"Authorization": "Bearer " + "owner-key-" + "o" * 40},
+    )
+    assert weak.status_code == 401
+    assert weak.json()["error"]["code"] == "UNAUTHORIZED"
+    assert owner.status_code == 200
+
+
 def test_evm_wallet_route_sanitizes_provider_exception(monkeypatch):
     import asyncio
     from app import main
