@@ -2,6 +2,8 @@ from typing import Any
 
 import httpx
 
+from app.providers.http_retry import get_json_with_retry
+
 
 class BinanceSpotProvider:
     """Small async client for Binance Spot public market-data endpoints."""
@@ -19,9 +21,7 @@ class BinanceSpotProvider:
             timeout=timeout,
             headers={"User-Agent": "universal-binance-ai-backend/0.1.0"},
         ) as client:
-            response = await client.get(path, params=params)
-            response.raise_for_status()
-            return response.json()
+            return await get_json_with_retry(client, path, params)
 
     async def price_ticker(self, symbol: str) -> dict[str, Any]:
         if not symbol or not symbol.strip():

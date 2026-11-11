@@ -6,6 +6,8 @@ from app.providers.binance_spot import BinanceSpotProvider
 class FakeResponse:
     def __init__(self, payload):
         self.payload = payload
+        self.status_code = 200
+        self.headers = {}
 
     def raise_for_status(self):
         return None
