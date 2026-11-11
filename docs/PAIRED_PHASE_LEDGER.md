@@ -348,3 +348,14 @@ RSS provider redirect following is disabled and streamed feed responses are capp
 - Added tests for malformed field types, unknown keys, credentialed/malformed HTTPS URLs, invalid chain IDs, invalid address inputs, and malformed annotation containers. CI result is pending and must be verified before this checkpoint is marked green.
 - This is a focused registry validation correction, not completion of the EVM API/store audit. Reorg canonical-chain reconciliation, route-level review, SQLite concurrency behavior, and full JSON-RPC response validation remain open.
 - SPOT Phase 01: IN_PROGRESS; FUTURES Phase 01: IN_PROGRESS; Combined Phase 01: INCOMPLETE; Phase 02: LOCKED. No execution or wallet-signing capability was added.
+
+
+
+## CI verification — EVM wallet registry validation — 2026-11-11
+
+- Final validation code/test state was exercised by GitHub Actions run `42969334742`: **SUCCESS**, Ruff passed, dashboard JavaScript syntax passed, pytest **657 passed, 2 warnings**.
+- The workflow initially did not include the new wallet-registry service and test files in its explicit Ruff target list. The workflow was corrected in commit `5a90d60aba576c9c9b06df42dcb0904d6fb245cf` to lint both files.
+- Final workflow run `42969542488` on that workflow commit: **SUCCESS**; its actual job log confirms Ruff included `backend/app/services/wallet_attribution.py` and `tests/test_wallet_attribution.py`, all checks passed, dashboard JavaScript syntax passed, and pytest **657 passed, 2 warnings**.
+- Documentation checkpoint runs `42969353873`, `42969372772`, and `42969405615` also completed successfully.
+- This verifies the wallet-registry validation change and lint coverage, not the full EVM route/store audit. Canonical reorg reconciliation, full API route review, SQLite concurrency/atomicity under concurrent writers, and broader RPC protocol validation remain open.
+- SPOT Phase 01: IN_PROGRESS; FUTURES Phase 01: IN_PROGRESS; Combined Phase 01: INCOMPLETE; Phase 02: LOCKED. No execution or wallet-signing capability was added.
