@@ -6,9 +6,9 @@ def test_verified_label_flows_excludes_unverified_and_cancels_internal_net(tmp_p
     a, b, outsider = "0x" + "1" * 40, "0x" + "2" * 40, "0x" + "3" * 40
     contract = "0x" + "4" * 40
     store.save_chunk(1, contract, 10, 10, [
-        {"topics": ["0x" + "0" * 64, "0x" + "0" * 24 + a[2:], "0x" + "0" * 24 + b[2:]],
+        {"topics": ["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef", "0x" + "0" * 24 + a[2:], "0x" + "0" * 24 + b[2:]],
          "transactionHash": "0x" + "a" * 64, "blockNumber": "0xa", "logIndex": "0x0", "data": "0x64"},
-        {"topics": ["0x" + "0" * 64, "0x" + "0" * 24 + outsider[2:], "0x" + "0" * 24 + a[2:]],
+        {"topics": ["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef", "0x" + "0" * 24 + outsider[2:], "0x" + "0" * 24 + a[2:]],
          "transactionHash": "0x" + "b" * 64, "blockNumber": "0xa", "logIndex": "0x1", "data": "0x32"},
     ])
     registry = {"wallets": [
