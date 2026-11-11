@@ -336,3 +336,15 @@ RSS provider redirect following is disabled and streamed feed responses are capp
 
 - Final API-test commit `89b96fe52e18a345e8c24f283baece7b9aea12b2`, GitHub Actions run `42968465052`: **SUCCESS**; Ruff passed, dashboard JavaScript syntax passed, pytest **638 passed, 2 warnings**. This supersedes the earlier interim note that recorded the run as pending and the prior test count of 636.
 - Documentation checkpoint commits `9a324a880160cf9d7cb614945149e343d8c56904`, `54656c9af01b93a1e4a0c7621605488030844aa6`, and `aa1e2b610c4957929ce281d12f3149ae9681f3c5` also passed CI in runs `42968572627`, `42968575864`, and `42968587052`, respectively.
+
+
+
+## EVM wallet registry input-validation checkpoint — 2026-11-11
+
+- Route/service audit found malformed wallet registry fields could raise uncaught type errors rather than a controlled validation failure: for example, list/dict labels or statuses, non-string evidence URLs, malformed URL ports, and invalid address values passed to the annotation helper.
+- Registry loading now validates non-Boolean non-negative chain IDs, strict 20-byte hexadecimal EVM addresses, allowed input fields, string types and bounded lengths for metadata/evidence, and HTTPS evidence URLs with a host and no embedded credentials. Label and verification-status types are checked before set membership.
+- Wallet annotation now validates the input collection, registry wallet-list shape, and every address before normalization.
+- Code commits: `c541cda69dbc4f87eb8a006ae3851316457dd80b` and `3d5e9bafef6a22d9ef9f2e26e1dbec69143a2f45`; regression-test commit: `0cfde9fbd0d049976e7f669fad5d96cfd6e975bc`.
+- Added tests for malformed field types, unknown keys, credentialed/malformed HTTPS URLs, invalid chain IDs, invalid address inputs, and malformed annotation containers. CI result is pending and must be verified before this checkpoint is marked green.
+- This is a focused registry validation correction, not completion of the EVM API/store audit. Reorg canonical-chain reconciliation, route-level review, SQLite concurrency behavior, and full JSON-RPC response validation remain open.
+- SPOT Phase 01: IN_PROGRESS; FUTURES Phase 01: IN_PROGRESS; Combined Phase 01: INCOMPLETE; Phase 02: LOCKED. No execution or wallet-signing capability was added.
