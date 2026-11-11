@@ -129,3 +129,50 @@ def test_futures_depth_sequence_rejects_non_integer_update_ids(tmp_path, event):
     with pytest.raises(RuntimeError, match="DEPTH_INVALID_SEQUENCE_ID"):
         collector._validate_sequence("USD_M", event, last_id=100, first_event=True)
 
+
+
+class _EmptyAsyncSocket:
+    def __aiter__(self):
+        async def _empty():
+            if False:
+                yield None
+        return _empty()
+
+
+@pytest.mark.asyncio
+async def test_reader_signals_stream_end_when_queue_is_full(tmp_path):
+    collector = OrderBookStreamCollector(
+        OrderBookHistoryStore(str(tmp_path / "reader.sqlite3")),
+        lambda: None, lambda _market: None,
+    )
+    queue = asyncio.Queue(maxsize=1)
+    queue.put_nowait({"u": 10})
+
+    await collector._reader(_EmptyAsyncSocket(), queue)
+
+    assert queue.get_nowait() is None
+
+
+@pytest.mark.asyncio
+async def test_reader_cancellation_signals_shutdown_when_queue_is_full(tmp_path):
+    collector = OrderBookStreamCollector(
+        OrderBookHistoryStore(str(tmp_path / "reader-cancel.sqlite3")),
+        lambda: None, lambda _market: None,
+    )
+    queue = asyncio.Queue(maxsize=1)
+    queue.put_nowait({"u": 10})
+    blocked = asyncio.Event()
+
+    class _BlockingAsyncSocket:
+        def __aiter__(self):
+            async def _wait():
+                await blocked.wait()
+                yield "{}"
+            return _wait()
+
+    reader = asyncio.create_task(collector._reader(_BlockingAsyncSocket(), queue))
+    await asyncio.sleep(0)
+    reader.cancel()
+    await asyncio.wait_for(reader, timeout=1)
+
+    assert queue.get_nowait() is None
