@@ -545,10 +545,20 @@ async def index_erc20_transfer_history(
     try:
         while next_block <= to_block:
             chunk_end = min(next_block + chunk_size - 1, to_block)
+            headers = []
+            header_method = getattr(provider, "block_header", None)
+            if not callable(header_method):
+                raise ValueError("EVM provider does not support canonical block-header checkpoints")
+            first_header = await header_method(next_block)
+            headers.append(first_header)
+            if chunk_end != next_block:
+                headers.append(await header_method(chunk_end))
             logs = await provider.token_transfer_logs(
                 contract, next_block, chunk_end, max_block_span=chunk_size
             )
-            indexed_logs += store.save_chunk(chain_id, contract, next_block, chunk_end, logs)
+            indexed_logs += store.save_chunk(
+                chain_id, contract, next_block, chunk_end, logs, block_headers=headers
+            )
             completed_chunks += 1
             next_block = chunk_end + 1
     except Exception as exc:
