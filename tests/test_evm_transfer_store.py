@@ -41,6 +41,13 @@ def test_indexer_chunks_and_persists_all_ranges(tmp_path):
         async def block_number(self):
             return 999
 
+        async def block_header(self, number):
+            return {
+                "number": number,
+                "hash": "0x" + format(number, "064x"),
+                "parent_hash": "0x" + format(max(number - 1, 0), "064x"),
+            }
+
         async def token_transfer_logs(self, contract, start, end, max_block_span):
             assert end - start + 1 <= 2
             return [{
@@ -314,3 +321,42 @@ def test_removed_log_is_excluded_and_replayed_canonical_log_is_restored(tmp_path
     assert len(rows) == 1
     assert rows[0]["amount_raw"] == "123"
     assert rows[0]["removed"] == 0
+
+
+def test_reorg_checkpoint_invalidates_forked_logs_and_coverage(tmp_path):
+    store = EVMTransferStore(str(tmp_path / "history.sqlite3"))
+
+    def log(block, tx):
+        return {
+            "topics": [
+                "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                _topic(SENDER), _topic(RECIPIENT),
+            ],
+            "data": _word(block), "transactionHash": "0x" + tx * 64,
+            "blockNumber": hex(block), "logIndex": "0x0",
+        }
+
+    original_headers = [
+        {"number": 100, "hash": "0x" + "1" * 64, "parent_hash": "0x" + "0" * 64},
+        {"number": 110, "hash": "0x" + "2" * 64, "parent_hash": "0x" + "1" * 64},
+    ]
+    store.save_chunk(1, CONTRACT, 100, 110, [log(100, "a"), log(105, "b"), log(110, "c")],
+                     block_headers=original_headers)
+    assert len(store.history(1, CONTRACT, 100, 110)) == 3
+
+    replacement_header = {
+        "number": 105, "hash": "0x" + "3" * 64, "parent_hash": "0x" + "4" * 64,
+    }
+    store.save_chunk(1, CONTRACT, 105, 105, [log(105, "d")],
+                     block_headers=[replacement_header])
+
+    rows = store.history(1, CONTRACT, 100, 110)
+    assert [row["block_number"] for row in rows] == [105, 100]
+    coverage = store.range_coverage(1, CONTRACT, 100, 110)
+    assert coverage["complete"] is False
+    assert coverage["gaps"] == [{"from": 101, "to": 104}, {"from": 106, "to": 110}]
+    with __import__("sqlite3").connect(store.database_path) as connection:
+        checkpoint = connection.execute(
+            "SELECT block_hash FROM evm_block_headers WHERE chain_id=1 AND block_number=105"
+        ).fetchone()
+    assert checkpoint[0] == replacement_header["hash"]
