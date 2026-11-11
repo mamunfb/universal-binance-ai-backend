@@ -62,3 +62,28 @@ def test_insufficient_data_and_invalid_arguments():
         analyze_liquidity_behavior(snapshots(), [], "BAD", "BTCUSDT")
     with pytest.raises(ValueError):
         analyze_liquidity_behavior(snapshots(), [], "SPOT", "BTCUSDT", min_removed_notional=-1)
+
+
+
+def test_liquidity_behavior_rejects_boolean_and_fractional_timestamps_and_metrics():
+    rows = snapshots()
+    rows[0]["event_time_ms"] = True
+    trades = [
+        {"trade_time_ms": 1500.5, "price": 100.1, "notional": 20000, "aggressor_side": "BUY"},
+        {"trade_time_ms": 1600, "price": True, "notional": 20000, "aggressor_side": "BUY"},
+        {"trade_time_ms": 1700, "price": 100.1, "notional": True, "aggressor_side": "BUY"},
+    ]
+    result = analyze_liquidity_behavior(rows, trades, "SPOT", "BTCUSDT")
+    assert result["status"] == "INSUFFICIENT_DATA"
+    assert result["rejected_snapshot_count"] == 1
+    assert result["rejected_trade_count"] == 3
+
+
+def test_liquidity_behavior_rejects_boolean_thresholds_and_depth_values():
+    with pytest.raises(ValueError):
+        analyze_liquidity_behavior(snapshots(), [], "SPOT", "BTCUSDT", min_removed_notional=True)
+    rows = snapshots()
+    rows[0]["bids"] = [[99.9, True], [99.8, 100]]
+    result = analyze_liquidity_behavior(rows, [], "SPOT", "BTCUSDT")
+    assert result["status"] == "COMPLETED"
+    assert result["liquidity_change"]["bid_value_before_proxy"] == 9980.0

@@ -5,14 +5,29 @@ from collections import defaultdict
 from typing import Any
 
 
+def _integer(value: Any) -> int | None:
+    return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else None
+
+
+def _finite(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return number if math.isfinite(number) else None
+
+
 def _levels(rows: list[Any], side: str) -> dict[float, float]:
     result: dict[float, float] = {}
+    if not isinstance(rows, list):
+        return result
     for item in rows:
-        try:
-            price, quantity = float(item[0]), float(item[1])
-        except (TypeError, ValueError, IndexError, OverflowError):
+        if not isinstance(item, (list, tuple)) or len(item) < 2:
             continue
-        if math.isfinite(price) and math.isfinite(quantity) and price > 0 and quantity > 0:
+        price, quantity = _finite(item[0]), _finite(item[1])
+        if price is not None and quantity is not None and price > 0 and quantity > 0:
             result[price] = quantity
     return result
 
@@ -34,47 +49,73 @@ def analyze_liquidity_behavior(
         ("max_absorption_move_bps", max_absorption_move_bps, 1000),
         ("trade_price_band_bps", trade_price_band_bps, 1000),
     ):
-        if not math.isfinite(value) or value < 0 or value > maximum:
+        if (isinstance(value, bool) or not isinstance(value, (int, float))
+                or not math.isfinite(value) or value < 0 or value > maximum):
             raise ValueError(f"{name} is outside its allowed range")
-    ordered = sorted(snapshots, key=lambda row: (
-        int(row.get("event_time_ms") or 0), int(row.get("update_id") or 0)
-    ))
-    ordered_trades = sorted(trades, key=lambda row: int(row.get("trade_time_ms") or 0))
+    valid_snapshots = []
+    rejected_snapshots = 0
+    for row in snapshots:
+        if not isinstance(row, dict):
+            rejected_snapshots += 1
+            continue
+        stamp = _integer(row.get("event_time_ms"))
+        update_id = _integer(row.get("update_id", 0))
+        mid_price = _finite(row.get("mid_price"))
+        if stamp is None or update_id is None or mid_price is None or mid_price <= 0:
+            rejected_snapshots += 1
+            continue
+        valid_snapshots.append(row)
+    valid_trades = []
+    rejected_trades = 0
+    for row in trades:
+        if not isinstance(row, dict):
+            rejected_trades += 1
+            continue
+        stamp = _integer(row.get("trade_time_ms"))
+        notional = _finite(row.get("notional"))
+        price = _finite(row.get("price"))
+        side = str(row.get("aggressor_side", "")).upper()
+        if stamp is None or notional is None or notional < 0 or price is None or price <= 0 or side not in {"BUY", "SELL"}:
+            rejected_trades += 1
+            continue
+        valid_trades.append(row)
+    ordered = sorted(valid_snapshots, key=lambda row: (row["event_time_ms"], row.get("update_id", 0)))
+    ordered_trades = sorted(valid_trades, key=lambda row: row["trade_time_ms"])
     base = {
         "market": market, "symbol": symbol,
-        "snapshot_count": len(ordered), "trade_count": len(ordered_trades),
+        "snapshot_count": len(ordered), "rejected_snapshot_count": rejected_snapshots,
+        "trade_count": len(ordered_trades), "rejected_trade_count": rejected_trades,
         "status": "INSUFFICIENT_DATA",
         "method": "Adjacent sampled depth snapshots plus aggregate taker-trade flow",
     }
     if len(ordered) < 2:
         return {**base, "reason": "AT_LEAST_TWO_DEPTH_SAMPLES_REQUIRED"}
     previous, latest = ordered[-2], ordered[-1]
-    start_ms = int(previous.get("event_time_ms") or 0)
-    end_ms = int(latest.get("event_time_ms") or 0)
+    start_ms = previous["event_time_ms"]
+    end_ms = latest["event_time_ms"]
     if end_ms <= start_ms:
         return {**base, "reason": "NON_INCREASING_SNAPSHOT_TIMESTAMPS"}
     interval_trades = [
         row for row in ordered_trades
-        if start_ms < int(row.get("trade_time_ms") or 0) <= end_ms
+        if start_ms < row["trade_time_ms"] <= end_ms
     ]
-    buy_notional = sum(float(row.get("notional") or 0) for row in interval_trades if row.get("aggressor_side") == "BUY")
-    sell_notional = sum(float(row.get("notional") or 0) for row in interval_trades if row.get("aggressor_side") == "SELL")
+    buy_notional = sum(row["notional"] for row in interval_trades if row.get("aggressor_side") == "BUY")
+    sell_notional = sum(row["notional"] for row in interval_trades if row.get("aggressor_side") == "SELL")
     total_trade_notional = buy_notional + sell_notional
     flow_imbalance = (buy_notional - sell_notional) / total_trade_notional if total_trade_notional else None
 
     old_bids, old_asks = _levels(previous.get("bids", []), "BID"), _levels(previous.get("asks", []), "ASK")
     new_bids, new_asks = _levels(latest.get("bids", []), "BID"), _levels(latest.get("asks", []), "ASK")
-    old_mid, new_mid = float(previous["mid_price"]), float(latest["mid_price"])
+    old_mid, new_mid = _finite(previous["mid_price"]), _finite(latest["mid_price"])
+    if old_mid is None or new_mid is None or old_mid <= 0 or new_mid <= 0:
+        return {**base, "reason": "INVALID_MID_PRICE"}
     mid_move_bps = (new_mid - old_mid) / old_mid * 10000 if old_mid else None
 
     trade_by_side = defaultdict(float)
     for row in interval_trades:
-        try:
-            price = float(row["price"])
-            notional = float(row["notional"])
-        except (KeyError, TypeError, ValueError):
-            continue
-        if price <= 0 or not math.isfinite(notional) or notional < 0:
+        price = _finite(row.get("price"))
+        notional = _finite(row.get("notional"))
+        if price is None or notional is None or price <= 0 or notional < 0:
             continue
         side = str(row.get("aggressor_side", "")).upper()
         if side in {"BUY", "SELL"}:
