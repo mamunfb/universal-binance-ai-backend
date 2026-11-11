@@ -48,7 +48,10 @@ def test_provider_rejects_invalid_timeout(timeout):
 @pytest.mark.parametrize("response_body, message", [
     ({"jsonrpc": "1.0", "id": 1, "result": "0x1"}, "protocol version"),
     ({"jsonrpc": "2.0", "id": 99, "result": "0x1"}, "response id"),
-    ({"jsonrpc": "2.0", "id": 1}, "no result"),
+    ({"jsonrpc": "2.0", "id": True, "result": "0x1"}, "response id"),
+    ({"jsonrpc": "2.0", "id": 1}, "exactly one"),
+    ({"jsonrpc": "2.0", "id": 1, "result": "0x1", "error": None}, "exactly one"),
+    ({"jsonrpc": "2.0", "id": 1, "error": {"code": "bad", "message": "oops"}}, "error object"),
 ])
 def test_rpc_rejects_invalid_response_envelope(response_body, message):
     def handler(request):
@@ -185,5 +188,24 @@ def test_rpc_rejects_oversized_response_while_streaming():
             )
             with pytest.raises(ValueError, match="byte limit"):
                 await provider._rpc("eth_chainId", [], client=client)
+
+    asyncio.run(run())
+
+
+
+def test_rpc_validates_error_envelope_and_does_not_echo_provider_message():
+    def handler(request):
+        payload = json.loads(request.content)
+        return httpx.Response(200, json={
+            "jsonrpc": "2.0", "id": payload["id"],
+            "error": {"code": -32000, "message": "provider secret detail"},
+        })
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            provider = EVMRPCProvider("https://rpc.example")
+            with pytest.raises(RuntimeError, match="error code -32000") as exc:
+                await provider._rpc("eth_chainId", [], client=client)
+            assert "provider secret detail" not in str(exc.value)
 
     asyncio.run(run())
