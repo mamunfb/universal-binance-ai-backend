@@ -335,3 +335,28 @@ The Spot scanner, Futures Boolean filter, dashboard HTML rendering, market-data 
 - Latest test checkpoint: **530 passed, 2 warnings** at d560bd5bb803c25cec15b6d2d5756a1086bb8d28.
 - Pre-Coding Full Audit: **INCOMPLETE**.
 - SPOT Phase 01: **IN_PROGRESS**; FUTURES Phase 01: **IN_PROGRESS**; Combined Phase 01: **INCOMPLETE**; Phase 02: **LOCKED**.
+
+
+## Persistence validation and EVM error-disclosure audit — 2026-11-11
+
+### Confirmed defects corrected
+8. **P2 — Market-confluence snapshot storage accepted Boolean/fractional numeric values.** Python numeric coercion allowed JSON Boolean values to pass as timestamps/prices and truncated fractional timestamps through int conversion. The store now rejects Boolean timestamps/prices, fractional timestamps, invalid nested object shapes, negative close timestamps and future reference-candle close times. Added parametrized regression coverage and retained idempotent save/history tests.
+9. **P2 — EVM transfer indexer returned raw provider exception text.** The indexer included up to 300 characters of exception text in its response. HTTP transport exceptions may contain request URL details, and provider JSON-RPC error payloads are externally controlled. The error response now returns the stable UPSTREAM_UNAVAILABLE code and exception type only. Added a token-bearing fake RPC exception regression test.
+- Snapshot store fix: 984faaf23d4caa52003304fb6f879a0d6ebccd5d.
+- Snapshot regression tests: a3c911eb96f050fc62107a59f0b060f658137664.
+- EVM indexer sanitization: 0a24b0c8de4a0fc6d26a7d75325a8f4f108022e8.
+- EVM regression test: fa44bb6792d7a72670189ef7f353a1f5b1bb3e76.
+- Ruff target list expanded to include the changed storage modules and tests at 4e406ad4a04a9ac3ce0656d6d83b55fdf5e348fa. The latest CI result for this expanded workflow is pending at the time of this entry.
+
+### Additional persistence/lifecycle review notes
+- SQLite stores inspected in this pass use parameterized SQL values and context-managed sqlite3 connections; reviewed UPSERT/unique-key paths provide idempotency where designed. This is not a claim that every storage module has been exhaustively reviewed.
+- Historical and derivatives collectors use sequential job execution, bounded configured job counts, task cancellation/stop hooks and sanitized exception-type status. Order-book and aggregate-trade collectors expose per-job task handling and exception-type status; their full concurrency/reconnect semantics still require line-by-line review.
+- EVM transfer index coverage is recorded only after a successfully parsed chunk is persisted. Existing range-coverage logic reports gaps and overlapping coverage; full reorg/removed-log lifecycle and deep-reorg behavior remain runtime/provider acceptance items.
+- EVM RPC provider has a bounded retry loop for selected HTTP status codes and transport errors, but Binance Spot/Futures provider adapters still lack a shared retry/Retry-After policy.
+- No live RPC, Binance websocket, SQLite crash-recovery, multi-process writer or deployment-volume test was executed in this remote source audit.
+
+### Gate decision
+- Snapshot numeric validation: **FIXED + regression tests added; CI pending**.
+- EVM indexer error disclosure: **FIXED + regression test added; CI pending**.
+- Pre-Coding Full Audit: **INCOMPLETE**.
+- SPOT Phase 01: **IN_PROGRESS**; FUTURES Phase 01: **IN_PROGRESS**; Combined Phase 01: **INCOMPLETE**; Phase 02: **LOCKED**.
