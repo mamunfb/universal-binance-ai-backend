@@ -242,3 +242,11 @@ Resume by completing the pre-coding audit gate, review current CI and static-ana
 - Historical coverage and market-data-quality request validation commit `feccc885dde07c86eb0c531b30507dbeafadf2d9`: CI pending.
 - Additional liquidity behavior/sweep numeric-boundary review remains open.
 - Paired phase status unchanged: SPOT Phase 01 IN_PROGRESS; FUTURES Phase 01 IN_PROGRESS; Combined Phase 01 INCOMPLETE; Phase 02 LOCKED.
+
+
+### Historical coverage and liquidity validation checkpoint — 2026-11-11
+
+- Historical coverage / market-data-quality argument validation commit `feccc885dde07c86eb0c531b30507dbeafadf2d9`: CI **SUCCESS**, pytest **598 passed, 2 warnings**.
+- Liquidity behavior strict input validation commit `923369a5b2bb9a17a0a887b17f175e22788fb65a`: CI **SUCCESS**, pytest **600 passed, 2 warnings**.
+- Liquidity sweep confirmation timestamp/numeric validation commit `f43f4a6f81aa2cf2100c83f681d6d4bf8b851e9c`: CI pending at checkpoint.
+- SPOT Phase 01 IN_PROGRESS; FUTURES Phase 01 IN_PROGRESS; Combined Phase 01 INCOMPLETE; Phase 02 LOCKED.

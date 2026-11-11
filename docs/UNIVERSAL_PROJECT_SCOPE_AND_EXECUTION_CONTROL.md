@@ -322,3 +322,12 @@ For each market-specific phase record:
 - Historical coverage request bounds now require non-Boolean integers and its expected-candle safety limit must be a positive integer. Market data quality lookback and optional now_ms controls now reject Boolean/fractional/negative values.
 - Code/test commit for these latest coverage/data-quality changes: `feccc885dde07c86eb0c531b30507dbeafadf2d9`. CI status must be checked; no test pass is claimed yet.
 - No phase status changes. Paired Phase 01 remains INCOMPLETE and Phase 02 LOCKED.
+
+
+## 25. Liquidity-analysis input validation — 2026-11-11
+- Historical coverage / market-data-quality request validation commit `feccc885dde07c86eb0c531b30507dbeafadf2d9` passed GitHub Actions run `42960402710`: targeted Ruff passed, dashboard JavaScript syntax passed, pytest **598 passed, 2 warnings**.
+- Liquidity behavior parser now rejects Boolean/fractional/negative timestamps and Boolean/non-finite numeric metrics, counts rejected snapshots/trades, and validates depth rows without coercing Boolean values.
+- Liquidity sweep confirmation now rejects Boolean/fractional candle timestamps, duplicate candle opens, Boolean OHLC, malformed trade timestamps, and invalid numeric/time-window controls; nearest timestamp joins no longer truncate malformed values.
+- Liquidity behavior code/test commit `923369a5b2bb9a17a0a887b17f175e22788fb65a` passed CI run `42960545107`: targeted Ruff passed, dashboard JS passed, pytest **600 passed, 2 warnings**.
+- Liquidity sweep code/test commit `f43f4a6f81aa2cf2100c83f681d6d4bf8b851e9c` is queued/in progress at this checkpoint; do not claim verified until its job log is inspected.
+- Paired Phase 01 statuses remain unchanged; Phase 02 remains LOCKED.

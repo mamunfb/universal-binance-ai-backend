@@ -622,3 +622,22 @@ The Spot scanner, Futures Boolean filter, dashboard HTML rendering, market-data 
 ### Remaining source review notes
 - Direct review of liquidity behavior and sweep confirmation found additional unchecked numeric conversions (depth levels, event/trade timestamps and thresholds). Those paths remain open and require separate focused validation/tests; no claim of complete liquidity-analysis audit.
 - The wider provider/service and FastAPI route audit remains incomplete. Phase 01 acceptance gates remain unchanged.
+
+
+## Liquidity and historical data-quality audit checkpoint — 2026-11-11
+
+### Historical coverage and quality request validation verified
+- Commit `feccc885dde07c86eb0c531b30507dbeafadf2d9`; Actions run `42960402710`: **SUCCESS**, Ruff and dashboard JavaScript syntax passed, pytest **598 passed, 2 warnings**.
+- Coverage start/end times and safety limits now require strict integer inputs; MarketDataQuality lookback and optional clock override reject Boolean/fractional/negative values.
+
+### Liquidity behavior correction verified
+- Commit `923369a5b2bb9a17a0a887b17f175e22788fb65a`; Actions run `42960545107`: **SUCCESS**, Ruff and dashboard JavaScript syntax passed, pytest **600 passed, 2 warnings**.
+- Liquidity behavior now rejects malformed snapshot/trade rows, Boolean/fractional timestamps, Boolean numeric thresholds and Boolean depth/price/notional metrics; invalid rows are counted rather than coerced. Validated trade numeric values are normalized before aggregation.
+
+### Liquidity sweep confirmation correction (CI pending)
+- Candle open timestamps now require unique non-negative integer values; OHLC Boolean values are rejected; trade and nearest-context timestamps are accepted only as non-Boolean integers; request time windows and swing settings are validated.
+- Added tests for Boolean/fractional candle and trade timestamps, Boolean OHLC, and invalid time controls.
+- Commit `f43f4a6f81aa2cf2100c83f681d6d4bf8b851e9c`; CI queued/in progress. No pass claimed yet.
+
+### Audit boundary
+- These changes close only specific input-validation defects. The full service/provider line-by-line audit and route-level behavioral/security audit remain incomplete; no Phase 01 acceptance gate is being marked complete.
