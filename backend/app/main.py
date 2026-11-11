@@ -966,6 +966,9 @@ async def get_evm_token_history_flows(
         summary = evm_transfer_store.address_flow_summary(
             chain_id, contract, from_block, to_block, decimals, limit
         )
+        coverage = evm_transfer_store.range_coverage(
+            chain_id, contract, from_block, to_block
+        )
         registry = load_wallet_registry(settings.evm_wallet_registry, chain_id)
         for key in ("top_net_receivers", "top_net_senders"):
             rows = summary[key]
@@ -976,11 +979,12 @@ async def get_evm_token_history_flows(
             for row in rows:
                 row["attribution"] = labels[row["address"]]
         return {
-            "status": "COMPLETED", "chain_id": chain_id,
+            "status": "COMPLETED" if coverage["complete"] else "INCOMPLETE",
+            "chain_id": chain_id,
             "contract_address": contract.lower(),
             "requested_range": {"from": from_block, "to": to_block},
             "address_flows": summary,
-            "indexed_coverage": evm_transfer_store.coverage(chain_id, contract),
+            "indexed_coverage": coverage,
             "attribution_warning": registry["warning"],
         }
     except ValueError as exc:
