@@ -440,3 +440,27 @@ The Spot scanner, Futures Boolean filter, dashboard HTML rendering, market-data 
 - Added strict snapshot update-ID validation: only a non-Boolean Python integer is accepted; malformed values cause an explicit DEPTH_INVALID_SNAPSHOT_UPDATE_ID reconnect path. Added regression tests for fractional, Boolean, string, and valid integer inputs.
 - CI run 42933697618 on 716709c26781b52300dc77188161196962a268a5: SUCCESS; targeted Ruff checks passed; dashboard JavaScript syntax passed; pytest 554 passed, 2 warnings.
 - No live REST snapshot or WebSocket exchange call was performed. This is an existing collector correctness fix; full Pre-Coding Audit remains INCOMPLETE and no Phase 01 feature coding has started.
+
+
+## Repository resume audit — 2026-11-11 (HEAD 21484ddb0bf4a4c7c6ec83279930546b4535405b)
+
+### Current GitHub evidence
+- Work branch: `work/dual-master-prompt-audit`; repository default branch: `main`.
+- PR #1: OPEN / DRAFT / unmerged; base `main`; head `21484ddb0bf4a4c7c6ec83279930546b4535405b` at the start of this audit checkpoint.
+- Branch comparison: 104 ahead / 0 behind main. Main was not modified.
+- Latest workflow run at that HEAD: `42933836840`, job `130238866712`, SUCCESS. Job steps confirm dependency installation, targeted Ruff, dashboard JS syntax and pytest all succeeded. Log result: `554 passed, 2 warnings`; warnings include Starlette/httpx TestClient and FastAPI parameter deprecations. Node also emitted a punycode deprecation and GitHub runner action Node 20 deprecation notice.
+- GitHub connector does not expose a local working-tree status; local changes remain UNVERIFIED.
+
+### Current-session inspection
+- Read the complete canonical SPOT and FUTURES master prompt files, project scope, implementation audit and paired phase ledger from the work branch.
+- Rechecked current Spot/Futures provider adapters, Spot/Futures scanner services, scanner test modules and GitHub Actions workflow.
+- Enumerated 80 FastAPI route decorators in `backend/app/main.py` and inventoried 54 provider/service source files. This is an inventory, not a claim that every route/service has been line-by-line audited.
+- Confirmed the Phase 01 scanner gaps remain as documented: exact per-symbol/per-contract failure and exclusion reasons; full depth collection or exact per-symbol unavailability; recent-average volume surge; market-cap enrichment; verified risk-tag/delisting evidence; objective activity rankings; and source-specific timestamps/freshness. Futures additionally requires complete USD-M/COIN-M OI change and comparable BTC relative-strength coverage.
+- Spot and Futures adapters still create a fresh HTTP client per request, apply a 15-second default timeout and do not yet share an explicit retry/backoff / Retry-After policy. Do not interpret a green test suite as proving upstream rate-limit resilience.
+
+### Gate decision and restrictions
+- CI at current HEAD: PASS (554 tests, 2 warnings; targeted Ruff and dashboard syntax checks passed).
+- Pre-Coding Full Audit: INCOMPLETE. The line-by-line review of all 80 routes and 54 provider/service modules is not complete. Live Binance/deployment checks, type checking and dedicated security scanning are not available as verified evidence in this remote review. MCP `save_market_confluence_snapshot` architecture acceptance remains open from the prior audit.
+- SPOT Phase 01: IN_PROGRESS; FUTURES Phase 01: IN_PROGRESS; Combined Phase 01: INCOMPLETE; Phase 02: LOCKED.
+- No new Phase 01 feature coding is authorized until the mandatory audit gate is completed or exact unresolved items are formally resolved as blockers under the scope. This checkpoint changes documentation only; it does not claim phase acceptance.
+- No trading order execution, cancellation, modification, withdrawal or wallet-signing capability was introduced.

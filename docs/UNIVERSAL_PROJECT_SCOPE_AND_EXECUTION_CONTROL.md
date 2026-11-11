@@ -232,3 +232,13 @@ For each market-specific phase record:
 - A dedicated paired phase ledger is maintained at `docs/PAIRED_PHASE_LEDGER.md`.
 - The broad repository Ruff scan reported 289 pre-existing diagnostics. CI currently checks core Ruff correctness rules on the reviewed security and Phase 01 files only; repository-wide lint cleanliness is not claimed.
 - Pre-Coding Full Audit remains INCOMPLETE; SPOT/FUTURES Phase 01 remain IN_PROGRESS; Combined Phase 01 INCOMPLETE; Phase 02 LOCKED.
+
+
+## 14. Session restart checkpoint — 2026-11-11 (repository and CI re-verification)
+- Verified work branch: `work/dual-master-prompt-audit`; HEAD before this checkpoint: `21484ddb0bf4a4c7c6ec83279930546b4535405b`.
+- PR #1 is OPEN / DRAFT / unmerged. Branch comparison at this checkpoint: 104 commits ahead of `main`, 0 behind. No merge or main-branch update was performed.
+- Latest GitHub Actions run before this documentation checkpoint: `42933836840`, HEAD `21484ddb0bf4a4c7c6ec83279930546b4535405b`, conclusion SUCCESS. The actual job log reports Ruff core selection `E4,E7,E9,F` passed, dashboard JavaScript syntax passed, and pytest `554 passed, 2 warnings`.
+- Current repository tree inventory: 80 FastAPI route decorators and 54 provider/service source files. Spot/Futures providers, Spot/Futures scanners, their scanner tests, CI workflow and the current phase ledger were directly inspected in this session.
+- The mandatory pre-coding audit is still INCOMPLETE: the 80 routes and 54 provider/service files have not all received line-by-line acceptance review; deployment/live Binance connectivity, type checking, dedicated security scanning and local working-tree state remain unverified; provider retry/Retry-After policy and the MCP snapshot-save architecture decision remain open.
+- Active phase remains paired Phase 01 only. SPOT Phase 01 and FUTURES Phase 01 remain IN_PROGRESS; Combined Phase 01 remains INCOMPLETE; Phase 02 remains LOCKED.
+- No Phase 01 feature code was changed in this session because the scope's mandatory pre-coding audit gate has not yet been satisfied. No trading/order execution feature was added.

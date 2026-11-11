@@ -149,3 +149,14 @@ Resume by completing the pre-coding audit gate, review current CI and static-ana
 - Added regression tests for malformed and valid snapshot IDs.
 - CI run 42933697618 at 716709c26781b52300dc77188161196962a268a5: SUCCESS; Ruff and dashboard JS checks passed; 554 pytest passed, 2 warnings.
 - No live exchange connectivity test. Full audit remains INCOMPLETE; both Phase 01 tracks IN_PROGRESS; Phase 02 LOCKED; no Phase 01 feature coding started.
+
+
+### Session resume verification — 2026-11-11
+
+- Work branch HEAD before this documentation checkpoint: `21484ddb0bf4a4c7c6ec83279930546b4535405b`.
+- PR #1: OPEN / DRAFT / unmerged; branch comparison 104 ahead / 0 behind main; main unchanged.
+- Latest CI run on that HEAD: `42933836840` SUCCESS; targeted Ruff `E4,E7,E9,F` passed; dashboard JavaScript syntax passed; pytest **554 passed, 2 warnings**.
+- Current session inspected both Binance provider adapters, both scanner services, their scanner tests and the CI workflow; inventoried 80 API route decorators and 54 provider/service files. Full line-by-line audit of all routes/services is not complete.
+- Pre-Coding Full Audit remains **INCOMPLETE**. Provider retry/Retry-After handling, MCP snapshot-save architecture acceptance, live deployment/Binance connectivity, type/security scanning and local working-tree status remain unresolved/unverified.
+- SPOT Phase 01: **IN_PROGRESS**; FUTURES Phase 01: **IN_PROGRESS**; Combined Phase 01: **INCOMPLETE**; Phase 02: **LOCKED**.
+- No Phase 01 feature implementation was changed in this checkpoint because the mandatory pre-coding audit gate remains open. Resume by completing that gate; then start with SPOT Phase 01 only.
