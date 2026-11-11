@@ -35,3 +35,54 @@ def test_registry_rejects_duplicate_addresses():
     raw = '[{"address":"' + ADDR_A + '"},{"address":"' + ADDR_A.upper().replace("0X", "0x") + '"}]'
     with pytest.raises(ValueError, match="Duplicate"):
         load_wallet_registry(raw, 1)
+
+
+@pytest.mark.parametrize("entry", [
+    {"address": ADDR_A, "label": []},
+    {"address": ADDR_A, "verification_status": {}},
+    {"address": ADDR_A, "label": "unknown", "entity_name": 12},
+    {"address": ADDR_A, "evidence_url": ["https://example.org"]},
+    {"address": ADDR_A, "source_published_at": True},
+    {"address": ADDR_A, "unexpected_typo": "verified"},
+])
+def test_registry_rejects_invalid_field_types_and_unknown_fields(entry):
+    import json
+
+    with pytest.raises(ValueError):
+        load_wallet_registry(json.dumps([entry]), 1)
+
+
+@pytest.mark.parametrize("url", [
+    "https://user:password@example.org/proof",
+    "https://example.org:99999/proof",
+    "https:///missing-host",
+])
+def test_verified_registry_rejects_unsafe_or_malformed_evidence_urls(url):
+    import json
+
+    entry = {
+        "address": ADDR_A, "label": "exchange",
+        "verification_status": "verified", "evidence_url": url,
+        "evidence_note": "Operator reviewed the evidence",
+    }
+    with pytest.raises(ValueError, match="HTTPS evidence_url"):
+        load_wallet_registry(json.dumps([entry]), 1)
+
+
+@pytest.mark.parametrize("chain_id", [True, -1, 1.5, "1"])
+def test_registry_rejects_invalid_chain_id(chain_id):
+    with pytest.raises(ValueError, match="chain_id"):
+        load_wallet_registry("[]", chain_id)
+
+
+@pytest.mark.parametrize("address", [None, 1, "0x1234", "0x" + "g" * 40, "0X" + "1" * 40])
+def test_address_annotation_rejects_invalid_addresses(address):
+    with pytest.raises(ValueError, match="EVM address"):
+        annotate_wallet_addresses([address], {"wallets": []})
+
+
+def test_address_annotation_rejects_invalid_container_shapes():
+    with pytest.raises(ValueError, match="addresses"):
+        annotate_wallet_addresses(ADDR_A, {"wallets": []})
+    with pytest.raises(ValueError, match="wallet list"):
+        annotate_wallet_addresses([ADDR_A], {"wallets": {}})
