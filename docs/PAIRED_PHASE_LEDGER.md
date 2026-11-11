@@ -131,3 +131,13 @@ Resume by completing the pre-coding audit gate, review current CI and static-ana
 - Added strict integer validation for update IDs and regression cases for valid overlap/direct continuation, unbridged gap, malformed IDs, and Spot behavior. Legacy Futures fixture now includes `pu`.
 - Final CI: run `42932203177` at `d4b4820d6c1d3a7c94716608fce00eaf55139cb9` **SUCCESS**; Ruff including order-book service/tests passed; dashboard JS passed; **548 passed, 2 warnings**. Earlier interim CI failures were resolved (old fixture lacked `pu`; lint found unused test import).
 - No live stream test. Full audit remains INCOMPLETE; both Phase 01 tracks IN_PROGRESS; Phase 02 LOCKED; no Phase 01 feature coding started.
+
+
+### Order-book reader queue shutdown fix — 2026-11-11
+
+- Found and fixed a bounded-queue termination bug: when the order-book WebSocket reader exited while its queue was full, its close sentinel could be dropped silently and the consumer could wait forever after draining the queue.
+- Reader shutdown now makes room for the sentinel by discarding one buffered delta, causing safe reconnect/resnapshot rather than continuing with potentially incomplete depth state.
+- Added two async regression tests: full-queue socket termination and full-queue reader cancellation.
+- Final CI run 42933491101 on 29db479fb82cdd9a90b86f81300d15f9b8dc234c: SUCCESS; Ruff and dashboard JS checks passed; 550 pytest passed, 2 warnings.
+- Earlier CI attempts 42933359688 (missing test import) and 42933385702 (test did not consume expected cancellation) failed; both harness defects were fixed before final success.
+- No live Binance WebSocket test. Full audit remains INCOMPLETE; Spot Phase 01 and Futures Phase 01 IN_PROGRESS; combined Phase 01 INCOMPLETE; Phase 02 LOCKED; no Phase 01 feature coding started.
