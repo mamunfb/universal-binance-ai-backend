@@ -351,3 +351,8 @@ For each market-specific phase record:
 - Code/test commit: `f3bc28e1b37a896ddd4034440523f897b4d45c27`; CI status must be verified before marking this change accepted.
 - The preceding performance evaluator code/test commit `78b9831806e7dd084b226e5b7826e2b67919f371` passed run `42960815725`: Ruff and dashboard JS passed, pytest **603 passed, 2 warnings**.
 - Paired phase statuses remain unchanged.
+
+
+## Latest provider audit checkpoint — RSS feed boundaries (2026-11-11)
+
+The RSS provider now disables redirects and enforces a configurable streamed response-size ceiling (1 MiB by default). Regression tests cover redirect rejection, oversized feed rejection, and invalid limits. Implementation commit `046bba3b253a99b70076a68344fe8d3a468291f6`; test commit `cf36eb8a1608bca207c9882ae0778a8560b951b3`. CI run `42962156783` must be checked before treating this change as verified. This does not close the pre-coding audit or advance Phase 01 acceptance.
