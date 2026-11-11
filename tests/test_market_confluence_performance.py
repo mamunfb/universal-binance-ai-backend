@@ -831,3 +831,16 @@ def test_regime_transition_analysis_reports_stable_regime_without_false_transiti
     result = _regime_transition_analysis(rows)
     assert result["dimensions"]["market_regime"]["transition_count"] == 0
     assert result["dimensions"]["market_regime"]["latest_regime_sample_status"] == "SUFFICIENT_FOR_SCREENING_THRESHOLD"
+
+
+
+def test_performance_evaluator_rejects_boolean_and_fractional_limits():
+    import pytest
+
+    engine = MarketConfluencePerformance(SnapshotStore([]), KlineStore())
+    for limit in (True, 1.5):
+        with pytest.raises(ValueError, match="limit"):
+            engine.evaluate("USD_M", "BTCUSDT", limit=limit)
+    for hours in (True, 1.5):
+        with pytest.raises(ValueError, match="hours"):
+            engine.price_path("USD_M", "BTCUSDT", "snapshot-1", hours=hours)
