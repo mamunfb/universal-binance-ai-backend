@@ -64,13 +64,45 @@ class EVMTransferStore:
                     UNIQUE(chain_id, contract_address, from_block, to_block)
                 )
             """)
+            connection.execute("""
+                CREATE TABLE IF NOT EXISTS evm_block_headers (
+                    chain_id INTEGER NOT NULL,
+                    block_number INTEGER NOT NULL,
+                    block_hash TEXT NOT NULL,
+                    parent_hash TEXT NOT NULL,
+                    indexed_at TEXT NOT NULL,
+                    PRIMARY KEY (chain_id, block_number)
+                )
+            """)
 
     def save_chunk(self, chain_id: int, contract: str, start: int, end: int,
-                   logs: list[dict[str, Any]]) -> int:
+                   logs: list[dict[str, Any]],
+                   block_headers: list[dict[str, Any]] | None = None) -> int:
         contract = _validate_index_scope(chain_id, contract, start, end)
         if not isinstance(logs, list):
             raise ValueError("logs must be a list")
         now = datetime.now(timezone.utc).isoformat()
+        if block_headers is None:
+            block_headers = []
+        if not isinstance(block_headers, list):
+            raise ValueError("block_headers must be a list")
+        normalized_headers = []
+        seen_header_numbers = set()
+        for header in block_headers:
+            if not isinstance(header, dict):
+                raise ValueError("Block header checkpoints must be objects")
+            number = header.get("number")
+            block_hash = header.get("hash")
+            parent_hash = header.get("parent_hash")
+            if (isinstance(number, bool) or not isinstance(number, int) or not start <= number <= end
+                    or number in seen_header_numbers):
+                raise ValueError("Block header checkpoint number is invalid or duplicated")
+            for value in (block_hash, parent_hash):
+                if (not isinstance(value, str) or len(value) != 66 or not value.startswith("0x")
+                        or any(ch not in "0123456789abcdefABCDEF" for ch in value[2:])):
+                    raise ValueError("Block header checkpoint contains an invalid hash")
+            seen_header_numbers.add(number)
+            normalized_headers.append((chain_id, number, block_hash.lower(), parent_hash.lower(), now))
         rows = []
         seen_log_ids: set[tuple[str, int]] = set()
         for log in logs:
@@ -121,6 +153,33 @@ class EVMTransferStore:
             rows.append((chain_id, contract, tx_hash.lower(), log_index, block_number,
                          sender, recipient, str(raw_value), int(removed), now))
         with sqlite3.connect(self.database_path) as connection:
+            first_divergence = None
+            for _, number, block_hash, parent_hash, _ in normalized_headers:
+                existing = connection.execute(
+                    "SELECT block_hash FROM evm_block_headers WHERE chain_id=? AND block_number=?",
+                    (chain_id, number),
+                ).fetchone()
+                previous = connection.execute(
+                    "SELECT block_hash FROM evm_block_headers WHERE chain_id=? AND block_number=?",
+                    (chain_id, number - 1),
+                ).fetchone() if number > 0 else None
+                if existing and existing[0] != block_hash:
+                    first_divergence = number if first_divergence is None else min(first_divergence, number)
+                elif previous and previous[0] != parent_hash:
+                    first_divergence = number if first_divergence is None else min(first_divergence, number)
+            if first_divergence is not None:
+                connection.execute(
+                    "DELETE FROM evm_transfer_logs WHERE chain_id=? AND block_number>=?",
+                    (chain_id, first_divergence),
+                )
+                connection.execute(
+                    "DELETE FROM evm_transfer_index_ranges WHERE chain_id=? AND to_block>=?",
+                    (chain_id, first_divergence),
+                )
+                connection.execute(
+                    "DELETE FROM evm_block_headers WHERE chain_id=? AND block_number>=?",
+                    (chain_id, first_divergence),
+                )
             connection.executemany("""
                 INSERT INTO evm_transfer_logs
                 (chain_id, contract_address, transaction_hash, log_index, block_number,
@@ -139,6 +198,14 @@ class EVMTransferStore:
                 ON CONFLICT(chain_id, contract_address, from_block, to_block)
                 DO UPDATE SET transfer_count=excluded.transfer_count, indexed_at=excluded.indexed_at
             """, (chain_id, contract, start, end, len(rows), now))
+            connection.executemany("""
+                INSERT INTO evm_block_headers
+                (chain_id, block_number, block_hash, parent_hash, indexed_at)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(chain_id, block_number)
+                DO UPDATE SET block_hash=excluded.block_hash,
+                    parent_hash=excluded.parent_hash, indexed_at=excluded.indexed_at
+            """, normalized_headers)
         return len(rows)
 
     def history(self, chain_id: int, contract: str, from_block: int, to_block: int,
