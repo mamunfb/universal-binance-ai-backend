@@ -422,3 +422,13 @@ The Spot scanner, Futures Boolean filter, dashboard HTML rendering, market-data 
 - Intermediate CI attempts exposed two test-harness issues (legacy Futures fixture omitted `pu`; newly linted test contained an unused import). Both were corrected; the final checkpoint above is green.
 - Protocol references reviewed: Binance COIN-M Futures diff-depth event schema documents `U`, `u`, and `pu` (https://developers.binance.info/en/docs/catalog/core-trading-derivatives-trading-coin-m-futures/api/ws-streams); Binance Spot's official WebSocket stream documentation describes the separate Spot snapshot-bridge rule (https://github.com/binance/binance-spot-api-docs/blob/master/web-socket-streams.md).
 - No live WebSocket connection was performed. Full Pre-Coding Audit remains INCOMPLETE; this is a correctness fix to an existing collector, not Phase 01 feature coding.
+
+
+## Order-book reader shutdown and bounded-queue correction — 2026-11-11
+
+- Collector lifecycle review found the reader attempted to enqueue a termination sentinel in its finally block but silently ignored QueueFull. If the WebSocket ended while the bounded 20,000-event queue was full, the consumer could drain queued events and then wait indefinitely because it never received the stream-closed sentinel.
+- Corrected shutdown behavior: when the queue is full, discard one buffered delta and enqueue the termination sentinel. This intentionally forces the consumer to exit/reconnect instead of processing a potentially incomplete local order book. The next connection obtains a fresh REST snapshot and re-synchronizes the stream.
+- Added asynchronous regression tests for normal socket termination with a full queue and reader cancellation with a full queue.
+- CI run 42933491101 on 29db479fb82cdd9a90b86f81300d15f9b8dc234c: SUCCESS; targeted Ruff checks passed; dashboard JavaScript syntax passed; pytest 550 passed, 2 warnings.
+- Intermediate runs: 42933359688 failed because the new tests initially omitted the asyncio import; 42933385702 then exposed that the cancellation test needed to gather the expected cancelled task rather than await it as a successful completion. Both test-harness issues were corrected before the successful run above.
+- No live WebSocket test or real queue-saturation integration test against Binance was performed. Full Pre-Coding Audit remains INCOMPLETE; this is a collector correctness fix, not Phase 01 feature coding.
