@@ -51,6 +51,9 @@ class HistoricalCoverageEngine:
     """Compare stored candle opens with the expected UTC interval grid."""
 
     def __init__(self, database_path: str, max_expected_candles: int = 100_000) -> None:
+        if (isinstance(max_expected_candles, bool) or not isinstance(max_expected_candles, int)
+                or max_expected_candles < 1):
+            raise ValueError("max_expected_candles must be a positive integer")
         self.database_path = database_path
         self.max_expected_candles = max_expected_candles
 
@@ -63,8 +66,10 @@ class HistoricalCoverageEngine:
             raise ValueError("market must be SPOT, USD_M, or COIN_M")
         if not symbol.strip():
             raise ValueError("symbol must not be empty")
-        if start_time_ms < 0 or end_time_ms < start_time_ms:
-            raise ValueError("Require 0 <= start_time_ms <= end_time_ms")
+        if (isinstance(start_time_ms, bool) or not isinstance(start_time_ms, int)
+                or isinstance(end_time_ms, bool) or not isinstance(end_time_ms, int)
+                or start_time_ms < 0 or end_time_ms < start_time_ms):
+            raise ValueError("Require integer 0 <= start_time_ms <= end_time_ms")
         if interval not in {*_FIXED_INTERVAL_MS, "1w", "1M"}:
             raise ValueError("Unsupported interval")
         if not _is_aligned(start_time_ms, interval) or not _is_aligned(end_time_ms, interval):

@@ -67,9 +67,12 @@ class MarketDataQualityEngine:
             raise ValueError("symbol must not be empty")
         if interval not in _INTERVAL_MS:
             raise ValueError("interval must be a fixed interval from 1m through 1d")
-        if not 1 <= lookback_hours <= 2160:
-            raise ValueError("lookback_hours must be between 1 and 2160")
-        now = int(now_ms if now_ms is not None else datetime.now(timezone.utc).timestamp() * 1000)
+        if (isinstance(lookback_hours, bool) or not isinstance(lookback_hours, int)
+                or not 1 <= lookback_hours <= 2160):
+            raise ValueError("lookback_hours must be an integer between 1 and 2160")
+        if now_ms is not None and (isinstance(now_ms, bool) or not isinstance(now_ms, int) or now_ms < 0):
+            raise ValueError("now_ms must be a non-negative integer")
+        now = now_ms if now_ms is not None else int(datetime.now(timezone.utc).timestamp() * 1000)
         interval_ms = _INTERVAL_MS[interval]
 
         candle_count, latest_candle_open = self._query(

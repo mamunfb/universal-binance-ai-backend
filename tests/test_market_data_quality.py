@@ -168,3 +168,16 @@ def test_future_stream_timestamp_is_flagged_without_negative_age(tmp_path):
     assert source["freshness"] == "FUTURE_TIMESTAMP"
     assert source["age_ms"] is None
     assert source["future_skew_ms"] == 12_345
+
+
+
+def test_quality_rejects_boolean_or_fractional_time_controls(tmp_path):
+    import pytest
+
+    quality = engine(tmp_path)
+    for lookback in (True, 1.5):
+        with pytest.raises(ValueError, match="lookback_hours"):
+            quality.inspect("SPOT", "BTCUSDT", "1m", lookback_hours=lookback, now_ms=1_700_000_100_000)
+    for now in (True, 1.5, -1):
+        with pytest.raises(ValueError, match="now_ms"):
+            quality.inspect("SPOT", "BTCUSDT", "1m", lookback_hours=1, now_ms=now)

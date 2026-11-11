@@ -94,3 +94,18 @@ def test_rejects_ranges_above_safety_limit(tmp_path):
         HistoricalCoverageEngine(db, max_expected_candles=2).inspect(
             "SPOT", "BTCUSDT", "1m", 0, 120_000
         )
+
+
+@pytest.mark.parametrize("start,end", [
+    (True, 60_000), (0, True), (1.5, 60_000), (0, 60_000.5),
+])
+def test_rejects_boolean_and_fractional_timestamp_arguments(tmp_path, start, end):
+    db = str(tmp_path / "history.sqlite3")
+    HistoricalKlineStore(db)
+    with pytest.raises(ValueError, match="integer"):
+        HistoricalCoverageEngine(db).inspect("SPOT", "BTCUSDT", "1m", start, end)
+
+
+def test_rejects_invalid_expected_candle_limit(tmp_path):
+    with pytest.raises(ValueError, match="positive integer"):
+        HistoricalCoverageEngine(str(tmp_path / "history.sqlite3"), max_expected_candles=True)
