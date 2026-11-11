@@ -455,3 +455,89 @@ def test_first_canonical_checkpoint_discards_legacy_unhashed_coverage(tmp_path):
     )
     assert [row["block_number"] for row in store.history(1, CONTRACT, 300, 310)] == [305]
     assert store.range_coverage(1, CONTRACT, 300, 310)["complete"] is False
+
+
+def test_concurrent_same_chain_cross_contract_writes_are_serialized(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+    import sqlite3
+
+    database = str(tmp_path / "concurrent.sqlite3")
+    stores = [EVMTransferStore(database) for _ in range(8)]
+    contracts = ["0x" + format(index + 10, "040x") for index in range(8)]
+    header = {
+        "number": 500,
+        "hash": "0x" + "5" * 64,
+        "parent_hash": "0x" + "4" * 64,
+    }
+
+    def write(index):
+        log = {
+            "topics": [
+                "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                _topic(SENDER), _topic(RECIPIENT),
+            ],
+            "data": _word(index + 1),
+            "transactionHash": "0x" + format(index + 1, "064x"),
+            "blockNumber": hex(500),
+            "logIndex": "0x0",
+        }
+        return stores[index].save_chunk(
+            1, contracts[index], 500, 500, [log], block_headers=[header]
+        )
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        assert list(executor.map(write, range(8))) == [1] * 8
+
+    for index, store in enumerate(stores):
+        assert len(store.history(1, contracts[index], 500, 500)) == 1
+        assert store.range_coverage(1, contracts[index], 500, 500)["complete"] is True
+
+    with sqlite3.connect(database) as connection:
+        assert connection.execute(
+            "SELECT COUNT(*) FROM evm_block_headers WHERE chain_id=1 AND block_number=500"
+        ).fetchone()[0] == 1
+        assert connection.execute(
+            "SELECT COUNT(*) FROM evm_transfer_index_ranges WHERE chain_id=1"
+        ).fetchone()[0] == 8
+
+
+def test_checkpoint_failure_rolls_back_logs_and_coverage_atomically(tmp_path):
+    import sqlite3
+
+    database = str(tmp_path / "atomic.sqlite3")
+    store = EVMTransferStore(database)
+    log = {
+        "topics": [
+            "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+            _topic(SENDER), _topic(RECIPIENT),
+        ],
+        "data": _word(77),
+        "transactionHash": "0x" + "7" * 64,
+        "blockNumber": hex(700),
+        "logIndex": "0x0",
+    }
+    with sqlite3.connect(database) as connection:
+        connection.execute("""
+            CREATE TRIGGER reject_test_checkpoint
+            BEFORE INSERT ON evm_block_headers
+            BEGIN
+                SELECT RAISE(ABORT, 'injected checkpoint failure');
+            END
+        """)
+
+    with pytest.raises(sqlite3.IntegrityError, match="injected checkpoint failure"):
+        store.save_chunk(
+            1, CONTRACT, 700, 700, [log],
+            block_headers=[{
+                "number": 700,
+                "hash": "0x" + "7" * 64,
+                "parent_hash": "0x" + "6" * 64,
+            }],
+        )
+
+    assert store.history(1, CONTRACT, 700, 700) == []
+    assert store.coverage(1, CONTRACT) == []
+    with sqlite3.connect(database) as connection:
+        assert connection.execute(
+            "SELECT COUNT(*) FROM evm_block_headers WHERE chain_id=1"
+        ).fetchone()[0] == 0
