@@ -401,3 +401,10 @@ RSS provider redirect following is disabled and streamed feed responses are capp
 - Final test commit `9bac11a10dd2a00f68180a77163d822d9d007a7e` passed run `42969997843`.
 - Final workflow commit `af744441febcff9bec614ca1623b7d93924ffab6` passed run `42970015889`; the Ruff command explicitly included `backend/app/providers/evm_rpc.py` and `tests/test_evm_rpc_provider.py`. The complete job passed Ruff, dashboard JavaScript syntax, and pytest **666 passed, 2 warnings**.
 - This verifies the response-envelope change and its test/lint coverage. It does not verify every chain-specific RPC result shape or production RPC behavior.
+
+
+
+## CI test-count correction — 2026-11-11
+
+- Correction to the immediately preceding JSON-RPC CI note: run `42970015889` completed with pytest **665 passed, 2 warnings**, not 666. The run log explicitly reports `665 passed, 2 warnings in 6.13s`.
+- Ruff passed with the EVM RPC provider and its tests in the lint target; dashboard JavaScript syntax also passed. The verified test count is 665.
