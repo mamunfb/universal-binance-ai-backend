@@ -356,3 +356,12 @@ For each market-specific phase record:
 ## Latest provider audit checkpoint — RSS feed boundaries (2026-11-11)
 
 The RSS provider now disables redirects and enforces a configurable streamed response-size ceiling (1 MiB by default). Regression tests cover redirect rejection, oversized feed rejection, and invalid limits. Implementation commit `046bba3b253a99b70076a68344fe8d3a468291f6`; test commit `cf36eb8a1608bca207c9882ae0778a8560b951b3`. CI run `42962156783` must be checked before treating this change as verified. This does not close the pre-coding audit or advance Phase 01 acceptance.
+
+
+### RSS feed correction — CI verified
+
+- Code/test commit `cf36eb8a1608bca207c9882ae0778a8560b951b3`; GitHub Actions run `42962156783`: **SUCCESS**.
+- Actual job log confirms targeted Ruff passed, dashboard JavaScript syntax passed, and pytest **607 passed, 2 warnings**.
+- The two pytest warnings are existing Starlette/httpx TestClient and FastAPI parameter deprecations. The workflow also emits a Node.js 20 deprecation notice during cleanup.
+- This CI run verifies the RSS redirect/size-limit change and regression tests at the code/test commit. Later documentation-only commits have their own CI runs and must be checked independently.
+- Paired Phase 01 remains IN_PROGRESS for Spot and Futures; combined Phase 01 remains INCOMPLETE; Phase 02 remains LOCKED. Full pre-coding audit remains open.
