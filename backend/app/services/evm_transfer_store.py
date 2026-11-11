@@ -8,6 +8,24 @@ from typing import Any
 from app.providers.evm_rpc import EVMRPCProvider
 
 
+_TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+
+
+def _validate_index_scope(chain_id: int, contract: str, start: int, end: int) -> str:
+    if isinstance(chain_id, bool) or not isinstance(chain_id, int) or chain_id < 0:
+        raise ValueError("chain_id must be a non-negative integer")
+    if not isinstance(contract, str) or len(contract) != 42 or not contract.startswith("0x"):
+        raise ValueError("contract must be a 20-byte 0x-prefixed address")
+    try:
+        int(contract[2:], 16)
+    except ValueError as exc:
+        raise ValueError("contract must be a valid hexadecimal address") from exc
+    if (isinstance(start, bool) or not isinstance(start, int) or start < 0
+            or isinstance(end, bool) or not isinstance(end, int) or end < start):
+        raise ValueError("block range must contain non-negative integers with end >= start")
+    return contract.lower()
+
+
 class EVMTransferStore:
     """Persistent, idempotent storage for indexed ERC-20 Transfer logs."""
 
@@ -49,32 +67,54 @@ class EVMTransferStore:
 
     def save_chunk(self, chain_id: int, contract: str, start: int, end: int,
                    logs: list[dict[str, Any]]) -> int:
+        contract = _validate_index_scope(chain_id, contract, start, end)
+        if not isinstance(logs, list):
+            raise ValueError("logs must be a list")
         now = datetime.now(timezone.utc).isoformat()
         rows = []
         for log in logs:
             if not isinstance(log, dict):
                 raise ValueError("RPC returned a non-object log; refusing to mark this block range complete")
-            topics = log.get("topics") or []
+            topics = log.get("topics")
             tx_hash = log.get("transactionHash")
-            if len(topics) < 3 or not isinstance(tx_hash, str) or len(tx_hash) != 66 or not tx_hash.startswith("0x"):
-                raise ValueError("RPC returned a malformed Transfer log; refusing to mark this block range complete")
+            if (not isinstance(topics, list) or len(topics) != 3
+                    or not all(isinstance(topic, str) for topic in topics)
+                    or topics[0].lower() != _TRANSFER_TOPIC
+                    or not isinstance(tx_hash, str) or len(tx_hash) != 66
+                    or not tx_hash.startswith("0x")):
+                raise ValueError("RPC returned a malformed ERC-20 Transfer log; refusing to mark this block range complete")
             block_hex, index_hex, data = log.get("blockNumber"), log.get("logIndex"), log.get("data")
             if not all(isinstance(value, str) and value.startswith("0x")
                        for value in (block_hex, index_hex, data)):
                 raise ValueError("RPC Transfer log is missing blockNumber, logIndex, or data")
             try:
+                if (len(tx_hash) != 66 or len(tx_hash[2:]) != 64
+                        or len(block_hex) < 3 or len(index_hex) < 3 or len(data) != 66
+                        or len(topics[1]) != 66 or len(topics[2]) != 66
+                        or any(character not in "0123456789abcdefABCDEF"
+                               for value in (tx_hash[2:], block_hex[2:], index_hex[2:],
+                                             data[2:], topics[0][2:], topics[1][2:], topics[2][2:])
+                               for character in value)):
+                    raise ValueError("Transfer log contains malformed hexadecimal fields")
                 block_number, log_index, raw_value = int(block_hex, 16), int(index_hex, 16), int(data, 16)
-                if len(topics[1]) != 66 or len(topics[2]) != 66:
-                    raise ValueError("Transfer log contains malformed indexed address topics")
+                if topics[1][2:26] != "0" * 24 or topics[2][2:26] != "0" * 24:
+                    raise ValueError("Transfer log contains invalid indexed address padding")
                 sender, recipient = "0x" + topics[1][-40:].lower(), "0x" + topics[2][-40:].lower()
-                int(sender[2:], 16)
-                int(recipient[2:], 16)
+                returned_contract = log.get("address")
+                if returned_contract is not None:
+                    if (not isinstance(returned_contract, str) or len(returned_contract) != 42
+                            or not returned_contract.startswith("0x")
+                            or returned_contract.lower() != contract):
+                        raise ValueError("RPC Transfer log contract does not match requested contract")
+                removed = log.get("removed", False)
+                if not isinstance(removed, bool):
+                    raise ValueError("RPC Transfer log removed flag must be Boolean")
             except (ValueError, TypeError) as exc:
                 raise ValueError("RPC returned an invalid Transfer log; refusing to mark this block range complete") from exc
             if not (start <= block_number <= end) or raw_value < 0:
                 raise ValueError("RPC Transfer log falls outside the requested range or has a negative amount")
-            rows.append((chain_id, contract.lower(), tx_hash.lower(), log_index, block_number,
-                         sender, recipient, str(raw_value), int(bool(log.get("removed"))), now))
+            rows.append((chain_id, contract, tx_hash.lower(), log_index, block_number,
+                         sender, recipient, str(raw_value), int(removed), now))
         with sqlite3.connect(self.database_path) as connection:
             connection.executemany("""
                 INSERT INTO evm_transfer_logs
@@ -93,7 +133,7 @@ class EVMTransferStore:
                 VALUES (?, ?, ?, ?, ?, ?)
                 ON CONFLICT(chain_id, contract_address, from_block, to_block)
                 DO UPDATE SET transfer_count=excluded.transfer_count, indexed_at=excluded.indexed_at
-            """, (chain_id, contract.lower(), start, end, len(rows), now))
+            """, (chain_id, contract, start, end, len(rows), now))
         return len(rows)
 
     def history(self, chain_id: int, contract: str, from_block: int, to_block: int,
