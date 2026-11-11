@@ -408,3 +408,16 @@ RSS provider redirect following is disabled and streamed feed responses are capp
 
 - Correction to the immediately preceding JSON-RPC CI note: run `42970015889` completed with pytest **665 passed, 2 warnings**, not 666. The run log explicitly reports `665 passed, 2 warnings in 6.13s`.
 - Ruff passed with the EVM RPC provider and its tests in the lint target; dashboard JavaScript syntax also passed. The verified test count is 665.
+
+
+## EVM canonical block-checkpoint and fork invalidation checkpoint — 2026-11-11
+
+- Added read-only eth_getBlockByNumber header retrieval with strict requested-height, 32-byte hash, and parent-hash validation.
+- SQLite now persists chain-level block-hash/parent-hash checkpoints. The indexer records chunk boundary checkpoints and refreshes the nearest stored checkpoint before and after an overlapping requested subrange.
+- When a stored checkpoint hash or adjacent parent linkage changes, the store conservatively invalidates transfer rows from the earliest possible fork point, deletes every overlapping coverage range for that chain (including other token contracts), and then writes the newly indexed chunk and refreshed checkpoints in the same SQLite transaction.
+- When a chain has legacy indexed coverage but no canonical hash checkpoints, the first checkpointed index invalidates those unhashed rows/ranges rather than presenting unverifiable legacy history as canonical.
+- Regression tests cover block-header RPC validation, changed chunk-end hashes, fork detection while reindexing partial subranges using bracketing checkpoints, conservative coverage-gap reporting, and legacy unhashed-coverage migration.
+- Implementation commits include 531abb913d0aab0e92d072933e5613779c285647, cdc011b6db9463dbe95276500ff32e67b11428dd, 619a469113124cbb5b5b438453e83a437790ed86, 7371160cbff12ac0ac8bf4b7b106dadcfd8708c6, cad44725559d2105e7906ffd89ca43a7085ff323, aa4b8e39a7431e85b1ad2fab356438cefd8bf345, and e8664a857f32a8ea18aa3f6abbdf5513724b4641.
+- Latest canonical checkpoint regression workflow is pending; no green status is claimed until the full job finishes.
+- This is reorg detection on subsequent indexing/reindexing, not a background watcher. A chain that is never re-indexed after a reorg is not automatically reconciled. SQLite concurrent-writer stress and complete route audit remain open.
+- SPOT Phase 01: IN_PROGRESS; FUTURES Phase 01: IN_PROGRESS; Combined Phase 01: INCOMPLETE; Phase 02: LOCKED. No order execution or wallet-signing capability was added.
