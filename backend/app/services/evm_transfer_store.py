@@ -158,6 +158,19 @@ class EVMTransferStore:
             rows.append((chain_id, contract, tx_hash.lower(), log_index, block_number,
                          sender, recipient, str(raw_value), int(removed), now))
         with sqlite3.connect(self.database_path) as connection:
+            if normalized_headers:
+                has_checkpoint = connection.execute(
+                    "SELECT 1 FROM evm_block_headers WHERE chain_id=? LIMIT 1",
+                    (chain_id,),
+                ).fetchone()
+                has_legacy_coverage = connection.execute(
+                    "SELECT 1 FROM evm_transfer_index_ranges WHERE chain_id=? LIMIT 1",
+                    (chain_id,),
+                ).fetchone()
+                if not has_checkpoint and has_legacy_coverage:
+                    # Old indexed rows have no block identity; do not present them as canonical.
+                    connection.execute("DELETE FROM evm_transfer_logs WHERE chain_id=?", (chain_id,))
+                    connection.execute("DELETE FROM evm_transfer_index_ranges WHERE chain_id=?", (chain_id,))
             first_divergence = None
             previous_unchanged_checkpoint = None
             for _, number, block_hash, parent_hash, _ in normalized_headers:
