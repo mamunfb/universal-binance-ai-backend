@@ -114,3 +114,12 @@ Resume by completing the pre-coding audit gate, review current CI and static-ana
 - Production auth previously allowed a weak AI-client key to match if a separate strong owner key satisfied the startup gate. Middleware now matches only client keys with length >=32; regression test checks weak-key 401 and strong owner-key success.
 - Commits: `ffad59b3f906c49ffc539838a289357f18d3d548` (fix), `205c2fa2a36f72709748803c01de3e535c6b575e` (test). CI pending verification at time of ledger update.
 - No Phase 01 feature work started; paired Phase 01 remains incomplete and Phase 02 locked.
+
+
+### Authentication regression verification and API review — 2026-11-11
+
+- Run `42931082393` (test checkpoint `205c2fa2a36f72709748803c01de3e535c6b575e`): SUCCESS; Ruff targeted checks passed; dashboard JS syntax passed; **538 pytest passed, 2 warnings**. Warnings are dependency deprecations.
+- Docs HEAD `797f5c844bdf1f2f3343386418e76c3ed333cf95` run `42931109389`: SUCCESS. 538 test count belongs to the code/test checkpoint above.
+- Enumerated 80 API route decorators; targeted review covered auth/error middleware, scanners/preflight, EVM indexing, confluence persistence, derivatives collection/history, and market-data history/quality. This is not yet a full line-by-line audit of all routes.
+- Spot/Futures providers use 15-second defaults but no shared retry/backoff or explicit Retry-After handling. No live exchange connectivity test performed.
+- Full audit remains INCOMPLETE. Spot Phase 01 and Futures Phase 01 remain IN_PROGRESS; Phase 02 LOCKED; no feature coding started.
