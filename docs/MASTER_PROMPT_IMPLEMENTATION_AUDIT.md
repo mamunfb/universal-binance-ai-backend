@@ -314,3 +314,24 @@ The Spot scanner, Futures Boolean filter, dashboard HTML rendering, market-data 
 - FUTURES Phase 01: **IN_PROGRESS**.
 - Combined Phase 01: **INCOMPLETE**.
 - Phase 02: **LOCKED**.
+
+
+## Collector data-integrity audit — 2026-11-11
+
+### Confirmed defect corrected
+7. **P2 — Liquidation stream accepted malformed/non-finite numeric fields.** normalize_force_order converted q and l outside its guarded parse block and accepted NaN/Infinity for parsed numeric quantities. A malformed event could terminate the current receive loop and reconnect the collector, or persist non-finite values into SQLite. The normalizer now parses all four quantity/price fields inside one guarded block, rejects non-finite and negative values, and rejects negative event/trade timestamps. Regression coverage includes malformed q/l, NaN, Infinity, negative quantities and negative timestamps.
+- Service commit: eb81805b126ab0cd65cf01f6cbae2d378ba6e11c.
+- Regression-test commit: d560bd5bb803c25cec15b6d2d5756a1086bb8d28.
+- GitHub Actions run 42928650029 on test checkpoint d560bd5bb803c25cec15b6d2d5756a1086bb8d28: **SUCCESS**; Ruff step passed, dashboard JavaScript syntax passed, pytest **530 passed, 2 warnings**.
+- The first workflow run on service-only commit eb81805b126ab0cd65cf01f6cbae2d378ba6e11c also passed, but the test commit's run is the relevant verification for the added regression cases.
+
+### Additional audit observations
+- liquidation_collector.last_error still stores str(exc) in its status object. Its current websocket URL is a fixed public Binance stream URL (no configured credential/query token); this is not presently confirmed as a secret disclosure, but the raw diagnostic remains a data-minimization concern for a later collector-observability review.
+- The latest passing Ruff command did not yet include the newly changed liquidation collector and its test. The CI Ruff file list has now been expanded to include both; that workflow change requires its own passing run before claiming lint coverage for these files.
+- The audit remains static/remote. No live Binance stream or deployment database test has been performed.
+
+### Gate decision
+- Liquidation numeric normalization: **FIXED + regression-tested**.
+- Latest test checkpoint: **530 passed, 2 warnings** at d560bd5bb803c25cec15b6d2d5756a1086bb8d28.
+- Pre-Coding Full Audit: **INCOMPLETE**.
+- SPOT Phase 01: **IN_PROGRESS**; FUTURES Phase 01: **IN_PROGRESS**; Combined Phase 01: **INCOMPLETE**; Phase 02: **LOCKED**.
