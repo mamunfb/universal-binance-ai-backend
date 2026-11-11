@@ -49,8 +49,10 @@ class DerivativesSignalStore:
         symbol = str(payload.get("symbol", "")).upper().strip()
         period = str(payload.get("period", ""))
         end_time_ms = payload.get("window", {}).get("end_time_ms")
-        if not symbol or period not in OPEN_INTEREST_PERIODS or not isinstance(end_time_ms, int):
-            raise ValueError("Analysis snapshot requires symbol, supported period, and end timestamp")
+        if (not symbol or period not in OPEN_INTEREST_PERIODS
+                or isinstance(end_time_ms, bool) or not isinstance(end_time_ms, int)
+                or end_time_ms < 0):
+            raise ValueError("Analysis snapshot requires symbol, supported period, and non-negative integer end timestamp")
         generated_at = datetime.now(timezone.utc).isoformat()
         encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False)
         with sqlite3.connect(self.database_path) as connection:
@@ -82,12 +84,11 @@ class DerivativesSignalStore:
             raise ValueError("symbol must not be empty")
         if period not in OPEN_INTEREST_PERIODS:
             raise ValueError("Unsupported open-interest period")
-        if not 1 <= limit <= 1000:
-            raise ValueError("limit must be between 1 and 1000")
-        if start_time_ms is not None and start_time_ms < 0:
-            raise ValueError("start_time_ms must be non-negative")
-        if end_time_ms is not None and end_time_ms < 0:
-            raise ValueError("end_time_ms must be non-negative")
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 1000:
+            raise ValueError("limit must be an integer between 1 and 1000")
+        for name, value in (("start_time_ms", start_time_ms), ("end_time_ms", end_time_ms)):
+            if value is not None and (isinstance(value, bool) or not isinstance(value, int) or value < 0):
+                raise ValueError(f"{name} must be a non-negative integer")
         if start_time_ms is not None and end_time_ms is not None and end_time_ms < start_time_ms:
             raise ValueError("end_time_ms must be >= start_time_ms")
         clauses = ["market='USD_M'", "symbol=?", "period=?"]
