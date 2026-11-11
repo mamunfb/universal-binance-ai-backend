@@ -274,3 +274,12 @@ Resume by completing the pre-coding audit gate, review current CI and static-ana
 ## Provider audit note — 2026-11-11
 
 RSS provider redirect following is disabled and streamed feed responses are capped at 1 MiB by default. Tests cover redirect, oversize and invalid limit cases. Code/test commits: `046bba3b253a99b70076a68344fe8d3a468291f6`, `cf36eb8a1608bca207c9882ae0778a8560b951b3`. CI run `42962156783` pending verification at this checkpoint. Paired Phase 01 remains INCOMPLETE; Phase 02 remains LOCKED.
+
+
+### RSS feed correction — CI verified
+
+- Code/test commit `cf36eb8a1608bca207c9882ae0778a8560b951b3`; GitHub Actions run `42962156783`: **SUCCESS**.
+- Actual job log confirms targeted Ruff passed, dashboard JavaScript syntax passed, and pytest **607 passed, 2 warnings**.
+- The two pytest warnings are existing Starlette/httpx TestClient and FastAPI parameter deprecations. The workflow also emits a Node.js 20 deprecation notice during cleanup.
+- This CI run verifies the RSS redirect/size-limit change and regression tests at the code/test commit. Later documentation-only commits have their own CI runs and must be checked independently.
+- Paired Phase 01 remains IN_PROGRESS for Spot and Futures; combined Phase 01 remains INCOMPLETE; Phase 02 remains LOCKED. Full pre-coding audit remains open.
