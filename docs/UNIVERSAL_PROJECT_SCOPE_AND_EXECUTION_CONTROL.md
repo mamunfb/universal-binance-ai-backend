@@ -365,3 +365,15 @@ The RSS provider now disables redirects and enforces a configurable streamed res
 - The two pytest warnings are existing Starlette/httpx TestClient and FastAPI parameter deprecations. The workflow also emits a Node.js 20 deprecation notice during cleanup.
 - This CI run verifies the RSS redirect/size-limit change and regression tests at the code/test commit. Later documentation-only commits have their own CI runs and must be checked independently.
 - Paired Phase 01 remains IN_PROGRESS for Spot and Futures; combined Phase 01 remains INCOMPLETE; Phase 02 remains LOCKED. Full pre-coding audit remains open.
+
+
+## EVM RPC response-boundary hardening — 2026-11-11
+
+- EVM RPC endpoint validation now parses the URL and rejects malformed HTTPS URLs, missing hosts, embedded credentials, fragments, whitespace, and invalid ports.
+- JSON-RPC POST requests explicitly disable redirects even when a caller supplies an AsyncClient configured to follow redirects.
+- Response bodies are consumed incrementally with a configurable 2 MiB default byte ceiling; oversized responses fail before JSON parsing. Invalid size-limit configuration is rejected.
+- Regression tests cover malformed/credentialed endpoint URLs, redirect refusal with a redirect-enabled client, oversized streamed responses, and invalid size-limit values.
+- Implementation commit: `5cebc659b692d5cff5c35a698a938606b41ba7d1`; tests commit: `febed5f5af364219bac9e7496bb2f28e2f03bfa7`.
+- GitHub Actions run `42967238068` on the test commit: **SUCCESS**; targeted Ruff passed, dashboard JavaScript syntax passed, and pytest **619 passed, 2 warnings**.
+- The EVM RPC hardening is a provider-level boundary correction only. EVM transfer-index store/API audit and full route security review remain open. This does not complete the full project audit or change paired phase acceptance.
+- SPOT Phase 01: IN_PROGRESS; FUTURES Phase 01: IN_PROGRESS; Combined Phase 01: INCOMPLETE; Phase 02: LOCKED. No order execution or wallet signing capability was added.
