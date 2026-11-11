@@ -213,6 +213,13 @@ def test_indexer_does_not_return_provider_exception_details(tmp_path):
         async def block_number(self):
             return 999
 
+        async def block_header(self, number):
+            return {
+                "number": number,
+                "hash": "0x" + format(number, "064x"),
+                "parent_hash": "0x" + format(max(number - 1, 0), "064x"),
+            }
+
         async def token_transfer_logs(self, *args, **kwargs):
             raise RuntimeError("https://rpc.example/rpc?token=secret-value")
 
@@ -360,3 +367,30 @@ def test_reorg_checkpoint_invalidates_forked_logs_and_coverage(tmp_path):
             "SELECT block_hash FROM evm_block_headers WHERE chain_id=1 AND block_number=105"
         ).fetchone()
     assert checkpoint[0] == replacement_header["hash"]
+
+
+def test_changed_chunk_end_checkpoint_invalidates_from_after_unchanged_start(tmp_path):
+    store = EVMTransferStore(str(tmp_path / "history.sqlite3"))
+
+    def log(block, tx):
+        return {
+            "topics": [
+                "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                _topic(SENDER), _topic(RECIPIENT),
+            ],
+            "data": _word(block), "transactionHash": "0x" + tx * 64,
+            "blockNumber": hex(block), "logIndex": "0x0",
+        }
+
+    store.save_chunk(1, CONTRACT, 200, 210,
+                     [log(200, "a"), log(205, "b"), log(210, "c")],
+                     block_headers=[
+                         {"number": 200, "hash": "0x" + "1" * 64, "parent_hash": "0x" + "0" * 64},
+                         {"number": 210, "hash": "0x" + "2" * 64, "parent_hash": "0x" + "1" * 64},
+                     ])
+    store.save_chunk(1, CONTRACT, 210, 210, [log(210, "d")],
+                     block_headers=[
+                         {"number": 210, "hash": "0x" + "3" * 64, "parent_hash": "0x" + "4" * 64},
+                     ])
+    assert [row["block_number"] for row in store.history(1, CONTRACT, 200, 210)] == [200]
+    assert store.range_coverage(1, CONTRACT, 200, 210)["complete"] is False
