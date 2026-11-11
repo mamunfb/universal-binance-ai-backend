@@ -141,3 +141,11 @@ Resume by completing the pre-coding audit gate, review current CI and static-ana
 - Final CI run 42933491101 on 29db479fb82cdd9a90b86f81300d15f9b8dc234c: SUCCESS; Ruff and dashboard JS checks passed; 550 pytest passed, 2 warnings.
 - Earlier CI attempts 42933359688 (missing test import) and 42933385702 (test did not consume expected cancellation) failed; both harness defects were fixed before final success.
 - No live Binance WebSocket test. Full audit remains INCOMPLETE; Spot Phase 01 and Futures Phase 01 IN_PROGRESS; combined Phase 01 INCOMPLETE; Phase 02 LOCKED; no Phase 01 feature coding started.
+
+
+### Order-book REST snapshot sequence-ID validation — 2026-11-11
+
+- Removed permissive int() coercion of REST snapshot lastUpdateId. The collector now rejects Boolean, fractional, and string IDs instead of truncating/coercing them into valid-looking sequence values.
+- Added regression tests for malformed and valid snapshot IDs.
+- CI run 42933697618 at 716709c26781b52300dc77188161196962a268a5: SUCCESS; Ruff and dashboard JS checks passed; 554 pytest passed, 2 warnings.
+- No live exchange connectivity test. Full audit remains INCOMPLETE; both Phase 01 tracks IN_PROGRESS; Phase 02 LOCKED; no Phase 01 feature coding started.
