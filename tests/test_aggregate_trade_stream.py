@@ -41,3 +41,22 @@ def test_aggregate_trade_stream_urls():
     assert "wss://stream.binance.com:9443/ws/btcusdt@aggTrade" == aggregate_trade_stream_url("SPOT", "BTCUSDT")
     assert "wss://fstream.binance.com/market/ws/btcusdt@aggTrade" == aggregate_trade_stream_url("USD_M", "BTCUSDT")
     assert "wss://dstream.binance.com/ws/btcusd_perp@aggTrade" == aggregate_trade_stream_url("COIN_M", "BTCUSD_PERP")
+
+
+
+def test_aggregate_trade_normalizer_rejects_malformed_numeric_and_non_object_values():
+    for field in ("a", "E", "T"):
+        for invalid in (True, 1.5):
+            payload = sample_trade()
+            payload[field] = invalid
+            assert normalize_aggregate_trade(payload, "SPOT") is None
+
+    for field in ("p", "q"):
+        payload = sample_trade()
+        payload[field] = True
+        assert normalize_aggregate_trade(payload, "SPOT") is None
+
+    payload = sample_trade()
+    payload["E"] = -1
+    assert normalize_aggregate_trade(payload, "SPOT") is None
+    assert normalize_aggregate_trade(["not", "an", "object"], "SPOT") is None
