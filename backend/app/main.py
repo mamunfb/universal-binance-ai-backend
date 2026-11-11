@@ -456,11 +456,13 @@ async def get_evm_token_history(
         provider = get_evm_provider()
         chain_id = await provider.chain_id()
         rows = evm_transfer_store.history(chain_id, contract, from_block, to_block, limit)
+        coverage = evm_transfer_store.range_coverage(chain_id, contract, from_block, to_block)
         return {
-            "status": "COMPLETED", "chain_id": chain_id, "contract_address": contract.lower(),
+            "status": "COMPLETED" if coverage["complete"] else "INCOMPLETE",
+            "chain_id": chain_id, "contract_address": contract.lower(),
             "requested_range": {"from": from_block, "to": to_block},
             "returned_count": len(rows), "transfers": rows,
-            "indexed_coverage": evm_transfer_store.coverage(chain_id, contract),
+            "indexed_coverage": coverage,
             "warning": "Only stored indexed logs are returned. An empty result does not prove there were no transfers unless this range is fully covered.",
         }
     except ValueError as exc:
