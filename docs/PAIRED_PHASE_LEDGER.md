@@ -97,3 +97,13 @@ Resume by completing the pre-coding audit gate, review current CI and static-ana
 - Ruff core checks: passed; dashboard JavaScript syntax: passed; pytest: **537 passed, 2 warnings**.
 - This includes strict EVM block request validation, sanitized EVM indexer errors, and market-confluence numeric validation regressions.
 - Later documentation-only commits still need CI confirmation on the latest HEAD.
+
+
+### Audit continuation — 2026-11-11
+
+- Latest HEAD `be448172169bbb68d00c827f496eaab82780c598`: CI run `42929783007` **SUCCESS**. Prior audit-doc checkpoint `16c8fb27eabfd7d5392578e34464ecc51929e3f4`: run `42929771515` **SUCCESS**. The exact 537-pass pytest count is tied to code/test checkpoint `6a19418c531913e83a93a55479c3ff3c0ca9d746`, not automatically attributed to later docs-only commits.
+- MCP architecture audit: `save_market_confluence_snapshot` is an MCP tool that POSTs a descriptive local research snapshot. It does not execute trades or wallet actions, but it means MCP is not strictly read-only. Architecture decision remains OPEN; no change made without approval.
+- Binance Spot/Futures REST provider adapters currently have no common retry/backoff or explicit Retry-After/rate-limit policy. Remains open for audit and Phase 01 coverage.
+- MCP integer argument boundary review (Boolean-as-integer) remains pending framework-level validation tests.
+- PR #1 OPEN / DRAFT / unmerged; main unchanged; 77 commits ahead / 0 behind.
+- Pre-Coding Full Audit INCOMPLETE; SPOT Phase 01 IN_PROGRESS; FUTURES Phase 01 IN_PROGRESS; combined Phase 01 INCOMPLETE; Phase 02 LOCKED.
