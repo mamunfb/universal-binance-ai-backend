@@ -270,7 +270,19 @@ class OrderBookStreamCollector:
     def _validate_sequence(market: str, event: dict[str, Any], last_id: int, first_event: bool) -> None:
         first_id, final_id = int(event.get("U", 0)), int(event.get("u", 0))
         if first_event:
-            if not (first_id <= last_id + 1 <= final_id):
+            if market in {"USD_M", "COIN_M"}:
+                # Futures diff streams use pu to bridge a snapshot that lands
+                # between update events. Accept either an event spanning the
+                # snapshot update ID or a direct continuation from that ID.
+                try:
+                    previous_id = int(event.get("pu", -1))
+                except (TypeError, ValueError):
+                    previous_id = -1
+                overlaps_snapshot = first_id <= last_id <= final_id
+                continues_snapshot = previous_id == last_id
+                if not (overlaps_snapshot or continues_snapshot):
+                    raise RuntimeError("DEPTH_INITIAL_SEQUENCE_GAP")
+            elif not (first_id <= last_id + 1 <= final_id):
                 raise RuntimeError("DEPTH_INITIAL_SEQUENCE_GAP")
             return
         if market in {"USD_M", "COIN_M"}:
