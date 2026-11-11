@@ -659,3 +659,10 @@ The Spot scanner, Futures Boolean filter, dashboard HTML rendering, market-data 
 ## Performance evaluator argument validation — verified CI evidence (2026-11-11)
 - Code/test commit `78b9831806e7dd084b226e5b7826e2b67919f371`; Actions run `42960815725`: **SUCCESS**. Actual job log: targeted Ruff passed, dashboard JavaScript syntax passed, pytest **603 passed, 2 warnings**.
 - `evaluate(limit=...)` and `price_path(hours=...)` reject Boolean/fractional bounds. This closes only those public request argument checks; deeper historical outcome parsing remains under review.
+
+
+## Liquidation cluster request-boundary review — 2026-11-11
+- `LiquidationClusterAnalysis.analyze` now requires non-Boolean integer start/end timestamps, limit, bucket width and minimum-event count. Boolean/fractional values are rejected before SQLite query execution.
+- Regression tests cover Boolean/fractional time and numeric query controls.
+- Code/test commit `f3bc28e1b37a896ddd4034440523f897b4d45c27`; CI pending at documentation checkpoint.
+- This does not verify the truthfulness/completeness of the upstream liquidation snapshot stream; the collector still explicitly documents partial-feed limitations.

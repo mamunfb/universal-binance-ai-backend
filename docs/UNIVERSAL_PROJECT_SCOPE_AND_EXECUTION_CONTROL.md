@@ -343,3 +343,11 @@ For each market-specific phase record:
 ## 27. Performance evaluator argument validation — verified (2026-11-11)
 - Code/test commit `78b9831806e7dd084b226e5b7826e2b67919f371`; Actions run `42960815725`: **SUCCESS**. Actual job log confirms Ruff passed, dashboard JavaScript syntax passed, pytest **603 passed, 2 warnings**.
 - Strict non-Boolean integer validation for performance evaluator `limit` and `hours` is verified. This is request-boundary hardening only; no paired phase acceptance criteria are closed by this fix.
+
+
+## 28. Liquidation cluster query-bound validation — 2026-11-11
+- Liquidation cluster analysis now rejects Boolean/fractional time bounds, Boolean/fractional limit values, and non-integer bucket/minimum-event controls instead of accepting Boolean-as-int or implicit numeric comparison.
+- Added regression tests for each request-bound category.
+- Code/test commit: `f3bc28e1b37a896ddd4034440523f897b4d45c27`; CI status must be verified before marking this change accepted.
+- The preceding performance evaluator code/test commit `78b9831806e7dd084b226e5b7826e2b67919f371` passed run `42960815725`: Ruff and dashboard JS passed, pytest **603 passed, 2 warnings**.
+- Paired phase statuses remain unchanged.

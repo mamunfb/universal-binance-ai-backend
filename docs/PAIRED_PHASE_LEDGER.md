@@ -263,3 +263,9 @@ Resume by completing the pre-coding audit gate, review current CI and static-ana
 
 - Commit `78b9831806e7dd084b226e5b7826e2b67919f371`: CI run `42960815725` **SUCCESS**, Ruff and dashboard JS passed, pytest **603 passed, 2 warnings**.
 - Phase status unchanged: SPOT Phase 01 IN_PROGRESS; FUTURES Phase 01 IN_PROGRESS; Combined Phase 01 INCOMPLETE; Phase 02 LOCKED.
+
+
+### Liquidation cluster query validation — 2026-11-11
+
+- Added strict non-Boolean integer validation for liquidation cluster time bounds, limit, bucket width and minimum event count. Commit `f3bc28e1b37a896ddd4034440523f897b4d45c27`; CI pending.
+- Phase status unchanged: SPOT Phase 01 IN_PROGRESS; FUTURES Phase 01 IN_PROGRESS; Combined Phase 01 INCOMPLETE; Phase 02 LOCKED.
