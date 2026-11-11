@@ -263,3 +263,40 @@ async def test_futures_underlying_selection_does_not_compare_incomparable_quote_
     assert underlying["primary_symbol"] is None
     assert underlying["candidate_symbols"] == ["AAAUSD_260626", "AAAUSDT"]
     assert underlying["primary_selection_status"] == "NOT_ESTABLISHED_INCOMPARABLE_QUOTE_OR_MARGIN_ASSETS"
+
+
+async def test_futures_scanner_rejects_boolean_numeric_ticker_fields():
+    for field in ("lastPrice", "priceChangePercent", "quoteVolume"):
+        class BooleanTickerProvider(FakeFuturesProvider):
+            async def all_24h_tickers(self):
+                ticker = {
+                    "symbol": "AAAUSDT", "lastPrice": "12.5",
+                    "priceChangePercent": "2.0", "quoteVolume": "900000",
+                }
+                ticker[field] = True
+                return [ticker]
+
+        result = await scan_futures_markets(BooleanTickerProvider())
+        assert result["status"] == "INCOMPLETE"
+        assert result["failed_symbols"] == 2
+        assert result["matched_symbols"] == 0
+
+    class BooleanCoinMBaseVolumeProvider:
+        market = "COIN_M"
+
+        async def exchange_info(self):
+            return {"symbols": [{
+                "symbol": "BTCUSD_PERP", "baseAsset": "BTC", "quoteAsset": "USD",
+                "marginAsset": "BTC", "contractType": "PERPETUAL", "contractStatus": "TRADING",
+            }]}
+
+        async def all_24h_tickers(self):
+            return [{
+                "symbol": "BTCUSD_PERP", "lastPrice": "50000",
+                "priceChangePercent": "1.5", "baseVolume": True,
+            }]
+
+    result = await scan_futures_markets(BooleanCoinMBaseVolumeProvider())
+    assert result["status"] == "INCOMPLETE"
+    assert result["failed_symbols"] == 1
+    assert result["matched_symbols"] == 0

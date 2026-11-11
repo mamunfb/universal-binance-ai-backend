@@ -7,6 +7,8 @@ from app.providers.binance_futures import BinanceFuturesProvider
 
 
 def _number(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
     try:
         number = float(value)
     except (TypeError, ValueError, OverflowError):

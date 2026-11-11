@@ -9,6 +9,8 @@ _LEVERAGED_SUFFIXES = ("UP", "DOWN", "BULL", "BEAR")
 
 
 def _number(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
     try:
         number = float(value)
     except (TypeError, ValueError, OverflowError):
