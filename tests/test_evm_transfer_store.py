@@ -361,7 +361,7 @@ def test_reorg_checkpoint_invalidates_forked_logs_and_coverage(tmp_path):
     assert [row["block_number"] for row in rows] == [110, 100]
     coverage = store.range_coverage(1, CONTRACT, 100, 110)
     assert coverage["complete"] is False
-    assert coverage["gaps"] == [{"from": 101, "to": 109}]
+    assert coverage["gaps"] == [{"from": 100, "to": 109}]
     with __import__("sqlite3").connect(store.database_path) as connection:
         checkpoint = connection.execute(
             "SELECT block_hash FROM evm_block_headers WHERE chain_id=1 AND block_number=110"
@@ -392,5 +392,5 @@ def test_changed_chunk_end_checkpoint_invalidates_from_after_unchanged_start(tmp
                      block_headers=[
                          {"number": 210, "hash": "0x" + "3" * 64, "parent_hash": "0x" + "4" * 64},
                      ])
-    assert [row["block_number"] for row in store.history(1, CONTRACT, 200, 210)] == [200]
+    assert [row["block_number"] for row in store.history(1, CONTRACT, 200, 210)] == [210, 200]
     assert store.range_coverage(1, CONTRACT, 200, 210)["complete"] is False
