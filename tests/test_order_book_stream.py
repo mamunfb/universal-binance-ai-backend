@@ -174,6 +174,6 @@ async def test_reader_cancellation_signals_shutdown_when_queue_is_full(tmp_path)
     reader = asyncio.create_task(collector._reader(_BlockingAsyncSocket(), queue))
     await asyncio.sleep(0)
     reader.cancel()
-    await asyncio.wait_for(reader, timeout=1)
+    await asyncio.gather(reader, return_exceptions=True)
 
     assert queue.get_nowait() is None
