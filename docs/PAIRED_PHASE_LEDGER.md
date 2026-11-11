@@ -295,3 +295,13 @@ RSS provider redirect following is disabled and streamed feed responses are capp
 - GitHub Actions run `42967238068` on the test commit: **SUCCESS**; targeted Ruff passed, dashboard JavaScript syntax passed, and pytest **619 passed, 2 warnings**.
 - The EVM RPC hardening is a provider-level boundary correction only. EVM transfer-index store/API audit and full route security review remain open. This does not complete the full project audit or change paired phase acceptance.
 - SPOT Phase 01: IN_PROGRESS; FUTURES Phase 01: IN_PROGRESS; Combined Phase 01: INCOMPLETE; Phase 02: LOCKED. No order execution or wallet signing capability was added.
+
+
+## EVM historical-flow coverage status correction — 2026-11-11
+
+- Route audit found `GET /api/v1/onchain/evm/token/{contract}/history/flows` always returned `status=COMPLETED` even when the local SQLite index contained gaps in the requested block interval. The response exposed raw indexed ranges but did not calculate coverage for the requested interval.
+- The route now computes `range_coverage(chain_id, contract, from_block, to_block)`, returns that structured coverage object, and reports `INCOMPLETE` whenever gaps remain. `COMPLETED` is returned only when the full requested interval is covered.
+- Route regression tests cover both incomplete and complete indexed intervals.
+- Implementation commit `b5ff75782f87c0b526bb5b126a64d3492c44d950`; test commit `6549471718ef4c90b9047f0d52378b3705173673`.
+- GitHub Actions run `42967489250` on the test commit: **SUCCESS**; targeted Ruff passed, dashboard JavaScript syntax passed, and pytest **621 passed, 2 warnings**. Implementation-only run `42967453504` also passed with 619 tests.
+- Remaining EVM route/store audit is still open; this correction does not complete the route security review or the overall audit. Paired Phase 01 remains INCOMPLETE; Phase 02 remains LOCKED.
