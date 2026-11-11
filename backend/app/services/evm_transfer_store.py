@@ -450,15 +450,21 @@ async def index_erc20_transfer_history(
     chunk_size: int,
     max_total_blocks: int,
 ) -> dict[str, Any]:
-    if from_block < 0 or to_block < from_block:
-        raise ValueError("Invalid block range")
-    if chunk_size < 1 or chunk_size > 2000:
-        raise ValueError("chunk_size must be between 1 and 2000")
+    contract = _validate_index_scope(0, contract, from_block, to_block)
+    if isinstance(chunk_size, bool) or not isinstance(chunk_size, int) or not 1 <= chunk_size <= 2000:
+        raise ValueError("chunk_size must be an integer between 1 and 2000")
+    if (isinstance(max_total_blocks, bool) or not isinstance(max_total_blocks, int)
+            or max_total_blocks < 1):
+        raise ValueError("max_total_blocks must be a positive integer")
     total_blocks = to_block - from_block + 1
     if total_blocks > max_total_blocks:
         raise ValueError(f"Requested history exceeds maximum of {max_total_blocks} blocks")
     chain_id = await provider.chain_id()
+    if isinstance(chain_id, bool) or not isinstance(chain_id, int) or chain_id < 0:
+        raise ValueError("Provider returned an invalid chain_id")
     latest_block = await provider.block_number()
+    if isinstance(latest_block, bool) or not isinstance(latest_block, int) or latest_block < 0:
+        raise ValueError("Provider returned an invalid latest block number")
     if to_block > latest_block:
         raise ValueError(f"to_block {to_block} is ahead of latest block {latest_block}")
     next_block = from_block
