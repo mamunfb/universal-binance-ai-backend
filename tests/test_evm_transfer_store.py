@@ -12,11 +12,15 @@ def _topic(address):
     return "0x" + address[2:].rjust(64, "0")
 
 
+def _word(value):
+    return "0x" + format(value, "064x")
+
+
 def test_transfer_store_is_idempotent_and_tracks_coverage(tmp_path):
     store = EVMTransferStore(str(tmp_path / "history.sqlite3"))
     log = {
         "topics": ["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef", _topic(SENDER), _topic(RECIPIENT)],
-        "data": hex(12345), "transactionHash": "0x" + "b" * 64,
+        "data": _word(12345), "transactionHash": "0x" + "b" * 64,
         "blockNumber": "0x64", "logIndex": "0x0",
     }
     assert store.save_chunk(1, CONTRACT, 100, 110, [log]) == 1
@@ -41,7 +45,7 @@ def test_indexer_chunks_and_persists_all_ranges(tmp_path):
             assert end - start + 1 <= 2
             return [{
                 "topics": ["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef", _topic(SENDER), _topic(RECIPIENT)],
-                "data": hex(100), "transactionHash": "0x" + format(start, "064x"),
+                "data": _word(100), "transactionHash": "0x" + format(start, "064x"),
                 "blockNumber": hex(start), "logIndex": "0x0",
             }]
 
@@ -78,7 +82,7 @@ def test_malformed_log_does_not_create_coverage(tmp_path):
     try:
         store.save_chunk(1, CONTRACT, 200, 205, [malformed])
     except ValueError as exc:
-        assert "malformed Transfer log" in str(exc)
+        assert "malformed" in str(exc)
     else:
         raise AssertionError("Malformed log must not be accepted")
     assert store.coverage(1, CONTRACT) == []
@@ -89,10 +93,10 @@ def test_address_flow_summary_uses_exact_raw_integer_totals(tmp_path):
     huge = 2**80
     logs = [
         {"topics": ["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef", _topic(SENDER), _topic(RECIPIENT)],
-         "data": hex(huge), "transactionHash": "0x" + "d" * 64,
+         "data": _word(huge), "transactionHash": "0x" + "d" * 64,
          "blockNumber": "0x64", "logIndex": "0x0"},
         {"topics": ["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef", _topic(RECIPIENT), _topic(SENDER)],
-         "data": hex(100), "transactionHash": "0x" + "e" * 64,
+         "data": _word(100), "transactionHash": "0x" + "e" * 64,
          "blockNumber": "0x65", "logIndex": "0x0"},
     ]
     store.save_chunk(1, CONTRACT, 100, 101, logs)
@@ -122,7 +126,7 @@ def test_smart_money_activity_only_includes_verified_registry_addresses(tmp_path
     registry = load_wallet_registry(registry_json, 1)
     log = {
         "topics": ["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef", _topic(SENDER), _topic(RECIPIENT)],
-        "data": hex(10**18), "transactionHash": "0x" + "f" * 64,
+        "data": _word(10**18), "transactionHash": "0x" + "f" * 64,
         "blockNumber": "0x64", "logIndex": "0x0",
     }
     store.save_chunk(1, CONTRACT, 100, 100, [log])
@@ -142,10 +146,10 @@ def test_smart_money_accumulation_trend_groups_net_flows_by_block_window(tmp_pat
     registry = load_wallet_registry(registry_json, 1)
     logs = [
         {"topics": ["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef", _topic(RECIPIENT), _topic(SENDER)],
-         "data": hex(5 * 10**18), "transactionHash": "0x" + "a" * 64,
+         "data": _word(5 * 10**18), "transactionHash": "0x" + "a" * 64,
          "blockNumber": "0x64", "logIndex": "0x0"},
         {"topics": ["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef", _topic(SENDER), _topic(RECIPIENT)],
-         "data": hex(2 * 10**18), "transactionHash": "0x" + "b" * 64,
+         "data": _word(2 * 10**18), "transactionHash": "0x" + "b" * 64,
          "blockNumber": "0x6e", "logIndex": "0x0"},
     ]
     store.save_chunk(1, CONTRACT, 100, 110, logs)
@@ -182,7 +186,7 @@ def test_smart_money_trend_cancels_transfers_between_cohort_wallets(tmp_path):
     registry = load_wallet_registry(registry_json, 1)
     log = {
         "topics": ["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef", _topic(SENDER), _topic(second)],
-        "data": hex(7 * 10**18), "transactionHash": "0x" + "c" * 64,
+        "data": _word(7 * 10**18), "transactionHash": "0x" + "c" * 64,
         "blockNumber": "0x64", "logIndex": "0x0",
     }
     store.save_chunk(1, CONTRACT, 100, 100, [log])
