@@ -212,3 +212,46 @@ def test_indexer_does_not_return_provider_exception_details(tmp_path):
     assert result["error"] == "UPSTREAM_UNAVAILABLE"
     assert result["error_type"] == "RuntimeError"
     assert "secret-value" not in str(result)
+
+
+@pytest.mark.parametrize("bad_log", [
+    {
+        "topics": ["0x" + "0" * 64, _topic(SENDER), _topic(RECIPIENT)],
+        "data": "0x01", "transactionHash": "0x" + "a" * 64,
+        "blockNumber": "0x64", "logIndex": "0x0",
+    },
+    {
+        "topics": ["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                   _topic(SENDER), _topic(RECIPIENT)],
+        "data": "0x" + "00" * 32, "transactionHash": "0x" + "a" * 64,
+        "blockNumber": "0x64", "logIndex": "0x0", "address": "0x" + "b" * 40,
+    },
+    {
+        "topics": ["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                   _topic(SENDER), _topic(RECIPIENT)],
+        "data": "0x" + "00" * 32, "transactionHash": "0x" + "a" * 64,
+        "blockNumber": "0x64", "logIndex": "0x0", "removed": "false",
+    },
+])
+def test_save_chunk_rejects_non_transfer_or_mismatched_logs_without_coverage(tmp_path, bad_log):
+    store = EVMTransferStore(str(tmp_path / "history.sqlite3"))
+    with pytest.raises(ValueError):
+        store.save_chunk(1, CONTRACT, 100, 110, [bad_log])
+    assert store.coverage(1, CONTRACT) == []
+    assert store.history(1, CONTRACT, 100, 110) == []
+
+
+@pytest.mark.parametrize("chain_id, contract, start, end", [
+    (True, CONTRACT, 100, 110),
+    (-1, CONTRACT, 100, 110),
+    (1, "0x1234", 100, 110),
+    (1, CONTRACT, True, 110),
+    (1, CONTRACT, 111, 110),
+])
+def test_save_chunk_rejects_invalid_index_scope_before_writing(
+    tmp_path, chain_id, contract, start, end
+):
+    store = EVMTransferStore(str(tmp_path / "history.sqlite3"))
+    with pytest.raises(ValueError):
+        store.save_chunk(chain_id, contract, start, end, [])
+    assert store.coverage(1, CONTRACT) == []
