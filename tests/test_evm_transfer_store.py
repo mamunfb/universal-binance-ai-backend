@@ -189,3 +189,26 @@ def test_smart_money_trend_cancels_transfers_between_cohort_wallets(tmp_path):
     result = store.smart_money_accumulation_trend(1, CONTRACT, 100, 100, 18, registry, 10)
     assert result["windows"] == []
     assert result["window_count_with_activity"] == 0
+
+
+
+def test_indexer_does_not_return_provider_exception_details(tmp_path):
+    store = EVMTransferStore(str(tmp_path / "history.sqlite3"))
+
+    class BrokenProvider:
+        async def chain_id(self):
+            return 1
+
+        async def block_number(self):
+            return 999
+
+        async def token_transfer_logs(self, *args, **kwargs):
+            raise RuntimeError("https://rpc.example/rpc?token=secret-value")
+
+    result = asyncio.run(index_erc20_transfer_history(
+        BrokenProvider(), store, CONTRACT, 10, 10, 1, 10
+    ))
+    assert result["status"] == "FAILED"
+    assert result["error"] == "UPSTREAM_UNAVAILABLE"
+    assert result["error_type"] == "RuntimeError"
+    assert "secret-value" not in str(result)
