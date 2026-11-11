@@ -282,3 +282,35 @@ def test_indexer_rejects_invalid_integer_controls_before_provider_calls(
             FakeProvider(), store, CONTRACT, from_block, to_block,
             chunk_size, max_total_blocks,
         ))
+
+
+def test_save_chunk_rejects_duplicate_log_identity_atomically(tmp_path):
+    store = EVMTransferStore(str(tmp_path / "history.sqlite3"))
+    log = {
+        "topics": ["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                   _topic(SENDER), _topic(RECIPIENT)],
+        "data": _word(123), "transactionHash": "0x" + "a" * 64,
+        "blockNumber": "0x64", "logIndex": "0x0",
+    }
+    conflicting = {**log, "data": _word(456)}
+    with pytest.raises(ValueError, match="duplicate"):
+        store.save_chunk(1, CONTRACT, 100, 110, [log, conflicting])
+    assert store.history(1, CONTRACT, 100, 110) == []
+    assert store.coverage(1, CONTRACT) == []
+
+
+def test_removed_log_is_excluded_and_replayed_canonical_log_is_restored(tmp_path):
+    store = EVMTransferStore(str(tmp_path / "history.sqlite3"))
+    log = {
+        "topics": ["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                   _topic(SENDER), _topic(RECIPIENT)],
+        "data": _word(123), "transactionHash": "0x" + "a" * 64,
+        "blockNumber": "0x64", "logIndex": "0x0",
+    }
+    store.save_chunk(1, CONTRACT, 100, 100, [{**log, "removed": True}])
+    assert store.history(1, CONTRACT, 100, 100) == []
+    store.save_chunk(1, CONTRACT, 100, 100, [log])
+    rows = store.history(1, CONTRACT, 100, 100)
+    assert len(rows) == 1
+    assert rows[0]["amount_raw"] == "123"
+    assert rows[0]["removed"] == 0
