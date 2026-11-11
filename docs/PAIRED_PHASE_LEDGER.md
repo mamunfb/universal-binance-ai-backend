@@ -188,3 +188,11 @@ Resume by completing the pre-coding audit gate, review current CI and static-ana
 - CI run `42958954122` was IN_PROGRESS at documentation time; no test pass is claimed pending completed job-log review.
 - Pre-Coding Full Audit remains INCOMPLETE: full line-by-line review of all 54 provider/service modules and MCP snapshot persistence architecture decision remain open.
 - SPOT Phase 01: IN_PROGRESS; FUTURES Phase 01: IN_PROGRESS; Combined Phase 01: INCOMPLETE; Phase 02: LOCKED.
+
+
+### MCP integer-boundary CI verification — 2026-11-11
+
+- Code/test commit `ae93896350a0cd4128a7a919bf32cace61582522`; GitHub Actions run `42958954122`: **SUCCESS**.
+- Targeted Ruff passed; dashboard JavaScript syntax passed; pytest **565 passed, 2 warnings**. Five Boolean-as-integer boundary regression cases passed.
+- Exact count belongs to the code/test commit above; subsequent docs-only HEAD is a separate commit.
+- Pre-Coding Full Audit remains INCOMPLETE; SPOT/FUTURES Phase 01 remain IN_PROGRESS; Combined Phase 01 INCOMPLETE; Phase 02 LOCKED.

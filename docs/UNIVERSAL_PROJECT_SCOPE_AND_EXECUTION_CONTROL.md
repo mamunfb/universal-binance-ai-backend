@@ -269,3 +269,9 @@ For each market-specific phase record:
 - Code commit: `ae93896350a0cd4128a7a919bf32cace61582522`. GitHub Actions run `42958954122` was still IN_PROGRESS at this checkpoint; do not claim the new tests or lint passed until final run logs are reviewed.
 - This is input-boundary hardening, not a Spot/Futures Phase 01 feature acceptance. SPOT Phase 01 and FUTURES Phase 01 remain IN_PROGRESS; combined Phase 01 INCOMPLETE; Phase 02 LOCKED.
 - Full audit remains open: complete line-by-line review of all 54 provider/service modules and MCP snapshot persistence architecture decision are outstanding. Local working-tree state is not observable through the remote GitHub connector.
+
+
+## 18. MCP integer-boundary CI verification — 2026-11-11
+- Code commit `ae93896350a0cd4128a7a919bf32cace61582522`; GitHub Actions run `42958954122`: **SUCCESS**.
+- Actual job log confirms targeted Ruff passed, dashboard JavaScript syntax passed, pytest **565 passed, 2 warnings**. The five new parameterized Boolean-as-integer cases passed.
+- Current docs checkpoint commit follows the verified code/test commit; exact 565 count is attributed to `ae93896350a0cd4128a7a919bf32cace61582522`.

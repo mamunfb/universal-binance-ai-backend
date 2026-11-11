@@ -517,3 +517,12 @@ The Spot scanner, Futures Boolean filter, dashboard HTML rendering, market-data 
 - MCP snapshot persistence architecture decision remains OPEN. Current behavior is documented as a local research-data write, not exchange trading execution.
 - SPOT Phase 01: IN_PROGRESS; FUTURES Phase 01: IN_PROGRESS; Combined Phase 01: INCOMPLETE; Phase 02: LOCKED. No Spot/Futures scanner feature phase was advanced.
 - No exchange order placement, cancellation, modification, withdrawal or wallet signing was added.
+
+
+## Verified MCP integer-boundary regression — 2026-11-11
+
+- Code commit `ae93896350a0cd4128a7a919bf32cace61582522`; GitHub Actions run `42958954122`: **SUCCESS**.
+- Actual CI job log: targeted Ruff passed; dashboard JavaScript syntax passed; pytest **565 passed, 2 warnings**.
+- Five new parameterized cases passed: Boolean Spot kline limit, Boolean history timestamp, Boolean cross-chain decimals, Boolean aggregate-trade timestamp and Boolean research-snapshot timestamp. All assert rejection before the `_get` or `_post` call is made.
+- The exact 565-pass count belongs to code/test commit `ae93896350a0cd4128a7a919bf32cace61582522`, not automatically to the later docs-only checkpoint.
+- No phase acceptance status changed. Full audit remains INCOMPLETE because all 54 provider/service modules have not been completed line-by-line and the MCP local snapshot-persistence architecture decision remains open.
