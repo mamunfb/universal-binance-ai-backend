@@ -820,6 +820,15 @@ The Spot scanner, Futures Boolean filter, dashboard HTML rendering, market-data 
 - When a chain has legacy indexed coverage but no canonical hash checkpoints, the first checkpointed index invalidates those unhashed rows/ranges rather than presenting unverifiable legacy history as canonical.
 - Regression tests cover block-header RPC validation, changed chunk-end hashes, fork detection while reindexing partial subranges using bracketing checkpoints, conservative coverage-gap reporting, and legacy unhashed-coverage migration.
 - Implementation commits include 531abb913d0aab0e92d072933e5613779c285647, cdc011b6db9463dbe95276500ff32e67b11428dd, 619a469113124cbb5b5b438453e83a437790ed86, 7371160cbff12ac0ac8bf4b7b106dadcfd8708c6, cad44725559d2105e7906ffd89ca43a7085ff323, aa4b8e39a7431e85b1ad2fab356438cefd8bf345, and e8664a857f32a8ea18aa3f6abbdf5513724b4641.
-- Latest canonical checkpoint regression workflow is pending; no green status is claimed until the full job finishes.
-- This is reorg detection on subsequent indexing/reindexing, not a background watcher. A chain that is never re-indexed after a reorg is not automatically reconciled. SQLite concurrent-writer stress and complete route audit remain open.
+- Canonical checkpoint workflow `42971636616` completed SUCCESS: Ruff and dashboard JavaScript syntax passed; pytest **671 passed, 2 warnings**.
+- This is reorg detection on subsequent indexing/reindexing, not a background watcher. A chain that is never re-indexed after a reorg is not automatically reconciled. SQLite concurrent-writer stress has now received focused regression coverage; complete route audit remains open.
 - SPOT Phase 01: IN_PROGRESS; FUTURES Phase 01: IN_PROGRESS; Combined Phase 01: INCOMPLETE; Phase 02: LOCKED. No order execution or wallet-signing capability was added.
+
+
+## SQLite concurrent-writer and atomicity checkpoint — 2026-11-11
+
+- Added a multi-connection, same-chain / cross-contract concurrent-write regression using eight independent store instances against one SQLite file. It verifies all eight histories and coverage ranges survive, while the shared chain-height checkpoint remains unique.
+- Added an injected checkpoint-insert failure test. It verifies that transfer rows and coverage inserted earlier in the same save operation are rolled back and no checkpoint is left behind.
+- GitHub Actions run `42973159109` completed SUCCESS on commit `e08ae423149f4f49341a5b1c86d15911110fc653`: Ruff passed, dashboard JavaScript syntax passed, and pytest reported **673 passed, 2 warnings**.
+- This verifies the tested concurrent writer and rollback cases; it is not a comprehensive long-duration load test or multi-process production database qualification. The store still relies on SQLite's default connection timeout and does not configure WAL mode explicitly.
+- Complete route-level EVM API audit, chain-specific RPC result audit, and live-provider/deployment verification remain open. Paired Phase 01 statuses remain unchanged.
