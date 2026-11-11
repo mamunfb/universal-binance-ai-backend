@@ -177,3 +177,21 @@ async def test_reader_cancellation_signals_shutdown_when_queue_is_full(tmp_path)
     await asyncio.gather(reader, return_exceptions=True)
 
     assert queue.get_nowait() is None
+
+
+@pytest.mark.parametrize("update_id", [100.5, True, "100"])
+def test_depth_snapshot_rejects_non_integer_update_id(tmp_path, update_id):
+    collector = OrderBookStreamCollector(
+        OrderBookHistoryStore(str(tmp_path / "snapshot-id.sqlite3")),
+        lambda: None, lambda _market: None,
+    )
+    with pytest.raises(RuntimeError, match="DEPTH_INVALID_SNAPSHOT_UPDATE_ID"):
+        collector._snapshot_update_id({"lastUpdateId": update_id})
+
+
+def test_depth_snapshot_accepts_integer_update_id(tmp_path):
+    collector = OrderBookStreamCollector(
+        OrderBookHistoryStore(str(tmp_path / "snapshot-valid.sqlite3")),
+        lambda: None, lambda _market: None,
+    )
+    assert collector._snapshot_update_id({"lastUpdateId": 100}) == 100
