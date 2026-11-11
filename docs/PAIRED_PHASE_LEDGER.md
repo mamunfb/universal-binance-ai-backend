@@ -228,3 +228,9 @@ Resume by completing the pre-coding audit gate, review current CI and static-ana
 - Funding/OI/kline/liquidation numeric validation commit `4c9b1604f170ea1c5d5eaa097136f93851518117`: CI run `42959727771` **SUCCESS**, Ruff and dashboard JS passed, pytest **586 passed, 2 warnings**.
 - Derivatives ratio and signal-snapshot timestamp validation commit `2b0b8d33cbcf5b1a9a13be97808aa76e21b4b63d`: CI pending.
 - Paired phase statuses remain SPOT Phase 01 IN_PROGRESS; FUTURES Phase 01 IN_PROGRESS; Combined Phase 01 INCOMPLETE; Phase 02 LOCKED.
+
+
+### Verified derivatives timestamp validation — 2026-11-11
+
+- Code/test commit `2b0b8d33cbcf5b1a9a13be97808aa76e21b4b63d`; CI run `42959858424` **SUCCESS**, Ruff and dashboard JS passed, pytest **591 passed, 2 warnings**.
+- This is a data-integrity correction only. SPOT Phase 01 IN_PROGRESS; FUTURES Phase 01 IN_PROGRESS; Combined Phase 01 INCOMPLETE; Phase 02 LOCKED.

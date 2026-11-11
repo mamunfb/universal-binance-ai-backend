@@ -596,3 +596,12 @@ The Spot scanner, Futures Boolean filter, dashboard HTML rendering, market-data 
 
 ### Gate status
 - Pre-Coding Full Audit remains INCOMPLETE. SPOT Phase 01 IN_PROGRESS; FUTURES Phase 01 IN_PROGRESS; Combined Phase 01 INCOMPLETE; Phase 02 LOCKED.
+
+
+## Verified derivatives timestamp boundary correction — 2026-11-11
+
+- Code/test commit `2b0b8d33cbcf5b1a9a13be97808aa76e21b4b63d`; GitHub Actions run `42959858424`: **SUCCESS**.
+- Actual job log confirms targeted Ruff passed, dashboard JavaScript syntax passed, pytest **591 passed, 2 warnings**.
+- The regression cases reject Boolean/fractional ratio timestamps and Boolean/fractional/negative snapshot end timestamps; history limit and optional timestamp bounds also reject Boolean/non-integer inputs.
+- The 591-pass count belongs to the code/test commit only. Current docs HEAD `6a384ce460d5f524136fc43df389d2c360356fba` has a separate CI run; inspect it independently.
+- Full audit remains INCOMPLETE. This correction does not advance paired Phase 01 acceptance or unlock Phase 02.

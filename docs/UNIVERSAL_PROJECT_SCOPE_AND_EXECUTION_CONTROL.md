@@ -307,3 +307,10 @@ For each market-specific phase record:
 - Continued review found the derivatives ratio store accepted Boolean/fractional timestamps via `int()`, while derivatives signal snapshots accepted Boolean end timestamps because `bool` is an `int` subclass. These boundaries now require non-Boolean integer timestamps; snapshot history also validates integer limit/time bounds.
 - Code/test commit: `2b0b8d33cbcf5b1a9a13be97808aa76e21b4b63d`. CI verification pending.
 - Paired Phase 01 statuses remain unchanged; Phase 02 remains locked.
+
+
+## 23. Derivatives timestamp hardening — verified CI checkpoint (2026-11-11)
+- Code/test commit `2b0b8d33cbcf5b1a9a13be97808aa76e21b4b63d`; GitHub Actions run `42959858424`: **SUCCESS**. Actual job log confirms Ruff passed, dashboard JavaScript syntax passed, pytest **591 passed, 2 warnings**.
+- This verifies rejection of Boolean/fractional derivatives-ratio timestamps and Boolean/fractional/negative derivatives-snapshot end timestamps, plus history-bound validation.
+- The current documentation HEAD before this checkpoint is `6a384ce460d5f524136fc43df389d2c360356fba`; its own CI run must be checked separately. Do not transfer the 591-pass count to documentation-only commits.
+- The pre-coding audit and paired Phase 01 gates remain open; Phase 02 remains locked.
