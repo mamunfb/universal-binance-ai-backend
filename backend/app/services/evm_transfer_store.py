@@ -72,6 +72,7 @@ class EVMTransferStore:
             raise ValueError("logs must be a list")
         now = datetime.now(timezone.utc).isoformat()
         rows = []
+        seen_log_ids: set[tuple[str, int]] = set()
         for log in logs:
             if not isinstance(log, dict):
                 raise ValueError("RPC returned a non-object log; refusing to mark this block range complete")
@@ -113,6 +114,10 @@ class EVMTransferStore:
                 raise ValueError("RPC returned an invalid Transfer log; refusing to mark this block range complete") from exc
             if not (start <= block_number <= end) or raw_value < 0:
                 raise ValueError("RPC Transfer log falls outside the requested range or has a negative amount")
+            log_identity = (tx_hash.lower(), log_index)
+            if log_identity in seen_log_ids:
+                raise ValueError("RPC returned a duplicate transactionHash/logIndex within one block chunk")
+            seen_log_ids.add(log_identity)
             rows.append((chain_id, contract, tx_hash.lower(), log_index, block_number,
                          sender, recipient, str(raw_value), int(removed), now))
         with sqlite3.connect(self.database_path) as connection:
