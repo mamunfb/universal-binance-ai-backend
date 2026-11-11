@@ -220,7 +220,10 @@ async def request_tracking_middleware(request: Request, call_next):
             if scheme.lower() == "bearer" and supplied_key:
                 if isinstance(client_keys, dict):
                     for client_name, client_key in client_keys.items():
-                        if hmac.compare_digest(
+                        # A strong owner key may keep production available when a
+                        # client key is missing, but must never make a weak client
+                        # key valid for authentication.
+                        if len(client_key) >= 32 and hmac.compare_digest(
                             supplied_key.encode("utf-8"), client_key.encode("utf-8")
                         ):
                             matched_client = client_name
