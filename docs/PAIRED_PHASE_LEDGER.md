@@ -68,8 +68,9 @@ A paired Phase N is complete only when both SPOT Phase N and FUTURES Phase N are
 - Pre-Coding Full Audit: INCOMPLETE.
 - No new Phase 01 feature coding is authorized until the remaining audit coverage and latest CI/static-check results are reviewed.
 - Confirmed fixes and their regression evidence are maintained in `docs/MASTER_PROMPT_IMPLEMENTATION_AUDIT.md`.
-- Latest successful CI evidence before the most recent combined security fixes: 527 passed, 2 warnings at commit `f35e8a777c46cbc6e0bc6e840e4b81597a17318b`.
-- Latest combined security-fix tests and core Ruff check: PASSED at commit `dcfb8faf5372c0a9f75088d9e7f79afb9b2c42c7`; 528 tests passed, 2 warnings.
+- Latest verified test checkpoint before the liquidation collector correction: `d560bd5bb803c25cec15b6d2d5756a1086bb8d28`; GitHub Actions run `42928650029` SUCCESS, 530 passed, 2 warnings.
+- Liquidation event normalization now rejects malformed/non-finite quantity and price values and negative timestamps; regression tests are included in the 530-pass checkpoint.
+- Ruff core rules and dashboard JavaScript syntax passed on that checkpoint. The Ruff CI target list has since been expanded to include the changed liquidation collector and its test; the expanded workflow is awaiting its own CI verification.
 - Local working-tree status: UNVERIFIED through the remote GitHub interface.
 - PR #1: OPEN / DRAFT; do not merge without explicit user approval.
 - Main branch: unchanged.
