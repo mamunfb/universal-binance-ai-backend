@@ -561,3 +561,22 @@ The Spot scanner, Futures Boolean filter, dashboard HTML rendering, market-data 
 - This pass reviewed six additional service modules: advanced derivatives analysis, aggregate-trade stream, catalyst analysis, combined derivatives intelligence, cross-chain smart money and cross-chain token intelligence; and reviewed derivatives collector, ratio store, EVM transfer store and historical collector source sections. These inspections do not complete a line-by-line audit of the remaining service inventory.
 - A further candidate review item is present in the derivatives ratio store timestamp parser: it calls `int(row["timestamp"])` without an explicit Boolean/fractional guard. This is not yet changed; confirm provider response contract and add regression tests before correction.
 - Pre-Coding Full Audit remains INCOMPLETE. SPOT/FUTURES Phase 01 remain IN_PROGRESS; Combined Phase 01 INCOMPLETE; Phase 02 LOCKED. No order execution capability added.
+
+
+## Aggregate-trade and market-history numeric boundary audit — 2026-11-11
+
+### Aggregate-trade correction verified
+- Commit `e7c907e061828c92ec2536d1011cae252b74ff74`; GitHub Actions run `42959561162`: **SUCCESS**. Targeted Ruff passed, dashboard JavaScript syntax passed, pytest **568 passed, 2 warnings**.
+- The normalizer now rejects non-object payloads, Boolean/fractional IDs and timestamps, negative IDs/timestamps, and Boolean price/quantity fields. The 568-pass count belongs to this commit.
+
+### Additional confirmed ingestion-boundary defects corrected (CI pending)
+- `FundingRateStore`: `int(fundingTime)` accepted Boolean/fractional values; float conversion accepted Boolean funding-rate/mark-price values.
+- `OpenInterestStore`: `int(timestamp)` accepted Boolean/fractional values; float conversion accepted Boolean OI/supply metrics.
+- `HistoricalKlineStore`: timestamp/trade-count `int()` coercion accepted Boolean/fractional values; OHLCV float conversion accepted Boolean values.
+- `normalize_force_order`: numeric conversion accepted Boolean price/quantity fields and timestamp `int()` accepted Boolean/fractional values; non-object payloads were not rejected before dictionary access.
+- The above are now rejected before persistence/normalization. Regression tests cover Boolean and fractional integer fields plus Boolean float-like fields across these boundaries.
+- Code/test commit: `4c9b1604f170ea1c5d5eaa097136f93851518117`. CI is pending; no pass is claimed yet.
+
+### Remaining audit observations
+- `DerivativesRatioStore._normalize` and `DerivativesSignalStore.save` also contain timestamp `int()` / integer-instance checks that warrant a focused follow-up for Boolean/fractional input rejection. These paths were not modified in this checkpoint.
+- Full provider/service and route audit remains INCOMPLETE. Paired Spot/Futures Phase 01 remains IN_PROGRESS / IN_PROGRESS; combined Phase 01 INCOMPLETE; Phase 02 LOCKED.

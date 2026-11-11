@@ -214,3 +214,10 @@ Resume by completing the pre-coding audit gate, review current CI and static-ana
 - Aggregate-trade normalizer hardening: commit `e7c907e061828c92ec2536d1011cae252b74ff74`; CI pending. The normalizer rejects malformed non-object payloads, Boolean/fractional integer IDs/timestamps, negative IDs/timestamps, and Boolean price/quantity fields.
 - Paired phase status unchanged: SPOT Phase 01 IN_PROGRESS; FUTURES Phase 01 IN_PROGRESS; Combined Phase 01 INCOMPLETE; Phase 02 LOCKED.
 - Full pre-coding audit remains INCOMPLETE.
+
+
+### Aggregate-trade and market-history validation checkpoint — 2026-11-11
+
+- Aggregate-trade normalization fix `e7c907e061828c92ec2536d1011cae252b74ff74`: CI run `42959561162` **SUCCESS**, Ruff passed, dashboard JS passed, pytest **568 passed, 2 warnings**.
+- Funding-rate, open-interest, historical-kline and liquidation ingestion validation hardening committed as `4c9b1604f170ea1c5d5eaa097136f93851518117`; CI pending.
+- No phase acceptance criteria are marked complete by these data-integrity fixes. SPOT Phase 01 IN_PROGRESS; FUTURES Phase 01 IN_PROGRESS; Combined Phase 01 INCOMPLETE; Phase 02 LOCKED.

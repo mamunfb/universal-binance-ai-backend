@@ -292,3 +292,11 @@ For each market-specific phase record:
 - Added regression coverage for malformed trade IDs/timestamps, Boolean price/quantity, negative timestamps and non-object payloads.
 - Aggregate-trade code/test commit: `e7c907e061828c92ec2536d1011cae252b74ff74`. Its CI verification is pending; no pass is claimed yet.
 - These are data-integrity fixes only. The pre-coding audit and paired Phase 01 acceptance remain open; Phase 02 remains locked.
+
+
+## 21. Stream and market-history numeric validation — 2026-11-11
+- Aggregate-trade normalizer correction `e7c907e061828c92ec2536d1011cae252b74ff74` passed GitHub Actions run `42959561162`: targeted Ruff passed, dashboard JavaScript syntax passed, pytest **568 passed, 2 warnings**. This exact count belongs to that commit.
+- Further audit found Boolean numeric coercion and permissive `int()` truncation at funding-rate, open-interest and historical-kline persistence boundaries, plus Boolean numeric/timestamp acceptance in liquidation normalization.
+- Funding and OI stores now require integer (non-Boolean) timestamps and reject Boolean float-like metric fields. Historical klines require integer (non-Boolean) open/close timestamps and trade counts and reject Boolean OHLCV fields. Liquidation normalization rejects non-object payloads, Boolean numeric values and non-integer/Boolean timestamps.
+- Code/test commit: `4c9b1604f170ea1c5d5eaa097136f93851518117`. CI verification pending.
+- These corrections harden ingestion integrity only. They do not satisfy Phase 01 scanner coverage or change paired phase statuses.
