@@ -103,6 +103,11 @@ class EVMTransferStore:
                     raise ValueError("Block header checkpoint contains an invalid hash")
             seen_header_numbers.add(number)
             normalized_headers.append((chain_id, number, block_hash.lower(), parent_hash.lower(), now))
+        normalized_headers.sort(key=lambda item: item[1])
+        for previous_header, current_header in zip(normalized_headers, normalized_headers[1:]):
+            if (current_header[1] == previous_header[1] + 1
+                    and current_header[3] != previous_header[2]):
+                raise ValueError("Block header checkpoints have inconsistent parent linkage")
         rows = []
         seen_log_ids: set[tuple[str, int]] = set()
         for log in logs:
@@ -154,6 +159,7 @@ class EVMTransferStore:
                          sender, recipient, str(raw_value), int(removed), now))
         with sqlite3.connect(self.database_path) as connection:
             first_divergence = None
+            previous_unchanged_checkpoint = None
             for _, number, block_hash, parent_hash, _ in normalized_headers:
                 existing = connection.execute(
                     "SELECT block_hash FROM evm_block_headers WHERE chain_id=? AND block_number=?",
@@ -163,10 +169,21 @@ class EVMTransferStore:
                     "SELECT block_hash FROM evm_block_headers WHERE chain_id=? AND block_number=?",
                     (chain_id, number - 1),
                 ).fetchone() if number > 0 else None
-                if existing and existing[0] != block_hash:
-                    first_divergence = number if first_divergence is None else min(first_divergence, number)
-                elif previous and previous[0] != parent_hash:
-                    first_divergence = number if first_divergence is None else min(first_divergence, number)
+                mismatch = bool(existing and existing[0] != block_hash) or bool(
+                    previous and previous[0] != parent_hash
+                )
+                if mismatch:
+                    earliest_possible = (
+                        previous_unchanged_checkpoint + 1
+                        if previous_unchanged_checkpoint is not None
+                        else number
+                    )
+                    first_divergence = (
+                        earliest_possible if first_divergence is None
+                        else min(first_divergence, earliest_possible)
+                    )
+                elif existing and existing[0] == block_hash:
+                    previous_unchanged_checkpoint = number
             if first_divergence is not None:
                 connection.execute(
                     "DELETE FROM evm_transfer_logs WHERE chain_id=? AND block_number>=?",
