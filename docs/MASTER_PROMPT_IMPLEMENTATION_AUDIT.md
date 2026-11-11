@@ -761,3 +761,15 @@ The Spot scanner, Futures Boolean filter, dashboard HTML rendering, market-data 
 - Documentation checkpoint runs `42969353873`, `42969372772`, and `42969405615` also completed successfully.
 - This verifies the wallet-registry validation change and lint coverage, not the full EVM route/store audit. Canonical reorg reconciliation, full API route review, SQLite concurrency/atomicity under concurrent writers, and broader RPC protocol validation remain open.
 - SPOT Phase 01: IN_PROGRESS; FUTURES Phase 01: IN_PROGRESS; Combined Phase 01: INCOMPLETE; Phase 02: LOCKED. No execution or wallet-signing capability was added.
+
+
+
+## EVM transfer-index API request schema checkpoint — 2026-11-11
+
+- The read-only indexing endpoint accepted a generic JSON object and silently ignored unrecognized keys. This could hide client-side field-name mistakes while returning a successful indexing result.
+- `POST /api/v1/onchain/evm/token/{contract}/index` now rejects unknown body fields and non-object payloads before starting provider work. Required fields, Boolean-vs-integer checks, block-range checks, and chunk-size limits remain enforced.
+- Added API-level regression tests for unknown/misspelled fields, Boolean block values, and missing required fields; each confirms HTTP 422 and no RPC attempt.
+- Implementation commit: `0de572963738cb5a32d9ae2386425ff0039f6710`; test commit: `4934ec8aa150f6233b2ea0f120cf1180ba091ecf`; Ruff workflow scope commit: `2fb64e016d6c8012c16120c507d6de5ff4b9159b`.
+- CI verification is pending for the latest combined state; do not mark this checkpoint green until the workflow job log confirms Ruff, dashboard syntax, and pytest.
+- This remains a focused route input-schema correction. It does not complete EVM JSON-RPC response validation, canonical reorg reconciliation, SQLite concurrency review, or the complete route audit.
+- SPOT Phase 01: IN_PROGRESS; FUTURES Phase 01: IN_PROGRESS; Combined Phase 01: INCOMPLETE; Phase 02: LOCKED. No order execution or wallet-signing capability was added.
