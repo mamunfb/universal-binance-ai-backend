@@ -187,10 +187,15 @@ class OrderBookStreamCollector:
             async for raw in socket:
                 await queue.put(json.loads(raw))
         finally:
-            try:
-                queue.put_nowait(None)
-            except asyncio.QueueFull:
-                pass
+            # Always make stream termination observable. If the bounded queue is
+            # full, discard one buffered delta and force the consumer to reconnect;
+            # processing a potentially incomplete book would be unsafe.
+            if queue.full():
+                try:
+                    queue.get_nowait()
+                except asyncio.QueueEmpty:
+                    pass
+            queue.put_nowait(None)
 
     async def _run_job(self, job: dict[str, str]) -> None:
         market, symbol = job["market"], job["symbol"]
