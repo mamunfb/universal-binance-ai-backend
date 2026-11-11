@@ -178,3 +178,13 @@ Resume by completing the pre-coding audit gate, review current CI and static-ana
 - Ruff targeted checks passed; dashboard JavaScript syntax passed; pytest **560 passed, 2 warnings**.
 - The 560-pass count belongs to the code/test commit above. The later documentation-only HEAD `6d3db66cb0a00f9f0f1f83776d18536b335cc857` has not been assigned that test count.
 - No live Binance 429/418 test. Pre-Coding Full Audit remains **INCOMPLETE**; SPOT Phase 01 and FUTURES Phase 01 remain **IN_PROGRESS**; combined Phase 01 **INCOMPLETE**; Phase 02 **LOCKED**.
+
+
+### MCP Boolean-as-integer boundary correction — 2026-11-11
+
+- Commit `ae93896350a0cd4128a7a919bf32cace61582522`: added a type-hint-driven guard to all 38 MCP tools, rejecting Boolean values for integer and optional-integer parameters before tool logic/API calls.
+- Added parameterized regression cases for Spot kline limit, history timestamp, cross-chain decimals, aggregate-trade timestamp and research snapshot timestamp. Tests assert no API call is made.
+- API route inventory: 80 route decorators. MCP exposes one local research snapshot POST; no Binance trading/order endpoint was identified in the reviewed MCP/API surface. This does not mean MCP is strictly read-only for local storage.
+- CI run `42958954122` was IN_PROGRESS at documentation time; no test pass is claimed pending completed job-log review.
+- Pre-Coding Full Audit remains INCOMPLETE: full line-by-line review of all 54 provider/service modules and MCP snapshot persistence architecture decision remain open.
+- SPOT Phase 01: IN_PROGRESS; FUTURES Phase 01: IN_PROGRESS; Combined Phase 01: INCOMPLETE; Phase 02: LOCKED.

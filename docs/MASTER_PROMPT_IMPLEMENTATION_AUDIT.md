@@ -496,3 +496,24 @@ The Spot scanner, Futures Boolean filter, dashboard HTML rendering, market-data 
 - No live Binance rate-limit/IP-ban test was performed; external runtime behaviour remains unverified.
 - Pre-Coding Full Audit remains **INCOMPLETE**: exhaustive line-by-line review of all 80 route decorators and 54 provider/service files has not been completed, and the MCP snapshot-save architecture decision remains open. Do not start new Phase 01 feature implementation until the audit gate is resolved.
 - SPOT Phase 01: IN_PROGRESS; FUTURES Phase 01: IN_PROGRESS; Combined Phase 01: INCOMPLETE; Phase 02: LOCKED. No trading execution capability added.
+
+
+## MCP input-boundary audit and correction — 2026-11-11
+
+### Confirmed issue
+- Reviewed all 80 FastAPI route decorators in `backend/app/main.py` as a route inventory and inspected authentication/error middleware, preflight, Spot/Futures scan endpoints, combined market scan, research snapshot persistence and representative data/history/analysis routes. This review does not certify every route's full implementation or all 54 provider/service modules.
+- MCP adapter `mcp-server/server.py` exposes 38 tools. It has a fixed-path authenticated `_get` and one fixed-path authenticated `_post` used only by `save_market_confluence_snapshot`; the POST persists a descriptive local research snapshot and is not a Binance order endpoint. MCP is therefore read-only with respect to exchange trading, but not strictly read-only with respect to local research storage.
+- Confirmed input-validation defect: Python Boolean values satisfy integer range checks because `bool` subclasses `int`. MCP tool arguments are untrusted, and range-only checks could accept values such as `True` for integer timestamps, limits or block/decimal parameters.
+
+### Fix
+- Commit `ae93896350a0cd4128a7a919bf32cace61582522`: added `_reject_boolean_integer_arguments`, using each tool's resolved type hints and signature to reject booleans for `int` and `int | None` parameters before tool logic.
+- Applied the guard to all 38 MCP tool registrations, including tools without current integer parameters so future typed integer additions inherit the boundary guard.
+- Added parameterized tests for Boolean Spot kline limit, historical timestamp, cross-chain decimals, aggregate-trade timestamp and local snapshot timestamp. Each test verifies rejection before any `_get` or `_post` call.
+
+### Verification and remaining audit gate
+- GitHub Actions run `42958954122` targets this code commit and was IN_PROGRESS at documentation time. No pass is claimed pending completion and review of actual logs.
+- API route inventory: 80 route decorators. Full route-level behavioral/security acceptance remains subject to individual endpoint tests; inventory is not a substitute for test coverage.
+- Provider/service inventory: 54 source modules. Complete line-by-line review remains INCOMPLETE. Dedicated type/security scans and live Binance/deployment checks remain unverified.
+- MCP snapshot persistence architecture decision remains OPEN. Current behavior is documented as a local research-data write, not exchange trading execution.
+- SPOT Phase 01: IN_PROGRESS; FUTURES Phase 01: IN_PROGRESS; Combined Phase 01: INCOMPLETE; Phase 02: LOCKED. No Spot/Futures scanner feature phase was advanced.
+- No exchange order placement, cancellation, modification, withdrawal or wallet signing was added.

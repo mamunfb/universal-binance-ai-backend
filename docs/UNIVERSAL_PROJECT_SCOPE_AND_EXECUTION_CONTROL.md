@@ -260,3 +260,12 @@ For each market-specific phase record:
 - This test count belongs to code commit `4ecf7805578df40b6d80628144e100b454ace044`. The current documentation HEAD `6d3db66cb0a00f9f0f1f83776d18536b335cc857` was committed after that run; do not attribute the exact 560 count to the docs-only HEAD without a separate run.
 - Retry helper and both provider integrations are CI-verified. No live Binance 429/418 test has been performed.
 - Phase 01 scanner requirements remain open; paired Phase 01 remains IN_PROGRESS / IN_PROGRESS / INCOMPLETE; Phase 02 LOCKED.
+
+
+## 17. MCP integer-boundary hardening — 2026-11-11
+- Current-session API inventory confirmed 80 FastAPI route decorators in `backend/app/main.py`; route surface is read-only with respect to Binance trading/order endpoints. The separate MCP adapter exposes 38 tools and includes one local research-snapshot persistence POST; it does not place, cancel, modify or sign exchange orders.
+- Confirmed Python boundary hazard: `bool` is a subclass of `int`; several MCP integer parameters relied on range comparisons that accept `True` as integer 1. Added a reusable decorator that discovers declared integer/optional-integer annotations and rejects Boolean values before tool logic or API calls. Applied to all 38 registered MCP tools so new integer-annotated tools inherit the guard.
+- Added parameterized regression tests covering Boolean values for a Spot kline limit, historical range timestamp, cross-chain decimals, aggregate-trade timestamp and research snapshot timestamp; tests assert no GET/POST request is issued.
+- Code commit: `ae93896350a0cd4128a7a919bf32cace61582522`. GitHub Actions run `42958954122` was still IN_PROGRESS at this checkpoint; do not claim the new tests or lint passed until final run logs are reviewed.
+- This is input-boundary hardening, not a Spot/Futures Phase 01 feature acceptance. SPOT Phase 01 and FUTURES Phase 01 remain IN_PROGRESS; combined Phase 01 INCOMPLETE; Phase 02 LOCKED.
+- Full audit remains open: complete line-by-line review of all 54 provider/service modules and MCP snapshot persistence architecture decision are outstanding. Local working-tree state is not observable through the remote GitHub connector.
