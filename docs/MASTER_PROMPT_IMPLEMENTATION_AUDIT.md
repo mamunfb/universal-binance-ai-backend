@@ -483,3 +483,16 @@ The Spot scanner, Futures Boolean filter, dashboard HTML rendering, market-data 
 - Pre-Coding Full Audit remains INCOMPLETE because the complete line-by-line review of all 80 API routes and 54 provider/service modules and the MCP architecture decision remain outstanding. This change fixes one confirmed shared API-reliability gap; it does not close the audit gate.
 - SPOT Phase 01: IN_PROGRESS; FUTURES Phase 01: IN_PROGRESS; Combined Phase 01: INCOMPLETE; Phase 02: LOCKED.
 - No order execution or wallet action was introduced.
+
+
+## Verified provider retry/backoff regression checkpoint — 2026-11-11
+
+- Code/test commit: `4ecf7805578df40b6d80628144e100b454ace044`.
+- GitHub Actions run `42957685379`: **SUCCESS**; all job steps completed successfully.
+- Actual job log confirms Ruff core checks passed on the new retry helper, both Binance REST providers and their tests; dashboard JavaScript syntax passed; pytest **560 passed, 2 warnings**.
+- The two pytest warnings are Starlette/httpx TestClient and FastAPI parameter deprecations. Node also reports the punycode deprecation and GitHub action Node 20 deprecation notice.
+- Retry tests passed for numeric Retry-After on 429, immediate non-retry on 418, 503 backoff, transport-error retry, bounded exponential fallback without Retry-After, and HTTP-date Retry-After parsing.
+- Current branch documentation HEAD at the time of this entry: `6d3db66cb0a00f9f0f1f83776d18536b335cc857`, a docs-only commit after the verified code/test checkpoint. The exact 560-pass result is attributed to code/test commit `4ecf7805578df40b6d80628144e100b454ace044`, not the later docs-only HEAD.
+- No live Binance rate-limit/IP-ban test was performed; external runtime behaviour remains unverified.
+- Pre-Coding Full Audit remains **INCOMPLETE**: exhaustive line-by-line review of all 80 route decorators and 54 provider/service files has not been completed, and the MCP snapshot-save architecture decision remains open. Do not start new Phase 01 feature implementation until the audit gate is resolved.
+- SPOT Phase 01: IN_PROGRESS; FUTURES Phase 01: IN_PROGRESS; Combined Phase 01: INCOMPLETE; Phase 02: LOCKED. No trading execution capability added.

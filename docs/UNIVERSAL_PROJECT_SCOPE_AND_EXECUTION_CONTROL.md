@@ -252,3 +252,11 @@ For each market-specific phase record:
 - Commit: `4ecf7805578df40b6d80628144e100b454ace044`. GitHub Actions run `42957685379` was IN_PROGRESS when this checkpoint was written; do not treat tests as passed until its completed job log is reviewed.
 - This is a correction to the documented API-reliability audit gap, not Phase 01 scanner feature acceptance. Spot/Futures Phase 01 remain IN_PROGRESS; Phase 02 remains LOCKED.
 - No signed endpoints, order placement, cancellation, modification, withdrawal or wallet action was added.
+
+
+## 16. Provider retry correction — verified CI checkpoint (2026-11-11)
+- Code commit `4ecf7805578df40b6d80628144e100b454ace044`; GitHub Actions run `42957685379`: **SUCCESS**.
+- Actual job log: targeted Ruff checks passed, dashboard JavaScript syntax passed, pytest **560 passed, 2 warnings**.
+- This test count belongs to code commit `4ecf7805578df40b6d80628144e100b454ace044`. The current documentation HEAD `6d3db66cb0a00f9f0f1f83776d18536b335cc857` was committed after that run; do not attribute the exact 560 count to the docs-only HEAD without a separate run.
+- Retry helper and both provider integrations are CI-verified. No live Binance 429/418 test has been performed.
+- Phase 01 scanner requirements remain open; paired Phase 01 remains IN_PROGRESS / IN_PROGRESS / INCOMPLETE; Phase 02 LOCKED.

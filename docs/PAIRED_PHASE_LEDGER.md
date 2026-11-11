@@ -170,3 +170,11 @@ Resume by completing the pre-coding audit gate, review current CI and static-ana
 - CI run `42957685379` was **IN_PROGRESS** at documentation time. No pass is claimed pending final run/job-log verification.
 - No live Binance rate-limit test; per-symbol/per-contract retry failure evidence remains outstanding.
 - Pre-Coding Full Audit remains **INCOMPLETE**; SPOT/FUTURES Phase 01 remain **IN_PROGRESS**; Combined Phase 01 **INCOMPLETE**; Phase 02 **LOCKED**.
+
+
+### Verified provider retry/backoff CI — 2026-11-11
+
+- Code/test commit `4ecf7805578df40b6d80628144e100b454ace044`; GitHub Actions run `42957685379`: **SUCCESS**.
+- Ruff targeted checks passed; dashboard JavaScript syntax passed; pytest **560 passed, 2 warnings**.
+- The 560-pass count belongs to the code/test commit above. The later documentation-only HEAD `6d3db66cb0a00f9f0f1f83776d18536b335cc857` has not been assigned that test count.
+- No live Binance 429/418 test. Pre-Coding Full Audit remains **INCOMPLETE**; SPOT Phase 01 and FUTURES Phase 01 remain **IN_PROGRESS**; combined Phase 01 **INCOMPLETE**; Phase 02 **LOCKED**.
