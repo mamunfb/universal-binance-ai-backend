@@ -94,7 +94,7 @@ class EVMTransferStore:
             number = header.get("number")
             block_hash = header.get("hash")
             parent_hash = header.get("parent_hash")
-            if (isinstance(number, bool) or not isinstance(number, int) or not start <= number <= end
+            if (isinstance(number, bool) or not isinstance(number, int) or number < 0
                     or number in seen_header_numbers):
                 raise ValueError("Block header checkpoint number is invalid or duplicated")
             for value in (block_hash, parent_hash):
@@ -526,6 +526,30 @@ class EVMTransferStore:
             "warning": "Only operator-verified registry entries are included. Transfers between wallets in the same label cohort are included in gross sent/received but cancel in net flow. Transfers are not proof of exchange deposits, sales, purchases, ownership, or investment intent.",
         }
 
+    def checkpoint_neighbors(self, chain_id: int, from_block: int,
+                             to_block: int) -> list[int]:
+        """Return nearest stored canonical checkpoints bracketing a requested range."""
+        if isinstance(chain_id, bool) or not isinstance(chain_id, int) or chain_id < 0:
+            raise ValueError("chain_id must be a non-negative integer")
+        if (isinstance(from_block, bool) or not isinstance(from_block, int)
+                or isinstance(to_block, bool) or not isinstance(to_block, int)
+                or from_block < 0 or to_block < from_block):
+            raise ValueError("Invalid checkpoint lookup range")
+        with sqlite3.connect(self.database_path) as connection:
+            before = connection.execute(
+                """SELECT block_number FROM evm_block_headers
+                   WHERE chain_id=? AND block_number<=?
+                   ORDER BY block_number DESC LIMIT 1""",
+                (chain_id, from_block),
+            ).fetchone()
+            after = connection.execute(
+                """SELECT block_number FROM evm_block_headers
+                   WHERE chain_id=? AND block_number>=?
+                   ORDER BY block_number ASC LIMIT 1""",
+                (chain_id, to_block),
+            ).fetchone()
+        return sorted({row[0] for row in (before, after) if row is not None})
+
     def coverage(self, chain_id: int, contract: str) -> list[dict[str, Any]]:
         with sqlite3.connect(self.database_path) as connection:
             connection.row_factory = sqlite3.Row
@@ -574,10 +598,10 @@ async def index_erc20_transfer_history(
             header_method = getattr(provider, "block_header", None)
             if not callable(header_method):
                 raise ValueError("EVM provider does not support canonical block-header checkpoints")
-            first_header = await header_method(next_block)
-            headers.append(first_header)
-            if chunk_end != next_block:
-                headers.append(await header_method(chunk_end))
+            checkpoint_numbers = set(store.checkpoint_neighbors(chain_id, next_block, chunk_end))
+            checkpoint_numbers.update((next_block, chunk_end))
+            for checkpoint_number in sorted(checkpoint_numbers):
+                headers.append(await header_method(checkpoint_number))
             logs = await provider.token_transfer_logs(
                 contract, next_block, chunk_end, max_block_span=chunk_size
             )
