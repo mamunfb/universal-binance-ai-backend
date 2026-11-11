@@ -392,3 +392,12 @@ The Spot scanner, Futures Boolean filter, dashboard HTML rendering, market-data 
 - Static review of the MCP wrapper also shows the need for a systematic boundary-validation pass for Boolean-as-integer values on integer-annotated tool arguments; this is an audit item, not yet a confirmed exploitable API defect because framework-level input validation must be tested.
 - PR #1 remains OPEN / DRAFT / unmerged; head `be448172169bbb68d00c827f496eaab82780c598`; branch comparison remains 77 ahead / 0 behind main. Main is unchanged.
 - Pre-Coding Full Audit remains INCOMPLETE; Phase 01 SPOT and FUTURES remain IN_PROGRESS; Phase 02 remains LOCKED. No Phase 01 feature coding started.
+
+
+## Confirmed production authentication defect — 2026-11-11
+
+- Static route-middleware review found that when a strong owner key was configured in production, a shorter-than-32-character AI-client key could still authenticate: the production startup gate allowed the owner-key fallback, but the subsequent client-key matching loop did not enforce the minimum length.
+- Fixed in `backend/app/main.py`: only AI-client keys of at least 32 characters are eligible for constant-time matching. A configured strong owner key remains usable as the intended fallback.
+- Added regression test `test_production_rejects_weak_client_key_even_when_owner_key_is_configured`, which checks that the weak client key receives 401 while the strong owner key remains accepted.
+- Code commit: `ffad59b3f906c49ffc539838a289357f18d3d548`; regression-test commit: `205c2fa2a36f72709748803c01de3e535c6b575e`. CI for the new test/code checkpoint must be checked before marking this fix verified.
+- This is a confirmed existing security defect correction, not Phase 01 feature implementation.
