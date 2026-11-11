@@ -394,3 +394,37 @@ def test_changed_chunk_end_checkpoint_invalidates_from_after_unchanged_start(tmp
                      ])
     assert [row["block_number"] for row in store.history(1, CONTRACT, 200, 210)] == [210, 200]
     assert store.range_coverage(1, CONTRACT, 200, 210)["complete"] is False
+
+
+def test_reindexing_subrange_checks_neighboring_checkpoints_for_forks(tmp_path):
+    store = EVMTransferStore(str(tmp_path / "history.sqlite3"))
+
+    def log(block, tx):
+        return {
+            "topics": [
+                "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                _topic(SENDER), _topic(RECIPIENT),
+            ],
+            "data": _word(block), "transactionHash": "0x" + tx * 64,
+            "blockNumber": hex(block), "logIndex": "0x0",
+        }
+
+    original_headers = [
+        {"number": 100, "hash": "0x" + "1" * 64, "parent_hash": "0x" + "0" * 64},
+        {"number": 110, "hash": "0x" + "2" * 64, "parent_hash": "0x" + "1" * 64},
+    ]
+    store.save_chunk(1, CONTRACT, 100, 110,
+                     [log(100, "a"), log(105, "b"), log(110, "c")],
+                     block_headers=original_headers)
+    assert store.checkpoint_neighbors(1, 105, 105) == [100, 110]
+
+    refreshed_headers = [
+        {"number": 100, "hash": "0x" + "1" * 64, "parent_hash": "0x" + "0" * 64},
+        {"number": 105, "hash": "0x" + "5" * 64, "parent_hash": "0x" + "4" * 64},
+        {"number": 110, "hash": "0x" + "6" * 64, "parent_hash": "0x" + "5" * 64},
+    ]
+    store.save_chunk(1, CONTRACT, 105, 105, [log(105, "d")],
+                     block_headers=refreshed_headers)
+    rows = store.history(1, CONTRACT, 100, 110)
+    assert [row["block_number"] for row in rows] == [105, 100]
+    assert store.range_coverage(1, CONTRACT, 100, 110)["complete"] is False
