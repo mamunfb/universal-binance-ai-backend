@@ -580,3 +580,19 @@ The Spot scanner, Futures Boolean filter, dashboard HTML rendering, market-data 
 ### Remaining audit observations
 - `DerivativesRatioStore._normalize` and `DerivativesSignalStore.save` also contain timestamp `int()` / integer-instance checks that warrant a focused follow-up for Boolean/fractional input rejection. These paths were not modified in this checkpoint.
 - Full provider/service and route audit remains INCOMPLETE. Paired Spot/Futures Phase 01 remains IN_PROGRESS / IN_PROGRESS; combined Phase 01 INCOMPLETE; Phase 02 LOCKED.
+
+
+## Verified market-history ingestion and derivatives snapshot follow-up — 2026-11-11
+
+### Market-history and liquidation validation verified
+- Code/test commit `4c9b1604f170ea1c5d5eaa097136f93851518117`; GitHub Actions run `42959727771`: **SUCCESS**. Targeted Ruff passed, dashboard JavaScript syntax passed, pytest **586 passed, 2 warnings**.
+- This verifies strict non-Boolean integer timestamps for funding-rate and open-interest stores; strict integer kline timestamps/trade counts; rejection of Boolean float-like metrics; and stricter liquidation event parsing. The 586-pass count belongs to this commit.
+
+### Derivatives ratio and signal snapshot follow-up (CI pending)
+- `DerivativesRatioStore._normalize` now rejects Boolean/fractional timestamps instead of applying `int()` coercion.
+- `DerivativesSignalStore.save` now requires a non-negative, non-Boolean integer end timestamp. Its history query validates integer/non-Boolean limit and optional time bounds.
+- Added regression tests for Boolean/fractional/negative snapshot timestamps and Boolean/fractional ratio timestamps.
+- Code/test commit: `2b0b8d33cbcf5b1a9a13be97808aa76e21b4b63d`; CI pending.
+
+### Gate status
+- Pre-Coding Full Audit remains INCOMPLETE. SPOT Phase 01 IN_PROGRESS; FUTURES Phase 01 IN_PROGRESS; Combined Phase 01 INCOMPLETE; Phase 02 LOCKED.

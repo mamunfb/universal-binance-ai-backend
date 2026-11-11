@@ -300,3 +300,10 @@ For each market-specific phase record:
 - Funding and OI stores now require integer (non-Boolean) timestamps and reject Boolean float-like metric fields. Historical klines require integer (non-Boolean) open/close timestamps and trade counts and reject Boolean OHLCV fields. Liquidation normalization rejects non-object payloads, Boolean numeric values and non-integer/Boolean timestamps.
 - Code/test commit: `4c9b1604f170ea1c5d5eaa097136f93851518117`. CI verification pending.
 - These corrections harden ingestion integrity only. They do not satisfy Phase 01 scanner coverage or change paired phase statuses.
+
+
+## 22. Derivatives storage timestamp validation — 2026-11-11
+- Funding-rate, open-interest, historical-kline and liquidation input hardening commit `4c9b1604f170ea1c5d5eaa097136f93851518117` passed CI run `42959727771`: Ruff passed, dashboard JavaScript syntax passed, pytest **586 passed, 2 warnings**.
+- Continued review found the derivatives ratio store accepted Boolean/fractional timestamps via `int()`, while derivatives signal snapshots accepted Boolean end timestamps because `bool` is an `int` subclass. These boundaries now require non-Boolean integer timestamps; snapshot history also validates integer limit/time bounds.
+- Code/test commit: `2b0b8d33cbcf5b1a9a13be97808aa76e21b4b63d`. CI verification pending.
+- Paired Phase 01 statuses remain unchanged; Phase 02 remains locked.
