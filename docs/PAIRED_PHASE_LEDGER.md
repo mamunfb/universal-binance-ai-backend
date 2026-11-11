@@ -234,3 +234,11 @@ Resume by completing the pre-coding audit gate, review current CI and static-ana
 
 - Code/test commit `2b0b8d33cbcf5b1a9a13be97808aa76e21b4b63d`; CI run `42959858424` **SUCCESS**, Ruff and dashboard JS passed, pytest **591 passed, 2 warnings**.
 - This is a data-integrity correction only. SPOT Phase 01 IN_PROGRESS; FUTURES Phase 01 IN_PROGRESS; Combined Phase 01 INCOMPLETE; Phase 02 LOCKED.
+
+
+### Order-flow and time-boundary validation checkpoint — 2026-11-11
+
+- Order-flow strict numeric validation commit `40e37bb1a758cad86564310b46989f0f88de0881`: CI run `42960326700` **SUCCESS**, Ruff and dashboard JS passed, pytest **592 passed, 2 warnings**.
+- Historical coverage and market-data-quality request validation commit `feccc885dde07c86eb0c531b30507dbeafadf2d9`: CI pending.
+- Additional liquidity behavior/sweep numeric-boundary review remains open.
+- Paired phase status unchanged: SPOT Phase 01 IN_PROGRESS; FUTURES Phase 01 IN_PROGRESS; Combined Phase 01 INCOMPLETE; Phase 02 LOCKED.

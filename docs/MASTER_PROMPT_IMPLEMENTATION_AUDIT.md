@@ -605,3 +605,20 @@ The Spot scanner, Futures Boolean filter, dashboard HTML rendering, market-data 
 - The regression cases reject Boolean/fractional ratio timestamps and Boolean/fractional/negative snapshot end timestamps; history limit and optional timestamp bounds also reject Boolean/non-integer inputs.
 - The 591-pass count belongs to the code/test commit only. Current docs HEAD `6a384ce460d5f524136fc43df389d2c360356fba` has a separate CI run; inspect it independently.
 - Full audit remains INCOMPLETE. This correction does not advance paired Phase 01 acceptance or unlock Phase 02.
+
+
+## Order-flow and data-quality input validation — 2026-11-11
+
+### Order-flow correction verified
+- Commit `40e37bb1a758cad86564310b46989f0f88de0881`; GitHub Actions run `42960326700`: **SUCCESS**. Actual job log confirms Ruff passed, dashboard JavaScript syntax passed, pytest **592 passed, 2 warnings**.
+- `analyze_order_flow` now requires non-Boolean integer request boundaries; rejects Boolean threshold arguments; and counts malformed rows, Boolean/fractional trade timestamps, Boolean price/quantity/notional fields and non-object trade rows as rejected input rather than normalizing them into numeric data.
+
+### Historical coverage and data-quality request controls (CI pending)
+- `HistoricalCoverageEngine.inspect` now requires non-Boolean integer start/end timestamps; constructor safety limit must be a positive non-Boolean integer.
+- `MarketDataQualityEngine.inspect` now requires integer lookback hours and a non-negative, non-Boolean integer optional clock override.
+- Added regression tests for Boolean/fractional timestamps and Boolean/fractional/negative time controls.
+- Code/test commit: `feccc885dde07c86eb0c531b30507dbeafadf2d9`. CI not yet available; no pass claimed.
+
+### Remaining source review notes
+- Direct review of liquidity behavior and sweep confirmation found additional unchecked numeric conversions (depth levels, event/trade timestamps and thresholds). Those paths remain open and require separate focused validation/tests; no claim of complete liquidity-analysis audit.
+- The wider provider/service and FastAPI route audit remains incomplete. Phase 01 acceptance gates remain unchanged.

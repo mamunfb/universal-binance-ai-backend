@@ -314,3 +314,11 @@ For each market-specific phase record:
 - This verifies rejection of Boolean/fractional derivatives-ratio timestamps and Boolean/fractional/negative derivatives-snapshot end timestamps, plus history-bound validation.
 - The current documentation HEAD before this checkpoint is `6a384ce460d5f524136fc43df389d2c360356fba`; its own CI run must be checked separately. Do not transfer the 591-pass count to documentation-only commits.
 - The pre-coding audit and paired Phase 01 gates remain open; Phase 02 remains locked.
+
+
+## 24. Order-flow and data-quality request validation — 2026-11-11
+- Order-flow numeric-boundary correction commit `40e37bb1a758cad86564310b46989f0f88de0881` passed GitHub Actions run `42960326700`: targeted Ruff passed, dashboard JavaScript syntax passed, pytest **592 passed, 2 warnings**.
+- The order-flow analyzer now rejects Boolean/fractional request timestamps, Boolean thresholds, malformed non-object trade rows, Boolean/fractional trade timestamps and Boolean price/quantity/notional fields rather than coercing them.
+- Historical coverage request bounds now require non-Boolean integers and its expected-candle safety limit must be a positive integer. Market data quality lookback and optional now_ms controls now reject Boolean/fractional/negative values.
+- Code/test commit for these latest coverage/data-quality changes: `feccc885dde07c86eb0c531b30507dbeafadf2d9`. CI status must be checked; no test pass is claimed yet.
+- No phase status changes. Paired Phase 01 remains INCOMPLETE and Phase 02 LOCKED.
