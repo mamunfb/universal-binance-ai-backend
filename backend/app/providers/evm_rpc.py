@@ -106,6 +106,30 @@ class EVMRPCProvider:
     async def block_number(self) -> int:
         return int(await self._rpc("eth_blockNumber", []), 16)
 
+    async def block_header(self, block_number: int) -> dict[str, Any]:
+        """Fetch canonical block identity for reorg checkpoints."""
+        if isinstance(block_number, bool) or not isinstance(block_number, int) or block_number < 0:
+            raise ValueError("block_number must be a non-negative integer")
+        block = await self._rpc("eth_getBlockByNumber", [hex(block_number), False])
+        if not isinstance(block, dict):
+            raise ValueError("Unexpected eth_getBlockByNumber result")
+        number = block.get("number")
+        block_hash = block.get("hash")
+        parent_hash = block.get("parentHash")
+        for field, value in (("number", number), ("hash", block_hash), ("parentHash", parent_hash)):
+            if not isinstance(value, str) or not value.startswith("0x"):
+                raise ValueError(f"Block response has no valid {field}")
+        try:
+            parsed_number = int(number, 16)
+        except ValueError as exc:
+            raise ValueError("Block number is not valid hexadecimal") from exc
+        if parsed_number != block_number:
+            raise ValueError("Block response number does not match requested block")
+        if any(len(value) != 66 or any(ch not in "0123456789abcdefABCDEF" for ch in value[2:])
+               for value in (block_hash, parent_hash)):
+            raise ValueError("Block response contains an invalid hash")
+        return {"number": parsed_number, "hash": block_hash.lower(), "parent_hash": parent_hash.lower()}
+
     async def block_timestamp(self, block_number: int) -> int:
         if isinstance(block_number, bool) or not isinstance(block_number, int) or block_number < 0:
             raise ValueError("block_number must be a non-negative integer")
