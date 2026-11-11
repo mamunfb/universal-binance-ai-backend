@@ -732,3 +732,9 @@ The Spot scanner, Futures Boolean filter, dashboard HTML rendering, market-data 
 - Duplicate/replay regression CI run `42968331186`: **SUCCESS**, Ruff and dashboard JavaScript syntax passed, pytest **636 passed, 2 warnings**. History route implementation CI run `42968449219`: **SUCCESS**, pytest **636 passed, 2 warnings**. The final API-test commit CI is still running at this checkpoint; do not treat its result as verified until the run completes.
 - Reorganization support is only partially addressed: the store honors explicit `removed=true` log tombstones and permits replay, but does not yet persist per-block hashes or independently detect/reconcile a provider's changed canonical chain. That remains an open audit item.
 - Overall EVM store/API audit remains open. No phase acceptance is claimed. SPOT and FUTURES Phase 01 remain IN_PROGRESS; combined Phase 01 remains INCOMPLETE; Phase 02 remains LOCKED.
+
+
+## CI result correction — EVM history API tests — 2026-11-11
+
+- Final API-test commit `89b96fe52e18a345e8c24f283baece7b9aea12b2`, GitHub Actions run `42968465052`: **SUCCESS**; Ruff passed, dashboard JavaScript syntax passed, pytest **638 passed, 2 warnings**. This supersedes the earlier interim note that recorded the run as pending and the prior test count of 636.
+- Documentation checkpoint commits `9a324a880160cf9d7cb614945149e343d8c56904`, `54656c9af01b93a1e4a0c7621605488030844aa6`, and `aa1e2b610c4957929ce281d12f3149ae9681f3c5` also passed CI in runs `42968572627`, `42968575864`, and `42968587052`, respectively.
