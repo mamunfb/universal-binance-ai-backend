@@ -382,3 +382,13 @@ The Spot scanner, Futures Boolean filter, dashboard HTML rendering, market-data 
 ### Current audit boundary
 - Pre-Coding Full Audit remains **INCOMPLETE**. The review has improved coverage of persistence and collector paths but has not completed a line-by-line acceptance review of every API route, analysis/storage module, MCP action, deployment/runtime setting or live provider behavior.
 - SPOT Phase 01: **IN_PROGRESS**; FUTURES Phase 01: **IN_PROGRESS**; Combined Phase 01: **INCOMPLETE**; Phase 02: **LOCKED**.
+
+
+## Audit continuation — verified latest HEAD and MCP/provider review (2026-11-11)
+
+- Latest branch HEAD `be448172169bbb68d00c827f496eaab82780c598`: GitHub Actions run `42929783007` completed **SUCCESS**. The preceding audit documentation checkpoint `16c8fb27eabfd7d5392578e34464ecc51929e3f4` also has run `42929771515` **SUCCESS**. The separately verified code/test checkpoint remains `6a19418c531913e83a93a55479c3ff3c0ca9d746` with 537 passed / 2 warnings; do not infer that exact pytest count for later documentation-only HEAD without inspecting its job summary.
+- Current-branch review of `mcp-server/server.py` confirms the MCP surface is **not literally read-only**: it exposes `save_market_confluence_snapshot`, which calls authenticated `_post()` to persist a descriptive snapshot to local backend storage. This is not a trade/order/wallet action, but the scope/audit wording “private read-only MCP adapter” is inaccurate. Architecture acceptance is OPEN: retain this narrow local research-evidence write with explicit documentation/consent, or remove it from MCP after user/architecture approval. No change made pending that decision.
+- Both Binance REST adapters (`binance_spot.py`, `binance_futures.py`) currently issue one HTTP GET, call `raise_for_status()`, and return JSON; they do not implement a shared retry/backoff or explicit `Retry-After` / rate-limit policy. This remains an audit gap for complete-market scanning and is not silently treated as an implemented capability. No retry code added in this audit step.
+- Static review of the MCP wrapper also shows the need for a systematic boundary-validation pass for Boolean-as-integer values on integer-annotated tool arguments; this is an audit item, not yet a confirmed exploitable API defect because framework-level input validation must be tested.
+- PR #1 remains OPEN / DRAFT / unmerged; head `be448172169bbb68d00c827f496eaab82780c598`; branch comparison remains 77 ahead / 0 behind main. Main is unchanged.
+- Pre-Coding Full Audit remains INCOMPLETE; Phase 01 SPOT and FUTURES remain IN_PROGRESS; Phase 02 remains LOCKED. No Phase 01 feature coding started.
