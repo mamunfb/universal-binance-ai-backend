@@ -474,3 +474,12 @@ The RSS provider now disables redirects and enforces a configurable streamed res
 - CI is pending for this checkpoint. No success is claimed until the complete job log verifies Ruff, JavaScript syntax, and pytest.
 - This is a protocol-envelope correction only; chain-specific result schemas, provider canonical-chain behavior, reorg handling, and the full route/provider audit remain open.
 - SPOT Phase 01: IN_PROGRESS; FUTURES Phase 01: IN_PROGRESS; Combined Phase 01: INCOMPLETE; Phase 02: LOCKED. No order execution or wallet-signing capability was added.
+
+
+
+## CI verification — strict EVM JSON-RPC response envelope — 2026-11-11
+
+- The first provider-only CI run `42969960107` correctly exposed an outdated test expectation for a missing result field; the implementation behavior was intentional, and the regression expectation was updated to the stricter exactly-one-of-result/error rule.
+- Final test commit `9bac11a10dd2a00f68180a77163d822d9d007a7e` passed run `42969997843`.
+- Final workflow commit `af744441febcff9bec614ca1623b7d93924ffab6` passed run `42970015889`; the Ruff command explicitly included `backend/app/providers/evm_rpc.py` and `tests/test_evm_rpc_provider.py`. The complete job passed Ruff, dashboard JavaScript syntax, and pytest **666 passed, 2 warnings**.
+- This verifies the response-envelope change and its test/lint coverage. It does not verify every chain-specific RPC result shape or production RPC behavior.
