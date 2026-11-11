@@ -380,3 +380,15 @@ RSS provider redirect following is disabled and streamed feed responses are capp
 - GitHub Actions run `42969759999`: **SUCCESS**; actual job log confirms Ruff passed with the new API test included, dashboard JavaScript syntax passed, and pytest **661 passed, 2 warnings**.
 - Documentation checkpoint run `42969784105` also completed successfully with the same 661-test suite. The remaining documentation commit's run is tracked separately.
 - Unknown/misspelled body fields, Boolean block numbers, and missing required keys are rejected as HTTP 422 before provider calls. This closes only the identified request-schema gap; the full API audit remains open.
+
+
+
+## EVM JSON-RPC response-envelope hardening checkpoint — 2026-11-11
+
+- Protocol review found the response ID comparison used Python equality, under which Boolean `true` compares equal to integer request ID `1`. The response parser also did not enforce the JSON-RPC requirement to return exactly one of `result` or `error`, or validate the error object shape.
+- The provider now requires an integer (not Boolean) matching response ID, exactly one result/error member, and an error object with a non-Boolean integer code and non-empty message. Error text from the provider is not echoed in the raised exception.
+- Added regression cases for Boolean IDs, absent/both result and error members, malformed error objects, and safe handling of provider error messages.
+- Provider commit: `3814d73fc08906697245f68593c29efcc93335c9`; test commit: `9bac11a10dd2a00f68180a77163d822d9d007a7e`; Ruff-scope commit: `af744441febcff9bec614ca1623b7d93924ffab6`.
+- CI is pending for this checkpoint. No success is claimed until the complete job log verifies Ruff, JavaScript syntax, and pytest.
+- This is a protocol-envelope correction only; chain-specific result schemas, provider canonical-chain behavior, reorg handling, and the full route/provider audit remain open.
+- SPOT Phase 01: IN_PROGRESS; FUTURES Phase 01: IN_PROGRESS; Combined Phase 01: INCOMPLETE; Phase 02: LOCKED. No order execution or wallet-signing capability was added.
