@@ -284,3 +284,11 @@ For each market-specific phase record:
 - Code/test commit: `d2a51830fc09ccbd819ecbf000415cd5c2d4b56d`. CI verification is pending; no test pass is claimed yet.
 - This is a confirmed Phase 01 data-integrity bug fix. It does not complete the scanner's remaining coverage requirements or advance the paired phase gate.
 - Pre-Coding Full Audit remains INCOMPLETE; SPOT Phase 01 and FUTURES Phase 01 remain IN_PROGRESS; Combined Phase 01 remains INCOMPLETE; Phase 02 remains LOCKED.
+
+
+## 20. Stream numeric integrity and verified scanner correction — 2026-11-11
+- Scanner Boolean numeric-response correction commit `d2a51830fc09ccbd819ecbf000415cd5c2d4b56d` passed GitHub Actions run `42959434159`: targeted Ruff passed, dashboard JavaScript syntax passed, pytest **567 passed, 2 warnings**. The exact count belongs to that code/test commit.
+- Continued collector review found aggregate-trade normalization accepted Boolean/fractional values through `int()` and Boolean price/quantity values through `float()`; non-object JSON payloads could also raise before normalizer rejection. The normalizer now rejects non-object payloads, Boolean/fractional integer fields, negative IDs/timestamps, and Boolean price/quantity values.
+- Added regression coverage for malformed trade IDs/timestamps, Boolean price/quantity, negative timestamps and non-object payloads.
+- Aggregate-trade code/test commit: `e7c907e061828c92ec2536d1011cae252b74ff74`. Its CI verification is pending; no pass is claimed yet.
+- These are data-integrity fixes only. The pre-coding audit and paired Phase 01 acceptance remain open; Phase 02 remains locked.

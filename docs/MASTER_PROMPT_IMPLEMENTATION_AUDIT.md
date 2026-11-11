@@ -542,3 +542,22 @@ The Spot scanner, Futures Boolean filter, dashboard HTML rendering, market-data 
 - Provider/service inventory remains 54 source modules (excluding package initializer files); a complete line-by-line review of all modules and the full route surface remains incomplete. The MCP local snapshot-save architecture decision, type/security scanning, and live deployment/provider checks remain open.
 - Pre-Coding Full Audit: INCOMPLETE. SPOT Phase 01: IN_PROGRESS. FUTURES Phase 01: IN_PROGRESS. Combined Phase 01: INCOMPLETE. Phase 02: LOCKED.
 - No order execution or wallet capability was added.
+
+
+## Verified scanner correction and aggregate-trade stream audit — 2026-11-11
+
+### Scanner correction verification
+- Code/test commit `d2a51830fc09ccbd819ecbf000415cd5c2d4b56d`; GitHub Actions run `42959434159`: **SUCCESS**.
+- Actual job log confirms targeted Ruff passed, dashboard JavaScript syntax passed, and pytest **567 passed, 2 warnings**.
+- The 567-pass count belongs only to commit `d2a51830fc09ccbd819ecbf000415cd5c2d4b56d`.
+
+### Additional confirmed stream-normalization defect
+- Review of `backend/app/services/aggregate_trade_stream.py` found `int()` accepted Boolean and fractional values for aggregate trade ID and event/trade timestamps; `float()` accepted Boolean price/quantity values. The normalizer also assumed the decoded payload was a dictionary before calling `.get()`.
+- The normalizer now rejects non-object payloads, Boolean/fractional integer fields, negative IDs/timestamps, and Boolean price/quantity values before constructing a persisted row.
+- Added regression tests covering all these invalid input classes.
+- Code/test commit: `e7c907e061828c92ec2536d1011cae252b74ff74`. CI is pending and must be inspected before this fix is accepted as verified.
+
+### Audit boundary
+- This pass reviewed six additional service modules: advanced derivatives analysis, aggregate-trade stream, catalyst analysis, combined derivatives intelligence, cross-chain smart money and cross-chain token intelligence; and reviewed derivatives collector, ratio store, EVM transfer store and historical collector source sections. These inspections do not complete a line-by-line audit of the remaining service inventory.
+- A further candidate review item is present in the derivatives ratio store timestamp parser: it calls `int(row["timestamp"])` without an explicit Boolean/fractional guard. This is not yet changed; confirm provider response contract and add regression tests before correction.
+- Pre-Coding Full Audit remains INCOMPLETE. SPOT/FUTURES Phase 01 remain IN_PROGRESS; Combined Phase 01 INCOMPLETE; Phase 02 LOCKED. No order execution capability added.

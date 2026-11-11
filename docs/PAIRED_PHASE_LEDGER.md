@@ -206,3 +206,11 @@ Resume by completing the pre-coding audit gate, review current CI and static-ana
 - CI verification is pending; do not mark this fix CI-verified until the actual run and job log are checked.
 - Phase status unchanged: SPOT Phase 01 IN_PROGRESS; FUTURES Phase 01 IN_PROGRESS; Combined Phase 01 INCOMPLETE; Phase 02 LOCKED.
 - Full pre-coding audit remains INCOMPLETE; remaining scanner acceptance criteria are unchanged.
+
+
+### Scanner and aggregate-trade data-integrity checkpoint — 2026-11-11
+
+- Scanner Boolean numeric correction: commit `d2a51830fc09ccbd819ecbf000415cd5c2d4b56d`; CI run `42959434159` **SUCCESS**, Ruff passed, dashboard JS passed, pytest **567 passed, 2 warnings**.
+- Aggregate-trade normalizer hardening: commit `e7c907e061828c92ec2536d1011cae252b74ff74`; CI pending. The normalizer rejects malformed non-object payloads, Boolean/fractional integer IDs/timestamps, negative IDs/timestamps, and Boolean price/quantity fields.
+- Paired phase status unchanged: SPOT Phase 01 IN_PROGRESS; FUTURES Phase 01 IN_PROGRESS; Combined Phase 01 INCOMPLETE; Phase 02 LOCKED.
+- Full pre-coding audit remains INCOMPLETE.
