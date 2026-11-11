@@ -78,3 +78,11 @@ A paired Phase N is complete only when both SPOT Phase N and FUTURES Phase N are
 ## Continuity
 
 Resume by completing the pre-coding audit gate, review current CI and static-analysis results, fix confirmed current-scope defects, and only then implement SPOT Phase 01. After SPOT Phase 01 acceptance, implement FUTURES Phase 01. Do not start Phase 02 until both Phase 01 statuses are COMPLETE.
+
+
+## Latest audit additions — 2026-11-11
+
+- Market-confluence snapshot storage now rejects Boolean/fractional timestamps and Boolean/non-finite/non-positive reference prices; regression tests added.
+- EVM transfer indexer errors no longer return raw RPC/transport exception messages; token-bearing exception regression test added.
+- Ruff core CI target list includes both updated storage modules and their tests; latest expanded-workflow CI verification must pass before treating this checkpoint as validated.
+- These are existing-code validation/security fixes only; no new paired Phase 01 functionality has started.
