@@ -92,7 +92,7 @@ def load_wallet_registry(raw: str, chain_id: int) -> dict[str, Any]:
                 valid_url = (
                     parsed.scheme == "https" and bool(parsed.hostname)
                     and parsed.username is None and parsed.password is None
-                    and parsed.port in (None, 443, 8443, 9443)
+                    and (parsed.port is None or 1 <= parsed.port <= 65535)
                 )
             except ValueError:
                 valid_url = False
