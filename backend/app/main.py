@@ -416,6 +416,11 @@ async def index_evm_token_history(
     payload: dict = Body(..., example={"from_block": 1000000, "to_block": 1001000, "chunk_size": 500}),
 ) -> dict:
     try:
+        if not isinstance(payload, dict):
+            raise ValueError("request body must be a JSON object")
+        unknown_fields = set(payload) - {"from_block", "to_block", "chunk_size"}
+        if unknown_fields:
+            raise ValueError(f"Unsupported index request fields: {', '.join(sorted(unknown_fields))}")
         raw_from_block = payload["from_block"]
         raw_to_block = payload["to_block"]
         raw_chunk_size = payload.get("chunk_size", 500)
