@@ -428,3 +428,30 @@ def test_reindexing_subrange_checks_neighboring_checkpoints_for_forks(tmp_path):
     rows = store.history(1, CONTRACT, 100, 110)
     assert [row["block_number"] for row in rows] == [105, 100]
     assert store.range_coverage(1, CONTRACT, 100, 110)["complete"] is False
+
+
+def test_first_canonical_checkpoint_discards_legacy_unhashed_coverage(tmp_path):
+    store = EVMTransferStore(str(tmp_path / "history.sqlite3"))
+
+    def log(block, tx):
+        return {
+            "topics": [
+                "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                _topic(SENDER), _topic(RECIPIENT),
+            ],
+            "data": _word(block), "transactionHash": "0x" + tx * 64,
+            "blockNumber": hex(block), "logIndex": "0x0",
+        }
+
+    store.save_chunk(1, CONTRACT, 300, 310, [log(300, "a"), log(305, "b")])
+    assert len(store.history(1, CONTRACT, 300, 310)) == 2
+
+    store.save_chunk(
+        1, CONTRACT, 305, 305, [log(305, "c")],
+        block_headers=[{
+            "number": 305, "hash": "0x" + "5" * 64,
+            "parent_hash": "0x" + "4" * 64,
+        }],
+    )
+    assert [row["block_number"] for row in store.history(1, CONTRACT, 300, 310)] == [305]
+    assert store.range_coverage(1, CONTRACT, 300, 310)["complete"] is False
