@@ -421,3 +421,12 @@ RSS provider redirect following is disabled and streamed feed responses are capp
 - Latest canonical checkpoint regression workflow is pending; no green status is claimed until the full job finishes.
 - This is reorg detection on subsequent indexing/reindexing, not a background watcher. A chain that is never re-indexed after a reorg is not automatically reconciled. SQLite concurrent-writer stress and complete route audit remain open.
 - SPOT Phase 01: IN_PROGRESS; FUTURES Phase 01: IN_PROGRESS; Combined Phase 01: INCOMPLETE; Phase 02: LOCKED. No order execution or wallet-signing capability was added.
+
+
+## SQLite concurrent-writer and atomicity checkpoint — 2026-11-11
+
+- Added an eight-connection same-chain / cross-contract write regression against one SQLite database; all eight histories and coverage ranges must persist and the shared checkpoint must remain unique.
+- Added an injected checkpoint-write failure regression proving transfer rows, coverage and checkpoint changes roll back atomically.
+- GitHub Actions run `42973159109` completed SUCCESS on commit `e08ae423149f4f49341a5b1c86d15911110fc653`: Ruff passed, dashboard JavaScript syntax passed, pytest **673 passed, 2 warnings**.
+- Scope limitation: this is deterministic regression coverage, not a long-duration load test or production multi-process qualification. SQLite default timeout remains in use; WAL mode is not explicitly configured.
+- Remaining: complete EVM route-level API audit, chain-specific RPC result audit, live-provider/deployment verification, and the wider paired Phase 01 scanner requirements.
