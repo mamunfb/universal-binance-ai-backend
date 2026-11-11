@@ -371,3 +371,12 @@ RSS provider redirect following is disabled and streamed feed responses are capp
 - CI verification is pending for the latest combined state; do not mark this checkpoint green until the workflow job log confirms Ruff, dashboard syntax, and pytest.
 - This remains a focused route input-schema correction. It does not complete EVM JSON-RPC response validation, canonical reorg reconciliation, SQLite concurrency review, or the complete route audit.
 - SPOT Phase 01: IN_PROGRESS; FUTURES Phase 01: IN_PROGRESS; Combined Phase 01: INCOMPLETE; Phase 02: LOCKED. No order execution or wallet-signing capability was added.
+
+
+
+## CI verification — EVM transfer-index request schema — 2026-11-11
+
+- Implementation commit `0de572963738cb5a32d9ae2386425ff0039f6710`, API regression-test commit `4934ec8aa150f6233b2ea0f120cf1180ba091ecf`, and Ruff-scope commit `2fb64e016d6c8012c16120c507d6de5ff4b9159b`.
+- GitHub Actions run `42969759999`: **SUCCESS**; actual job log confirms Ruff passed with the new API test included, dashboard JavaScript syntax passed, and pytest **661 passed, 2 warnings**.
+- Documentation checkpoint run `42969784105` also completed successfully with the same 661-test suite. The remaining documentation commit's run is tracked separately.
+- Unknown/misspelled body fields, Boolean block numbers, and missing required keys are rejected as HTTP 422 before provider calls. This closes only the identified request-schema gap; the full API audit remains open.
