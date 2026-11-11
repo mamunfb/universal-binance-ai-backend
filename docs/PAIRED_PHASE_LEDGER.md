@@ -86,3 +86,6 @@ Resume by completing the pre-coding audit gate, review current CI and static-ana
 - EVM transfer indexer errors no longer return raw RPC/transport exception messages; token-bearing exception regression test added.
 - Ruff core CI target list includes both updated storage modules and their tests; latest expanded-workflow CI verification must pass before treating this checkpoint as validated.
 - These are existing-code validation/security fixes only; no new paired Phase 01 functionality has started.
+
+- EVM index route now rejects Boolean/fractional JSON block numbers and chunk sizes before provider calls; route-level regression tests added.
+- Prior Ruff-only CI failures were traced to a semicolon in the pre-existing snapshot test file newly brought into the targeted lint set; test formatting has been corrected. Latest full CI on the newest API-test/docs commit is pending.
