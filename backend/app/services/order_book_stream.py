@@ -215,7 +215,7 @@ class OrderBookStreamCollector:
                     reader = asyncio.create_task(self._reader(socket, queue))
                     try:
                         snapshot = await self._provider(market).order_book(symbol, self.snapshot_limit)
-                        last_id = int(snapshot["lastUpdateId"])
+                        last_id = self._snapshot_update_id(snapshot)
                         bids = {float(p): float(q) for p, q in snapshot["bids"] if float(q) > 0}
                         asks = {float(p): float(q) for p, q in snapshot["asks"] if float(q) > 0}
                         first_event = True
@@ -270,6 +270,13 @@ class OrderBookStreamCollector:
             finally:
                 state["connected"] = False
                 state["synchronized"] = False
+
+    @staticmethod
+    def _snapshot_update_id(snapshot: dict[str, Any]) -> int:
+        update_id = snapshot.get("lastUpdateId")
+        if isinstance(update_id, bool) or not isinstance(update_id, int):
+            raise RuntimeError("DEPTH_INVALID_SNAPSHOT_UPDATE_ID")
+        return update_id
 
     @staticmethod
     def _validate_sequence(market: str, event: dict[str, Any], last_id: int, first_event: bool) -> None:
