@@ -401,3 +401,13 @@ The Spot scanner, Futures Boolean filter, dashboard HTML rendering, market-data 
 - Added regression test `test_production_rejects_weak_client_key_even_when_owner_key_is_configured`, which checks that the weak client key receives 401 while the strong owner key remains accepted.
 - Code commit: `ffad59b3f906c49ffc539838a289357f18d3d548`; regression-test commit: `205c2fa2a36f72709748803c01de3e535c6b575e`. CI for the new test/code checkpoint must be checked before marking this fix verified.
 - This is a confirmed existing security defect correction, not Phase 01 feature implementation.
+
+
+## Authentication regression verification and API-route review — 2026-11-11
+
+- CI run `42931082393` for regression-test commit `205c2fa2a36f72709748803c01de3e535c6b575e`: **SUCCESS**. Ruff targeted core checks passed; dashboard JavaScript syntax passed; pytest **538 passed, 2 warnings**. The two warnings are upstream deprecations (Starlette/httpx TestClient and FastAPI `example` parameter); Node reports punycode/Node 20 action deprecations.
+- Documentation-only HEAD `797f5c844bdf1f2f3343386418e76c3ed333cf95` CI run `42931109389`: **SUCCESS**. The 538 test count is from the preceding code/test checkpoint, not a separately inferred count for the docs-only commit.
+- Continued static review of `backend/app/main.py`: 80 route decorators were enumerated. Reviewed authentication middleware, standardized validation/unhandled error handlers, market scan and preflight routes, EVM history indexing, market-confluence persistence, derivatives collection/history endpoints, and market-data quality/history endpoints. This is a route inventory plus targeted review, not a completed line-by-line audit of all 80 handlers.
+- Provider review reconfirmed Spot and Futures REST adapters have 15-second default timeouts and response-shape checks on many endpoints, but no common retry/backoff or Retry-After policy. No live Binance request was performed.
+- Existing API auth behavior remains: authentication is enforced on `/api/*` when a key is configured; production fails closed if neither a valid client-key configuration nor a strong owner key is available. `/health` remains outside the private API middleware by design.
+- Full audit gate remains INCOMPLETE; paired Phase 01 remains IN_PROGRESS on both Spot and Futures; Phase 02 remains LOCKED. No Phase 01 feature coding started.
