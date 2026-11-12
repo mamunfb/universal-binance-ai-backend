@@ -359,7 +359,8 @@ class EVMTransferStore:
                   AND block_number BETWEEN ? AND ? AND removed=0
             """, (chain_id, contract.lower(), from_block, to_block)).fetchall()
         grouped: dict[str, dict[str, Any]] = {}
-        for sender, recipient, amount_text in rows:
+        for row in rows:
+            sender, recipient, amount_text = tuple(row.values()) if isinstance(row, dict) else row
             raw = int(amount_text)
             sender_entry = verified.get(sender)
             recipient_entry = verified.get(recipient)
