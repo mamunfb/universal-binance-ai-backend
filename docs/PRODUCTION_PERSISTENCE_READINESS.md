@@ -58,6 +58,14 @@ Do not mark production persistence complete merely because the API container sta
 - Without the secret, the integration test is skipped. CI success alone does not prove live Neon connectivity.
 - Other historical SQLite stores (derivatives ratios/signals, order-book, aggregate trades, liquidations, EVM transfers and remaining collectors) are not covered by these adapters.
 
+## Derivatives ratios and signal snapshots
+
+- `DerivativesRatioStore` supports PostgreSQL through `DATABASE_URL` and retains SQLite fallback. Apply `migrations/004_derivatives_ratio_history.sql` first.
+- `DerivativesSignalStore` supports PostgreSQL through `DATABASE_URL` and retains SQLite fallback. Apply `migrations/005_derivatives_signal_snapshots.sql` first.
+- Opt-in live-database tests: `tests/test_derivatives_ratio_postgres_integration.py` and `tests/test_derivatives_signal_postgres_integration.py`. Set `TEST_DATABASE_URL` to a disposable database with migrations 004 and 005 applied.
+- These tests skip without `TEST_DATABASE_URL`; green ordinary CI does not verify live Neon connectivity.
+- Order-book and aggregate-trade stream stores still use local SQLite and remain unsuitable for multi-instance durable production collection until migrated.
+
 ## Operational checklist
 
 - Set `APP_ENV=production` and configure a strong `PERSONAL_API_KEY` (at least 32 characters) or all five independent `AI_CLIENT_API_KEYS` before exposing the API.
