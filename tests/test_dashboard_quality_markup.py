@@ -219,3 +219,14 @@ def test_dashboard_guards_nested_performance_report_objects_and_arrays():
     assert "Object.entries(isRecord(groups)?groups:{}).filter(([,g])=>isRecord(g))" in html
     assert "Object.entries(isRecord(horizon.rankings)?horizon.rankings:{}).filter(([,ranking])=>isRecord(ranking))" in html
     assert "(Array.isArray(ranking.ranked)?ranking.ranked:[]).filter(isRecord)" in html
+
+
+def test_dashboard_escapes_all_remaining_dynamic_performance_labels_and_counts():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "safeCount(ranking.minimum_sample_size)" in html
+    assert "safeCount(f.test_matured_outcome_count)" in html
+    assert "safeCount(x.non_overlapping_directional_sample_size)" in html
+    assert "escapeHtml(x.horizon)" in html
+    assert "escapeHtml(x.bias)" in html
+    assert "Array.isArray(w.folds)?w.folds:[]" in html
+    assert "Array.isArray(q.flags)?q.flags:[]" in html
