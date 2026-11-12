@@ -82,7 +82,7 @@ class HistoricalCoverageEngine:
             cursor = _next_open(cursor, interval)
 
         if self.database_url:
-            with psycopg.connect(self.database_url, sslmode="require", connect_timeout=15) as connection:
+            with psycopg.connect(self.database_url, sslmode=("disable" if "sslmode=disable" in self.database_url else "require"), connect_timeout=15) as connection:
                 rows = connection.execute(
                     """SELECT open_time_ms FROM public.historical_klines
                        WHERE market=%s AND symbol=%s AND interval=%s
