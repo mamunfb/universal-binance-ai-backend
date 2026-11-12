@@ -66,6 +66,15 @@ Do not mark production persistence complete merely because the API container sta
 - These tests skip without `TEST_DATABASE_URL`; green ordinary CI does not verify live Neon connectivity.
 - Order-book and aggregate-trade stream stores still use local SQLite and remain unsuitable for multi-instance durable production collection until migrated.
 
+## Order-book and aggregate-trade stream persistence
+
+- `OrderBookHistoryStore` and `AggregateTradeStore` now support PostgreSQL through `DATABASE_URL`, with SQLite fallback for local development.
+- Apply `migrations/006_order_book_samples.sql` and `migrations/007_aggregate_trades.sql` before enabling the PostgreSQL-backed collectors.
+- Order-book snapshots use a unique market/symbol/update ID and JSONB bid/ask arrays. Aggregate trades use unique market/symbol/trade ID and retain the normalized raw event payload as JSONB.
+- Opt-in integration tests: `tests/test_order_book_postgres_integration.py` and `tests/test_aggregate_trade_postgres_integration.py`. Set `TEST_DATABASE_URL` to a disposable database with migrations 006 and 007 applied.
+- These tests skip when the test URL is absent. Ordinary CI does not establish live Neon connectivity.
+- High-frequency collection can generate substantial writes. Configure a small, intentional set of collector jobs, monitor database storage/compute, and add a retention policy before enabling broad multi-symbol collection. No automatic pruning is claimed here.
+
 ## Operational checklist
 
 - Set `APP_ENV=production` and configure a strong `PERSONAL_API_KEY` (at least 32 characters) or all five independent `AI_CLIENT_API_KEYS` before exposing the API.
