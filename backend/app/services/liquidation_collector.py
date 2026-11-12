@@ -2,6 +2,8 @@ import asyncio
 import json
 import logging
 import sqlite3
+import psycopg
+from psycopg.rows import dict_row
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -44,8 +46,11 @@ def normalize_force_order(message: dict[str, Any]) -> dict[str, Any] | None:
 
 
 class LiquidationStore:
-    def __init__(self, database_path: str) -> None:
+    def __init__(self, database_path: str, database_url: str = "") -> None:
         self.database_path = database_path
+        self.database_url = database_url.strip()
+        if self.database_url:
+            return
         Path(database_path).parent.mkdir(parents=True, exist_ok=True)
         with sqlite3.connect(database_path) as connection:
             connection.execute("""
@@ -72,7 +77,27 @@ class LiquidationStore:
                 "ON liquidation_events(symbol, event_time_ms)"
             )
 
+    def _connect_postgres(self):
+        return psycopg.connect(self.database_url, sslmode="require", connect_timeout=15, row_factory=dict_row)
+
     def insert(self, event: dict[str, Any]) -> None:
+        if self.database_url:
+            with self._connect_postgres() as connection:
+                connection.execute("""
+                    INSERT INTO public.liquidation_events (
+                        event_time_ms, trade_time_ms, symbol, pair_symbol, market_type, side,
+                        order_type, status, average_price, original_quantity, last_filled_quantity,
+                        cumulative_filled_quantity, approx_cumulative_notional, raw_payload
+                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb)
+                """, (
+                    event["event_time_ms"], event["trade_time_ms"], event["symbol"],
+                    event.get("pair_symbol"), event.get("market_type"), event.get("side"),
+                    event.get("order_type"), event.get("status"), event.get("average_price"),
+                    event.get("original_quantity"), event.get("last_filled_quantity"),
+                    event.get("cumulative_filled_quantity"), event.get("approx_cumulative_notional"),
+                    event["raw_json"],
+                ))
+            return
         columns = (
             "event_time_ms, trade_time_ms, symbol, pair_symbol, market_type, side, "
             "order_type, status, average_price, original_quantity, last_filled_quantity, "
@@ -86,6 +111,16 @@ class LiquidationStore:
             )
 
     def recent(self, symbol: str | None = None, limit: int = 100) -> list[dict[str, Any]]:
+        if not 1 <= limit <= 1000:
+            raise ValueError("limit must be between 1 and 1000")
+        if self.database_url:
+            query = "SELECT event_time_ms, trade_time_ms, symbol, pair_symbol, market_type, side, status, average_price, cumulative_filled_quantity, approx_cumulative_notional FROM public.liquidation_events"
+            params: list[Any] = []
+            if symbol:
+                query += " WHERE symbol=%s"; params.append(symbol.upper())
+            query += " ORDER BY event_time_ms DESC, id DESC LIMIT %s"; params.append(limit)
+            with self._connect_postgres() as connection:
+                return [dict(row) for row in connection.execute(query, params).fetchall()]
         query = "SELECT event_time_ms, trade_time_ms, symbol, pair_symbol, market_type, side, status, average_price, cumulative_filled_quantity, approx_cumulative_notional FROM liquidation_events"
         params: tuple[Any, ...] = ()
         if symbol:
@@ -98,6 +133,9 @@ class LiquidationStore:
             return [dict(row) for row in connection.execute(query, params).fetchall()]
 
     def count(self) -> int:
+        if self.database_url:
+            with self._connect_postgres() as connection:
+                return int(connection.execute("SELECT COUNT(*) AS count FROM public.liquidation_events").fetchone()["count"])
         with sqlite3.connect(self.database_path) as connection:
             return int(connection.execute("SELECT COUNT(*) FROM liquidation_events").fetchone()[0])
 
