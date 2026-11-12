@@ -240,7 +240,7 @@ def test_dashboard_svg_reference_label_uses_safe_max_and_numeric_formatting():
 
 def test_dashboard_handles_non_json_api_responses_without_masking_http_status():
     html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
-    assert "API returned a non-JSON response (HTTP '+r.status+') " in html
+    assert "API returned a non-JSON response (HTTP '+r.status+')" in html
 
 
 def test_dashboard_filters_malformed_history_and_collector_entries():
