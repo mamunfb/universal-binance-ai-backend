@@ -281,3 +281,22 @@ def test_market_evidence_route_aggregates_read_only_sections(monkeypatch):
     assert result["decision"]["buy_sell_signal"] is None
     assert result["section_status"]["multi_timeframe"] == "COMPLETED"
     assert result["section_status"]["spot_futures_basis"] == "COMPLETED"
+
+
+def test_required_database_url_fails_startup_when_missing(monkeypatch):
+    import asyncio
+    from app.main import lifespan
+
+    monkeypatch.setattr(settings, "require_database_url", True)
+    monkeypatch.setattr(settings, "database_url", "   ")
+
+    async def run_lifespan():
+        async with lifespan(app):
+            pass
+
+    try:
+        asyncio.run(run_lifespan())
+    except RuntimeError as exc:
+        assert "DATABASE_URL is required" in str(exc)
+    else:
+        raise AssertionError("Production startup must fail without DATABASE_URL")
