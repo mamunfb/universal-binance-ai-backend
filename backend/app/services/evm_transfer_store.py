@@ -74,7 +74,7 @@ class EVMTransferStore:
                 self.database_url, sslmode="require", connect_timeout=15,
                 row_factory=dict_row,
             ))
-        return self._connect()
+        return sqlite3.connect(self.database_path)
 
     def save_chunk(self, chain_id: int, contract: str, start: int, end: int,
                    logs: list[dict[str, Any]]) -> int:
