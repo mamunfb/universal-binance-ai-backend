@@ -60,3 +60,32 @@ def test_collection_fails_when_any_market_scan_failed():
         "COIN_M": {"status": "COMPLETED"},
     }
     assert collection_succeeded(results) is False
+
+
+async def test_spot_provider_initialization_failure_does_not_skip_futures(monkeypatch):
+    import scripts.hourly_market_scan as scanner
+
+    attempted_markets = []
+
+    def broken_spot_provider(*args, **kwargs):
+        raise RuntimeError("invalid Spot configuration")
+
+    class FakeFuturesProvider:
+        def __init__(self, market, timeout_seconds):
+            self.market = market
+            attempted_markets.append(market)
+
+    async def fake_futures_scan(provider):
+        return {"status": "COMPLETED", "market": provider.market}
+
+    monkeypatch.setattr(scanner, "BinanceSpotProvider", broken_spot_provider)
+    monkeypatch.setattr(scanner, "BinanceFuturesProvider", FakeFuturesProvider)
+    monkeypatch.setattr(scanner, "scan_futures_markets", fake_futures_scan)
+
+    results = await scanner.collect_market_scans()
+
+    assert results["SPOT"]["status"] == "FAILED"
+    assert results["SPOT"]["error_type"] == "RuntimeError"
+    assert attempted_markets == ["USD_M", "COIN_M"]
+    assert results["USD_M"]["status"] == "COMPLETED"
+    assert results["COIN_M"]["status"] == "COMPLETED"
