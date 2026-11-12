@@ -27,9 +27,11 @@ def test_real_postgres_liquidation_event_round_trip_and_cleanup(tmp_path):
     }
     try:
         store.insert(event)
-        assert store.count() >= 1
         records = store.recent(symbol, 10)
-        assert any(row["event_time_ms"] == event_time for row in records)
+        assert len(records) == 1
+        assert records[0]["event_time_ms"] == event_time
+        assert records[0]["side"] == "SELL"
+        assert records[0]["approx_cumulative_notional"] == 200.0
     finally:
         with store._connect_postgres() as connection:
             connection.execute(
