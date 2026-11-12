@@ -169,3 +169,19 @@ def test_dashboard_displays_observed_regime_transitions_and_manual_adaptation_st
     assert "regime_transition_analysis" in html
     assert "signal_adaptation_status" in html
     assert "Pre-transition outcomes closing at or after the change are excluded" in html
+
+
+def test_dashboard_has_one_html_escape_helper_and_guards_numeric_rendering():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert html.count("const escapeHtml=") == 1
+    assert "const safeFixed=" in html
+    assert "const safeIsoTimestamp=" in html
+    assert "escapeHtml(safeIsoTimestamp(x.analyzed_at_ms))" in html
+
+
+def test_dashboard_validates_price_path_data_before_safe_svg_rendering():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "Price-path response contains invalid candle or reference-price values" in html
+    assert "values.every(v=>Number.isFinite(v)&&v>0)" in html
+    assert "setSafeHtml($('pricePath')" in html
+    assert "safeFixed(r.actual_market_change_percent,3)" in html
