@@ -91,7 +91,7 @@ def persist_scan_run(
     results: dict[str, dict[str, Any]],
     started_at: datetime,
 ) -> str:
-    """Persist one complete 15-minute market-scan envelope in Neon/PostgreSQL."""
+    """Persist one complete scheduled market-scan envelope in Neon/PostgreSQL."""
     database_url = os.environ.get("DATABASE_URL", "").strip()
     if not database_url:
         raise RuntimeError(
