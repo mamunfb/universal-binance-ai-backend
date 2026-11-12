@@ -22,9 +22,9 @@ Do not put the database URL in source code, workflow YAML, README, or committed 
 
 ## Storage and retention
 
-The workflow creates `market_scan_runs` automatically. Each row stores one complete run envelope and all three market scan responses in JSONB. The current 14-day retention is a temporary bootstrap setting, not the final long-term historical-data policy.
+The workflow creates `market_scan_runs` automatically. Each row stores one complete run envelope and all three market scan responses in JSONB. This bootstrap collector deliberately does not delete historical rows.
 
-**Do not treat this pipeline as production-ready for long-term history until the Cloudflare R2 archive/export, integrity verification, restore path, and archive-before-delete retention workflow have been implemented and tested.** The intended final architecture is Neon for queryable recent/structured history and R2 for long-term raw archives. No old database rows should be deleted before a verified archive exists.
+The intended long-term architecture is Neon for queryable recent/structured history and Cloudflare R2 for long-term raw archives. Before any retention deletion is introduced, implement and test R2 export, archive integrity verification, restore support, and an archive-before-delete process. Until then, monitor Neon storage usage; the database can grow and the free-tier capacity is not guaranteed to be sufficient for indefinite full snapshots.
 
 ## Current boundaries
 
