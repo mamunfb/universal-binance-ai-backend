@@ -30,7 +30,7 @@ The intended long-term architecture is Neon for queryable recent/structured hist
 
 - This is a scheduled market-universe scan, not a 24/7 FastAPI host.
 - It stores the existing Stage-1 scanner outputs; it does not claim that every advanced Master Prompt research phase has run.
-- The scanners explicitly report metrics they did not collect and may return `INCOMPLETE`; those fields must not be interpreted as verified.
+- The scanners explicitly report metrics they did not collect and may return `INCOMPLETE`; those fields must not be interpreted as verified. The stored overall research status can therefore remain `INCOMPLETE` even when the collection job succeeds. GitHub Actions exits successfully when all three collectors complete and the database write succeeds; it exits unsuccessfully for collector or persistence failures.
 - Existing historical analysis stores in the FastAPI application are SQLite-based and are not migrated by this workflow. This snapshot table is the first PostgreSQL-backed persistence layer.
 - One workflow run is serialized to prevent overlapping scheduled/manual executions.
 - A future public API can read shared snapshots rather than rescanning Binance for every user. Before public launch, add authentication, rate limits, API read endpoints, observability, load tests, and a capacity plan.
