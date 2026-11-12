@@ -44,7 +44,6 @@ jobs:
       - name: Scan Spot, USD-M and COIN-M markets
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          MARKET_SCAN_RETENTION_DAYS: "14"
           APP_ENV: "development"
           LOG_LEVEL: "INFO"
         run: python scripts/hourly_market_scan.py
