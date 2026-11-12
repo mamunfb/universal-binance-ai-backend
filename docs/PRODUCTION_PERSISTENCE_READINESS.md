@@ -10,6 +10,15 @@ The repository currently has two separate persistence paths:
 
 These are not interchangeable stores. The scheduled scan's PostgreSQL row is not currently read by the dashboard's market-confluence history endpoints.
 
+## Market-confluence PostgreSQL migration and integration test
+
+- The canonical schema is checked in at `migrations/001_market_confluence_snapshots.sql`. Apply it to the target Neon database/branch before enabling the PostgreSQL adapter.
+- For a real, isolated integration check, set `TEST_DATABASE_URL` to a disposable database/branch where that migration has been applied, then run:
+  `pytest -q tests/test_market_confluence_postgres_integration.py`
+- The integration test creates a uniquely named test symbol, verifies save/get/history, and deletes its test row in a `finally` block. Do not point it at a production database; use a disposable branch.
+- Without `TEST_DATABASE_URL`, the integration test is skipped. The ordinary CI suite therefore verifies the SQLite path and mocked PostgreSQL adapter, not live Neon connectivity.
+- Keep `DATABASE_URL` and `TEST_DATABASE_URL` in provider/CI secret storage. Never commit connection strings or paste them into source files.
+
 ## Cloud deployment constraint
 
 A container's writable local filesystem must not be treated as durable storage across Cloud Run instance replacement, scale-to-zero, or redeployment. Therefore, deploying the current SQLite-backed collectors and dashboard history endpoints to Cloud Run without a persistence redesign can cause history to be unavailable or split between instances.
