@@ -94,6 +94,10 @@ The MCP reader is `get_stored_derivatives_ratio_history`. Storage is idempotent 
 
 The read-only endpoint `GET /api/v1/analysis/derivatives/multi-timeframe/{symbol}?periods=5m,15m,1h,4h,1d&limit=48` combines independently stored USD-M Open Interest and price observations across selected periods. It reports rising/falling/flat OI directions, missing timeframes and a cautious agreement classification. Confirmation is withheld when the latest OI timestamps differ, when any requested timeframe lacks sufficient records, or when only one timeframe is selected. Each completed period analysis writes a local signal snapshot. The MCP tool is `analyze_multi_timeframe_derivatives`.
 
+## Render temporary subdomain deployment
+
+See [Render deployment guide](docs/RENDER_DEPLOYMENT.md) for the temporary `onrender.com` hostname, secret configuration, manual deployment, and acceptance checks. The Render Blueprint is pinned to the feature branch and does not auto-deploy.
+
 ## Run locally
 ```bash
 python -m venv .venv
