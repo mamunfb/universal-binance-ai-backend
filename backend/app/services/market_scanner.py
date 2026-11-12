@@ -48,7 +48,12 @@ async def scan_spot_markets(
             "failed_symbols": 0,
             "error_code": (f"HTTP_{exc.response.status_code}" if isinstance(exc, httpx.HTTPStatusError) else "COLLECTOR_EXCEPTION"),
             "error_type": type(exc).__name__,
-            "error": str(exc), "results": [],
+            "error": (
+                f"Binance Spot public API returned HTTP {exc.response.status_code}"
+                if isinstance(exc, httpx.HTTPStatusError)
+                else f"Could not retrieve Binance Spot market data ({type(exc).__name__})"
+            ),
+            "results": [],
             "unique_coin_count": 0, "unique_coins": [],
         }
 
