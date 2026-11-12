@@ -18,6 +18,12 @@
 <script>
 const $=id=>document.getElementById(id);let latest=null;
 const api=()=> $('base').value.trim().replace(/\/$/,'');
+// Escape untrusted API values before inserting them into HTML text or attributes.
+function escapeHtml(value){
+  return String(value??'').replace(/[&<>"']/g,char=>({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[char]));
+}
 const headers=()=>({'Authorization':'Bearer '+$('key').value.trim(),'Content-Type':'application/json'});
 async function call(path,options={}){if(!api())throw Error('Backend Base URL required');const r=await fetch(api()+path,{...options,headers:{...headers(),...(options.headers||{})}});const data=await r.json();if(!r.ok)throw Error(JSON.stringify(data));return data}
 function fail(e){$('status').textContent='Error: '+e.message}
