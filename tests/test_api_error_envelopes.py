@@ -300,3 +300,10 @@ def test_required_database_url_fails_startup_when_missing(monkeypatch):
         assert "DATABASE_URL is required" in str(exc)
     else:
         raise AssertionError("Production startup must fail without DATABASE_URL")
+
+
+def test_dashboard_markup_has_no_literal_newline_separator():
+    from pathlib import Path
+    dashboard = Path(__file__).resolve().parents[1] / "dashboard" / "index.html"
+    html = dashboard.read_text(encoding="utf-8")
+    assert r"</div>\n<div>" not in html
