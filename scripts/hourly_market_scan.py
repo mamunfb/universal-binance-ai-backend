@@ -80,20 +80,13 @@ def persist_scan_run(
     results: dict[str, dict[str, Any]],
     started_at: datetime,
 ) -> str:
-    """Persist one complete hourly scan envelope in Neon/PostgreSQL."""
+    """Persist one complete 15-minute market-scan envelope in Neon/PostgreSQL."""
     database_url = os.environ.get("DATABASE_URL", "").strip()
     if not database_url:
         raise RuntimeError(
             "DATABASE_URL is missing. Create a Neon PostgreSQL database and add "
             "its connection string as the GitHub Actions secret DATABASE_URL."
         )
-
-    try:
-        retention_days = int(os.environ.get("MARKET_SCAN_RETENTION_DAYS", "14"))
-    except ValueError as exc:
-        raise RuntimeError("MARKET_SCAN_RETENTION_DAYS must be an integer") from exc
-    if not 1 <= retention_days <= 365:
-        raise RuntimeError("MARKET_SCAN_RETENTION_DAYS must be between 1 and 365")
 
     # Import only at persistence time so scanner logic remains independently testable.
     import psycopg
@@ -141,11 +134,8 @@ def persist_scan_run(
                 len(results),
                 Jsonb(payload),
             ))
-            cursor.execute(
-                "DELETE FROM market_scan_runs WHERE completed_at < "
-                "NOW() - make_interval(days => %s)",
-                (retention_days,),
-            )
+    # Deliberately do not prune historical rows here. R2 archiving, integrity
+    # verification, and restore support must exist before any retention deletion.
     return run_id
 
 
