@@ -33,6 +33,13 @@ Do not mark production persistence complete merely because the API container sta
 - Add migration/version management, connection pooling or bounded connection usage, indexes, backup/restore verification, and integration tests against a disposable PostgreSQL database.
 - Keep SQLite for local development and unit tests if useful, with an explicit storage adapter boundary.
 
+## Historical OHLCV storage migration — staged, not enabled
+
+- A PostgreSQL target schema is available at `migrations/002_historical_klines.sql`.
+- This migration is schema preparation only. `HistoricalKlineStore` still uses SQLite; applying the SQL does not switch application reads or writes to Neon.
+- Before enabling a PostgreSQL adapter, preserve current validation and upsert semantics, implement `latest_open_time`, `history`, and `save_klines` parity, and add SQLite/PostgreSQL contract tests plus an opt-in disposable-database integration test.
+- Do not claim durable OHLCV history until the application adapter is switched and insert/read/restart tests pass against PostgreSQL.
+
 ## Operational checklist
 
 - Set `APP_ENV=production` and configure a strong `PERSONAL_API_KEY` (at least 32 characters) or all five independent `AI_CLIENT_API_KEYS` before exposing the API.
