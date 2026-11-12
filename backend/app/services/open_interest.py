@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import math
 import sqlite3
+import psycopg
+from psycopg.rows import dict_row
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -13,8 +15,11 @@ OPEN_INTEREST_PERIODS = {"5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "1d"
 class OpenInterestStore:
     """Idempotent SQLite storage for Binance USD-M open-interest statistics."""
 
-    def __init__(self, database_path: str) -> None:
+    def __init__(self, database_path: str, database_url: str = "") -> None:
         self.database_path = database_path
+        self.database_url = database_url.strip()
+        if self.database_url:
+            return
         Path(database_path).parent.mkdir(parents=True, exist_ok=True)
         with sqlite3.connect(database_path) as connection:
             connection.execute("""
@@ -35,6 +40,9 @@ class OpenInterestStore:
                 CREATE INDEX IF NOT EXISTS idx_open_interest_lookup
                 ON historical_open_interest(market, symbol, period, timestamp_ms)
             """)
+
+    def _connect_postgres(self):
+        return psycopg.connect(self.database_url, sslmode="require", connect_timeout=15, row_factory=dict_row)
 
     @staticmethod
     def _finite(value: Any, field: str) -> float:
@@ -86,29 +94,48 @@ class OpenInterestStore:
         now = datetime.now(timezone.utc).isoformat()
         values = [(market, symbol, period, timestamp, amount, value, supply, source, now)
                   for timestamp, amount, value, supply in normalized]
-        with sqlite3.connect(self.database_path) as connection:
-            connection.executemany("""
-                INSERT INTO historical_open_interest (
-                    market, symbol, period, timestamp_ms, sum_open_interest,
-                    sum_open_interest_value, cmc_circulating_supply, source, collected_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(market, symbol, period, timestamp_ms) DO UPDATE SET
-                    sum_open_interest=excluded.sum_open_interest,
-                    sum_open_interest_value=excluded.sum_open_interest_value,
-                    cmc_circulating_supply=excluded.cmc_circulating_supply,
-                    source=excluded.source,
-                    collected_at=excluded.collected_at
-            """, values)
-            total = connection.execute("""
-                SELECT COUNT(*) FROM historical_open_interest
-                WHERE market=? AND symbol=? AND period=?
-            """, (market, symbol, period)).fetchone()[0]
+        if self.database_url:
+            with self._connect_postgres() as connection:
+                connection.executemany("""
+                    INSERT INTO public.historical_open_interest (
+                        market, symbol, period, timestamp_ms, sum_open_interest,
+                        sum_open_interest_value, cmc_circulating_supply, source, collected_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT(market, symbol, period, timestamp_ms) DO UPDATE SET
+                        sum_open_interest=excluded.sum_open_interest,
+                        sum_open_interest_value=excluded.sum_open_interest_value,
+                        cmc_circulating_supply=excluded.cmc_circulating_supply,
+                        source=excluded.source, collected_at=excluded.collected_at
+                """, values)
+                total = connection.execute("""
+                    SELECT COUNT(*) AS count FROM public.historical_open_interest
+                    WHERE market=%s AND symbol=%s AND period=%s
+                """, (market, symbol, period)).fetchone()["count"]
+            storage = "POSTGRESQL"
+        else:
+            with sqlite3.connect(self.database_path) as connection:
+                connection.executemany("""
+                    INSERT INTO historical_open_interest (
+                        market, symbol, period, timestamp_ms, sum_open_interest,
+                        sum_open_interest_value, cmc_circulating_supply, source, collected_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(market, symbol, period, timestamp_ms) DO UPDATE SET
+                        sum_open_interest=excluded.sum_open_interest,
+                        sum_open_interest_value=excluded.sum_open_interest_value,
+                        cmc_circulating_supply=excluded.cmc_circulating_supply,
+                        source=excluded.source, collected_at=excluded.collected_at
+                """, values)
+                total = connection.execute("""
+                    SELECT COUNT(*) FROM historical_open_interest
+                    WHERE market=? AND symbol=? AND period=?
+                """, (market, symbol, period)).fetchone()[0]
+            storage = "SQLITE_IDEMPOTENT"
         return {
             "status": "COMPLETED", "market": market, "symbol": symbol, "period": period,
             "received_count": len(rows), "stored_count": len(normalized),
             "total_stored_count": int(total),
             "first_timestamp_ms": normalized[0][0], "last_timestamp_ms": normalized[-1][0],
-            "collected_at": now, "source": source, "storage": "SQLITE_IDEMPOTENT",
+            "collected_at": now, "source": source, "storage": storage,
         }
 
     def history(
@@ -141,14 +168,34 @@ class OpenInterestStore:
             clauses.append("timestamp_ms<=?")
             params.append(end_time_ms)
         params.append(limit)
-        with sqlite3.connect(self.database_path) as connection:
-            connection.row_factory = sqlite3.Row
-            rows = connection.execute(f"""
-                SELECT timestamp_ms, sum_open_interest, sum_open_interest_value,
-                       cmc_circulating_supply, source, collected_at
-                FROM historical_open_interest WHERE {' AND '.join(clauses)}
-                ORDER BY timestamp_ms DESC LIMIT ?
-            """, params).fetchall()
+        if self.database_url:
+            pg_clauses = ["market=%s", "symbol=%s", "period=%s"]
+            pg_params: list[Any] = [market, symbol, period]
+            if start_time_ms is not None:
+                pg_clauses.append("timestamp_ms>=%s")
+                pg_params.append(start_time_ms)
+            if end_time_ms is not None:
+                pg_clauses.append("timestamp_ms<=%s")
+                pg_params.append(end_time_ms)
+            pg_params.append(limit)
+            with self._connect_postgres() as connection:
+                rows = connection.execute(f"""
+                    SELECT timestamp_ms, sum_open_interest, sum_open_interest_value,
+                           cmc_circulating_supply, source, collected_at
+                    FROM public.historical_open_interest WHERE {' AND '.join(pg_clauses)}
+                    ORDER BY timestamp_ms DESC LIMIT %s
+                """, pg_params).fetchall()
+            source_label = "Neon PostgreSQL open-interest history"
+        else:
+            with sqlite3.connect(self.database_path) as connection:
+                connection.row_factory = sqlite3.Row
+                rows = connection.execute(f"""
+                    SELECT timestamp_ms, sum_open_interest, sum_open_interest_value,
+                           cmc_circulating_supply, source, collected_at
+                    FROM historical_open_interest WHERE {' AND '.join(clauses)}
+                    ORDER BY timestamp_ms DESC LIMIT ?
+                """, params).fetchall()
+            source_label = "Local SQLite open-interest history"
         records = [dict(row) for row in reversed(rows)]
         observed_gaps = []
         for previous, current in zip(records, records[1:]):
@@ -170,5 +217,5 @@ class OpenInterestStore:
                 "expected_schedule_verified": False,
                 "note": "Binance may omit periods with no trades; observed timestamp deltas are not classified as missing data.",
             },
-            "source": "Local SQLite open-interest history; original source retained per record.",
+            "source": f"{source_label}; original source retained per record.",
         }
