@@ -95,16 +95,19 @@ async def test_scan_marks_missing_and_malformed_tickers_incomplete():
 
 class FailingProvider:
     async def exchange_info(self):
-        raise RuntimeError("provider unavailable")
+        raise RuntimeError("provider unavailable https://private.example/token=secret")
 
     async def all_24h_tickers(self):
         return []
 
 
-async def test_scan_reports_upstream_failure_without_fabricating_zero_market_result():
+async def test_scan_reports_sanitized_upstream_failure_without_fabricating_zero_market_result():
     result = await scan_spot_markets(FailingProvider(), quote_asset="USDT")
     assert result["status"] == "FAILED"
-    assert result["error"] == "provider unavailable"
+    assert result["error"] == "Could not retrieve Binance Spot market data (RuntimeError)"
+    assert "private.example" not in result["error"]
+    assert "secret" not in result["error"]
+    assert result["error_type"] == "RuntimeError"
     assert result["eligible_symbols"] == 0
     assert result["results"] == []
 
