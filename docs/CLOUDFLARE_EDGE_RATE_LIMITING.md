@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Apply rate limits at Cloudflare before requests reach the private FastAPI service. This protects the origin across multiple Cloud Run instances without relying on per-process memory.
+Apply rate limits at Cloudflare before requests reach the private FastAPI service. This protects the origin across multiple backend instances without relying on per-process memory.
 
 ## Deployment prerequisites
 
