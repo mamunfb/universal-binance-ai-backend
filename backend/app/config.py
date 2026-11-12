@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     personal_api_key: str = ""
     ai_client_api_keys: str = "{}"
     log_level: str = "INFO"
-    binance_spot_base_url: str = "https://api.binance.com"
+    binance_spot_base_url: str = "https://data-api.binance.vision"
     http_timeout_seconds: float = 15.0
     liquidation_collector_enabled: bool = False
     liquidation_database_path: str = "data/liquidations.sqlite3"
