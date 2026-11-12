@@ -75,7 +75,10 @@ aggregate_trade_store = AggregateTradeStore(settings.aggregate_trade_database_pa
 aggregate_trade_collector: AggregateTradeCollector | None = None
 news_provider = RSSNewsProvider(settings.http_timeout_seconds)
 evm_transfer_store = EVMTransferStore(settings.evm_transfer_database_path)
-historical_kline_store = HistoricalKlineStore(settings.historical_kline_database_path)
+historical_kline_store = HistoricalKlineStore(
+    settings.historical_kline_database_path,
+    settings.historical_kline_database_url or settings.database_url,
+)
 funding_rate_store = FundingRateStore(settings.funding_rate_database_path)
 open_interest_store = OpenInterestStore(settings.open_interest_database_path)
 derivatives_signal_store = DerivativesSignalStore(settings.derivatives_signal_database_path)
