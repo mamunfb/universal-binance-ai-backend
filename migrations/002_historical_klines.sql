@@ -1,6 +1,7 @@
 -- Historical OHLCV candles for Spot, USD-M and COIN-M.
--- Schema only: the application adapter remains SQLite until the PostgreSQL
--- implementation and parity tests are completed in a later change.
+-- The application supports PostgreSQL/Neon when DATABASE_URL (or
+-- HISTORICAL_KLINE_DATABASE_URL) is configured, and SQLite for local
+-- development/tests. Apply this migration before enabling PostgreSQL storage.
 CREATE TABLE IF NOT EXISTS public.historical_klines (
     market TEXT NOT NULL CHECK (market IN ('SPOT', 'USD_M', 'COIN_M')),
     symbol TEXT NOT NULL,
