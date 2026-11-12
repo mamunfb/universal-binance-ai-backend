@@ -1,6 +1,8 @@
 from datetime import datetime, timezone
 from typing import Any
 
+import httpx
+
 from app.providers.binance_spot import BinanceSpotProvider
 
 _STABLECOIN_ASSETS = {"USDT", "USDC", "FDUSD", "TUSD", "USDP", "DAI", "BUSD", "USTC", "USDE"}
@@ -43,7 +45,10 @@ async def scan_spot_markets(
             "source": "Binance Spot public REST API", "market": "SPOT",
             "quote_asset_filter": quote, "total_available_pairs": 0,
             "eligible_symbols": 0, "scanned_symbols": 0, "matched_symbols": 0,
-            "failed_symbols": 0, "error": str(exc), "results": [],
+            "failed_symbols": 0,
+            "error_code": (f"HTTP_{exc.response.status_code}" if isinstance(exc, httpx.HTTPStatusError) else "COLLECTOR_EXCEPTION"),
+            "error_type": type(exc).__name__,
+            "error": str(exc), "results": [],
             "unique_coin_count": 0, "unique_coins": [],
         }
 
