@@ -88,7 +88,7 @@ class FundingRateStore:
                   for timestamp, rate, mark in normalized]
         if self.database_url:
             with self._connect_postgres() as connection:
-                connection.executemany("""
+                connection.cursor().executemany("""
                     INSERT INTO public.historical_funding_rates (
                         market, symbol, funding_time_ms, funding_rate, mark_price, source, collected_at
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s)
