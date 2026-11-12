@@ -112,7 +112,7 @@ class HistoricalKlineStore:
         ]
         if self.database_url:
             with self._connect_postgres() as connection:
-                connection.executemany("""
+                connection.cursor().executemany("""
                     INSERT INTO public.historical_klines (
                         market, symbol, interval, open_time_ms, open, high, low, close,
                         volume, close_time_ms, quote_volume, trade_count,
