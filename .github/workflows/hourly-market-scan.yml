@@ -1,9 +1,8 @@
-name: Hourly Spot and Futures Market Scan
+name: 15-Minute Spot and Futures Market Scan
 
 on:
   schedule:
-    # Run at minute 17 rather than the top of the hour to reduce schedule contention.
-    - cron: "17 * * * *"
+    - cron: "*/15 * * * *"
       timezone: "Asia/Dhaka"
   workflow_dispatch:
 
@@ -11,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: hourly-market-scan
+  group: market-scan
   cancel-in-progress: false
 
 jobs:
