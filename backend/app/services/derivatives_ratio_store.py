@@ -116,7 +116,7 @@ class DerivativesRatioStore:
         ]
         if self.database_url:
             with self._connect_postgres() as connection:
-                connection.executemany("""
+                connection.cursor().executemany("""
                     INSERT INTO public.derivatives_ratio_history (
                         market, ratio_type, symbol, period, timestamp_ms,
                         payload, source, collected_at
