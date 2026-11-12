@@ -42,7 +42,7 @@ class MarketDataQualityEngine:
     def _query(db_path: str, sql: str, params: tuple[Any, ...], database_url: str = "") -> tuple[int, int | None]:
         if database_url:
             try:
-                with psycopg.connect(database_url, sslmode="require", connect_timeout=15) as db:
+                with psycopg.connect(database_url, sslmode=("disable" if "sslmode=disable" in database_url else "require"), connect_timeout=15) as db:
                     row = db.execute(sql.replace("?", "%s"), params).fetchone()
             except psycopg.Error:
                 return -1, None
