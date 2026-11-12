@@ -36,6 +36,14 @@ Binance public APIs -> provider adapters and normalization -> analysis services 
 
 Futures coverage is based on exchangeInfo symbols marked TRADING and the selected quote asset. Scanner responses include coverage counts and data failures. See docs/FUTURES_API.md, docs/DERIVATIVES_API.md, docs/SPOT_FUTURES_BASIS_API.md, docs/MARKET_EVIDENCE_API.md, docs/MULTI_TIMEFRAME_API.md, docs/LIQUIDATION_COLLECTOR.md, docs/PRICE_LEVELS_API.md, and docs/VOLUME_STRUCTURE_API.md.
 
+## PostgreSQL / Neon configuration
+
+The checked-in migrations in `migrations/` define the PostgreSQL schema. The CI workflow applies them to a disposable PostgreSQL service before running the PostgreSQL integration tests. Neon production schema changes must be reviewed and applied through the documented migration workflow.
+
+To use Neon at runtime, set `DATABASE_URL` in the backend host's environment/secret settings to the Neon **pooled** PostgreSQL connection string (hostname contains `-pooler`). The backend uses this shared setting for the PostgreSQL-capable market-data stores. Optionally set `HISTORICAL_KLINE_DATABASE_URL` to a separate PostgreSQL connection; when empty, historical klines fall back to `DATABASE_URL`. Keep real connection strings and passwords out of Git and never put them in `.env.example`.
+
+When `DATABASE_URL` is unset, stores that support local fallback continue using their configured SQLite database paths. Setting the Neon URL does not itself deploy the API or configure the hosting provider; the secret must be added to the actual runtime environment before the app uses Neon.
+
 ## Repository layout
 - backend/ — API and application services
 - providers/ — exchange and external data-source adapters
