@@ -67,7 +67,7 @@ from app.services.cross_chain_wallets import parse_chain_rpc_configs, cross_chai
 from app.services.cross_chain_tokens import parse_chain_token_configs, cross_chain_erc20_snapshot
 from app.services.cross_chain_smart_money import cross_chain_verified_wallet_flows
 
-liquidation_store = LiquidationStore(settings.liquidation_database_path)
+liquidation_store = LiquidationStore(settings.liquidation_database_path, settings.database_url)
 liquidation_collector = LiquidationCollector(liquidation_store)
 order_book_history_store = OrderBookHistoryStore(settings.order_book_database_path, settings.database_url)
 order_book_collector: OrderBookStreamCollector | None = None
