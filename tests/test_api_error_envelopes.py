@@ -82,6 +82,30 @@ def test_production_api_fails_closed_without_strong_key(monkeypatch):
 
 
 
+def test_production_accepts_strong_owner_key_when_client_key_json_is_invalid(monkeypatch):
+    monkeypatch.setattr(settings, "app_env", "production")
+    monkeypatch.setattr(settings, "personal_api_key", "test-owner-key-with-enough-entropy")
+    monkeypatch.setattr(settings, "ai_client_api_keys", "{invalid-json")
+    response = client.get(
+        "/api/v1/analysis/futures/liquidations/status",
+        headers={"Authorization": "Bearer test-owner-key-with-enough-entropy"},
+    )
+    assert response.status_code == 200
+
+
+def test_production_rejects_partial_client_keys_without_strong_owner_key(monkeypatch):
+    monkeypatch.setattr(settings, "app_env", "production")
+    monkeypatch.setattr(settings, "personal_api_key", "")
+    monkeypatch.setattr(
+        settings,
+        "ai_client_api_keys",
+        '{"chatgpt":"chatgpt-test-key-12345678901234567890123456789012"}',
+    )
+    response = client.get("/api/v1/analysis/futures/liquidations/status")
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "AUTH_NOT_CONFIGURED"
+
+
 def test_each_private_ai_client_can_use_its_own_key(monkeypatch):
     monkeypatch.setattr(settings, "app_env", "development")
     monkeypatch.setattr(settings, "personal_api_key", "")
