@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     aggregate_trade_collector_jobs: str = "[]"
     aggregate_trade_database_path: str = "data/aggregate_trades.sqlite3"
     historical_kline_database_path: str = "data/historical_klines.sqlite3"
+    historical_kline_database_url: str = ""
     funding_rate_database_path: str = "data/funding_rates.sqlite3"
     open_interest_database_path: str = "data/open_interest.sqlite3"
     derivatives_signal_database_path: str = "data/derivatives_signals.sqlite3"
