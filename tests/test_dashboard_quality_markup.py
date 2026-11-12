@@ -185,3 +185,11 @@ def test_dashboard_validates_price_path_data_before_safe_svg_rendering():
     assert "values.every(v=>Number.isFinite(v)&&v>0)" in html
     assert "setSafeHtml($('pricePath')" in html
     assert "safeFixed(r.actual_market_change_percent,3)" in html
+
+
+def test_dashboard_uses_guarded_formatter_for_all_api_numeric_fields():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    script = html.split("<script>", 1)[1].split("</script>", 1)[0]
+    assert script.count(".toFixed(") == 1
+    assert "safeFixed((g.early||{}).positive_fraction*100,1)" in script
+    assert "safeFixed((t.post_transition||{}).positive_fraction*100,1)" in script
