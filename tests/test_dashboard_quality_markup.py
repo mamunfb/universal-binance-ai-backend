@@ -193,3 +193,20 @@ def test_dashboard_uses_guarded_formatter_for_all_api_numeric_fields():
     assert script.count(".toFixed(") == 1
     assert "safeFixed((g.early||{}).positive_fraction*100,1)" in script
     assert "safeFixed((t.post_transition||{}).positive_fraction*100,1)" in script
+
+
+def test_dashboard_guards_unexpected_api_response_shapes():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "const isRecord=value=>value!==null&&typeof value==='object'&&!Array.isArray(value)" in html
+    assert "Analysis API returned an unexpected response shape" in html
+    assert "Quality API returned an unexpected response shape" in html
+    assert "Performance API returned an unexpected response shape" in html
+    assert "(Array.isArray(latest.evidence)?latest.evidence:[]).filter(isRecord)" in html
+
+
+def test_dashboard_uses_nonnegative_safe_integer_formatter_for_counts():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "Number.isSafeInteger(n)&&n>=0?String(n):'—'" in html
+    assert "safeCount(h.sample_size)" in html
+    assert "safeCount(row.non_overlapping_directional_sample_size)" in html
+    assert "safeCount(cm.true_positive??0)" in html
