@@ -210,3 +210,12 @@ def test_dashboard_uses_nonnegative_safe_integer_formatter_for_counts():
     assert "safeCount(h.sample_size)" in html
     assert "safeCount(row.non_overlapping_directional_sample_size)" in html
     assert "safeCount(cm.true_positive??0)" in html
+
+
+def test_dashboard_guards_nested_performance_report_objects_and_arrays():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "isRecord(h.signal_quality)?h.signal_quality:{}" in html
+    assert "Object.entries(isRecord(h.signal_quality_by_regime)?h.signal_quality_by_regime:{})" in html
+    assert "Object.entries(isRecord(groups)?groups:{}).filter(([,g])=>isRecord(g))" in html
+    assert "Object.entries(isRecord(horizon.rankings)?horizon.rankings:{}).filter(([,ranking])=>isRecord(ranking))" in html
+    assert "(Array.isArray(ranking.ranked)?ranking.ranked:[]).filter(isRecord)" in html
