@@ -6,7 +6,7 @@ The repository currently has two separate persistence paths:
 
 1. The scheduled collector in `scripts/hourly_market_scan.py` writes its run envelope to Neon/PostgreSQL in the `market_scan_runs` table. This stores the three market collector responses (Spot, USD-M and COIN-M) as JSONB.
 2. Dashboard market-confluence snapshots use PostgreSQL/Neon when `DATABASE_URL` is configured, through the `MarketConfluenceStore` adapter; they fall back to local SQLite when it is absent (for local development/tests).
-3. Other historical collectors still use local SQLite files configured through `*_DATABASE_PATH` settings. These include historical klines, funding rates, open interest, derivatives ratios/signals, order-book samples, aggregate trades, and EVM transfer data.
+3. Historical stores use PostgreSQL/Neon when `DATABASE_URL` is configured and the matching migrations are applied; otherwise they retain SQLite for local development/tests. This includes klines, funding, open interest, derivatives ratios/signals, order-book samples, aggregate trades, liquidation events, and EVM transfer data. Market Data Quality and Historical Coverage read from the same configured backend.
 
 These are not interchangeable stores. The scheduled scan's PostgreSQL row is not currently read by the dashboard's market-confluence history endpoints.
 
@@ -21,7 +21,7 @@ These are not interchangeable stores. The scheduled scan's PostgreSQL row is not
 
 ## Cloud deployment constraint
 
-A container's writable local filesystem must not be treated as durable storage across Cloud Run instance replacement, scale-to-zero, or redeployment. Therefore, deploying the current SQLite-backed collectors and dashboard history endpoints to Cloud Run without a persistence redesign can cause history to be unavailable or split between instances.
+A container's writable local filesystem must not be treated as durable storage across Cloud Run instance replacement, scale-to-zero, or redeployment. Any store left on its SQLite fallback can lose or split history across instances; configure `DATABASE_URL`, apply every required migration, and verify the PostgreSQL path before production.
 
 Do not mark production persistence complete merely because the API container starts or because scheduled market scans insert rows into Neon.
 
@@ -29,16 +29,9 @@ Do not mark production persistence complete merely because the API container sta
 
 - Verify the configured Neon-backed market-confluence snapshot adapter with a real insert/read test against a disposable database or branch; keep the SQLite fallback for local development/tests.
 - Decide whether the hourly/scheduled market scan envelope should feed the dashboard directly, or whether a separate normalized confluence snapshot is required. The existing collector output is raw market coverage, not the same data contract as a confluence snapshot.
-- Migrate the remaining SQLite-backed collectors individually; do not blindly replace SQLite with PostgreSQL without checking each store's schema, transaction semantics, retention, and concurrency behavior.
+- The repository now contains PostgreSQL adapters for the historical stores listed below. Apply the matching migrations and run opt-in integration tests against a disposable Neon branch before enabling each adapter; do not assume schema application or ordinary CI alone proves live connectivity.
 - Add migration/version management, connection pooling or bounded connection usage, indexes, backup/restore verification, and integration tests against a disposable PostgreSQL database.
 - Keep SQLite for local development and unit tests if useful, with an explicit storage adapter boundary.
-
-## Historical OHLCV storage migration — staged, not enabled
-
-- A PostgreSQL target schema is available at `migrations/002_historical_klines.sql`.
-- This migration is schema preparation only. `HistoricalKlineStore` still uses SQLite; applying the SQL does not switch application reads or writes to Neon.
-- Before enabling a PostgreSQL adapter, preserve current validation and upsert semantics, implement `latest_open_time`, `history`, and `save_klines` parity, and add SQLite/PostgreSQL contract tests plus an opt-in disposable-database integration test.
-- Do not claim durable OHLCV history until the application adapter is switched and insert/read/restart tests pass against PostgreSQL.
 
 ## Historical OHLCV PostgreSQL adapter
 
@@ -47,7 +40,7 @@ Do not mark production persistence complete merely because the API container sta
 - The PostgreSQL adapter implements save/upsert, latest open-time lookup, and bounded history retrieval. Existing candle validation and idempotent conflict handling are retained.
 - An opt-in real-database test is available at `tests/test_historical_klines_postgres_integration.py`; set `TEST_DATABASE_URL` to a disposable migrated database and run `pytest -q tests/test_historical_klines_postgres_integration.py`.
 - The real database test is skipped when the secret is absent. CI success without that secret is not evidence of a live Neon connection.
-- This adapter covers OHLCV only. Funding-rate, open-interest, derivatives, order-book, aggregate-trade, liquidation and EVM transfer stores remain separate migration work.
+- The adapter covers OHLCV save/upsert, latest-open-time lookup, bounded history, and PostgreSQL-backed quality/coverage queries. Other adapters are documented in the following sections.
 
 ## Funding-rate and open-interest PostgreSQL adapters
 
@@ -56,7 +49,7 @@ Do not mark production persistence complete merely because the API container sta
 - Their save/upsert and history paths preserve symbol/market/period validation, idempotent keys, source labels, and observed-gap reporting.
 - The opt-in real-database check is `tests/test_funding_open_interest_postgres_integration.py`; set `TEST_DATABASE_URL` to a disposable migrated database and run `pytest -q tests/test_funding_open_interest_postgres_integration.py`.
 - Without the secret, the integration test is skipped. CI success alone does not prove live Neon connectivity.
-- Other historical SQLite stores (derivatives ratios/signals, order-book, aggregate trades, liquidations, EVM transfers and remaining collectors) are not covered by these adapters.
+- Derivatives ratios/signals, order-book, aggregate trades, liquidations and EVM transfers also have PostgreSQL adapters described below; each requires its corresponding migration and opt-in integration test.
 
 ## Derivatives ratios and signal snapshots
 
@@ -64,7 +57,7 @@ Do not mark production persistence complete merely because the API container sta
 - `DerivativesSignalStore` supports PostgreSQL through `DATABASE_URL` and retains SQLite fallback. Apply `migrations/005_derivatives_signal_snapshots.sql` first.
 - Opt-in live-database tests: `tests/test_derivatives_ratio_postgres_integration.py` and `tests/test_derivatives_signal_postgres_integration.py`. Set `TEST_DATABASE_URL` to a disposable database with migrations 004 and 005 applied.
 - These tests skip without `TEST_DATABASE_URL`; green ordinary CI does not verify live Neon connectivity.
-- Order-book and aggregate-trade stream stores still use local SQLite and remain unsuitable for multi-instance durable production collection until migrated.
+- Order-book and aggregate-trade stream stores support PostgreSQL through `DATABASE_URL`; SQLite remains the local-development fallback. Multi-instance production use still requires migration application, live integration verification, and a deliberate retention/write-volume policy.
 
 ## Order-book and aggregate-trade stream persistence
 
@@ -81,7 +74,7 @@ Do not mark production persistence complete merely because the API container sta
 - Apply `migrations/008_liquidation_events.sql` before using PostgreSQL-backed liquidation collection.
 - The opt-in integration test is `tests/test_liquidation_postgres_integration.py`; set `TEST_DATABASE_URL` to a disposable migrated database.
 - The test is skipped without `TEST_DATABASE_URL`; ordinary CI does not establish live Neon connectivity.
-- EVM ERC-20 transfer logs and index-range coverage remain SQLite-backed; their multiple query/aggregation methods require a separate complete migration and validation.
+- EVM ERC-20 transfer logs and index-range coverage support PostgreSQL through `DATABASE_URL`; verify migration 009 and the opt-in integration test before production use.
 
 ## EVM ERC-20 transfer persistence
 
@@ -104,4 +97,4 @@ Do not mark production persistence complete merely because the API container sta
 
 ## Current readiness statement
 
-The repository has automated backend tests, dashboard JavaScript syntax validation, and a Docker image build in CI. These checks do not prove live Binance reachability, Neon connectivity from the deployment, durable SQLite history, Cloudflare routing, or end-to-end AI-client connectivity. Those remain explicit acceptance tests.
+The repository has automated backend tests, dashboard JavaScript syntax validation, and a Docker image build in CI. These checks do not prove live Binance reachability, Neon connectivity from the deployment, correct migration application, Cloudflare routing, or end-to-end AI-client connectivity. Those remain explicit acceptance tests.
