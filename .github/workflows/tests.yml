@@ -34,5 +34,7 @@ jobs:
               file.write_text(script)
               subprocess.run(["node", "--check", str(file)], check=True)
           PY
+      - name: Build production Docker image
+        run: docker build --tag universal-binance-ai-backend:test .
       - name: Run tests
         run: pytest -q
