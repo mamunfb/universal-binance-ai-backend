@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import calendar
 import sqlite3
+
+import psycopg
 from datetime import datetime, timezone
 from typing import Any
 
@@ -50,9 +52,10 @@ def _is_aligned(open_ms: int, interval: str) -> bool:
 class HistoricalCoverageEngine:
     """Compare stored candle opens with the expected UTC interval grid."""
 
-    def __init__(self, database_path: str, max_expected_candles: int = 100_000) -> None:
+    def __init__(self, database_path: str, max_expected_candles: int = 100_000, database_url: str = "") -> None:
         self.database_path = database_path
         self.max_expected_candles = max_expected_candles
+        self.database_url = database_url.strip()
 
     def inspect(
         self, market: str, symbol: str, interval: str,
@@ -78,14 +81,24 @@ class HistoricalCoverageEngine:
                 raise ValueError(f"Requested range exceeds {self.max_expected_candles} expected candles")
             cursor = _next_open(cursor, interval)
 
-        with sqlite3.connect(self.database_path) as connection:
-            rows = connection.execute(
-                """SELECT open_time_ms FROM historical_klines
-                   WHERE market=? AND symbol=? AND interval=?
-                     AND open_time_ms>=? AND open_time_ms<=?
-                   ORDER BY open_time_ms""",
-                (market, symbol, interval, start_time_ms, end_time_ms),
-            ).fetchall()
+        if self.database_url:
+            with psycopg.connect(self.database_url, sslmode="require", connect_timeout=15) as connection:
+                rows = connection.execute(
+                    """SELECT open_time_ms FROM public.historical_klines
+                       WHERE market=%s AND symbol=%s AND interval=%s
+                         AND open_time_ms>=%s AND open_time_ms<=%s
+                       ORDER BY open_time_ms""",
+                    (market, symbol, interval, start_time_ms, end_time_ms),
+                ).fetchall()
+        else:
+            with sqlite3.connect(self.database_path) as connection:
+                rows = connection.execute(
+                    """SELECT open_time_ms FROM historical_klines
+                       WHERE market=? AND symbol=? AND interval=?
+                         AND open_time_ms>=? AND open_time_ms<=?
+                       ORDER BY open_time_ms""",
+                    (market, symbol, interval, start_time_ms, end_time_ms),
+                ).fetchall()
         stored = {int(row[0]) for row in rows}
         expected_set = set(expected)
         unexpected = sorted(stored - expected_set)
@@ -131,6 +144,6 @@ class HistoricalCoverageEngine:
                 "unexpected_stored_open_times": unexpected,
             },
             "generated_at": datetime.now(timezone.utc).isoformat(),
-            "source": "Local SQLite historical candle store",
+            "source": "Neon PostgreSQL historical candle store" if self.database_url else "Local SQLite historical candle store",
             "warning": "COMPLETE means every expected candle open exists in local storage for this requested range; it does not independently verify exchange authenticity, candle finality, or upstream completeness.",
         }
