@@ -2373,6 +2373,7 @@ async def inspect_market_data_quality(
         settings.derivatives_ratio_database_path,
         settings.aggregate_trade_database_path,
         settings.order_book_database_path,
+        settings.database_url,
     )
     try:
         report = await asyncio.to_thread(
@@ -2413,7 +2414,7 @@ async def inspect_historical_kline_coverage(
     start_time_ms: int = Query(..., ge=0),
     end_time_ms: int = Query(..., ge=0),
 ) -> dict:
-    engine = HistoricalCoverageEngine(settings.historical_kline_database_path)
+    engine = HistoricalCoverageEngine(settings.historical_kline_database_path, database_url=settings.database_url)
     try:
         return await asyncio.to_thread(
             engine.inspect, market, symbol, interval, start_time_ms, end_time_ms
