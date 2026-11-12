@@ -1,6 +1,7 @@
 """Opt-in PostgreSQL integration test for liquidation event storage."""
 import os
 import time
+import uuid
 
 import pytest
 
@@ -14,7 +15,7 @@ from app.services.liquidation_collector import LiquidationStore
 def test_real_postgres_liquidation_event_round_trip_and_cleanup(tmp_path):
     database_url = os.environ["TEST_DATABASE_URL"]
     store = LiquidationStore(str(tmp_path / "unused-liquidations.sqlite3"), database_url)
-    symbol = "TESTLIQUIDATION"
+    symbol = f"TESTLIQ{uuid.uuid4().hex[:12].upper()}"
     event_time = int(time.time() * 1000)
     event = {
         "event_time_ms": event_time, "trade_time_ms": event_time,
