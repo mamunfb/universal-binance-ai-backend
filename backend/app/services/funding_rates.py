@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import math
 import sqlite3
+import psycopg
+from psycopg.rows import dict_row
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -10,8 +12,11 @@ from typing import Any
 class FundingRateStore:
     """Idempotent local storage for Binance USD-M funding events."""
 
-    def __init__(self, database_path: str) -> None:
+    def __init__(self, database_path: str, database_url: str = "") -> None:
         self.database_path = database_path
+        self.database_url = database_url.strip()
+        if self.database_url:
+            return
         Path(database_path).parent.mkdir(parents=True, exist_ok=True)
         with sqlite3.connect(database_path) as connection:
             connection.execute("""
@@ -30,6 +35,9 @@ class FundingRateStore:
                 CREATE INDEX IF NOT EXISTS idx_funding_history_lookup
                 ON historical_funding_rates(market, symbol, funding_time_ms)
             """)
+
+    def _connect_postgres(self):
+        return psycopg.connect(self.database_url, sslmode="require", connect_timeout=15, row_factory=dict_row)
 
     @staticmethod
     def _finite(value: Any, field: str) -> float:
@@ -78,28 +86,43 @@ class FundingRateStore:
         now = datetime.now(timezone.utc).isoformat()
         values = [(market, symbol, timestamp, rate, mark, source, now)
                   for timestamp, rate, mark in normalized]
-        with sqlite3.connect(self.database_path) as connection:
-            connection.executemany("""
-                INSERT INTO historical_funding_rates (
-                    market, symbol, funding_time_ms, funding_rate, mark_price, source, collected_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(market, symbol, funding_time_ms) DO UPDATE SET
-                    funding_rate=excluded.funding_rate,
-                    mark_price=excluded.mark_price,
-                    source=excluded.source,
-                    collected_at=excluded.collected_at
-            """, values)
-            total = connection.execute("""
-                SELECT COUNT(*) FROM historical_funding_rates
-                WHERE market=? AND symbol=?
-            """, (market, symbol)).fetchone()[0]
+        if self.database_url:
+            with self._connect_postgres() as connection:
+                connection.executemany("""
+                    INSERT INTO public.historical_funding_rates (
+                        market, symbol, funding_time_ms, funding_rate, mark_price, source, collected_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT(market, symbol, funding_time_ms) DO UPDATE SET
+                        funding_rate=excluded.funding_rate, mark_price=excluded.mark_price,
+                        source=excluded.source, collected_at=excluded.collected_at
+                """, values)
+                total = connection.execute("""
+                    SELECT COUNT(*) AS count FROM public.historical_funding_rates
+                    WHERE market=%s AND symbol=%s
+                """, (market, symbol)).fetchone()["count"]
+            storage = "POSTGRESQL"
+        else:
+            with sqlite3.connect(self.database_path) as connection:
+                connection.executemany("""
+                    INSERT INTO historical_funding_rates (
+                        market, symbol, funding_time_ms, funding_rate, mark_price, source, collected_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(market, symbol, funding_time_ms) DO UPDATE SET
+                        funding_rate=excluded.funding_rate, mark_price=excluded.mark_price,
+                        source=excluded.source, collected_at=excluded.collected_at
+                """, values)
+                total = connection.execute("""
+                    SELECT COUNT(*) FROM historical_funding_rates
+                    WHERE market=? AND symbol=?
+                """, (market, symbol)).fetchone()[0]
+            storage = "SQLITE_IDEMPOTENT"
         return {
             "status": "COMPLETED", "market": market, "symbol": symbol,
             "received_count": len(rows), "stored_count": len(normalized),
             "total_stored_count": int(total),
             "first_funding_time_ms": normalized[0][0],
             "last_funding_time_ms": normalized[-1][0],
-            "collected_at": now, "source": source, "storage": "SQLITE_IDEMPOTENT",
+            "collected_at": now, "source": source, "storage": storage,
         }
 
     def history(
@@ -130,13 +153,32 @@ class FundingRateStore:
             clauses.append("funding_time_ms<=?")
             params.append(end_time_ms)
         params.append(limit)
-        with sqlite3.connect(self.database_path) as connection:
-            connection.row_factory = sqlite3.Row
-            rows = connection.execute(f"""
-                SELECT funding_time_ms, funding_rate, mark_price, source, collected_at
-                FROM historical_funding_rates WHERE {' AND '.join(clauses)}
-                ORDER BY funding_time_ms DESC LIMIT ?
-            """, params).fetchall()
+        if self.database_url:
+            pg_clauses = ["market=%s", "symbol=%s"]
+            pg_params: list[Any] = [market, symbol]
+            if start_time_ms is not None:
+                pg_clauses.append("funding_time_ms>=%s")
+                pg_params.append(start_time_ms)
+            if end_time_ms is not None:
+                pg_clauses.append("funding_time_ms<=%s")
+                pg_params.append(end_time_ms)
+            pg_params.append(limit)
+            with self._connect_postgres() as connection:
+                rows = connection.execute(f"""
+                    SELECT funding_time_ms, funding_rate, mark_price, source, collected_at
+                    FROM public.historical_funding_rates WHERE {' AND '.join(pg_clauses)}
+                    ORDER BY funding_time_ms DESC LIMIT %s
+                """, pg_params).fetchall()
+            source_label = "Neon PostgreSQL funding history"
+        else:
+            with sqlite3.connect(self.database_path) as connection:
+                connection.row_factory = sqlite3.Row
+                rows = connection.execute(f"""
+                    SELECT funding_time_ms, funding_rate, mark_price, source, collected_at
+                    FROM historical_funding_rates WHERE {' AND '.join(clauses)}
+                    ORDER BY funding_time_ms DESC LIMIT ?
+                """, params).fetchall()
+            source_label = "Local SQLite funding history"
         events = [dict(row) for row in reversed(rows)]
         gaps = []
         for previous, current in zip(events, events[1:]):
@@ -156,5 +198,5 @@ class FundingRateStore:
                 "expected_schedule_verified": False,
                 "note": "Funding intervals can vary by contract and over time. Observed time deltas are reported only; they are not classified as missing events.",
             },
-            "source": "Local SQLite funding history; original source retained per event.",
+            "source": f"{source_label}; original source retained per event.",
         }
