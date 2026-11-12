@@ -74,7 +74,7 @@ order_book_collector: OrderBookStreamCollector | None = None
 aggregate_trade_store = AggregateTradeStore(settings.aggregate_trade_database_path, settings.database_url)
 aggregate_trade_collector: AggregateTradeCollector | None = None
 news_provider = RSSNewsProvider(settings.http_timeout_seconds)
-evm_transfer_store = EVMTransferStore(settings.evm_transfer_database_path)
+evm_transfer_store = EVMTransferStore(settings.evm_transfer_database_path, settings.database_url)
 historical_kline_store = HistoricalKlineStore(
     settings.historical_kline_database_path,
     settings.historical_kline_database_url or settings.database_url,
