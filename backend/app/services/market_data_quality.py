@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import sqlite3
+
+import psycopg
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -26,6 +28,7 @@ class MarketDataQualityEngine:
     def __init__(
         self, kline_db: str, funding_db: str, open_interest_db: str,
         ratio_db: str, aggregate_trade_db: str, order_book_db: str,
+        database_url: str = "",
     ) -> None:
         self.kline_db = kline_db
         self.funding_db = funding_db
@@ -33,16 +36,24 @@ class MarketDataQualityEngine:
         self.ratio_db = ratio_db
         self.aggregate_trade_db = aggregate_trade_db
         self.order_book_db = order_book_db
+        self.database_url = database_url.strip()
 
     @staticmethod
-    def _query(db_path: str, sql: str, params: tuple[Any, ...]) -> tuple[int, int | None]:
-        if not Path(db_path).exists():
-            return 0, None
-        try:
-            with sqlite3.connect(f"file:{Path(db_path).resolve()}?mode=ro", uri=True) as db:
-                row = db.execute(sql, params).fetchone()
-        except sqlite3.Error:
-            return -1, None
+    def _query(db_path: str, sql: str, params: tuple[Any, ...], database_url: str = "") -> tuple[int, int | None]:
+        if database_url:
+            try:
+                with psycopg.connect(database_url, sslmode="require", connect_timeout=15) as db:
+                    row = db.execute(sql.replace("?", "%s"), params).fetchone()
+            except psycopg.Error:
+                return -1, None
+        else:
+            if not Path(db_path).exists():
+                return 0, None
+            try:
+                with sqlite3.connect(f"file:{Path(db_path).resolve()}?mode=ro", uri=True) as db:
+                    row = db.execute(sql, params).fetchone()
+            except sqlite3.Error:
+                return -1, None
         if not row:
             return 0, None
         return int(row[0] or 0), int(row[1]) if row[1] is not None else None
@@ -75,14 +86,14 @@ class MarketDataQualityEngine:
         candle_count, latest_candle_open = self._query(
             self.kline_db,
             "SELECT COUNT(*), MAX(open_time_ms) FROM historical_klines WHERE market=? AND symbol=? AND interval=?",
-            (market, symbol, interval),
+            (market, symbol, interval), self.database_url,
         )
         latest_close = None
         if latest_candle_open is not None:
             _, latest_close = self._query(
                 self.kline_db,
                 "SELECT COUNT(*), MAX(close_time_ms) FROM historical_klines WHERE market=? AND symbol=? AND interval=? AND open_time_ms=?",
-                (market, symbol, interval, latest_candle_open),
+                (market, symbol, interval, latest_candle_open), self.database_url,
             )
         candle_freshness = (
             "UNKNOWN" if candle_count < 0 else
@@ -95,7 +106,7 @@ class MarketDataQualityEngine:
             first_open = max(0, latest_candle_open - lookback_hours * 3_600_000)
             first_open = (first_open // interval_ms) * interval_ms
             try:
-                coverage = HistoricalCoverageEngine(self.kline_db).inspect(
+                coverage = HistoricalCoverageEngine(self.kline_db, database_url=self.database_url).inspect(
                     market, symbol, interval, first_open, latest_candle_open
                 )
             except ValueError as exc:
@@ -147,7 +158,7 @@ class MarketDataQualityEngine:
              (market, symbol), 10 * 60_000, "Sample freshness is measurable, but missing sample intervals and full depth-stream continuity are not reconstructed here."),
         ]
         for name, db_path, sql, params, stale_after, note in queries:
-            count, latest = self._query(db_path, sql, params)
+            count, latest = self._query(db_path, sql, params, self.database_url)
             freshness = "UNKNOWN" if count < 0 else self._freshness(latest, now, stale_after)
             sources[name] = {
                 "status": "UNKNOWN" if count < 0 else "NO_DATA" if count == 0 else "NOT_MEASURABLE",
@@ -172,7 +183,7 @@ class MarketDataQualityEngine:
             "generated_at": datetime.fromtimestamp(now / 1000, tz=timezone.utc).isoformat(),
             "sources": sources,
             "limitations": [
-                "This report audits local SQLite data only; it does not fetch or verify live Binance data.",
+                "This report audits the configured PostgreSQL/Neon database when DATABASE_URL is set, otherwise local SQLite; it does not fetch or verify live Binance data.",
                 "Freshness thresholds are operational heuristics, not exchange guarantees.",
                 "Aggregate-trade and order-book sample freshness does not prove gap-free stream capture.",
                 "Funding and open-interest series are reported only when locally stored; absent records are not backfilled.",
