@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import math
 import sqlite3
+import psycopg
+from psycopg.rows import dict_row
 from datetime import datetime, timezone
 from pathlib import Path
 from statistics import median
@@ -23,8 +25,11 @@ def _pct(first: float, last: float) -> float | None:
 class DerivativesSignalStore:
     """Idempotent storage for reproducible, descriptive derivatives signal snapshots."""
 
-    def __init__(self, database_path: str) -> None:
+    def __init__(self, database_path: str, database_url: str = "") -> None:
         self.database_path = database_path
+        self.database_url = database_url.strip()
+        if self.database_url:
+            return
         Path(database_path).parent.mkdir(parents=True, exist_ok=True)
         with sqlite3.connect(database_path) as connection:
             connection.execute("""
@@ -43,6 +48,9 @@ class DerivativesSignalStore:
                 ON derivatives_signal_snapshots(market, symbol, period, end_time_ms)
             """)
 
+    def _connect_postgres(self):
+        return psycopg.connect(self.database_url, sslmode="require", connect_timeout=15, row_factory=dict_row)
+
     def save(self, payload: dict[str, Any]) -> dict[str, Any]:
         if payload.get("status") != "COMPLETED":
             return {"status": "NOT_STORED", "reason": "Only completed analysis snapshots are stored."}
@@ -53,23 +61,39 @@ class DerivativesSignalStore:
             raise ValueError("Analysis snapshot requires symbol, supported period, and end timestamp")
         generated_at = datetime.now(timezone.utc).isoformat()
         encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False)
-        with sqlite3.connect(self.database_path) as connection:
-            connection.execute("""
-                INSERT INTO derivatives_signal_snapshots
-                    (market, symbol, period, end_time_ms, generated_at, payload_json)
-                VALUES ('USD_M', ?, ?, ?, ?, ?)
-                ON CONFLICT(market, symbol, period, end_time_ms) DO UPDATE SET
-                    generated_at=excluded.generated_at,
-                    payload_json=excluded.payload_json
-            """, (symbol, period, end_time_ms, generated_at, encoded))
-            total = connection.execute("""
-                SELECT COUNT(*) FROM derivatives_signal_snapshots
-                WHERE market='USD_M' AND symbol=? AND period=?
-            """, (symbol, period)).fetchone()[0]
+        if self.database_url:
+            with self._connect_postgres() as connection:
+                connection.execute("""
+                    INSERT INTO public.derivatives_signal_snapshots
+                        (market, symbol, period, end_time_ms, generated_at, payload)
+                    VALUES ('USD_M', %s, %s, %s, %s, %s::jsonb)
+                    ON CONFLICT(market, symbol, period, end_time_ms) DO UPDATE SET
+                        generated_at=excluded.generated_at, payload=excluded.payload
+                """, (symbol, period, end_time_ms, generated_at, encoded))
+                total = connection.execute("""
+                    SELECT COUNT(*) AS count FROM public.derivatives_signal_snapshots
+                    WHERE market='USD_M' AND symbol=%s AND period=%s
+                """, (symbol, period)).fetchone()["count"]
+            storage = "POSTGRESQL"
+        else:
+            with sqlite3.connect(self.database_path) as connection:
+                connection.execute("""
+                    INSERT INTO derivatives_signal_snapshots
+                        (market, symbol, period, end_time_ms, generated_at, payload_json)
+                    VALUES ('USD_M', ?, ?, ?, ?, ?)
+                    ON CONFLICT(market, symbol, period, end_time_ms) DO UPDATE SET
+                        generated_at=excluded.generated_at,
+                        payload_json=excluded.payload_json
+                """, (symbol, period, end_time_ms, generated_at, encoded))
+                total = connection.execute("""
+                    SELECT COUNT(*) FROM derivatives_signal_snapshots
+                    WHERE market='USD_M' AND symbol=? AND period=?
+                """, (symbol, period)).fetchone()[0]
+            storage = "SQLITE_IDEMPOTENT"
         return {
             "status": "STORED", "symbol": symbol, "period": period,
             "end_time_ms": end_time_ms, "total_snapshots": int(total),
-            "generated_at": generated_at,
+            "generated_at": generated_at, "storage": storage,
         }
 
     def history(
@@ -99,22 +123,43 @@ class DerivativesSignalStore:
             clauses.append("end_time_ms<=?")
             params.append(end_time_ms)
         params.append(limit)
-        with sqlite3.connect(self.database_path) as connection:
-            connection.row_factory = sqlite3.Row
-            rows = connection.execute(
-                f"SELECT end_time_ms, generated_at, payload_json FROM derivatives_signal_snapshots "
-                f"WHERE {' AND '.join(clauses)} ORDER BY end_time_ms DESC LIMIT ?", params
-            ).fetchall()
+        if self.database_url:
+            pg_clauses = ["market='USD_M'", "symbol=%s", "period=%s"]
+            pg_params: list[Any] = [symbol, period]
+            if start_time_ms is not None:
+                pg_clauses.append("end_time_ms>=%s")
+                pg_params.append(start_time_ms)
+            if end_time_ms is not None:
+                pg_clauses.append("end_time_ms<=%s")
+                pg_params.append(end_time_ms)
+            pg_params.append(limit)
+            with self._connect_postgres() as connection:
+                rows = connection.execute(
+                    f"SELECT end_time_ms, generated_at, payload "
+                    f"FROM public.derivatives_signal_snapshots WHERE {' AND '.join(pg_clauses)} "
+                    "ORDER BY end_time_ms DESC LIMIT %s", pg_params,
+                ).fetchall()
+            payload_key = "payload"
+            source_label = "Neon PostgreSQL derivatives analysis snapshots."
+        else:
+            with sqlite3.connect(self.database_path) as connection:
+                connection.row_factory = sqlite3.Row
+                rows = connection.execute(
+                    f"SELECT end_time_ms, generated_at, payload_json FROM derivatives_signal_snapshots "
+                    f"WHERE {' AND '.join(clauses)} ORDER BY end_time_ms DESC LIMIT ?", params
+                ).fetchall()
+            payload_key = "payload_json"
+            source_label = "Locally stored derivatives analysis snapshots."
         snapshots = [
             {"end_time_ms": row["end_time_ms"], "generated_at": row["generated_at"],
-             "analysis": json.loads(row["payload_json"])}
+             "analysis": (row[payload_key] if isinstance(row[payload_key], dict) else json.loads(row[payload_key]))}
             for row in reversed(rows)
         ]
         return {
             "status": "COMPLETED" if snapshots else "NO_STORED_DATA",
             "market": "USD_M", "symbol": symbol, "period": period,
             "returned_count": len(snapshots), "snapshots": snapshots,
-            "source": "Locally stored derivatives analysis snapshots.",
+            "source": source_label,
         }
 
 
