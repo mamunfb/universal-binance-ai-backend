@@ -230,3 +230,9 @@ def test_dashboard_escapes_all_remaining_dynamic_performance_labels_and_counts()
     assert "escapeHtml(x.bias)" in html
     assert "Array.isArray(w.folds)?w.folds:[]" in html
     assert "Array.isArray(q.flags)?q.flags:[]" in html
+
+
+def test_dashboard_svg_reference_label_uses_safe_max_and_numeric_formatting():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "safeFixed(Math.max(12,ry-6),2)" in html
+    assert "Math.maxsafeFixed" not in html
