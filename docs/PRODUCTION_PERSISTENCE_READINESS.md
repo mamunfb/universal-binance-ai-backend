@@ -83,6 +83,15 @@ Do not mark production persistence complete merely because the API container sta
 - The test is skipped without `TEST_DATABASE_URL`; ordinary CI does not establish live Neon connectivity.
 - EVM ERC-20 transfer logs and index-range coverage remain SQLite-backed; their multiple query/aggregation methods require a separate complete migration and validation.
 
+## EVM ERC-20 transfer persistence
+
+- `EVMTransferStore` supports PostgreSQL through `DATABASE_URL`; SQLite remains available for local development.
+- Apply `migrations/009_evm_transfer_history.sql` before using PostgreSQL-backed indexing.
+- Transfer log writes remain idempotent by chain, contract, transaction hash and log index; successful block-range coverage is stored separately.
+- History, address flow, verified-wallet flow, accumulation trend and label aggregation share the same configured database backend.
+- The opt-in test is `tests/test_evm_transfer_postgres_integration.py`; it requires `TEST_DATABASE_URL` and a disposable database with migration 009 applied.
+- Coverage only describes indexed ranges; it does not establish full token history unless indexing begins at contract deployment and all ranges are present.
+
 ## Operational checklist
 
 - Set `APP_ENV=production` and configure a strong `PERSONAL_API_KEY` (at least 32 characters) or all five independent `AI_CLIENT_API_KEYS` before exposing the API.
