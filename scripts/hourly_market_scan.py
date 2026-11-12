@@ -164,6 +164,12 @@ async def main() -> int:
                 "scanned_symbols": result.get("scanned_symbols"),
                 "matched_symbols": result.get("matched_symbols"),
                 "failed_symbols": result.get("failed_symbols"),
+                "error_code": result.get("error_code"),
+                "error_type": result.get("error_type"),
+                "error": result.get("error"),
+                "book_ticker_error": result.get("book_ticker_error"),
+                "premium_index_error": result.get("premium_index_error"),
+                "funding_info_error": result.get("funding_info_error"),
             }
             for market, result in results.items()
         },
