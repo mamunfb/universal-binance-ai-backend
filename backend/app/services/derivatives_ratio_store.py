@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import math
 import sqlite3
+import psycopg
+from psycopg.rows import dict_row
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -16,8 +18,11 @@ RATIO_TYPES = {"GLOBAL_LONG_SHORT", "TAKER_BUY_SELL"}
 class DerivativesRatioStore:
     """Idempotent local storage for USD-M account and taker ratio observations."""
 
-    def __init__(self, database_path: str) -> None:
+    def __init__(self, database_path: str, database_url: str = "") -> None:
         self.database_path = database_path
+        self.database_url = database_url.strip()
+        if self.database_url:
+            return
         Path(database_path).parent.mkdir(parents=True, exist_ok=True)
         with sqlite3.connect(database_path) as connection:
             connection.execute("""
@@ -37,6 +42,9 @@ class DerivativesRatioStore:
                 CREATE INDEX IF NOT EXISTS idx_derivatives_ratio_history
                 ON derivatives_ratio_history(market, ratio_type, symbol, period, timestamp_ms)
             """)
+
+    def _connect_postgres(self):
+        return psycopg.connect(self.database_url, sslmode="require", connect_timeout=15, row_factory=dict_row)
 
     @staticmethod
     def _number(row: dict[str, Any], key: str) -> float:
@@ -106,27 +114,48 @@ class DerivativesRatioStore:
              json.dumps(payload, sort_keys=True, allow_nan=False), source, now)
             for timestamp, payload in normalized
         ]
-        with sqlite3.connect(self.database_path) as connection:
-            connection.executemany("""
-                INSERT INTO derivatives_ratio_history (
-                    market, ratio_type, symbol, period, timestamp_ms,
-                    payload_json, source, collected_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(market, ratio_type, symbol, period, timestamp_ms)
-                DO UPDATE SET payload_json=excluded.payload_json,
-                              source=excluded.source,
-                              collected_at=excluded.collected_at
-            """, values)
-            total = connection.execute("""
-                SELECT COUNT(*) FROM derivatives_ratio_history
-                WHERE market='USD_M' AND ratio_type=? AND symbol=? AND period=?
-            """, (ratio_type, symbol, period)).fetchone()[0]
+        if self.database_url:
+            with self._connect_postgres() as connection:
+                connection.executemany("""
+                    INSERT INTO public.derivatives_ratio_history (
+                        market, ratio_type, symbol, period, timestamp_ms,
+                        payload, source, collected_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s::jsonb, %s, %s)
+                    ON CONFLICT(market, ratio_type, symbol, period, timestamp_ms)
+                    DO UPDATE SET payload=excluded.payload, source=excluded.source,
+                                  collected_at=excluded.collected_at
+                """, [
+                    (market, ratio_type, symbol, period, timestamp, payload, source, now)
+                    for market, ratio_type, symbol, period, timestamp, payload, source, now in values
+                ])
+                total = connection.execute("""
+                    SELECT COUNT(*) AS count FROM public.derivatives_ratio_history
+                    WHERE market='USD_M' AND ratio_type=%s AND symbol=%s AND period=%s
+                """, (ratio_type, symbol, period)).fetchone()["count"]
+            storage = "POSTGRESQL"
+        else:
+            with sqlite3.connect(self.database_path) as connection:
+                connection.executemany("""
+                    INSERT INTO derivatives_ratio_history (
+                        market, ratio_type, symbol, period, timestamp_ms,
+                        payload_json, source, collected_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(market, ratio_type, symbol, period, timestamp_ms)
+                    DO UPDATE SET payload_json=excluded.payload_json,
+                                  source=excluded.source,
+                                  collected_at=excluded.collected_at
+                """, values)
+                total = connection.execute("""
+                    SELECT COUNT(*) FROM derivatives_ratio_history
+                    WHERE market='USD_M' AND ratio_type=? AND symbol=? AND period=?
+                """, (ratio_type, symbol, period)).fetchone()[0]
+            storage = "SQLITE_IDEMPOTENT"
         return {
             "status": "COMPLETED", "market": "USD_M", "ratio_type": ratio_type,
             "symbol": symbol, "period": period, "received_count": len(rows),
             "stored_count": len(normalized), "total_stored_count": int(total),
             "first_timestamp_ms": normalized[0][0], "last_timestamp_ms": normalized[-1][0],
-            "collected_at": now, "storage": "SQLITE_IDEMPOTENT", "source": source,
+            "collected_at": now, "storage": storage, "source": source,
         }
 
     def history(
@@ -159,23 +188,44 @@ class DerivativesRatioStore:
             clauses.append("timestamp_ms<=?")
             params.append(end_time_ms)
         params.append(limit)
-        with sqlite3.connect(self.database_path) as connection:
-            connection.row_factory = sqlite3.Row
-            rows = connection.execute(
-                f"SELECT timestamp_ms, payload_json, source, collected_at "
-                f"FROM derivatives_ratio_history WHERE {' AND '.join(clauses)} "
-                "ORDER BY timestamp_ms DESC LIMIT ?", params,
-            ).fetchall()
+        if self.database_url:
+            pg_clauses = ["market='USD_M'", "ratio_type=%s", "symbol=%s", "period=%s"]
+            pg_params: list[Any] = [ratio_type, symbol, period]
+            if start_time_ms is not None:
+                pg_clauses.append("timestamp_ms>=%s")
+                pg_params.append(start_time_ms)
+            if end_time_ms is not None:
+                pg_clauses.append("timestamp_ms<=%s")
+                pg_params.append(end_time_ms)
+            pg_params.append(limit)
+            with self._connect_postgres() as connection:
+                rows = connection.execute(
+                    f"SELECT timestamp_ms, payload, source, collected_at "
+                    f"FROM public.derivatives_ratio_history WHERE {' AND '.join(pg_clauses)} "
+                    "ORDER BY timestamp_ms DESC LIMIT %s", pg_params,
+                ).fetchall()
+            payload_key = "payload"
+            source_label = "Neon PostgreSQL USD-M ratio history."
+        else:
+            with sqlite3.connect(self.database_path) as connection:
+                connection.row_factory = sqlite3.Row
+                rows = connection.execute(
+                    f"SELECT timestamp_ms, payload_json, source, collected_at "
+                    f"FROM derivatives_ratio_history WHERE {' AND '.join(clauses)} "
+                    "ORDER BY timestamp_ms DESC LIMIT ?", params,
+                ).fetchall()
+            payload_key = "payload_json"
+            source_label = "Locally stored Binance USD-M ratio observations."
         records = [{
             "timestamp_ms": row["timestamp_ms"],
-            **json.loads(row["payload_json"]),
+            **(row[payload_key] if isinstance(row[payload_key], dict) else json.loads(row[payload_key])),
             "source": row["source"], "collected_at": row["collected_at"],
         } for row in reversed(rows)]
         return {
             "status": "COMPLETED" if records else "NO_STORED_DATA",
             "market": "USD_M", "ratio_type": ratio_type, "symbol": symbol,
             "period": period, "returned_count": len(records), "records": records,
-            "source": "Locally stored Binance USD-M ratio observations.",
+            "source": source_label,
             "interpretation_warning": (
                 "Account ratio counts accounts, not position size; taker ratio measures aggressive trade volume. "
                 "Neither identifies all market participants or guarantees future price direction."
