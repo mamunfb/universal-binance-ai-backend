@@ -1,4 +1,4 @@
-"""Opt-in PostgreSQL integration test for EVM transfer history and coverage."""
+"""Opt-in PostgreSQL integration test for EVM transfer history and analytics."""
 import os
 import uuid
 
@@ -34,6 +34,36 @@ def test_evm_transfer_postgres_round_trip_coverage_and_flows(tmp_path):
         assert store.range_coverage(chain_id, contract, start, end)["complete"] is True
         summary = store.address_flow_summary(chain_id, contract, start, end, 0)
         assert summary["top_net_senders"][0]["net_received_raw"] == "-12345"
+
+        # Exercise dict_row-backed PostgreSQL reads in every analytics method.
+        smart_money_registry = {"wallets": [{
+            "address": sender,
+            "label": "smart_money",
+            "verification_status": "verified",
+            "entity_name": "Integration-test wallet",
+            "evidence_url": "https://example.org/test-evidence",
+        }]}
+        activity = store.smart_money_activity(
+            chain_id, contract, start, end, 0, smart_money_registry
+        )
+        assert activity["verified_smart_money_wallets_found"] == 1
+        assert activity["wallets"][0]["net_received_raw"] == "-12345"
+
+        trend = store.smart_money_accumulation_trend(
+            chain_id, contract, start, end, 0, smart_money_registry, window_blocks=1
+        )
+        assert trend["window_count_with_activity"] == 1
+        assert trend["windows"][0]["net_flow_raw"] == "-12345"
+
+        label_registry = {"wallets": [
+            {"address": sender, "label": "exchange", "verification_status": "verified"},
+            {"address": recipient, "label": "fund", "verification_status": "verified"},
+        ]}
+        label_flows = store.verified_label_flows(
+            chain_id, contract, start, end, 0, label_registry
+        )["verified_label_flows"]
+        assert label_flows["exchange"]["net_received_raw"] == "-12345"
+        assert label_flows["fund"]["net_received_raw"] == "12345"
     finally:
         with store._connect() as connection:
             connection.execute(
