@@ -74,7 +74,7 @@ class EVMTransferStore:
     def _connect(self):
         if self.database_url:
             return _PostgresConnection(psycopg.connect(
-                self.database_url, sslmode="require", connect_timeout=15,
+                self.database_url, sslmode=("disable" if "sslmode=disable" in self.database_url else "require"), connect_timeout=15,
                 row_factory=dict_row,
             ))
         connection = sqlite3.connect(self.database_path)
