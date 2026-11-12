@@ -96,7 +96,7 @@ class OpenInterestStore:
                   for timestamp, amount, value, supply in normalized]
         if self.database_url:
             with self._connect_postgres() as connection:
-                connection.executemany("""
+                connection.cursor().executemany("""
                     INSERT INTO public.historical_open_interest (
                         market, symbol, period, timestamp_ms, sum_open_interest,
                         sum_open_interest_value, cmc_circulating_supply, source, collected_at
