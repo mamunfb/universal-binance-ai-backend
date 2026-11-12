@@ -75,6 +75,14 @@ Do not mark production persistence complete merely because the API container sta
 - These tests skip when the test URL is absent. Ordinary CI does not establish live Neon connectivity.
 - High-frequency collection can generate substantial writes. Configure a small, intentional set of collector jobs, monitor database storage/compute, and add a retention policy before enabling broad multi-symbol collection. No automatic pruning is claimed here.
 
+## Liquidation event persistence
+
+- `LiquidationStore` now supports PostgreSQL via `DATABASE_URL`, with SQLite fallback for local development.
+- Apply `migrations/008_liquidation_events.sql` before using PostgreSQL-backed liquidation collection.
+- The opt-in integration test is `tests/test_liquidation_postgres_integration.py`; set `TEST_DATABASE_URL` to a disposable migrated database.
+- The test is skipped without `TEST_DATABASE_URL`; ordinary CI does not establish live Neon connectivity.
+- EVM ERC-20 transfer logs and index-range coverage remain SQLite-backed; their multiple query/aggregation methods require a separate complete migration and validation.
+
 ## Operational checklist
 
 - Set `APP_ENV=production` and configure a strong `PERSONAL_API_KEY` (at least 32 characters) or all five independent `AI_CLIENT_API_KEYS` before exposing the API.
