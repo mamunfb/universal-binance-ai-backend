@@ -5,7 +5,8 @@
 The repository currently has two separate persistence paths:
 
 1. The scheduled collector in `scripts/hourly_market_scan.py` writes its run envelope to Neon/PostgreSQL in the `market_scan_runs` table. This stores the three market collector responses (Spot, USD-M and COIN-M) as JSONB.
-2. Dashboard confluence snapshots and most historical collectors use local SQLite files configured through `*_DATABASE_PATH` settings. These include market-confluence snapshots, historical klines, funding rates, open interest, derivatives ratios/signals, order-book samples, aggregate trades, and EVM transfer data.
+2. Dashboard market-confluence snapshots use PostgreSQL/Neon when `DATABASE_URL` is configured, through the `MarketConfluenceStore` adapter; they fall back to local SQLite when it is absent (for local development/tests).
+3. Other historical collectors still use local SQLite files configured through `*_DATABASE_PATH` settings. These include historical klines, funding rates, open interest, derivatives ratios/signals, order-book samples, aggregate trades, and EVM transfer data.
 
 These are not interchangeable stores. The scheduled scan's PostgreSQL row is not currently read by the dashboard's market-confluence history endpoints.
 
@@ -17,9 +18,9 @@ Do not mark production persistence complete merely because the API container sta
 
 ## Required production design before enabling durable dashboard history
 
-- Move dashboard confluence snapshot writes and reads to a shared durable PostgreSQL store (Neon), or deliberately select and validate a durable mounted storage service with single-writer and backup guarantees.
+- Verify the configured Neon-backed market-confluence snapshot adapter with a real insert/read test against a disposable database or branch; keep the SQLite fallback for local development/tests.
 - Decide whether the hourly/scheduled market scan envelope should feed the dashboard directly, or whether a separate normalized confluence snapshot is required. The existing collector output is raw market coverage, not the same data contract as a confluence snapshot.
-- Migrate other SQLite-backed collectors individually; do not blindly replace SQLite with PostgreSQL without checking each store's schema, transaction semantics, retention, and concurrency behavior.
+- Migrate the remaining SQLite-backed collectors individually; do not blindly replace SQLite with PostgreSQL without checking each store's schema, transaction semantics, retention, and concurrency behavior.
 - Add migration/version management, connection pooling or bounded connection usage, indexes, backup/restore verification, and integration tests against a disposable PostgreSQL database.
 - Keep SQLite for local development and unit tests if useful, with an explicit storage adapter boundary.
 
