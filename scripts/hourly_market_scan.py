@@ -24,6 +24,7 @@ MARKETS = ("SPOT", "USD_M", "COIN_M")
 
 
 def summarize_status(results: dict[str, dict[str, Any]]) -> str:
+    """Report full research completeness, including explicitly missing phases."""
     statuses = [
         (
             str(result.get("status", "UNKNOWN")).upper(),
@@ -36,6 +37,14 @@ def summarize_status(results: dict[str, dict[str, Any]]) -> str:
     if any(status != "COMPLETED" or phase != "COMPLETED" for status, phase in statuses):
         return "INCOMPLETE"
     return "COMPLETED"
+
+
+def collection_succeeded(results: dict[str, dict[str, Any]]) -> bool:
+    """True when all market collectors completed; does not imply full AI research."""
+    return bool(results) and all(
+        str(result.get("status", "UNKNOWN")).upper() == "COMPLETED"
+        for result in results.values()
+    )
 
 
 async def collect_market_scans() -> dict[str, dict[str, Any]]:
@@ -158,7 +167,10 @@ async def main() -> int:
         },
     }
     print(json.dumps(summary, ensure_ascii=False, allow_nan=False))
-    return 0 if summary["overall_status"] == "COMPLETED" else 1
+    # GitHub Actions should be green when collection and persistence succeeded.
+    # The stored overall_status can still be INCOMPLETE because advanced research
+    # phases are deliberately outside this Stage-1 collector.
+    return 0 if collection_succeeded(results) else 1
 
 
 if __name__ == "__main__":
