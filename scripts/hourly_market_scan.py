@@ -24,10 +24,16 @@ MARKETS = ("SPOT", "USD_M", "COIN_M")
 
 
 def summarize_status(results: dict[str, dict[str, Any]]) -> str:
-    statuses = [str(result.get("status", "UNKNOWN")).upper() for result in results.values()]
-    if any(status == "FAILED" for status in statuses):
+    statuses = [
+        (
+            str(result.get("status", "UNKNOWN")).upper(),
+            str(result.get("phase_status", result.get("status", "UNKNOWN"))).upper(),
+        )
+        for result in results.values()
+    ]
+    if any(status == "FAILED" for status, _ in statuses):
         return "FAILED"
-    if any(status != "COMPLETED" for status in statuses):
+    if any(status != "COMPLETED" or phase != "COMPLETED" for status, phase in statuses):
         return "INCOMPLETE"
     return "COMPLETED"
 
@@ -70,7 +76,10 @@ async def collect_market_scans() -> dict[str, dict[str, Any]]:
     return results
 
 
-def persist_scan_run(results: dict[str, dict[str, Any]]) -> str:
+def persist_scan_run(
+    results: dict[str, dict[str, Any]],
+    started_at: datetime,
+) -> str:
     """Persist one complete hourly scan envelope in Neon/PostgreSQL."""
     database_url = os.environ.get("DATABASE_URL", "").strip()
     if not database_url:
@@ -91,7 +100,6 @@ def persist_scan_run(results: dict[str, dict[str, Any]]) -> str:
     from psycopg.types.json import Jsonb
 
     run_id = str(uuid.uuid4())
-    started_at = datetime.now(timezone.utc)
     completed_at = datetime.now(timezone.utc)
     overall_status = summarize_status(results)
     payload = {
@@ -142,8 +150,9 @@ def persist_scan_run(results: dict[str, dict[str, Any]]) -> str:
 
 
 async def main() -> int:
+    started_at = datetime.now(timezone.utc)
     results = await collect_market_scans()
-    run_id = persist_scan_run(results)
+    run_id = persist_scan_run(results, started_at)
     summary = {
         "run_id": run_id,
         "overall_status": summarize_status(results),
