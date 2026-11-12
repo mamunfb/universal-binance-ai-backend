@@ -26,7 +26,7 @@ class _PostgresConnection:
         return self.connection.execute(query.replace("?", "%s"), params)
 
     def executemany(self, query, params_seq):
-        return self.connection.executemany(query.replace("?", "%s"), params_seq)
+        return self.connection.cursor().executemany(query.replace("?", "%s"), params_seq)
 
 
 class EVMTransferStore:
