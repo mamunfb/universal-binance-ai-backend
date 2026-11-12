@@ -49,14 +49,16 @@ def collection_succeeded(results: dict[str, dict[str, Any]]) -> bool:
 
 async def collect_market_scans() -> dict[str, dict[str, Any]]:
     """Scan every eligible symbol in Spot, USD-M and COIN-M without fixed symbol caps."""
-    spot = BinanceSpotProvider(
-        settings.binance_spot_base_url,
-        timeout_seconds=settings.http_timeout_seconds,
-    )
     results: dict[str, dict[str, Any]] = {}
 
     # Run sequentially to keep upstream request bursts modest and isolate failures.
+    # Keep provider construction inside the guard as configuration/constructor
+    # errors must not prevent the Futures collectors from being attempted.
     try:
+        spot = BinanceSpotProvider(
+            settings.binance_spot_base_url,
+            timeout_seconds=settings.http_timeout_seconds,
+        )
         results["SPOT"] = await scan_spot_markets(spot)
     except Exception as exc:
         results["SPOT"] = {
