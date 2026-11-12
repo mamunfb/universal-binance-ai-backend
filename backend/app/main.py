@@ -197,11 +197,8 @@ async def request_tracking_middleware(request: Request, call_next):
                 for name in ("chatgpt", "gemini", "manus", "claude", "perplexity")
             )
         )
-        if production and (
-            client_keys is None
-            or not has_valid_client_keys
-            and len(configured_key) < 32
-        ):
+        has_valid_owner_key = isinstance(configured_key, str) and len(configured_key) >= 32
+        if production and not (has_valid_owner_key or has_valid_client_keys):
             response = JSONResponse(
                 status_code=503,
                 content=_error_payload(
