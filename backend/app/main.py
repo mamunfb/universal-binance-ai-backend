@@ -80,7 +80,7 @@ historical_kline_store = HistoricalKlineStore(
     settings.historical_kline_database_url or settings.database_url,
 )
 funding_rate_store = FundingRateStore(settings.funding_rate_database_path, settings.database_url)
-open_interest_store = OpenInterestStore(settings.open_interest_database_path)
+open_interest_store = OpenInterestStore(settings.open_interest_database_path, settings.database_url)
 derivatives_signal_store = DerivativesSignalStore(settings.derivatives_signal_database_path)
 derivatives_ratio_store = DerivativesRatioStore(settings.derivatives_ratio_database_path)
 market_confluence_store = MarketConfluenceStore(settings.market_confluence_database_path, settings.database_url)
