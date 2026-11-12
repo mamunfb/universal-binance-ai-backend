@@ -4,9 +4,10 @@ services:
     runtime: docker
     plan: free
     region: singapore
+    branch: fix/binance-public-market-data-endpoints
     dockerfilePath: ./Dockerfile
     healthCheckPath: /health
-    autoDeploy: false
+    autoDeployTrigger: off
     envVars:
       - key: APP_ENV
         value: production
