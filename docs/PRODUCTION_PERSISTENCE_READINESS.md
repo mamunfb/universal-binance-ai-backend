@@ -49,6 +49,15 @@ Do not mark production persistence complete merely because the API container sta
 - The real database test is skipped when the secret is absent. CI success without that secret is not evidence of a live Neon connection.
 - This adapter covers OHLCV only. Funding-rate, open-interest, derivatives, order-book, aggregate-trade, liquidation and EVM transfer stores remain separate migration work.
 
+## Funding-rate and open-interest PostgreSQL adapters
+
+- `FundingRateStore` and `OpenInterestStore` now support PostgreSQL using the shared `DATABASE_URL`; they retain SQLite fallback for local development/tests.
+- Apply `migrations/003_funding_and_open_interest.sql` before enabling these PostgreSQL paths.
+- Their save/upsert and history paths preserve symbol/market/period validation, idempotent keys, source labels, and observed-gap reporting.
+- The opt-in real-database check is `tests/test_funding_open_interest_postgres_integration.py`; set `TEST_DATABASE_URL` to a disposable migrated database and run `pytest -q tests/test_funding_open_interest_postgres_integration.py`.
+- Without the secret, the integration test is skipped. CI success alone does not prove live Neon connectivity.
+- Other historical SQLite stores (derivatives ratios/signals, order-book, aggregate trades, liquidations, EVM transfers and remaining collectors) are not covered by these adapters.
+
 ## Operational checklist
 
 - Set `APP_ENV=production` and configure a strong `PERSONAL_API_KEY` (at least 32 characters) or all five independent `AI_CLIENT_API_KEYS` before exposing the API.
