@@ -1,5 +1,7 @@
 """Opt-in PostgreSQL integration test for EVM transfer history and coverage."""
 import os
+import uuid
+
 import pytest
 
 from app.services.evm_transfer_store import EVMTransferStore
@@ -12,8 +14,8 @@ from app.services.evm_transfer_store import EVMTransferStore
 def test_evm_transfer_postgres_round_trip_coverage_and_flows(tmp_path):
     store = EVMTransferStore(str(tmp_path / "unused.sqlite3"), os.environ["TEST_DATABASE_URL"])
     chain_id = 31337
-    contract = "0x" + "a" * 40
-    tx_hash = "0x" + "b" * 64
+    contract = "0x" + (uuid.uuid4().hex + uuid.uuid4().hex[:8])
+    tx_hash = "0x" + uuid.uuid4().hex + uuid.uuid4().hex
     sender = "0x" + "1" * 40
     recipient = "0x" + "2" * 40
     start, end = 987654321, 987654322
