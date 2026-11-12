@@ -175,6 +175,21 @@ def _error_payload(
     return payload
 
 
+def _apply_security_headers(response, request: Request):
+    """Apply conservative browser security headers to every application response."""
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault(
+        "Permissions-Policy", "camera=(), microphone=(), geolocation=()"
+    )
+    if request.url.path == "/dashboard":
+        # The dashboard accepts a private Bearer key in a form field; avoid caching it.
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Pragma"] = "no-cache"
+    return response
+
+
 @app.middleware("http")
 async def request_tracking_middleware(request: Request, call_next):
     request_id = uuid4().hex
@@ -211,7 +226,7 @@ async def request_tracking_middleware(request: Request, call_next):
                 ),
             )
             response.headers["X-Request-ID"] = request_id
-            return response
+            return _apply_security_headers(response, request)
 
         if configured_key or client_keys:
             authorization = request.headers.get("authorization", "")
@@ -240,12 +255,12 @@ async def request_tracking_middleware(request: Request, call_next):
                     headers={"WWW-Authenticate": "Bearer"},
                 )
                 response.headers["X-Request-ID"] = request_id
-                return response
+                return _apply_security_headers(response, request)
             request.state.ai_client = matched_client
 
     response = await call_next(request)
     response.headers["X-Request-ID"] = request_id
-    return response
+    return _apply_security_headers(response, request)
 
 
 @app.exception_handler(RequestValidationError)
