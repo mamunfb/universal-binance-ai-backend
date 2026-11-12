@@ -41,10 +41,31 @@ def test_http_exception_detail_is_preserved_as_structured_reason():
     assert body["error"]["details"]["reason"] == "to_block must be >= from_block"
 
 
-def test_successful_response_also_includes_request_id_header():
+def test_successful_response_also_includes_request_id_and_security_headers():
     response = client.get("/api/v1/analysis/futures/liquidations/status")
     assert response.status_code == 200
     assert len(response.headers["X-Request-ID"]) == 32
+    assert response.headers["X-Content-Type-Options"] == "nosniff"
+    assert response.headers["X-Frame-Options"] == "DENY"
+    assert response.headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
+    assert response.headers["Permissions-Policy"] == "camera=(), microphone=(), geolocation=()"
+
+
+def test_dashboard_response_disables_caching_and_prevents_framing():
+    response = client.get("/dashboard")
+    assert response.status_code == 200
+    assert response.headers["Cache-Control"] == "no-store"
+    assert response.headers["Pragma"] == "no-cache"
+    assert response.headers["X-Frame-Options"] == "DENY"
+
+
+def test_unauthorized_early_response_includes_security_headers(monkeypatch):
+    monkeypatch.setattr(settings, "app_env", "development")
+    monkeypatch.setattr(settings, "personal_api_key", "test-owner-key-with-enough-entropy")
+    response = client.get("/api/v1/analysis/futures/liquidations/status")
+    assert response.status_code == 401
+    assert response.headers["X-Content-Type-Options"] == "nosniff"
+    assert response.headers["X-Frame-Options"] == "DENY"
 
 
 
