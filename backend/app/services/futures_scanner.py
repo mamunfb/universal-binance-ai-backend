@@ -69,11 +69,18 @@ async def scan_futures_markets(
         except Exception as exc:
             funding_info_rows = []
             funding_info_error = type(exc).__name__
-    except Exception:
-        return _failed_result(
-            provider, generated_at, quote, "UPSTREAM_UNAVAILABLE",
-            "Could not retrieve Futures exchange metadata and 24-hour tickers",
-        )
+    except Exception as exc:
+        if isinstance(exc, httpx.HTTPStatusError):
+            status_code = exc.response.status_code
+            error_code = f"HTTP_{status_code}"
+            message = (
+                f"Binance {provider.market} returned HTTP {status_code} "
+                f"for {exc.request.url}. Response: {exc.response.text[:500]}"
+            )
+        else:
+            error_code = "UPSTREAM_UNAVAILABLE"
+            message = f"{type(exc).__name__}: {exc}"
+        return _failed_result(provider, generated_at, quote, error_code, message)
     if not isinstance(exchange_info, dict) or not isinstance(exchange_info.get("symbols"), list) or not isinstance(tickers, list):
         return _failed_result(
             provider, generated_at, quote, "UPSTREAM_INVALID_RESPONSE",
