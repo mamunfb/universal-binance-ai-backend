@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     app_env: str = "development"
     personal_api_key: str = ""
     database_url: str = ""
+    require_database_url: bool = False
     ai_client_api_keys: str = "{}"
     log_level: str = "INFO"
     binance_spot_base_url: str = "https://data-api.binance.vision"
