@@ -75,13 +75,10 @@ async def scan_futures_markets(
         if isinstance(exc, httpx.HTTPStatusError):
             status_code = exc.response.status_code
             error_code = f"HTTP_{status_code}"
-            message = (
-                f"Binance {provider.market} returned HTTP {status_code} "
-                f"for {exc.request.url}. Response: {exc.response.text[:500]}"
-            )
+            message = f"Binance {provider.market} public API returned HTTP {status_code}"
         else:
             error_code = "UPSTREAM_UNAVAILABLE"
-            message = f"{type(exc).__name__}: {exc}"
+            message = f"Could not retrieve Binance {provider.market} market metadata ({type(exc).__name__})"
         return _failed_result(provider, generated_at, quote, error_code, message)
     if not isinstance(exchange_info, dict) or not isinstance(exchange_info.get("symbols"), list) or not isinstance(tickers, list):
         return _failed_result(
