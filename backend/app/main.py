@@ -92,6 +92,11 @@ derivatives_collector: DerivativesHistoryCollector | None = None
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     global historical_collector, derivatives_collector, order_book_collector, aggregate_trade_collector
+    if settings.require_database_url and not settings.database_url.strip():
+        raise RuntimeError(
+            "DATABASE_URL is required for this deployment; configure the Neon PostgreSQL connection "
+            "before starting the production service."
+        )
     if settings.liquidation_collector_enabled:
         liquidation_collector.start()
     if settings.order_book_collector_enabled:
