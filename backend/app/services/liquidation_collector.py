@@ -78,7 +78,7 @@ class LiquidationStore:
             )
 
     def _connect_postgres(self):
-        return psycopg.connect(self.database_url, sslmode="require", connect_timeout=15, row_factory=dict_row)
+        return psycopg.connect(self.database_url, sslmode=("disable" if "sslmode=disable" in self.database_url else "require"), connect_timeout=15, row_factory=dict_row)
 
     def insert(self, event: dict[str, Any]) -> None:
         if self.database_url:
