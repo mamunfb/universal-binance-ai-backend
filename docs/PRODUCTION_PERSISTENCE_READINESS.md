@@ -40,6 +40,15 @@ Do not mark production persistence complete merely because the API container sta
 - Before enabling a PostgreSQL adapter, preserve current validation and upsert semantics, implement `latest_open_time`, `history`, and `save_klines` parity, and add SQLite/PostgreSQL contract tests plus an opt-in disposable-database integration test.
 - Do not claim durable OHLCV history until the application adapter is switched and insert/read/restart tests pass against PostgreSQL.
 
+## Historical OHLCV PostgreSQL adapter
+
+- `HistoricalKlineStore` now supports PostgreSQL when `HISTORICAL_KLINE_DATABASE_URL` or the shared `DATABASE_URL` is configured; otherwise it uses SQLite for local development/tests.
+- Apply `migrations/002_historical_klines.sql` before enabling the PostgreSQL setting.
+- The PostgreSQL adapter implements save/upsert, latest open-time lookup, and bounded history retrieval. Existing candle validation and idempotent conflict handling are retained.
+- An opt-in real-database test is available at `tests/test_historical_klines_postgres_integration.py`; set `TEST_DATABASE_URL` to a disposable migrated database and run `pytest -q tests/test_historical_klines_postgres_integration.py`.
+- The real database test is skipped when the secret is absent. CI success without that secret is not evidence of a live Neon connection.
+- This adapter covers OHLCV only. Funding-rate, open-interest, derivatives, order-book, aggregate-trade, liquidation and EVM transfer stores remain separate migration work.
+
 ## Operational checklist
 
 - Set `APP_ENV=production` and configure a strong `PERSONAL_API_KEY` (at least 32 characters) or all five independent `AI_CLIENT_API_KEYS` before exposing the API.
