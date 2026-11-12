@@ -1,9 +1,9 @@
 import asyncio
 import math
-
-import httpx
 from datetime import datetime, timezone
 from typing import Any
+
+import httpx
 
 from app.providers.binance_futures import BinanceFuturesProvider
 
