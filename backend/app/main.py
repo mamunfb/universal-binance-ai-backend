@@ -8,7 +8,7 @@ from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Query, Body, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
 from pathlib import Path
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -1054,6 +1054,48 @@ async def evm_token_activity(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail={"status": "FAILED", "error": "ONCHAIN_PROVIDER_UNAVAILABLE", "error_type": type(exc).__name__}) from exc
+
+
+@app.get("/", response_class=HTMLResponse, include_in_schema=False)
+async def root_status_page() -> str:
+    """Serve a lightweight service landing page; does not imply database health."""
+    return """<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101827">
+  <title>Universal Binance AI Backend</title>
+  <style>
+    :root{color-scheme:dark;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif}
+    *{box-sizing:border-box}body{margin:0;background:#0b1220;color:#e5edf8;min-height:100vh}
+    main{width:min(760px,92%);margin:8vh auto;padding:28px}
+    .panel{background:#121d30;border:1px solid #263650;border-radius:18px;padding:28px}
+    .eyebrow{color:#8ca8ca;font-size:12px;letter-spacing:.14em;text-transform:uppercase}
+    h1{font-size:clamp(27px,6vw,42px);line-height:1.12;margin:12px 0}
+    p{color:#b5c3d7;line-height:1.65}.status{display:inline-flex;align-items:center;gap:9px;
+      border:1px solid #276749;background:#123526;color:#9ae6b4;border-radius:999px;
+      padding:8px 13px;font-size:14px}.dot{width:8px;height:8px;border-radius:50%;background:#48bb78}
+    nav{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-top:24px}
+    a{display:block;text-decoration:none;color:#dceaff;border:1px solid #334967;border-radius:12px;
+      padding:15px;background:#17263c}a:hover{border-color:#79a9e8;background:#1c304d}
+    a strong{display:block;margin-bottom:5px}small{color:#91a6c2}
+    footer{margin-top:20px;color:#7185a2;font-size:12px}
+  </style>
+</head>
+<body><main><section class="panel">
+  <div class="eyebrow">Service landing page · v0.1.0</div>
+  <h1>Universal Binance AI Backend</h1>
+  <p>Research-only crypto market data API for Binance Spot and Futures, technical analysis,
+  derivatives intelligence and optional data collection.</p>
+  <div class="status"><span class="dot"></span> Application process is responding</div>
+  <nav>
+    <a href="/docs"><strong>API Documentation</strong><small>Explore available endpoints</small></a>
+    <a href="/health"><strong>Process Health</strong><small>Check application response</small></a>
+    <a href="/openapi.json"><strong>OpenAPI Schema</strong><small>View machine-readable API schema</small></a>
+  </nav>
+  <footer>Note: Process health does not verify database or exchange connectivity. Check each dependency separately.</footer>
+</section></main></body></html>"""
 
 
 @app.get("/health", tags=["system"])
