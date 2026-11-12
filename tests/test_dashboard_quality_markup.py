@@ -236,3 +236,26 @@ def test_dashboard_svg_reference_label_uses_safe_max_and_numeric_formatting():
     html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
     assert "safeFixed(Math.max(12,ry-6),2)" in html
     assert "Math.maxsafeFixed" not in html
+
+
+def test_dashboard_handles_non_json_api_responses_without_masking_http_status():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "API returned a non-JSON response (HTTP '+r.status+') " in html
+
+
+def test_dashboard_filters_malformed_history_and_collector_entries():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "(Array.isArray(r.snapshots)?r.snapshots:[]).filter(isRecord).map(x=>" in html
+    assert "(Array.isArray(x.last_results)?x.last_results:[]).filter(isRecord)" in html
+
+
+def test_dashboard_guards_nested_regime_transition_api_data():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "isRecord(h.regime_bias_breakdown)&&isRecord(h.regime_bias_breakdown.market_regime)" in html
+    assert "isRecord(x.regime_transition_analysis)&&isRecord(x.regime_transition_analysis.dimensions)" in html
+    assert "(Array.isArray(d.transitions)?d.transitions:[]).filter(isRecord)" in html
+
+
+def test_dashboard_validates_snapshot_save_response_shape():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "Snapshot API returned an unexpected response shape" in html
