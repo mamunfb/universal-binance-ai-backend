@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import sqlite3
+import psycopg
+from psycopg.rows import dict_row
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -8,11 +10,30 @@ from typing import Any
 from app.providers.evm_rpc import EVMRPCProvider
 
 
+class _PostgresConnection:
+    """Small adapter translating SQLite-style placeholders for PostgreSQL."""
+    def __init__(self, connection):
+        self.connection = connection
+
+    def __enter__(self):
+        self.connection.__enter__()
+        return self
+
+    def __exit__(self, *args):
+        return self.connection.__exit__(*args)
+
+    def execute(self, query, params=()):
+        return self.connection.execute(query.replace("?", "%s"), params)
+
+
 class EVMTransferStore:
     """Persistent, idempotent storage for indexed ERC-20 Transfer logs."""
 
-    def __init__(self, database_path: str) -> None:
+    def __init__(self, database_path: str, database_url: str = "") -> None:
         self.database_path = database_path
+        self.database_url = database_url.strip()
+        if self.database_url:
+            return
         Path(database_path).parent.mkdir(parents=True, exist_ok=True)
         with sqlite3.connect(database_path) as connection:
             connection.execute("""
@@ -46,6 +67,14 @@ class EVMTransferStore:
                     UNIQUE(chain_id, contract_address, from_block, to_block)
                 )
             """)
+
+    def _connect(self):
+        if self.database_url:
+            return _PostgresConnection(psycopg.connect(
+                self.database_url, sslmode="require", connect_timeout=15,
+                row_factory=dict_row,
+            ))
+        return self._connect()
 
     def save_chunk(self, chain_id: int, contract: str, start: int, end: int,
                    logs: list[dict[str, Any]]) -> int:
@@ -278,7 +307,8 @@ class EVMTransferStore:
         bins: dict[int, dict[str, Any]] = {}
         cumulative_raw = 0
         scale = 10 ** decimals
-        for sender, recipient, amount_text, block in rows:
+        for row in rows:
+            sender, recipient, amount_text, block = tuple(row.values()) if isinstance(row, dict) else row
             raw = int(amount_text)
             net = (raw if recipient in verified else 0) - (raw if sender in verified else 0)
             if not net:
