@@ -94,3 +94,37 @@ def test_rejects_ranges_above_safety_limit(tmp_path):
         HistoricalCoverageEngine(db, max_expected_candles=2).inspect(
             "SPOT", "BTCUSDT", "1m", 0, 120_000
         )
+
+
+def test_postgres_coverage_reads_configured_database_without_sqlite(tmp_path, monkeypatch):
+    from app.services import historical_coverage as module
+
+    start = 1_700_000_040_000
+    calls = []
+
+    class FakeConnection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def execute(self, query, params):
+            calls.append((query, params))
+            self.rows = [(start,), (start + 60_000,)]
+            return self
+
+        def fetchall(self):
+            return self.rows
+
+    monkeypatch.setattr(module.psycopg, "connect", lambda *_a, **_kw: FakeConnection())
+    result = HistoricalCoverageEngine(
+        str(tmp_path / "unused.sqlite3"),
+        database_url="postgresql://example.invalid/test",
+    ).inspect("SPOT", "BTCUSDT", "1m", start, start + 60_000)
+
+    assert result["status"] == "COMPLETE"
+    assert result["source"] == "Neon PostgreSQL historical candle store"
+    assert calls[0][0].count("%s") == 5
+    assert calls[0][1] == ("SPOT", "BTCUSDT", "1m", start, start + 60_000)
+    assert not (tmp_path / "unused.sqlite3").exists()
