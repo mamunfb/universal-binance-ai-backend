@@ -98,3 +98,25 @@ def test_postgres_adapter_save_history_and_get_snapshot(tmp_path, monkeypatch):
     assert history["returned_count"] == 1
     assert history["source"] == "Neon PostgreSQL confluence snapshot store"
     assert not (tmp_path / "unused.sqlite3").exists()
+
+@pytest.mark.parametrize("field,value", [
+    ("analyzed_at_ms", True),
+    ("reference_price", True),
+    ("close_time_ms", True),
+])
+def test_snapshot_rejects_boolean_numeric_fields(tmp_path, field, value):
+    store = MarketConfluenceStore(str(tmp_path / "snapshots.sqlite3"))
+    payload = {
+        "market": "USD_M", "symbol": "BTCUSDT", "interval": "1h", "analyzed_at_ms": 1000,
+        "confluence": {"bias": "BULLISH"},
+        "reference": {"price": 100.0, "close_time_ms": 999},
+    }
+    if field == "reference_price":
+        payload["reference"]["price"] = value
+    elif field == "close_time_ms":
+        payload["reference"]["close_time_ms"] = value
+    else:
+        payload[field] = value
+    with pytest.raises(ValueError):
+        store.save(payload)
+    assert store.history("USD_M", "BTCUSDT", "1h")["returned_count"] == 0
