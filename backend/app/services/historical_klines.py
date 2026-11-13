@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import sqlite3
+from decimal import Decimal, InvalidOperation
 import psycopg
 from psycopg.rows import dict_row
 from datetime import datetime, timezone
@@ -58,18 +59,25 @@ class HistoricalKlineStore:
             raise ValueError(f"Invalid candle {field}")
         return number
 
+    @staticmethod
+    def _integer(value: Any, field: str) -> int:
+        if isinstance(value, bool):
+            raise ValueError(f"Invalid candle {field}")
+        try:
+            number = Decimal(str(value))
+        except (InvalidOperation, TypeError, ValueError) as exc:
+            raise ValueError(f"Invalid candle {field}") from exc
+        if not number.is_finite() or number != number.to_integral_value():
+            raise ValueError(f"Invalid candle {field}")
+        return int(number)
+
     @classmethod
     def _normalize(cls, row: Any) -> tuple[Any, ...]:
         if not isinstance(row, (list, tuple)) or len(row) < 11:
             raise ValueError("Malformed Binance kline row; refusing to store partial history")
-        try:
-            if any(isinstance(row[index], bool) for index in (0, 6, 8)):
-                raise ValueError
-            open_time = int(row[0])
-            close_time = int(row[6])
-            trade_count = int(row[8])
-        except (TypeError, ValueError, OverflowError) as exc:
-            raise ValueError("Invalid candle timestamps or trade count") from exc
+        open_time = cls._integer(row[0], "open time")
+        close_time = cls._integer(row[6], "close time")
+        trade_count = cls._integer(row[8], "trade count")
         open_price, high, low, close, volume, quote_volume, taker_base, taker_quote = (
             cls._finite(row[index], field)
             for index, field in (
