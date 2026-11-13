@@ -224,9 +224,13 @@ def test_fenced_write_lock_blocks_expired_lease_takeover():
     first_owner = f"owner-{uuid.uuid4().hex}"
     next_owner = f"owner-{uuid.uuid4().hex}"
     connection = None
+    context_token = None
     try:
         first_generation = store.acquire(collector_name, first_owner, 5)
         assert first_generation == 1
+        context_token = ACTIVE_COLLECTOR_LEASE.set(
+            CollectorLeaseContext(collector_name, first_owner, first_generation)
+        )
 
         # Keep the transaction (and its FOR SHARE row lock) open while the lease
         # expires. A takeover must wait for this fenced write transaction to end.
@@ -248,6 +252,8 @@ def test_fenced_write_lock_blocks_expired_lease_takeover():
     finally:
         if connection is not None:
             connection.close()
+        if context_token is not None:
+            ACTIVE_COLLECTOR_LEASE.reset(context_token)
         with store._connect() as cleanup:
             cleanup.execute(
                 "DELETE FROM public.collector_leases WHERE collector_name=%s",
