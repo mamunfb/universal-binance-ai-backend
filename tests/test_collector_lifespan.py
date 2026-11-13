@@ -47,10 +47,10 @@ def test_lifespan_cleans_up_started_collectors_when_later_startup_fails(monkeypa
 class _FailingStopCollector(_StartedCollector):
     async def stop(self):
         self.stopped = True
-        raise RuntimeError("simulated shutdown failure")
+        raise RuntimeError("sensitive-provider-token=do-not-log")
 
 
-def test_lifespan_attempts_remaining_shutdowns_after_one_collector_fails(monkeypatch):
+def test_lifespan_attempts_remaining_shutdowns_after_one_collector_fails(monkeypatch, caplog):
     async def scenario():
         order_book = _FailingStopCollector()
         aggregate = _StartedCollector()
@@ -84,6 +84,8 @@ def test_lifespan_attempts_remaining_shutdowns_after_one_collector_fails(monkeyp
         assert aggregate.stopped is True
 
     asyncio.run(scenario())
+    assert "RuntimeError" in caplog.text
+    assert "sensitive-provider-token" not in caplog.text
 
 
 def test_lifespan_does_not_construct_collectors_when_all_flags_disabled(monkeypatch):
