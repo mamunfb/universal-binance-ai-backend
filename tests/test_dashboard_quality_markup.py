@@ -492,7 +492,7 @@ def test_dashboard_performance_handles_incomplete_wilson_interval_payload():
               }
             };
             const payload = {
-              horizons: { one_hour: { label: "<img src=x onerror=alert(1)>", directional_positive_fraction: "invalid", mean_directional_return_percent: "invalid", mean_favorable_excursion_percent: "invalid", mean_adverse_excursion_percent: "invalid", signal_quality: { f1_score: "invalid" } } },
+              horizons: { one_hour: { label: "<img src=x onerror=alert(1)>", directional_positive_fraction: "invalid", mean_directional_return_percent: "invalid", mean_favorable_excursion_percent: "invalid", mean_adverse_excursion_percent: "invalid", signal_quality: { f1_score: "invalid", confusion_matrix: { true_positive: "<img src=x onerror=alert(2)>" } } } },
               historical_leaderboard: {
                 dimensions: {
                   market_regime: {
@@ -540,6 +540,11 @@ def test_dashboard_performance_handles_incomplete_wilson_interval_payload():
               "malformed horizon percentages must render as unavailable"
             );
             assert.equal(
+              document.getElementById("outcomes").innerHTML.includes("&lt;img src=x onerror=alert(2)&gt;"),
+              true,
+              "API-provided confusion-matrix counts must be HTML-escaped"
+            );
+            assert.equal(
               document.getElementById("outcomes").innerHTML.includes("&lt;img src=x onerror=alert(1)&gt;"),
               true,
               "API-provided horizon labels must be HTML-escaped"
@@ -583,3 +588,31 @@ def test_dashboard_performance_percent_formatter_rejects_non_numeric_api_values(
         "escapeHtml(x.training_snapshot_count??0)",
     ):
         assert expression in performance_handler
+
+
+def test_dashboard_performance_count_metrics_are_html_escaped():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    performance_handler = next(
+        line for line in html.splitlines() if "$('performance').onclick" in line
+    )
+    expressions = (
+        "h.coverage_complete_count??0", "h.sample_size??0",
+        "q.prediction_sample_size??0", "q.scored_non_flat_sample_size??0",
+        "q.flat_outcome_count??0", "cm.true_positive??0", "cm.false_positive??0",
+        "cm.true_negative??0", "cm.false_negative??0", "g.prediction_sample_size??0",
+        "x.true_positive??0", "x.false_positive??0", "x.true_negative??0",
+        "x.false_negative??0", "q.total_outcome_count??0", "q.directional_sample_size??0",
+        "q.overlap_excluded_count??0", "c.historical_directional_sample_size??0",
+        "c.walk_forward_test_directional_sample_size??0",
+        "w.non_overlapping_directional_sample_size??0", "w.overlap_excluded_count??0",
+        "x.non_overlapping_directional_sample_size??0", "x.overlap_excluded_count??0",
+        "x.training_purged_overlap_count??0", "g.sample_size??0",
+        "g.directional_sample_size??0", "g.coverage_complete_count??0",
+        "d.transition_count??0", "x.non_overlapping_directional_sample_size",
+        "x.overlap_excluded_count", "x.coverage_complete_count", "x.sample_size",
+        "x.directional_sample_size", "x.positive_count??0",
+    )
+    for expression in expressions:
+        assert f"escapeHtml({expression})" in performance_handler
+        assert f"+({expression})+" not in performance_handler
+        assert f"+{expression}+" not in performance_handler
