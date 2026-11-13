@@ -127,6 +127,28 @@ def test_malformed_log_does_not_create_coverage(tmp_path):
     assert store.coverage(1, CONTRACT) == []
 
 
+def test_save_chunk_rolls_back_logs_when_coverage_write_fails(tmp_path):
+    store = EVMTransferStore(str(tmp_path / "history.sqlite3"))
+    with store._connect() as connection:
+        connection.execute("""
+            CREATE TRIGGER reject_test_coverage
+            BEFORE INSERT ON evm_transfer_index_ranges
+            BEGIN
+                SELECT RAISE(ABORT, 'forced coverage failure');
+            END
+        """)
+    log = {
+        "topics": [TRANSFER_TOPIC, _topic(SENDER), _topic(RECIPIENT)],
+        "data": hex(123), "transactionHash": "0x" + "9" * 64,
+        "blockNumber": "0x64", "logIndex": "0x0",
+    }
+    with pytest.raises(Exception, match="forced coverage failure"):
+        store.save_chunk(1, CONTRACT, 100, 100, [log])
+    with store._connect() as connection:
+        assert connection.execute("SELECT COUNT(*) FROM evm_transfer_logs").fetchone()[0] == 0
+        assert connection.execute("SELECT COUNT(*) FROM evm_transfer_index_ranges").fetchone()[0] == 0
+
+
 def test_address_flow_summary_uses_exact_raw_integer_totals(tmp_path):
     store = EVMTransferStore(str(tmp_path / "history.sqlite3"))
     huge = 2**80
