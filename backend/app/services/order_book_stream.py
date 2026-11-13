@@ -269,7 +269,7 @@ class OrderBookStreamCollector:
                     reader = asyncio.create_task(self._reader(socket, queue))
                     try:
                         snapshot = await self._provider(market).order_book(symbol, self.snapshot_limit)
-                        last_id = int(snapshot["lastUpdateId"])
+                        last_id = self._strict_integer(snapshot["lastUpdateId"], "snapshot update ID")
                         bids = self._levels(snapshot["bids"])
                         asks = self._levels(snapshot["asks"])
                         first_event = True
@@ -278,12 +278,12 @@ class OrderBookStreamCollector:
                             event = queue.get_nowait()
                             if event is None:
                                 raise RuntimeError("DEPTH_STREAM_CLOSED_DURING_SYNC")
-                            if int(event.get("u", 0)) <= last_id:
+                            if self._strict_integer(event.get("u", 0), "final update ID") <= last_id:
                                 continue
                             self._validate_sequence(market, event, last_id, first_event)
                             self._apply(event, bids, asks)
                             self._trim_book(bids, asks)
-                            last_id = int(event["u"])
+                            last_id = self._strict_integer(event["u"], "final update ID")
                             first_event = False
                         state["synchronized"] = not first_event
                         delay = 1
@@ -293,7 +293,7 @@ class OrderBookStreamCollector:
                             event = await queue.get()
                             if event is None:
                                 raise RuntimeError("DEPTH_STREAM_CLOSED")
-                            final_id = int(event.get("u", 0))
+                            final_id = self._strict_integer(event.get("u", 0), "final update ID")
                             if final_id <= last_id:
                                 continue
                             self._validate_sequence(market, event, last_id, first_event)
