@@ -534,6 +534,11 @@ def test_dashboard_performance_handles_incomplete_wilson_interval_payload():
               "incomplete Wilson interval must render as unavailable, not crash: " +
                 document.getElementById("status").textContent
             );
+            assert.equal(
+              document.getElementById("outcomes").innerHTML.includes("NaN%"),
+              false,
+              "malformed horizon percentages must render as unavailable"
+            );
           })().catch(error => { console.error(error); process.exitCode = 1; });
         });
     """)
