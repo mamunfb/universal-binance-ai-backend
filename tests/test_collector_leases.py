@@ -222,28 +222,29 @@ def test_fencing_context_rejects_old_owner_after_takeover():
             )
 
 
-def test_stale_lease_generation_cannot_write_aggregate_trade():
+def test_stale_lease_generation_cannot_write_aggregate_trade(monkeypatch):
     database_url = os.getenv("TEST_DATABASE_URL")
     if not database_url:
         pytest.skip("TEST_DATABASE_URL is not configured")
 
+    import app.services.aggregate_trade_stream as aggregate_trade_stream
     from app.services.aggregate_trade_stream import AggregateTradeStore
 
     lease_store = CollectorLeaseStore(database_url)
     trade_store = AggregateTradeStore("unused.sqlite3", database_url)
-    collector_name = "aggregate-trades:all"
+    collector_name = f"test-aggregate-fence-{uuid.uuid4().hex}"
+    monkeypatch.setattr(
+        aggregate_trade_stream,
+        "assert_current_collector_lease",
+        lambda connection, _collector_name: assert_current_collector_lease(
+            connection, collector_name
+        ),
+    )
     symbol = f"FENCE{uuid.uuid4().hex[:12].upper()}"
     first_owner = f"owner-{uuid.uuid4().hex}"
     next_owner = f"owner-{uuid.uuid4().hex}"
     context_token = None
     try:
-        # The CI PostgreSQL database is ephemeral; clear a leftover row from an
-        # interrupted test run before claiming this collector's production key.
-        with lease_store._connect() as connection:
-            connection.execute(
-                "DELETE FROM public.collector_leases WHERE collector_name=%s",
-                (collector_name,),
-            )
         first_generation = lease_store.acquire(collector_name, first_owner, 30)
         assert first_generation is not None
         context_token = ACTIVE_COLLECTOR_LEASE.set(
