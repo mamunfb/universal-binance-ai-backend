@@ -524,3 +524,25 @@ def test_owner_and_client_key_collision_is_rejected_as_ambiguous(monkeypatch):
     )
     assert response.status_code == 401
     assert response.json()["error"]["code"] == "UNAUTHORIZED"
+
+
+
+def test_unauthenticated_live_market_get_is_rejected_before_provider_call(monkeypatch):
+    from app import main
+
+    provider_calls = []
+
+    def unexpected_provider_call():
+        provider_calls.append("called")
+        raise AssertionError("Unauthenticated request must not reach Binance provider")
+
+    monkeypatch.setattr(settings, "app_env", "development")
+    monkeypatch.setattr(settings, "personal_api_key", "test-owner-key-with-enough-entropy")
+    monkeypatch.setattr(settings, "ai_client_api_keys", "")
+    monkeypatch.setattr(main, "get_spot_provider", unexpected_provider_call)
+
+    response = client.get("/api/v1/markets/spot/klines/BTCUSDT")
+
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "UNAUTHORIZED"
+    assert provider_calls == []
