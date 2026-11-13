@@ -59,11 +59,11 @@ class CollectorLeaseStore:
                 INSERT INTO public.collector_leases (
                     collector_name, owner_token, lease_expires_at, updated_at
                 )
-                VALUES (%s, %s, NOW() + (%s * INTERVAL '1 second'), NOW())
+                VALUES (%s, %s, clock_timestamp() + (%s * INTERVAL '1 second'), NOW())
                 ON CONFLICT (collector_name) DO UPDATE SET
                     owner_token = EXCLUDED.owner_token,
-                    lease_expires_at = NOW() + (%s * INTERVAL '1 second'),
-                    updated_at = NOW()
+                    lease_expires_at = clock_timestamp() + (%s * INTERVAL '1 second'),
+                    updated_at = clock_timestamp()
                 WHERE public.collector_leases.lease_expires_at <= NOW()
                    OR public.collector_leases.owner_token = EXCLUDED.owner_token
                 RETURNING collector_name
@@ -79,11 +79,11 @@ class CollectorLeaseStore:
             row = connection.execute(
                 """
                 UPDATE public.collector_leases
-                SET lease_expires_at = NOW() + (%s * INTERVAL '1 second'),
-                    updated_at = NOW()
+                SET lease_expires_at = clock_timestamp() + (%s * INTERVAL '1 second'),
+                    updated_at = clock_timestamp()
                 WHERE collector_name = %s
                   AND owner_token = %s
-                  AND lease_expires_at > NOW()
+                  AND lease_expires_at > clock_timestamp()
                 RETURNING collector_name
                 """,
                 (ttl_seconds, collector_name, owner_token),
