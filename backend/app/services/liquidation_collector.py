@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import json
 import logging
 import math
@@ -52,7 +53,10 @@ def normalize_force_order(message: dict[str, Any]) -> dict[str, Any] | None:
         raw_json = json.dumps(message, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
     except (TypeError, ValueError, KeyError, OverflowError):
         return None
+    fingerprint_payload = json.dumps(message, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
+    event_fingerprint = hashlib.sha256(fingerprint_payload.encode("utf-8")).hexdigest()
     return {
+        "event_fingerprint": event_fingerprint,
         "event_time_ms": event_time,
         "trade_time_ms": trade_time,
         "symbol": symbol,
@@ -94,9 +98,17 @@ class LiquidationStore:
                     last_filled_quantity REAL,
                     cumulative_filled_quantity REAL,
                     approx_cumulative_notional REAL,
-                    raw_json TEXT NOT NULL
+                    raw_json TEXT NOT NULL,
+                    event_fingerprint TEXT
                 )
             """)
+            columns = {row[1] for row in connection.execute("PRAGMA table_info(liquidation_events)")}
+            if "event_fingerprint" not in columns:
+                connection.execute("ALTER TABLE liquidation_events ADD COLUMN event_fingerprint TEXT")
+            connection.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_liquidation_event_fingerprint "
+                "ON liquidation_events(event_fingerprint) WHERE event_fingerprint IS NOT NULL"
+            )
             connection.execute(
                 "CREATE INDEX IF NOT EXISTS idx_liquidation_symbol_time "
                 "ON liquidation_events(symbol, event_time_ms)"
@@ -106,32 +118,37 @@ class LiquidationStore:
         return psycopg.connect(self.database_url, sslmode=("disable" if "sslmode=disable" in self.database_url else "require"), connect_timeout=15, row_factory=dict_row)
 
     def insert(self, event: dict[str, Any]) -> None:
+        raw_payload = json.loads(event["raw_json"])
+        fingerprint_payload = json.dumps(raw_payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
+        event_fingerprint = event.get("event_fingerprint") or hashlib.sha256(fingerprint_payload.encode("utf-8")).hexdigest()
         if self.database_url:
             with self._connect_postgres() as connection:
                 connection.execute("""
                     INSERT INTO public.liquidation_events (
                         event_time_ms, trade_time_ms, symbol, pair_symbol, market_type, side,
                         order_type, status, average_price, original_quantity, last_filled_quantity,
-                        cumulative_filled_quantity, approx_cumulative_notional, raw_payload
-                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb)
+                        cumulative_filled_quantity, approx_cumulative_notional, raw_payload, event_fingerprint
+                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s)
+                    ON CONFLICT (event_fingerprint) DO NOTHING
                 """, (
                     event["event_time_ms"], event["trade_time_ms"], event["symbol"],
                     event.get("pair_symbol"), event.get("market_type"), event.get("side"),
                     event.get("order_type"), event.get("status"), event.get("average_price"),
                     event.get("original_quantity"), event.get("last_filled_quantity"),
                     event.get("cumulative_filled_quantity"), event.get("approx_cumulative_notional"),
-                    event["raw_json"],
+                    event["raw_json"], event_fingerprint,
                 ))
             return
         columns = (
             "event_time_ms, trade_time_ms, symbol, pair_symbol, market_type, side, "
             "order_type, status, average_price, original_quantity, last_filled_quantity, "
-            "cumulative_filled_quantity, approx_cumulative_notional, raw_json"
+            "cumulative_filled_quantity, approx_cumulative_notional, raw_json, event_fingerprint"
         )
-        values = tuple(event[key] for key in columns.split(", "))
+        values = tuple(event[key] for key in columns.split(", ") if key != "event_fingerprint") + (event_fingerprint,)
         with sqlite3.connect(self.database_path) as connection:
             connection.execute(
-                f"INSERT INTO liquidation_events ({columns}) VALUES ({','.join(['?'] * len(values))})",
+                f"INSERT INTO liquidation_events ({columns}) VALUES ({','.join(['?'] * len(values))}) "
+                "ON CONFLICT(event_fingerprint) DO NOTHING",
                 values,
             )
 
