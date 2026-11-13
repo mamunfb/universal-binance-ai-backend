@@ -122,3 +122,26 @@ def test_snapshot_rejects_boolean_numeric_fields(tmp_path, field, value):
     with pytest.raises(ValueError):
         store.save(payload)
     assert store.history("USD_M", "BTCUSDT", "1h")["returned_count"] == 0
+
+
+@pytest.mark.parametrize("field,value", [
+    ("analyzed_at_ms", 1000.5),
+    ("analyzed_at_ms", "1000.5"),
+    ("close_time_ms", 999.5),
+    ("close_time_ms", "999.5"),
+])
+def test_snapshot_rejects_fractional_timestamp_fields(tmp_path, field, value):
+    store = MarketConfluenceStore(str(tmp_path / "snapshots.sqlite3"))
+    payload = {
+        "market": "USD_M", "symbol": "BTCUSDT", "interval": "1h",
+        "analyzed_at_ms": 1000,
+        "confluence": {"bias": "BULLISH"},
+        "reference": {"price": 100.0, "close_time_ms": 999},
+    }
+    if field == "analyzed_at_ms":
+        payload[field] = value
+    else:
+        payload["reference"][field] = value
+    with pytest.raises(ValueError):
+        store.save(payload)
+    assert store.history("USD_M", "BTCUSDT", "1h")["returned_count"] == 0
