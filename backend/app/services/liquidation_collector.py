@@ -16,6 +16,24 @@ logger = logging.getLogger(__name__)
 STREAM_URL = "wss://fstream.binance.com/market/ws/!forceOrder@arr"
 
 
+def _event_fingerprint(event: dict[str, Any]) -> str:
+    raw_payload = json.loads(event["raw_json"])
+    event_fields = {
+        key: event.get(key)
+        for key in (
+            "event_time_ms", "trade_time_ms", "symbol", "pair_symbol", "market_type",
+            "side", "order_type", "status", "average_price", "original_quantity",
+            "last_filled_quantity", "cumulative_filled_quantity",
+            "approx_cumulative_notional",
+        )
+    }
+    canonical = json.dumps(
+        {"raw_payload": raw_payload, "event_fields": event_fields},
+        sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False,
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
 def normalize_force_order(message: dict[str, Any]) -> dict[str, Any] | None:
     if not isinstance(message, dict) or message.get("e") != "forceOrder" or not isinstance(message.get("o"), dict):
         return None
@@ -53,10 +71,7 @@ def normalize_force_order(message: dict[str, Any]) -> dict[str, Any] | None:
         raw_json = json.dumps(message, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
     except (TypeError, ValueError, KeyError, OverflowError):
         return None
-    fingerprint_payload = json.dumps(message, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
-    event_fingerprint = hashlib.sha256(fingerprint_payload.encode("utf-8")).hexdigest()
-    return {
-        "event_fingerprint": event_fingerprint,
+    event = {
         "event_time_ms": event_time,
         "trade_time_ms": trade_time,
         "symbol": symbol,
@@ -72,6 +87,8 @@ def normalize_force_order(message: dict[str, Any]) -> dict[str, Any] | None:
         "approx_cumulative_notional": notional,
         "raw_json": raw_json,
     }
+    event["event_fingerprint"] = _event_fingerprint(event)
+    return event
 
 
 class LiquidationStore:
@@ -118,9 +135,7 @@ class LiquidationStore:
         return psycopg.connect(self.database_url, sslmode=("disable" if "sslmode=disable" in self.database_url else "require"), connect_timeout=15, row_factory=dict_row)
 
     def insert(self, event: dict[str, Any]) -> None:
-        raw_payload = json.loads(event["raw_json"])
-        fingerprint_payload = json.dumps(raw_payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
-        event_fingerprint = event.get("event_fingerprint") or hashlib.sha256(fingerprint_payload.encode("utf-8")).hexdigest()
+        event_fingerprint = _event_fingerprint(event)
         if self.database_url:
             with self._connect_postgres() as connection:
                 connection.execute("""
