@@ -444,3 +444,15 @@ def test_dashboard_performance_optional_metrics_handle_undefined_values():
     # API JSON may omit optional fields entirely; null-only checks do not cover
     # JavaScript undefined and can still call toFixed() on a missing value.
     assert "===null" not in performance_handler
+
+def test_dashboard_price_path_validates_api_candle_payload_before_chart_rendering():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    price_path_handler = next(
+        line for line in html.splitlines() if "$('loadPath').onclick" in line
+    )
+    assert "Array.isArray(r.candles)" in price_path_handler
+    assert "Number.isFinite(referencePrice)" in price_path_handler
+    assert "Number.isFinite(actualChange)" in price_path_handler
+    assert "values.some(v=>!Number.isFinite(v))" in price_path_handler
+    assert "r.bias_aligned_change_percent==null?" in price_path_handler
+    assert "invalid price-path payload" in price_path_handler
