@@ -5,6 +5,7 @@ import uuid
 import pytest
 
 from app.services.evm_transfer_store import EVMTransferStore
+from app.providers.evm_rpc import TRANSFER_TOPIC
 
 
 @pytest.mark.skipif(
@@ -20,7 +21,7 @@ def test_evm_transfer_postgres_round_trip_coverage_and_flows(tmp_path):
     recipient = "0x" + "2" * 40
     start, end = 987654321, 987654322
     log = {
-        "topics": ["0x" + "0" * 64, "0x" + sender[2:].rjust(64, "0"),
+        "topics": [TRANSFER_TOPIC, "0x" + sender[2:].rjust(64, "0"),
                    "0x" + recipient[2:].rjust(64, "0")],
         "data": hex(12345), "transactionHash": tx_hash,
         "blockNumber": hex(start), "logIndex": "0x0",
