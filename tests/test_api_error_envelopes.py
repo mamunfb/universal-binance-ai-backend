@@ -1,7 +1,10 @@
+import asyncio
 import json
+from fastapi import Request
+from fastapi.responses import Response
 from fastapi.testclient import TestClient
 
-from app.main import app
+from app.main import app, request_tracking_middleware
 from app.config import settings
 
 
@@ -167,6 +170,49 @@ def test_each_private_ai_client_can_use_its_own_key(monkeypatch):
         )
         assert response.status_code == 200
         assert response.json()["status"] == "DISABLED"
+
+
+def test_authenticated_bearer_keys_set_the_expected_request_identity(monkeypatch):
+    client_keys = {
+        name: f"{name}-test-key-" + ("x" * 40)
+        for name in ("chatgpt", "gemini", "manus", "claude", "perplexity")
+    }
+    owner_key = "owner-test-key-" + ("x" * 40)
+    monkeypatch.setattr(settings, "app_env", "development")
+    monkeypatch.setattr(settings, "personal_api_key", owner_key)
+    monkeypatch.setattr(settings, "ai_client_api_keys", json.dumps(client_keys))
+
+    async def check_identity(identity, key):
+        path = "/api/v1/analysis/futures/liquidations/status"
+        scope = {
+            "type": "http",
+            "asgi": {"version": "3.0", "spec_version": "2.3"},
+            "http_version": "1.1",
+            "method": "GET",
+            "scheme": "http",
+            "path": path,
+            "raw_path": path.encode("ascii"),
+            "query_string": b"",
+            "root_path": "",
+            "headers": [(b"authorization", f"Bearer {key}".encode("ascii"))],
+            "client": ("127.0.0.1", 12345),
+            "server": ("testserver", 80),
+        }
+        request = Request(scope)
+
+        async def call_next(_request):
+            return Response("ok")
+
+        response = await request_tracking_middleware(request, call_next)
+        assert response.status_code == 200
+        assert request.state.ai_client == identity
+
+    async def run_checks():
+        await check_identity("owner", owner_key)
+        for name, key in client_keys.items():
+            await check_identity(name, key)
+
+    asyncio.run(run_checks())
 
 
 def test_unknown_ai_client_key_is_rejected(monkeypatch):
