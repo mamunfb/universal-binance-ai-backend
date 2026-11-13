@@ -177,9 +177,13 @@ class MarketConfluenceStore:
                 "returned_count": len(snapshots), "snapshots": snapshots, "source": source}
 
     def get_snapshot(self, market: str, symbol: str, snapshot_id: str) -> dict[str, Any] | None:
-        normalized_market = market.upper()
-        if normalized_market not in {"SPOT", "USD_M", "COIN_M"}:
+        if not isinstance(market, str) or market.upper() not in {"SPOT", "USD_M", "COIN_M"}:
             raise ValueError("Invalid market")
+        if not isinstance(symbol, str) or not symbol.strip():
+            raise ValueError("symbol must be a non-empty string")
+        if not isinstance(snapshot_id, str) or not snapshot_id.strip():
+            raise ValueError("snapshot_id must be a non-empty string")
+        normalized_market = market.upper()
         if self.database_url:
             with self._connect_postgres() as db:
                 row = db.execute("""SELECT * FROM public.market_confluence_snapshots
