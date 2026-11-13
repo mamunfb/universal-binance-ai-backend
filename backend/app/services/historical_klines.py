@@ -5,6 +5,7 @@ import sqlite3
 import time
 from decimal import Decimal, InvalidOperation
 import psycopg
+from app.services.collector_leases import assert_current_collector_lease
 from psycopg.rows import dict_row
 from datetime import datetime, timezone
 from pathlib import Path
@@ -134,6 +135,7 @@ class HistoricalKlineStore:
         ]
         if self.database_url:
             with self._connect_postgres() as connection:
+                assert_current_collector_lease(connection, "historical-klines:all")
                 connection.cursor().executemany("""
                     INSERT INTO public.historical_klines (
                         market, symbol, interval, open_time_ms, open, high, low, close,
