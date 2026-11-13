@@ -55,7 +55,9 @@ class EVMRPCProvider:
         if data.get("id") != payload["id"]:
             raise ValueError("JSON-RPC response id does not match request")
         if data.get("error") is not None:
-            raise RuntimeError(f"JSON-RPC {method} failed: {data['error']}")
+            # Provider error payloads are untrusted and may echo request URLs,
+            # credentials, or other upstream-sensitive values.
+            raise RuntimeError(f"JSON-RPC {method} failed")
         if "result" not in data:
             raise ValueError(f"JSON-RPC {method} response has no result")
         return data["result"]
