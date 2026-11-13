@@ -53,7 +53,7 @@ def test_open_interest_store_rejects_boolean_values(tmp_path, row):
     assert store.history("USD_M", "BTCUSDT", "1h")["returned_count"] == 0
 
 
-@pytest.mark.parametrize("timestamp", [1700000000000.5, "1700000000000.5", "1e3"])
+@pytest.mark.parametrize("timestamp", [1700000000000.5, "1700000000000.5", "1.0001e3"])
 def test_open_interest_store_rejects_fractional_timestamps(tmp_path, timestamp):
     store = OpenInterestStore(str(tmp_path / "oi.sqlite3"))
     with pytest.raises(ValueError, match="timestamp"):
