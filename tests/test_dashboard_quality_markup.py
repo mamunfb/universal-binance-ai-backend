@@ -456,3 +456,92 @@ def test_dashboard_price_path_validates_api_candle_payload_before_chart_renderin
     assert "values.some(v=>!Number.isFinite(v))" in price_path_handler
     assert "r.bias_aligned_change_percent==null?" in price_path_handler
     assert "invalid price-path payload" in price_path_handler
+
+
+def test_dashboard_performance_handles_incomplete_wilson_interval_payload():
+    import subprocess
+    import textwrap
+
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    harness = textwrap.dedent(r"""
+        const assert = require("node:assert/strict");
+        const vm = require("node:vm");
+        let source = "";
+        process.stdin.setEncoding("utf8");
+        process.stdin.on("data", chunk => source += chunk);
+        process.stdin.on("end", () => {
+          (async () => {
+            const start = source.indexOf("<script>");
+            const end = source.lastIndexOf("</script>");
+            const elements = new Map();
+            const document = {
+              getElementById(id) {
+                if (!elements.has(id)) elements.set(id, {
+                  value: "", innerHTML: "", textContent: "", onclick: null
+                });
+                return elements.get(id);
+              },
+              createElement(name) {
+                assert.equal(name, "template");
+                let markup = "";
+                return {
+                  content: { children: [] },
+                  set innerHTML(value) { markup = value; },
+                  get innerHTML() { return markup; }
+                };
+              }
+            };
+            const payload = {
+              horizons: { one_hour: { label: "1h" } },
+              historical_leaderboard: {
+                dimensions: {
+                  market_regime: {
+                    one_hour: {
+                      horizon: "1h",
+                      reliability_summary: {},
+                      rankings: {
+                        positive_fraction: {
+                          label: "Positive fraction",
+                          minimum_sample_size: 1,
+                          ranked: [{
+                            rank: 1, regime: "TREND", bias: "BULLISH",
+                            alignment: "ALIGNED", sample_size: 1, value: 0.5,
+                            confidence_interval_95_wilson: {},
+                            mean_directional_return_percent: null,
+                            non_overlapping_directional_sample_size: 1,
+                            reliability_assessment: {}
+                          }],
+                          excluded: []
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            };
+            const context = {
+              document,
+              window: { location: { origin: "https://dashboard.example" } },
+              URL, URLSearchParams,
+              fetch: async () => ({ ok: true, status: 200, json: async () => payload })
+            };
+            vm.runInNewContext(source.slice(start + 8, end), context);
+            document.getElementById("key").value = "test-api-key";
+            await document.getElementById("performance").onclick();
+            assert.equal(
+              document.getElementById("status").textContent.startsWith("Error:"),
+              false,
+              "incomplete Wilson interval must render as unavailable, not crash: " +
+                document.getElementById("status").textContent
+            );
+          })().catch(error => { console.error(error); process.exitCode = 1; });
+        });
+    """)
+    result = subprocess.run(
+        ["node", "-e", harness],
+        input=html,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
