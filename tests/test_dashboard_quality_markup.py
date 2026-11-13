@@ -566,3 +566,18 @@ def test_dashboard_performance_leaderboard_validates_and_escapes_api_values():
     assert "escapeHtml(row.rank)" in performance_handler
     assert performance_handler.count("escapeHtml(row.sample_size)") == 2
     assert "escapeHtml(row.non_overlapping_directional_sample_size)" in performance_handler
+
+def test_dashboard_performance_percent_formatter_rejects_non_numeric_api_values():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    performance_handler = next(
+        line for line in html.splitlines() if "$('performance').onclick" in line
+    )
+    assert "const pct=v=>typeof v!=='number'||!Number.isFinite(v)?'—':(v*100).toFixed(1)+'%';" in performance_handler
+    assert "const pct=v=>v==null||v===undefined?'—':(v*100).toFixed(1)+'%';" not in performance_handler
+    for expression in (
+        "escapeHtml(h.sample_size)",
+        "escapeHtml(ranking.minimum_sample_size)",
+        "escapeHtml(w.initial_training_snapshot_count??0)",
+        "escapeHtml(x.training_snapshot_count??0)",
+    ):
+        assert expression in performance_handler
