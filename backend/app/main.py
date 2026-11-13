@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 import hmac
 from datetime import datetime, timezone
 import json
+import psycopg
 from typing import Any, Literal
 from uuid import uuid4
 
@@ -1096,6 +1097,27 @@ async def root_status_page() -> str:
   </nav>
   <footer>Note: Process health does not verify database or exchange connectivity. Check each dependency separately.</footer>
 </section></main></body></html>"""
+
+
+@app.get("/api/v1/system/database/health", tags=["system"])
+def database_connection_health() -> dict[str, str]:
+    """Verify the configured PostgreSQL connection with a read-only query."""
+    if not settings.database_url.strip():
+        raise HTTPException(
+            status_code=503,
+            detail="Database connection is not configured.",
+        )
+    try:
+        with psycopg.connect(settings.database_url, connect_timeout=5) as connection:
+            result = connection.execute("SELECT 1").fetchone()
+            if not result or result[0] != 1:
+                raise RuntimeError("Database health query returned an unexpected result.")
+    except Exception:
+        raise HTTPException(
+            status_code=503,
+            detail="Database connection check failed.",
+        ) from None
+    return {"status": "ok", "database": "available", "check": "SELECT 1"}
 
 
 @app.get("/health", tags=["system"])
