@@ -65,7 +65,7 @@ Keep order placement, signing, withdrawals, and trade execution outside this pro
 
 ## Additional operational side effects found in the route/startup audit
 
-The API route inventory in `backend/app/main.py` contains 82 declared application routes: 76 GET and 6 POST? **Do not use this count as an authorization guarantee**; the permission boundary must be based on each route's actual handler and dependencies. The explicit side-effecting POST routes are enumerated above. No PUT, PATCH, or DELETE route decorators were found in this file at the current audited revision.
+The API route inventory in `backend/app/main.py` contains 82 declared application routes: 73 GET and 9 POST. **Do not use this count as an authorization guarantee**; the permission boundary must be based on each route's actual handler and dependencies. The explicit side-effecting POST routes are enumerated above. No PUT, PATCH, or DELETE route decorators were found in this file at the current audited revision.
 
 Many GET endpoints are not necessarily local-only reads: market/news/on-chain endpoints can make outbound requests to public exchange, RSS, or configured EVM RPC providers. They do not thereby become database-write operations, but they can consume upstream quota, incur latency, or expose request metadata to those providers. A future policy may want a separate `upstream:read` capability or rate budget if that distinction is operationally important; this is a proposal, not current enforcement.
 
