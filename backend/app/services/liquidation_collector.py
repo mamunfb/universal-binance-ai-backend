@@ -263,4 +263,12 @@ class LiquidationCollector:
             "last_message_at": self.last_message_at,
             "last_error": self.last_error,
             "status": "CONNECTED" if self.connected else "DISCONNECTED_OR_STARTING",
+            "coverage_warning": (
+                "Binance publishes at most the latest force-order snapshot per symbol per 1000ms; "
+                "this feed is not a complete liquidation tape or historical archive."
+            ),
+            "deduplication": (
+                "Not applied: the documented public forceOrder payload has no stable event/order ID, "
+                "so heuristic deduplication could discard distinct snapshots."
+            ),
         }
