@@ -96,3 +96,19 @@ async def test_rss_provider_failure_does_not_disclose_upstream_url_or_credential
     for secret in ("rpc-user", "rpc-password", "feed-secret", secret_url):
         assert secret not in serialized
 \n
+
+def test_parse_feed_redacts_credentials_query_and_fragment_from_source_url():
+    private_source_url = (
+        "https://feed-user:feed-password@feeds.example.test/rss"
+        "?api_key=feed-token#private-fragment"
+    )
+    items = parse_feed(RSS, "PrivateFeed", private_source_url)
+
+    assert items[0]["source_url"] == "https://feeds.example.test/rss"
+    serialized = str(items[0])
+    for secret in (
+        "feed-user", "feed-password", "feed-token",
+        "api_key", "private-fragment", private_source_url,
+    ):
+        assert secret not in serialized
+\n
