@@ -35,7 +35,7 @@ def test_dashboard_api_url_validation_and_request_runtime():
             const context = {
               document,
               window: { location: { origin: "https://dashboard.example" } },
-              URL, URLSearchParams, fetch
+              URL, URLSearchParams, Headers, fetch
             };
             vm.runInNewContext(match[1] + "\nglobalThis.__callForTest = call;", context);
             const call = context.__callForTest;
@@ -89,14 +89,16 @@ def test_dashboard_api_url_validation_and_request_runtime():
               body: JSON.stringify({ confirm: true }),
               headers: {
                 Authorization: "Bearer caller-override",
+                authorization: "Bearer lowercase-override",
                 "Content-Type": "text/plain",
+                "content-type": "text/html",
                 "X-Test": "preserved"
               }
             });
             assert.equal(requests[3].url, "https://api.example/v1/health");
-            assert.equal(requests[3].options.headers.Authorization, "Bearer private-test-key");
-            assert.equal(requests[3].options.headers["Content-Type"], "application/json");
-            assert.equal(requests[3].options.headers["X-Test"], "preserved");
+            assert.equal(requests[3].options.headers.get("Authorization"), "Bearer private-test-key");
+            assert.equal(requests[3].options.headers.get("Content-Type"), "application/json");
+            assert.equal(requests[3].options.headers.get("X-Test"), "preserved");
             assert.equal(requests[3].options.method, "POST");
             assert.equal(requests[3].options.body, JSON.stringify({ confirm: true }));
             assert.equal(requests[3].url.includes("private-test-key"), false);
