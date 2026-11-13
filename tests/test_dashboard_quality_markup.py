@@ -339,7 +339,7 @@ def test_dashboard_escape_html_helper_runs_in_node_runtime():
             context
           );
           assert.equal(
-            context.__escapeHtmlForTest("<div class=\"x\">&'\\"</div>"),
+            context.__escapeHtmlForTest(["<div class=", String.fromCharCode(34), "x", String.fromCharCode(34), ">&'", "</div>"].join("")),
             "&lt;div class=&quot;x&quot;&gt;&amp;&#39;&quot;&lt;/div&gt;"
           );
         });
