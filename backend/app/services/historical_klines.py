@@ -103,12 +103,16 @@ class HistoricalKlineStore:
         self, market: str, symbol: str, interval: str, rows: list[Any],
         source: str = "Binance public REST API",
     ) -> dict[str, Any]:
+        if not isinstance(market, str) or market.upper() not in {"SPOT", "USD_M", "COIN_M"}:
+            raise ValueError("market must be SPOT, USD_M, or COIN_M")
+        if not isinstance(symbol, str) or not symbol.strip():
+            raise ValueError("symbol must be a non-empty string")
+        if not isinstance(interval, str) or not interval.strip():
+            raise ValueError("interval must be a non-empty string")
+        if not isinstance(source, str) or not source.strip():
+            raise ValueError("source must be a non-empty string")
         market = market.upper()
         symbol = symbol.upper()
-        if market not in {"SPOT", "USD_M", "COIN_M"}:
-            raise ValueError("market must be SPOT, USD_M, or COIN_M")
-        if not symbol.strip() or not interval.strip():
-            raise ValueError("symbol and interval must not be empty")
         if not isinstance(rows, list) or not 1 <= len(rows) <= 1500:
             raise ValueError("rows must contain between 1 and 1500 candles")
         normalized = [self._normalize(row) for row in rows]
