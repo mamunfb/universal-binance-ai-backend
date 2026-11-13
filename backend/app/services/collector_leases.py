@@ -128,7 +128,8 @@ class CollectorLeaseStore:
         with self._connect() as connection:
             cursor = connection.execute(
                 """
-                DELETE FROM public.collector_leases
+                UPDATE public.collector_leases
+                SET lease_expires_at = NOW(), updated_at = NOW()
                 WHERE collector_name = %s
                   AND owner_token = %s
                   AND lease_generation = %s
