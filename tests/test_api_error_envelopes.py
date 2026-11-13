@@ -603,3 +603,51 @@ def test_evm_rpc_configuration_error_does_not_expose_endpoint_credentials(monkey
         assert secret not in detail
     else:
         raise AssertionError("Expected sanitized HTTP 503")
+
+
+def test_cross_chain_token_intelligence_does_not_disclose_rpc_exception(monkeypatch):
+    import asyncio
+    from app import main
+
+    secret = "https://rpc.example/user:password@host/key=private-token"
+
+    async def fake_flows(*args, **kwargs):
+        return {
+            "chains": [{
+                "chain_id": 1,
+                "contract_address": "0x" + "1" * 40,
+                "coverage": {"complete": False, "gaps": []},
+            }]
+        }
+
+    async def fake_cohorts(*args, **kwargs):
+        return {"chains": []}
+
+    def fail_registry(*args, **kwargs):
+        raise RuntimeError(secret)
+
+    monkeypatch.setattr(
+        main, "parse_chain_token_configs",
+        lambda *_: [{
+            "asset_id": "testasset",
+            "chain_id": 1,
+            "contract_address": "0x" + "1" * 40,
+            "rpc_url": "https://rpc.example/",
+        }],
+    )
+    monkeypatch.setattr(main, "cross_chain_token_flows", fake_flows)
+    monkeypatch.setattr(main, "cross_chain_verified_wallet_flows", fake_cohorts)
+    monkeypatch.setattr(main, "load_wallet_registry", fail_registry)
+
+    result = asyncio.run(
+        main.cross_chain_token_intelligence(
+            "testasset", from_block=1, to_block=2, decimals=18, limit=10,
+            window_blocks=100,
+        )
+    )
+    serialized = json.dumps(result)
+    assert "CHAIN_INTELLIGENCE_UNAVAILABLE" in serialized
+    assert "RuntimeError" in serialized
+    assert secret not in serialized
+    assert "private-token" not in serialized
+    assert "password" not in serialized
