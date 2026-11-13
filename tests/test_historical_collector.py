@@ -138,3 +138,32 @@ def test_collector_cancellation_waits_for_inflight_database_write(tmp_path):
     asyncio.run(scenario())
     store.save_klines = original_save
     assert store.history("SPOT", "BTCUSDT", "1m")["returned_count"] == 1
+
+def test_collector_propagates_request_observation_token_to_store(tmp_path):
+    store = HistoricalKlineStore(str(tmp_path / "history.sqlite3"))
+    captured = {}
+    original_save = store.save_klines
+
+    def capture_save(*args, **kwargs):
+        captured.update(kwargs)
+        return original_save(*args, **kwargs)
+
+    store.save_klines = capture_save
+    start = 1_700_000_040_000
+    provider = FakeProvider([candle(start)])
+    collector = HistoricalKlineCollector(
+        store=store,
+        spot_provider_factory=lambda: provider,
+        futures_provider_factory=lambda _market: provider,
+        jobs_json='[{"market":"SPOT","symbol":"BTCUSDT","interval":"1m"}]',
+        poll_seconds=10,
+        initial_limit=10,
+    )
+
+    result = asyncio.run(collector.run_once())
+
+    assert result["status"] == "COMPLETED"
+    assert isinstance(captured["observation_started_at_ns"], int)
+    assert captured["observation_started_at_ns"] > 0
+    saved = store.history("SPOT", "BTCUSDT", "1m")
+    assert saved["candles"][0]["observation_started_at_ns"] == captured["observation_started_at_ns"]

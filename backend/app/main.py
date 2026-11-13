@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 import hmac
 from datetime import datetime, timezone
 import json
+import time
 import psycopg
 from typing import Any, Literal
 from uuid import uuid4
@@ -2433,10 +2434,14 @@ async def collect_historical_klines(
         raise HTTPException(status_code=422, detail="symbol must not be empty")
     try:
         provider = get_spot_provider() if market == "SPOT" else get_futures_provider(market)
+        observation_started_at_ns = time.time_ns()
         rows = await provider.klines(normalized, interval, limit)
         if not rows:
             return {"status": "INCOMPLETE", "market": market, "symbol": normalized, "interval": interval, "received_count": 0, "warning": "The exchange returned no candles; no history was stored."}
-        return await asyncio.to_thread(historical_kline_store.save_klines, market, normalized, interval, rows)
+        return await asyncio.to_thread(
+            historical_kline_store.save_klines, market, normalized, interval, rows,
+            observation_started_at_ns=observation_started_at_ns,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:

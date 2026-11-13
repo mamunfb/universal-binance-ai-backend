@@ -89,3 +89,154 @@ def test_store_rejects_fractional_integer_fields(tmp_path, index):
     with pytest.raises(ValueError):
         store.save_klines("SPOT", "BTCUSDT", "1m", [row])
     assert store.history("SPOT", "BTCUSDT", "1m")["returned_count"] == 0
+
+
+def test_older_request_observation_cannot_overwrite_newer_candle(tmp_path):
+    store = HistoricalKlineStore(str(tmp_path / "history.sqlite3"))
+    # The newer request finishes and commits first; an older, slower request
+    # finishes later. The UPSERT must preserve the newer observation.
+    store.save_klines(
+        "SPOT", "BTCUSDT", "1m", [candle(close="102")],
+        observation_started_at_ns=2_000,
+    )
+    store.save_klines(
+        "SPOT", "BTCUSDT", "1m", [candle(close="101")],
+        observation_started_at_ns=1_000,
+    )
+    saved = store.history("SPOT", "BTCUSDT", "1m")
+    assert saved["candles"][0]["close"] == 102.0
+    assert saved["candles"][0]["observation_started_at_ns"] == 2_000
+
+
+def test_newer_request_observation_updates_existing_candle(tmp_path):
+    store = HistoricalKlineStore(str(tmp_path / "history.sqlite3"))
+    store.save_klines(
+        "SPOT", "BTCUSDT", "1m", [candle(close="101")],
+        observation_started_at_ns=1_000,
+    )
+    store.save_klines(
+        "SPOT", "BTCUSDT", "1m", [candle(close="103")],
+        observation_started_at_ns=3_000,
+    )
+    saved = store.history("SPOT", "BTCUSDT", "1m")
+    assert saved["candles"][0]["close"] == 103.0
+    assert saved["candles"][0]["observation_started_at_ns"] == 3_000
+
+
+def test_legacy_sqlite_rows_with_unknown_observation_can_be_refreshed(tmp_path):
+    import sqlite3
+
+    database = str(tmp_path / "legacy.sqlite3")
+    with sqlite3.connect(database) as connection:
+        connection.execute("""
+            CREATE TABLE historical_klines (
+                market TEXT NOT NULL, symbol TEXT NOT NULL, interval TEXT NOT NULL,
+                open_time_ms INTEGER NOT NULL, open REAL NOT NULL, high REAL NOT NULL,
+                low REAL NOT NULL, close REAL NOT NULL, volume REAL NOT NULL,
+                close_time_ms INTEGER NOT NULL, quote_volume REAL NOT NULL,
+                trade_count INTEGER NOT NULL, taker_buy_base_volume REAL NOT NULL,
+                taker_buy_quote_volume REAL NOT NULL, source TEXT NOT NULL,
+                collected_at TEXT NOT NULL,
+                PRIMARY KEY (market, symbol, interval, open_time_ms)
+            )
+        """)
+        connection.execute("""
+            INSERT INTO historical_klines VALUES (
+                'SPOT', 'BTCUSDT', '1m', 1700000000000,
+                100, 105, 99, 100, 10, 1700000059999,
+                1000, 25, 4, 400, 'legacy', '2026-01-01T00:00:00+00:00'
+            )
+        """)
+
+    store = HistoricalKlineStore(database)
+    store.save_klines(
+        "SPOT", "BTCUSDT", "1m", [candle(close="104")],
+        observation_started_at_ns=4_000,
+    )
+    saved = store.history("SPOT", "BTCUSDT", "1m")
+    assert saved["candles"][0]["close"] == 104.0
+    assert saved["candles"][0]["observation_started_at_ns"] == 4_000
+
+
+@pytest.mark.parametrize("token", [True, -1, 1.5, "100"])
+def test_store_rejects_invalid_observation_order_token(tmp_path, token):
+    store = HistoricalKlineStore(str(tmp_path / "history.sqlite3"))
+    with pytest.raises(ValueError, match="observation_started_at_ns"):
+        store.save_klines(
+            "SPOT", "BTCUSDT", "1m", [candle()],
+            observation_started_at_ns=token,
+        )
+
+
+def test_postgres_upsert_only_accepts_newer_observation(monkeypatch):
+    from app.services import historical_klines as module
+
+    class FakeConnection:
+        def __init__(self):
+            self.executemany_query = ""
+            self.executemany_values = None
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def cursor(self):
+            return self
+
+        def executemany(self, query, values):
+            self.executemany_query = query
+            self.executemany_values = values
+
+        def execute(self, query, params):
+            class Result:
+                def fetchone(self):
+                    return {"count": 1}
+            return Result()
+
+    connection = FakeConnection()
+    monkeypatch.setattr(module.psycopg, "connect", lambda *_a, **_kw: connection)
+    store = HistoricalKlineStore("unused.sqlite3", "postgresql://example.invalid/db")
+    result = store.save_klines(
+        "SPOT", "BTCUSDT", "1m", [candle(close="102")],
+        observation_started_at_ns=5_000,
+    )
+    assert result["storage"] == "POSTGRESQL"
+    assert connection.executemany_query.count("%s") == 17
+    assert len(connection.executemany_values[0]) == 17
+    assert "ON CONFLICT(market, symbol, interval, open_time_ms) DO UPDATE SET" in connection.executemany_query
+    assert "WHERE public.historical_klines.observation_started_at_ns IS NULL" in connection.executemany_query
+    assert "excluded.observation_started_at_ns > public.historical_klines.observation_started_at_ns" in connection.executemany_query
+
+def test_postgres_store_preserves_newer_observation_after_out_of_order_writes():
+    import os
+    import uuid
+    import pytest
+
+    database_url = os.getenv("TEST_DATABASE_URL")
+    if not database_url:
+        pytest.skip("TEST_DATABASE_URL is not configured")
+    from app.services.historical_klines import HistoricalKlineStore
+    import psycopg
+
+    symbol = f"OBS{uuid.uuid4().hex[:20].upper()}"
+    store = HistoricalKlineStore("unused.sqlite3", database_url)
+    try:
+        store.save_klines(
+            "SPOT", symbol, "1m", [candle(close="102")],
+            observation_started_at_ns=20_000,
+        )
+        store.save_klines(
+            "SPOT", symbol, "1m", [candle(close="101")],
+            observation_started_at_ns=10_000,
+        )
+        history = store.history("SPOT", symbol, "1m")
+        assert history["candles"][0]["close"] == 102.0
+        assert history["candles"][0]["observation_started_at_ns"] == 20_000
+    finally:
+        with psycopg.connect(database_url) as connection:
+            connection.execute(
+                "DELETE FROM public.historical_klines WHERE market=%s AND symbol=%s AND interval=%s",
+                ("SPOT", symbol, "1m"),
+            )

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from datetime import datetime, timezone
 from typing import Any, Callable
 
@@ -122,6 +123,7 @@ class HistoricalKlineCollector:
                         if market == "SPOT"
                         else self.futures_provider_factory(market)
                     )
+                    observation_started_at_ns = time.time_ns()
                     rows = await provider.klines(
                         symbol,
                         interval,
@@ -138,6 +140,7 @@ class HistoricalKlineCollector:
                     write_task = asyncio.create_task(asyncio.to_thread(
                         self.store.save_klines, market, symbol, interval, rows,
                         "Binance public REST API (scheduled collector)",
+                        observation_started_at_ns=observation_started_at_ns,
                     ))
                     try:
                         # Cancelling an await on to_thread() does not stop its worker
