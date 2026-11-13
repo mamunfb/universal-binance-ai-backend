@@ -197,11 +197,11 @@ class OrderBookHistoryStore:
 
     @staticmethod
     def _validate_query_market_symbol(market: Any, symbol: Any) -> tuple[str, str]:
-        if not isinstance(market, str) or market not in {"SPOT", "USD_M", "COIN_M"}:
+        if not isinstance(market, str) or market.upper() not in {"SPOT", "USD_M", "COIN_M"}:
             raise ValueError("Invalid order-book market")
         if not isinstance(symbol, str) or not symbol.strip() or len(symbol) > 40:
             raise ValueError("Invalid order-book symbol")
-        return market, symbol.upper()
+        return market.upper(), symbol.upper()
 
     def recent(
         self, market: str, symbol: str, limit: int = 100,
@@ -261,8 +261,10 @@ class OrderBookHistoryStore:
         return rows
 
     def count(self, market: str | None = None, symbol: str | None = None) -> int:
-        if market is not None and (not isinstance(market, str) or market not in {"SPOT", "USD_M", "COIN_M"}):
+        if market is not None and (not isinstance(market, str) or market.upper() not in {"SPOT", "USD_M", "COIN_M"}):
             raise ValueError("Invalid order-book market")
+        if market is not None:
+            market = market.upper()
         if symbol is not None and (not isinstance(symbol, str) or not symbol.strip() or len(symbol) > 40):
             raise ValueError("Invalid order-book symbol")
         if self.database_url:
