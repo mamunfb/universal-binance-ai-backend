@@ -64,6 +64,8 @@ class DerivativesRatioStore:
         if not isinstance(row, dict):
             raise ValueError("Malformed Binance ratio record")
         try:
+            if isinstance(row["timestamp"], bool):
+                raise ValueError
             timestamp = int(row["timestamp"])
         except (KeyError, TypeError, ValueError, OverflowError) as exc:
             raise ValueError("Invalid ratio timestamp") from exc
