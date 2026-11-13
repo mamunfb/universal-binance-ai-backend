@@ -326,3 +326,10 @@ def test_dashboard_quality_handles_missing_candle_object_and_unknown_status():
     assert "candle.status??'UNKNOWN'" in html
     assert "candle.freshness??'UNKNOWN'" in html
     assert "typeof x.status==='string'?x.status:'UNKNOWN'" in html
+
+
+def test_dashboard_quality_summary_counts_freshness_separately_from_source_status():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "const counts=Object.create(null),freshnessCounts=Object.create(null)" in html
+    assert "freshnessCounts[freshness]=(freshnessCounts[freshness]||0)+1" in html
+    assert "Object.entries(freshnessCounts).map(([state,count])=>['Freshness '+state,count])" in html
