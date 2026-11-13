@@ -157,6 +157,16 @@ class CollectorLeaseCoordinator:
                     break
                 continue
 
+            if self._stop_event.is_set():
+                try:
+                    await asyncio.to_thread(
+                        self.store.release, self.collector_name, self.owner_token
+                    )
+                except Exception as exc:
+                    self._state = "DEGRADED"
+                    self._last_error = type(exc).__name__
+                break
+
             self._owned = True
             self._state = "ACTIVE"
             self._last_error = None
