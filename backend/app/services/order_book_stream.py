@@ -183,13 +183,43 @@ class OrderBookHistoryStore:
                 json.dumps(row["asks"], separators=(",", ":")),
             ))
 
+    @staticmethod
+    def _query_integer(value: Any, field: str, *, minimum: int = 0) -> int:
+        if isinstance(value, bool):
+            raise ValueError(f"Invalid order-book {field}")
+        try:
+            number = Decimal(str(value))
+        except (InvalidOperation, TypeError, ValueError):
+            raise ValueError(f"Invalid order-book {field}") from None
+        if not number.is_finite() or number != number.to_integral_value() or number < minimum:
+            raise ValueError(f"Invalid order-book {field}")
+        return int(number)
+
+    @staticmethod
+    def _validate_query_market_symbol(market: Any, symbol: Any) -> tuple[str, str]:
+        if not isinstance(market, str) or market not in {"SPOT", "USD_M", "COIN_M"}:
+            raise ValueError("Invalid order-book market")
+        if not isinstance(symbol, str) or not symbol.strip() or len(symbol) > 40:
+            raise ValueError("Invalid order-book symbol")
+        return market, symbol.upper()
+
     def recent(
         self, market: str, symbol: str, limit: int = 100,
         start_time_ms: int | None = None, end_time_ms: int | None = None,
     ) -> list[dict[str, Any]]:
+        market, symbol = self._validate_query_market_symbol(market, symbol)
+        limit = self._query_integer(limit, "query limit", minimum=1)
+        if limit > 10000:
+            raise ValueError("Invalid order-book query limit")
+        if start_time_ms is not None:
+            start_time_ms = self._query_integer(start_time_ms, "start time")
+        if end_time_ms is not None:
+            end_time_ms = self._query_integer(end_time_ms, "end time")
+        if start_time_ms is not None and end_time_ms is not None and start_time_ms > end_time_ms:
+            raise ValueError("Invalid order-book time range")
         if self.database_url:
             clauses = ["market=%s", "symbol=%s"]
-            params: list[Any] = [market.upper(), symbol.upper()]
+            params: list[Any] = [market, symbol]
             if start_time_ms is not None:
                 clauses.append("event_time_ms >= %s"); params.append(start_time_ms)
             if end_time_ms is not None:
@@ -213,7 +243,7 @@ class OrderBookHistoryStore:
                    update_id, sampled_at, best_bid, best_ask, mid_price, spread_bps,
                    bid_notional, ask_notional, depth_imbalance, bids_json, asks_json
                    FROM order_book_samples WHERE market=? AND symbol=?"""
-        params: list[Any] = [market.upper(), symbol.upper()]
+        params: list[Any] = [market, symbol]
         if start_time_ms is not None:
             query += " AND event_time_ms >= ?"
             params.append(start_time_ms)
@@ -231,21 +261,25 @@ class OrderBookHistoryStore:
         return rows
 
     def count(self, market: str | None = None, symbol: str | None = None) -> int:
+        if market is not None and (not isinstance(market, str) or market not in {"SPOT", "USD_M", "COIN_M"}):
+            raise ValueError("Invalid order-book market")
+        if symbol is not None and (not isinstance(symbol, str) or not symbol.strip() or len(symbol) > 40):
+            raise ValueError("Invalid order-book symbol")
         if self.database_url:
             query = "SELECT COUNT(*) AS count FROM public.order_book_samples WHERE 1=1"
             params: list[Any] = []
-            if market:
-                query += " AND market=%s"; params.append(market.upper())
-            if symbol:
+            if market is not None:
+                query += " AND market=%s"; params.append(market)
+            if symbol is not None:
                 query += " AND symbol=%s"; params.append(symbol.upper())
             with self._connect_postgres() as db:
                 return int(db.execute(query, params).fetchone()["count"])
         query = "SELECT COUNT(*) FROM order_book_samples WHERE 1=1"
         params: list[Any] = []
-        if market:
+        if market is not None:
             query += " AND market=?"
-            params.append(market.upper())
-        if symbol:
+            params.append(market)
+        if symbol is not None:
             query += " AND symbol=?"
             params.append(symbol.upper())
         with sqlite3.connect(self.database_path) as db:
