@@ -127,6 +127,36 @@ def test_malformed_log_does_not_create_coverage(tmp_path):
     assert store.coverage(1, CONTRACT) == []
 
 
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("transactionHash", "0x" + "g" * 64),
+        ("sender_topic", "0x" + "0" * 24 + "g" * 40),
+        ("recipient_topic", "0x" + "0" * 24 + "g" * 40),
+    ],
+)
+def test_save_chunk_rejects_non_hex_transaction_hash_and_topics(tmp_path, field, value):
+    store = EVMTransferStore(str(tmp_path / "history.sqlite3"))
+    log = {
+        "topics": [TRANSFER_TOPIC, _topic(SENDER), _topic(RECIPIENT)],
+        "data": hex(1),
+        "transactionHash": "0x" + "c" * 64,
+        "blockNumber": "0x64",
+        "logIndex": "0x0",
+    }
+    if field == "transactionHash":
+        log[field] = value
+    elif field == "sender_topic":
+        log["topics"][1] = value
+    else:
+        log["topics"][2] = value
+
+    with pytest.raises(ValueError, match="malformed Transfer log"):
+        store.save_chunk(1, CONTRACT, 100, 100, [log])
+    assert store.coverage(1, CONTRACT) == []
+    assert store.history(1, CONTRACT, 100, 100) == []
+
+
 def test_save_chunk_rolls_back_logs_when_coverage_write_fails(tmp_path):
     store = EVMTransferStore(str(tmp_path / "history.sqlite3"))
     with store._connect() as connection:
