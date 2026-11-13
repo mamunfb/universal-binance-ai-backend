@@ -239,6 +239,7 @@ def test_dashboard_backend_url_policy_executes_in_javascript_runtime():
             ["https://api.example/v1", "https://api.example/v1"],
             ["http://localhost:8000", "http://localhost:8000"],
             ["http://127.0.0.1:8000", "http://127.0.0.1:8000"],
+            ["http://127.1:8000", "http://127.0.0.1:8000"],
             ["http://[::1]:8000", "http://[::1]:8000"]
           ];
           for (const [input, expected] of accepted) {
