@@ -254,3 +254,29 @@ def test_smart_money_trend_cancels_transfers_between_cohort_wallets(tmp_path):
     result = store.smart_money_accumulation_trend(1, CONTRACT, 100, 100, 18, registry, 10)
     assert result["windows"] == []
     assert result["window_count_with_activity"] == 0
+
+def test_indexer_provider_failure_does_not_disclose_rpc_url_or_credentials(tmp_path):
+    store = EVMTransferStore(str(tmp_path / "history.sqlite3"))
+    secret_url = "https://rpc-user:rpc-password@rpc.example.test/?token=rpc-secret"
+
+    class BrokenProvider:
+        async def chain_id(self):
+            return 1
+
+        async def block_number(self):
+            return 999
+
+        async def token_transfer_logs(self, contract, start, end, max_block_span):
+            raise RuntimeError(f"upstream failed for {secret_url}")
+
+    result = asyncio.run(index_erc20_transfer_history(
+        BrokenProvider(), store, CONTRACT, 10, 14, 2, 10
+    ))
+
+    assert result["status"] == "FAILED"
+    assert result["error"] == "UPSTREAM_UNAVAILABLE"
+    assert result["error_type"] == "RuntimeError"
+    serialized = str(result)
+    for secret in ("rpc-user", "rpc-password", "rpc-secret", secret_url):
+        assert secret not in serialized
+\n
