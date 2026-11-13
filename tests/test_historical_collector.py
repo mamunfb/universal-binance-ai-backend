@@ -132,6 +132,7 @@ def test_historical_collector_recovers_status_after_successful_cycle(tmp_path):
             return False
 
     collector._task = ActiveTask()
+    assert collector.status()["status"] == "STARTING"
     collector._last_error = "RuntimeError"
     collector._last_cycle_degraded = True
     result = asyncio.run(collector.run_once())
