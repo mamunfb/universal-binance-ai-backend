@@ -411,8 +411,8 @@ def test_dashboard_performance_handler_renders_empty_holdout_response_in_runtime
               fetch
             };
             vm.runInNewContext(script, context);
-            elements.get("key").value = "test-api-key";
-            await elements.get("performance").onclick();
+            document.getElementById("key").value = "test-api-key";
+            await document.getElementById("performance").onclick();
             assert.notEqual(
               elements.get("outcomes").innerHTML,
               "",
