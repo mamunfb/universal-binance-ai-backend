@@ -28,8 +28,10 @@ def test_dashboard_api_runtime_auth_transport_and_errors():
           };
           const requests = [];
           let response = { ok: true, status: 200, json: async () => ({ ready: true }) };
+          let fetchError = null;
           const fetch = async (url, options) => {
             requests.push({ url, options });
+            if (fetchError) throw fetchError;
             return response;
           };
           const window = { location: { origin: "https://dashboard.example" } };
@@ -54,6 +56,8 @@ def test_dashboard_api_runtime_auth_transport_and_errors():
           assert.equal(requests[0].url, "https://api.example/v1/api/v1/research/preflight");
           assert.equal(requests[0].options.headers.Authorization, "Bearer private-test-key");
           assert.equal(requests[0].options.headers["Content-Type"], "application/json");
+          assert.equal(requests[0].url.includes("private-test-key"), false, "API key must never be placed in the URL");
+          assert.equal(requests[0].options.body, undefined, "read-only dashboard requests must not send an implicit body");
 
           response = { ok: false, status: 401, json: async () => ({ detail: "Unauthorized" }) };
           await assert.rejects(call("/api/v1/research/preflight"), /Unauthorized/);
