@@ -204,3 +204,24 @@ def test_snapshot_rejects_negative_reference_close_timestamp(tmp_path):
     with pytest.raises(ValueError, match="non-negative"):
         store.save(payload)
     assert store.history("USD_M", "BTCUSDT", "1h")["returned_count"] == 0
+
+
+@pytest.mark.parametrize("field,value", [
+    ("analyzed_at_ms", 2**63),
+    ("close_time_ms", 2**63),
+])
+def test_snapshot_rejects_timestamps_outside_storage_integer_range(tmp_path, field, value):
+    store = MarketConfluenceStore(str(tmp_path / "snapshots.sqlite3"))
+    payload = {
+        "market": "USD_M", "symbol": "BTCUSDT", "interval": "1h",
+        "analyzed_at_ms": 1000,
+        "confluence": {"bias": "BULLISH"},
+        "reference": {"price": 100.0, "close_time_ms": 999},
+    }
+    if field == "analyzed_at_ms":
+        payload[field] = value
+    else:
+        payload["reference"][field] = value
+    with pytest.raises(ValueError, match="signed 64-bit"):
+        store.save(payload)
+    assert store.history("USD_M", "BTCUSDT", "1h")["returned_count"] == 0
