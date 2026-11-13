@@ -94,11 +94,9 @@ Operational implications:
 - The historical-kline collector status response explicitly warns that it runs only while the application process is alive and recommends one collector process per database. Equivalent deployment guidance should be made consistent for all collectors.
 - Collector task status is process-local. A status response from one replica does not establish the state of collectors on another replica.
 - The lifespan startup sequence is now inside `try/finally`, so a later collector constructor/startup failure triggers cleanup for collectors already started. Regression coverage is in `tests/test_collector_lifespan.py`.
-- Shutdown now attempts all enabled collector stops with `asyncio.gather(..., return_exceptions=True)` and logs per-collector failures, so one failing stop does not prevent the remaining stop attempts. This does not yet guarantee a hard shutdown deadline if an individual collector's `stop()` hangs; bounded shutdown/timeouts remain a follow-up.
+- Shutdown attempts every enabled collector stop concurrently. Each stop is bounded by `COLLECTOR_SHUTDOWN_TIMEOUT_SECONDS` (default 15 seconds, validated greater than 0 and at most 300); a timeout or exception is logged without preventing other stop attempts. Regression tests cover a hanging stop and continuation to another collector.
 
 Recommended follow-up tests (not yet implemented by this documentation change):
-1. Add coverage that disabled flags start no collector tasks.
-2. Add coverage that shutdown attempts every collector even when one stop operation raises.
-3. Add bounded-shutdown behavior so a stuck collector cannot indefinitely delay service termination.
-4. Status endpoints should distinguish disabled, starting, running, degraded, disconnected, and stopped states accurately.
-5. Keep the single collector-owner process requirement explicit until distributed coordination exists.
+1. Add/retain coverage that disabled flags start no collector tasks and that all collector shutdowns are attempted after an error or timeout.
+2. Status endpoints should distinguish disabled, starting, running, degraded, disconnected, and stopped states accurately.
+3. Keep the single collector-owner process requirement explicit until distributed coordination exists.
