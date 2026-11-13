@@ -304,5 +304,8 @@ def test_dashboard_readiness_escapes_provider_and_phase_data():
     assert "escapeHtml(label)" in html
     assert "escapeHtml(x.status||'UNKNOWN')" in html
     assert "escapeHtml(x.error_type)" in html
-    assert "escapeHtml(x.name??x.phase??'—')" in html
+    assert "escapeHtml(x.phase_number??'—')" in html
+    assert "escapeHtml(x.phase_name??'Unnamed phase')" in html
+    assert "escapeHtml(x.readiness??'UNKNOWN')" in html
+    assert "escapeHtml(x.gap??'No gap detail reported')" in html
     assert "escapeHtml(x)" in html
