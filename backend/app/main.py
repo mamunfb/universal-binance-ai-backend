@@ -167,18 +167,29 @@ async def lifespan(_: FastAPI):
         if settings.liquidation_collector_enabled:
             shutdowns.append(("liquidation", liquidation_collector.stop()))
 
+        async def stop_with_timeout(name: str, operation: Any) -> None:
+            try:
+                await asyncio.wait_for(
+                    operation,
+                    timeout=settings.collector_shutdown_timeout_seconds,
+                )
+            except asyncio.TimeoutError:
+                logger.error(
+                    "Collector shutdown timed out for %s after %.1f seconds",
+                    name,
+                    settings.collector_shutdown_timeout_seconds,
+                )
+            except Exception as exc:
+                logger.error(
+                    "Collector shutdown failed for %s (%s)",
+                    name,
+                    type(exc).__name__,
+                )
+
         if shutdowns:
-            results = await asyncio.gather(
-                *(operation for _, operation in shutdowns),
-                return_exceptions=True,
+            await asyncio.gather(
+                *(stop_with_timeout(name, operation) for name, operation in shutdowns)
             )
-            for (name, _), result in zip(shutdowns, results):
-                if isinstance(result, BaseException):
-                    logger.error(
-                        "Collector shutdown failed for %s (%s)",
-                        name,
-                        type(result).__name__,
-                    )
 
 
 AI_CLIENT_NAMES = ("chatgpt", "gemini", "manus", "claude", "perplexity")
