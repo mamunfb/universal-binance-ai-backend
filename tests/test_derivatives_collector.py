@@ -104,3 +104,31 @@ def test_collector_validates_polling_and_limits(tmp_path):
     oi = OpenInterestStore(str(tmp_path / "oi.sqlite3"))
     with pytest.raises(ValueError, match="poll_seconds"):
         DerivativesHistoryCollector(funding, oi, lambda _: FakeProvider(), "[]", poll_seconds=1)
+
+
+@pytest.mark.asyncio
+async def test_collector_stop_cancels_inflight_provider_request(tmp_path):
+    import asyncio
+
+    started = asyncio.Event()
+
+    class BlockingProvider(FakeProvider):
+        async def funding_rate(self, *args, **kwargs):
+            started.set()
+            await asyncio.Event().wait()
+
+    provider = BlockingProvider()
+    collector = DerivativesHistoryCollector(
+        FundingRateStore(str(tmp_path / "funding.sqlite3")),
+        OpenInterestStore(str(tmp_path / "oi.sqlite3")),
+        lambda market: provider,
+        '[{"type":"FUNDING_RATE","symbol":"BTCUSDT"}]',
+        poll_seconds=30,
+    )
+
+    collector.start()
+    await asyncio.wait_for(started.wait(), timeout=1)
+    await asyncio.wait_for(collector.stop(), timeout=1)
+
+    assert collector.status()["status"] == "STOPPED"
+    assert collector._task is None
