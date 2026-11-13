@@ -145,9 +145,14 @@ class MarketConfluenceStore:
         return item
 
     def history(self, market: str, symbol: str, interval: str = "1h", limit: int = 100) -> dict[str, Any]:
+        if not isinstance(market, str) or not isinstance(symbol, str) or not isinstance(interval, str):
+            raise ValueError("market, symbol and interval must be strings")
         normalized_market = market.upper()
         if normalized_market not in {"SPOT", "USD_M", "COIN_M"}:
             raise ValueError("Invalid market")
+        if not symbol.strip() or not interval.strip():
+            raise ValueError("symbol and interval must not be empty")
+        limit = self._integer(limit, "history limit")
         if not 1 <= limit <= 1000:
             raise ValueError("limit must be between 1 and 1000")
         if self.database_url:
