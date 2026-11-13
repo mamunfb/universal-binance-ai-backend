@@ -98,47 +98,48 @@ async def lifespan(_: FastAPI):
             "DATABASE_URL is required for this deployment; configure the Neon PostgreSQL connection "
             "before starting the production service."
         )
-    if settings.liquidation_collector_enabled:
-        liquidation_collector.start()
-    if settings.order_book_collector_enabled:
-        order_book_collector = OrderBookStreamCollector(
-            store=order_book_history_store,
-            spot_provider_factory=get_spot_provider,
-            futures_provider_factory=get_futures_provider,
-            jobs_json=settings.order_book_collector_jobs,
-            sample_interval_seconds=settings.order_book_sample_interval_seconds,
-            snapshot_limit=settings.order_book_snapshot_limit,
-            stored_levels=settings.order_book_stored_levels,
-        )
-        order_book_collector.start()
-    if settings.aggregate_trade_collector_enabled:
-        aggregate_trade_collector = AggregateTradeCollector(
-            store=aggregate_trade_store,
-            jobs_json=settings.aggregate_trade_collector_jobs,
-        )
-        aggregate_trade_collector.start()
-    if settings.derivatives_collector_enabled:
-        derivatives_collector = DerivativesHistoryCollector(
-            funding_store=funding_rate_store,
-            open_interest_store=open_interest_store,
-            provider_factory=get_futures_provider,
-            jobs_json=settings.derivatives_collector_jobs,
-            poll_seconds=settings.derivatives_collector_poll_seconds,
-            funding_limit=settings.derivatives_collector_funding_limit,
-            open_interest_limit=settings.derivatives_collector_open_interest_limit,
-        )
-        derivatives_collector.start()
-    if settings.historical_collector_enabled:
-        historical_collector = HistoricalKlineCollector(
-            store=historical_kline_store,
-            spot_provider_factory=get_spot_provider,
-            futures_provider_factory=get_futures_provider,
-            jobs_json=settings.historical_collector_jobs,
-            poll_seconds=settings.historical_collector_poll_seconds,
-            initial_limit=settings.historical_collector_initial_limit,
-        )
-        historical_collector.start()
     try:
+        if settings.liquidation_collector_enabled:
+            liquidation_collector.start()
+        if settings.order_book_collector_enabled:
+            order_book_collector = OrderBookStreamCollector(
+                store=order_book_history_store,
+                spot_provider_factory=get_spot_provider,
+                futures_provider_factory=get_futures_provider,
+                jobs_json=settings.order_book_collector_jobs,
+                sample_interval_seconds=settings.order_book_sample_interval_seconds,
+                snapshot_limit=settings.order_book_snapshot_limit,
+                stored_levels=settings.order_book_stored_levels,
+            )
+            order_book_collector.start()
+        if settings.aggregate_trade_collector_enabled:
+            aggregate_trade_collector = AggregateTradeCollector(
+                store=aggregate_trade_store,
+                jobs_json=settings.aggregate_trade_collector_jobs,
+            )
+            aggregate_trade_collector.start()
+        if settings.derivatives_collector_enabled:
+            derivatives_collector = DerivativesHistoryCollector(
+                funding_store=funding_rate_store,
+                open_interest_store=open_interest_store,
+                provider_factory=get_futures_provider,
+                jobs_json=settings.derivatives_collector_jobs,
+                poll_seconds=settings.derivatives_collector_poll_seconds,
+                funding_limit=settings.derivatives_collector_funding_limit,
+                open_interest_limit=settings.derivatives_collector_open_interest_limit,
+            )
+            derivatives_collector.start()
+        if settings.historical_collector_enabled:
+            historical_collector = HistoricalKlineCollector(
+                store=historical_kline_store,
+                spot_provider_factory=get_spot_provider,
+                futures_provider_factory=get_futures_provider,
+                jobs_json=settings.historical_collector_jobs,
+                poll_seconds=settings.historical_collector_poll_seconds,
+                initial_limit=settings.historical_collector_initial_limit,
+            )
+            historical_collector.start()
+
         yield
     finally:
         if order_book_collector is not None:
