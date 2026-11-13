@@ -74,8 +74,10 @@ class HistoricalKlineCollector:
         self._successes = 0
         self._failures = 0
         self._last_results: list[dict[str, Any]] = []
+        self._lease_owner_token: str | None = None
 
-    def start(self) -> None:
+    def start(self, lease_owner_token: str | None = None) -> None:
+        self._lease_owner_token = lease_owner_token
         if self._task is None or self._task.done():
             self._task = asyncio.create_task(self._run_loop())
 
@@ -141,6 +143,7 @@ class HistoricalKlineCollector:
                         self.store.save_klines, market, symbol, interval, rows,
                         "Binance public REST API (scheduled collector)",
                         observation_started_at_ns=observation_started_at_ns,
+                        lease_owner_token=self._lease_owner_token,
                     ))
                     try:
                         # Cancelling an await on to_thread() does not stop its worker
