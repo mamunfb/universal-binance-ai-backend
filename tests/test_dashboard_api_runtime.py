@@ -59,6 +59,18 @@ def test_dashboard_api_runtime_auth_transport_and_errors():
           assert.equal(requests[0].url.includes("private-test-key"), false, "API key must never be placed in the URL");
           assert.equal(requests[0].options.body, undefined, "read-only dashboard requests must not send an implicit body");
 
+          await call("/api/v1/research/preflight", {
+            headers: { Authorization: "Bearer caller-override", "Content-Type": "text/plain" }
+          });
+          assert.equal(requests[1].options.headers.Authorization, "Bearer private-test-key",
+            "caller-supplied headers must not override the dashboard API key");
+          assert.equal(requests[1].options.headers["Content-Type"], "application/json",
+            "caller-supplied headers must not override the JSON content type");
+
+          fetchError = Error("network unavailable");
+          await assert.rejects(call("/api/v1/research/preflight"), /network unavailable/);
+          fetchError = null;
+
           response = { ok: false, status: 401, json: async () => ({ detail: "Unauthorized" }) };
           await assert.rejects(call("/api/v1/research/preflight"), /Unauthorized/);
 
