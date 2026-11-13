@@ -319,3 +319,21 @@ def test_production_rejects_weak_client_key_even_with_strong_owner_key(monkeypat
     )
     assert response.status_code == 503
     assert response.json()["error"]["code"] == "AUTH_NOT_CONFIGURED"
+
+
+def test_private_api_rejects_unauthenticated_write_and_collection_endpoints(monkeypatch):
+    monkeypatch.setattr(settings, "app_env", "development")
+    monkeypatch.setattr(settings, "personal_api_key", "test-owner-key-with-enough-entropy")
+    monkeypatch.setattr(settings, "ai_client_api_keys", "{}")
+    snapshot = client.post(
+        "/api/v1/history/market-confluence/snapshots",
+        json={"status": "COMPLETED"},
+    )
+    collection = client.post(
+        "/api/v1/history/klines/SPOT/BTCUSDT/collect",
+        params={"interval": "1h", "limit": 1},
+    )
+    assert snapshot.status_code == 401
+    assert collection.status_code == 401
+    assert snapshot.json()["error"]["code"] == "UNAUTHORIZED"
+    assert collection.json()["error"]["code"] == "UNAUTHORIZED"
