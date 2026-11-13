@@ -208,16 +208,21 @@ class HistoricalKlineStore:
         start_time_ms: int | None = None, end_time_ms: int | None = None,
         limit: int = 1000,
     ) -> dict[str, Any]:
-        if market.upper() not in {"SPOT", "USD_M", "COIN_M"}:
+        if not isinstance(market, str) or market.upper() not in {"SPOT", "USD_M", "COIN_M"}:
             raise ValueError("market must be SPOT, USD_M, or COIN_M")
-        if not symbol.strip() or not interval.strip():
-            raise ValueError("symbol and interval must not be empty")
+        if not isinstance(symbol, str) or not isinstance(interval, str) or not symbol.strip() or not interval.strip():
+            raise ValueError("symbol and interval must be non-empty strings")
+        limit = self._integer(limit, "history limit")
         if not 1 <= limit <= 5000:
             raise ValueError("limit must be between 1 and 5000")
-        if start_time_ms is not None and start_time_ms < 0:
-            raise ValueError("start_time_ms must be non-negative")
-        if end_time_ms is not None and end_time_ms < 0:
-            raise ValueError("end_time_ms must be non-negative")
+        if start_time_ms is not None:
+            start_time_ms = self._integer(start_time_ms, "history start time")
+            if start_time_ms < 0:
+                raise ValueError("start_time_ms must be non-negative")
+        if end_time_ms is not None:
+            end_time_ms = self._integer(end_time_ms, "history end time")
+            if end_time_ms < 0:
+                raise ValueError("end_time_ms must be non-negative")
         if start_time_ms is not None and end_time_ms is not None and end_time_ms < start_time_ms:
             raise ValueError("end_time_ms must be >= start_time_ms")
         clauses = ["market=?", "symbol=?", "interval=?"]
