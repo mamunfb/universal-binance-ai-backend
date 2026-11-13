@@ -1,3 +1,4 @@
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -11,6 +12,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     binance_spot_base_url: str = "https://data-api.binance.vision"
     http_timeout_seconds: float = 15.0
+    collector_shutdown_timeout_seconds: float = Field(default=15.0, gt=0, le=300)
     liquidation_collector_enabled: bool = False
     liquidation_database_path: str = "data/liquidations.sqlite3"
     order_book_collector_enabled: bool = False
