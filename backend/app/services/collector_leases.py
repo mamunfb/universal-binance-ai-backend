@@ -87,6 +87,7 @@ class CollectorLeaseStore:
                     owner_token = EXCLUDED.owner_token,
                     lease_generation = CASE
                         WHEN public.collector_leases.owner_token = EXCLUDED.owner_token
+                         AND public.collector_leases.lease_expires_at > NOW()
                             THEN public.collector_leases.lease_generation
                         ELSE public.collector_leases.lease_generation + 1
                     END,
