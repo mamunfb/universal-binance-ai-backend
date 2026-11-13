@@ -202,7 +202,7 @@ async def test_coordinator_started_collector_task_keeps_lease_context_in_thread(
     coordinator = CollectorLeaseCoordinator(
         FakeLeaseStore(), "test-task-context", start_collector, stop_collector,
         owner_token="owner-task-context", ttl_seconds=5,
-        heartbeat_seconds=10, retry_seconds=1,
+        heartbeat_seconds=1, retry_seconds=1,
     )
     coordinator.start()
     await asyncio.wait_for(observed.wait(), timeout=1)
