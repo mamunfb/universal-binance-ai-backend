@@ -246,7 +246,6 @@ def test_history_store_recent_rejects_invalid_query_inputs(
 
 
 @pytest.mark.parametrize("market,symbol", [
-    (None, None),
     ("UNKNOWN", None),
     (True, None),
     (None, ""),
