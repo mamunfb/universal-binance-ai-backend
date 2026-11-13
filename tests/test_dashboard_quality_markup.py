@@ -505,7 +505,7 @@ def test_dashboard_performance_handles_incomplete_wilson_interval_payload():
                           minimum_sample_size: 1,
                           ranked: [{
                             rank: 1, regime: "TREND", bias: "BULLISH",
-                            alignment: "ALIGNED", sample_size: 1, value: 0.5,
+                            alignment: "ALIGNED", sample_size: 1, value: "invalid",
                             confidence_interval_95_wilson: {},
                             mean_directional_return_percent: null,
                             non_overlapping_directional_sample_size: 1,
