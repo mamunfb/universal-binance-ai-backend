@@ -421,7 +421,7 @@ def test_dashboard_performance_handler_renders_minimal_holdout_horizon_in_runtim
             assert.equal(
               elements.get("status").textContent.startsWith("Error:"),
               false,
-              "performance rendering should not report a runtime error"
+              "performance rendering should not report a runtime error: " + elements.get("status").textContent
             );
           })().catch(error => { console.error(error); process.exitCode = 1; });
         });
