@@ -63,6 +63,8 @@ class HistoricalKlineStore:
         if not isinstance(row, (list, tuple)) or len(row) < 11:
             raise ValueError("Malformed Binance kline row; refusing to store partial history")
         try:
+            if any(isinstance(row[index], bool) for index in (0, 6, 8)):
+                raise ValueError
             open_time = int(row[0])
             close_time = int(row[6])
             trade_count = int(row[8])
