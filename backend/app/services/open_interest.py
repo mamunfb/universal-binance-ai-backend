@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import sqlite3
+from decimal import Decimal, InvalidOperation
 import psycopg
 from psycopg.rows import dict_row
 from datetime import datetime, timezone
@@ -56,15 +57,25 @@ class OpenInterestStore:
             raise ValueError(f"Invalid open interest {field}")
         return number
 
+    @staticmethod
+    def _integer(value: Any, field: str) -> int:
+        if isinstance(value, bool):
+            raise ValueError(f"Invalid {field}")
+        try:
+            number = Decimal(str(value))
+            if not number.is_finite() or number != number.to_integral_value():
+                raise ValueError
+            return int(number)
+        except (InvalidOperation, TypeError, ValueError, OverflowError) as exc:
+            raise ValueError(f"Invalid {field}") from exc
+
     @classmethod
     def _normalize(cls, row: Any) -> tuple[int, float, float, float | None]:
         if not isinstance(row, dict):
             raise ValueError("Malformed Binance open-interest row")
         try:
-            if isinstance(row["timestamp"], bool):
-                raise ValueError
-            timestamp = int(row["timestamp"])
-        except (KeyError, TypeError, ValueError, OverflowError) as exc:
+            timestamp = cls._integer(row["timestamp"], "open-interest timestamp")
+        except KeyError as exc:
             raise ValueError("Invalid open-interest timestamp") from exc
         amount = cls._finite(row.get("sumOpenInterest"), "amount")
         value = cls._finite(row.get("sumOpenInterestValue"), "value")
