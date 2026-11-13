@@ -175,6 +175,8 @@ class HistoricalKlineCollector:
         task_active = self._task is not None and not self._task.done()
         if not task_active:
             lifecycle_status = "STOPPED"
+        elif self._cycles == 0:
+            lifecycle_status = "STARTING"
         elif self._last_cycle_degraded:
             lifecycle_status = "DEGRADED"
         else:
