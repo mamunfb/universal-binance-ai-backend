@@ -8,6 +8,7 @@ import psycopg
 from psycopg.rows import dict_row
 from datetime import datetime, timezone
 from pathlib import Path
+from app.services.collector_leases import assert_collector_lease_owned
 from typing import Any
 
 
@@ -110,6 +111,7 @@ class HistoricalKlineStore:
         self, market: str, symbol: str, interval: str, rows: list[Any],
         source: str = "Binance public REST API",
         observation_started_at_ns: int | None = None,
+        lease_owner_token: str | None = None,
     ) -> dict[str, Any]:
         if observation_started_at_ns is None:
             observation_started_at_ns = time.time_ns()
@@ -134,6 +136,8 @@ class HistoricalKlineStore:
         ]
         if self.database_url:
             with self._connect_postgres() as connection:
+                if lease_owner_token is not None:
+                    assert_collector_lease_owned(connection, "historical-klines:all", lease_owner_token)
                 connection.cursor().executemany("""
                     INSERT INTO public.historical_klines (
                         market, symbol, interval, open_time_ms, open, high, low, close,
@@ -159,6 +163,8 @@ class HistoricalKlineStore:
                 """, (market, symbol, interval)).fetchone()["count"]
             storage = "POSTGRESQL"
         else:
+            if lease_owner_token is not None:
+                raise RuntimeError("Distributed collector lease writes require PostgreSQL storage")
             with sqlite3.connect(self.database_path) as connection:
                 connection.executemany("""
                     INSERT INTO historical_klines (
