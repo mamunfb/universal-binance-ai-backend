@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import psycopg
+from psycopg.rows import dict_row
 
 
 @dataclass(frozen=True)
@@ -69,6 +70,7 @@ class CollectorLeaseStore:
             self.database_url,
             sslmode=("disable" if "sslmode=disable" in self.database_url else "require"),
             connect_timeout=15,
+            row_factory=dict_row,
         )
 
     def acquire(self, collector_name: str, owner_token: str, ttl_seconds: int) -> int | None:
