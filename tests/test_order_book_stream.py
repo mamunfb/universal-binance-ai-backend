@@ -162,3 +162,20 @@ def test_order_book_sample_rejects_non_integer_event_timestamps(tmp_path, event)
             "SPOT", "BTCUSDT", event, 15,
             {100.0: 2.0}, {101.0: 1.0},
         )
+
+
+@pytest.mark.parametrize("update_id", [True, 15.5, "15.5", float("inf")])
+def test_order_book_sample_rejects_non_integer_update_ids(tmp_path, update_id):
+    collector = OrderBookStreamCollector(
+        OrderBookHistoryStore(str(tmp_path / "book.sqlite3")),
+        lambda: None, lambda market: None,
+    )
+    with pytest.raises(ValueError):
+        collector._sample(
+            "SPOT", "BTCUSDT", {"E": 10, "T": 9}, update_id,
+            {100.0: 2.0}, {101.0: 1.0},
+        )
+
+
+def test_order_book_strict_integer_accepts_integer_strings():
+    assert OrderBookStreamCollector._strict_integer("123", "update ID") == 123
