@@ -343,7 +343,7 @@ def test_dashboard_shows_phase_readiness_summary_and_execution_disclaimer():
     assert "safeCount(phase.completed_phase_count)" in html
     assert "phase.execution_claim===false?'NO':'NOT REPORTED'" in html
     assert "escapeHtml(phase.important_rule)" in html
-    assert "validPhases.length+' reported'" in html
+    assert "phases.length?'<div style=\"overflow-x:auto\">" in html
 
 
 def test_dashboard_readiness_clears_stale_data_and_checks_phase_count():
