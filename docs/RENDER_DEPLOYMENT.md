@@ -48,9 +48,37 @@ Do not mark deployment complete based only on a successful container build or he
 
 Render Free web services spin down after 15 minutes without inbound traffic and may take about a minute to wake. Their local filesystem is ephemeral: SQLite files are not durable across spin-down, restart, or redeploy. The Neon `DATABASE_URL` is mandatory for this Render service: `REQUIRE_DATABASE_URL=true` makes startup fail if it is missing. It must be configured and verified before using historical collection or dashboard persistence. Free instances are for testing/hobby use, not production workloads; review current Render plan limits before launch.
 
+## Collector process and multi-instance safety
+
+All enabled background collectors are started by the FastAPI application lifespan. Each application process therefore starts its own copy of every enabled collector job. The Docker command currently starts Uvicorn without a multi-worker option, but this does not prevent duplicate collection if the web service is scaled to multiple instances/replicas.
+
+**Until distributed collector ownership/locking is implemented and verified, run exactly one application instance and one Uvicorn worker against each collector database.** Do not scale the web service horizontally or start a second service pointed at the same collector tables while any collector is enabled. A process-local asyncio lock is not a cross-process lock.
+
+Current duplicate-handling differs by data type:
+
+- Aggregate trades use a unique key on `(market, symbol, trade_id)`; duplicate inserts are ignored.
+- Order-book samples use a unique key on `(market, symbol, update_id)`; duplicate inserts are ignored.
+- Funding-rate and open-interest history use composite primary keys and UPSERTs. Concurrent collectors can still duplicate upstream requests and compete to update the same stored observation.
+- Historical klines use a composite primary key and unconditional UPSERT updates. Concurrent overlapping fetches can race, allowing a delayed/older response to overwrite a newer candle observation. This is not yet protected by a cross-process freshness rule.
+- Liquidation events currently have no validated stable event identity or uniqueness constraint. Running multiple collectors can store duplicate observations; do not attempt heuristic deduplication without a source-guaranteed identity.
+
+A single-instance deployment is an operational constraint, not distributed coordination. Before enabling multiple replicas, implement and test a database-backed ownership/lease design (including crash recovery and lease expiry), define safe freshness semantics for mutable candles, and establish a validated liquidation-event identity strategy. Do not assume that database UPSERTs alone provide single-collector ownership.
+
+The collector status endpoints are process-local observations; a healthy status from one instance does not prove that another instance is not collecting the same jobs.
+
 ## Security
 
 - Keep `PERSONAL_API_KEY` and `DATABASE_URL` only in Render's environment/secret settings.
 - Do not commit `.env` or paste secrets into issues, pull requests, or chat.
 - Keep auto-deploy disabled until CI is green and a manual deployment is explicitly approved.
 - Do not merge PR #4 or deploy to production without the owner's explicit approval.
+
+### Historical Kline stale-response race: required follow-up
+
+The collector intentionally re-fetches the latest candle because an exchange candle can still be forming. Its current store UPSERT has no source-observation ordering condition, so concurrent requests for the same series can overwrite one another in commit order rather than observation order.
+
+Do not use the existing `collected_at` field as a freshness token without a schema/semantics migration: it is currently generated during the store write, after the provider response has returned. A delayed request can therefore receive a later value even if its data was observed earlier.
+
+A future fix should introduce an explicit request-observation token captured immediately before each upstream kline request, persist it separately from write/ingestion time, and apply conflict updates only when the incoming observation token is newer. Pass the token through every write path, including the scheduled collector and manual historical-collection API. Preserve a compatibility policy for existing rows whose observation token is unknown, and add deterministic race tests proving that a slower earlier request cannot overwrite a later observation in both SQLite and PostgreSQL.
+
+This ordering token only establishes local request-start ordering; it does not prove Binance upstream data is newer or eliminate stale intermediary responses. Keep that limitation visible in metadata/diagnostics. The request-observation freshness guard is implemented separately in draft PR #13; it orders local request starts and does not prove upstream exchange freshness or replace distributed collector ownership.
