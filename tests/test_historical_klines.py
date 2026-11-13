@@ -69,3 +69,33 @@ def test_store_rejects_boolean_integer_fields(tmp_path, index):
     with pytest.raises(ValueError):
         store.save_klines("SPOT", "BTCUSDT", "1m", [row])
     assert store.history("SPOT", "BTCUSDT", "1m")["returned_count"] == 0
+
+
+@pytest.mark.parametrize("index,value", [
+    (0, 1700000000000.5),
+    (6, 1700000059999.5),
+    (8, 25.5),
+    (0, "1700000000000.5"),
+    (6, "1700000059999.5"),
+    (8, "25.5"),
+])
+def test_store_rejects_fractional_integer_fields(tmp_path, index, value):
+    row = candle()
+    row[index] = value
+    store = HistoricalKlineStore(str(tmp_path / "history.sqlite3"))
+    with pytest.raises(ValueError):
+        store.save_klines("SPOT", "BTCUSDT", "1m", [row])
+    assert store.history("SPOT", "BTCUSDT", "1m")["returned_count"] == 0
+
+
+@pytest.mark.parametrize("index,value", [
+    (0, "1700000000000"),
+    (6, "1700000059999"),
+    (8, "25"),
+])
+def test_store_accepts_integer_string_fields(tmp_path, index, value):
+    row = candle()
+    row[index] = value
+    store = HistoricalKlineStore(str(tmp_path / "history.sqlite3"))
+    result = store.save_klines("SPOT", "BTCUSDT", "1m", [row])
+    assert result["stored_count"] == 1
