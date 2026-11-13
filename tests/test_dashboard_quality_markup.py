@@ -363,7 +363,7 @@ def test_dashboard_performance_api_output_is_sanitized_before_rendering():
 
 
 
-def test_dashboard_performance_handler_renders_empty_holdout_response_in_runtime():
+def test_dashboard_performance_handler_renders_minimal_holdout_horizon_in_runtime():
     import subprocess
     import textwrap
 
@@ -404,7 +404,7 @@ def test_dashboard_performance_handler_renders_empty_holdout_response_in_runtime
               return {
               ok: true,
               status: 200,
-              json: async () => ({ horizons: {} })
+              json: async () => ({ horizons: { one_hour: { label: "1h", out_of_sample: {} } } })
               };
             };
             const context = {
