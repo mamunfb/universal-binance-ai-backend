@@ -237,6 +237,7 @@ def test_dashboard_backend_url_policy_executes_in_javascript_runtime():
           const accepted = [
             ["", "https://dashboard.example"],
             ["https://api.example/v1", "https://api.example/v1"],
+            ["HTTPS://API.EXAMPLE", "https://api.example"],
             ["https://api.example/@user", "https://api.example/@user"],
             ["http://localhost:8000", "http://localhost:8000"],
             ["http://127.0.0.1:8000", "http://127.0.0.1:8000"],
