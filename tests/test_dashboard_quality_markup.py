@@ -301,7 +301,7 @@ def test_dashboard_escapes_api_derived_text_before_allowlist_sanitization():
         "escapeHtml(r.bias_vs_actual)",
         "escapeHtml(values[0])",
         "escapeHtml(values[values.length-1])",
-        "escapeHtml(r.reference_price)",
+        "escapeHtml(referencePrice)",
         "escapeHtml(h.label)",
     ):
         assert snippet in html
