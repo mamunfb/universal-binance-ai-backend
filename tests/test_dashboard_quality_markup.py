@@ -360,3 +360,75 @@ def test_dashboard_performance_api_output_is_sanitized_before_rendering():
     )
     assert "$('outcomes').innerHTML=sanitizeHtml(" in performance_handler
     assert "+'</pre>')}catch(e){fail(e)}};" in performance_handler
+
+
+
+def test_dashboard_performance_handler_renders_empty_holdout_response_in_runtime():
+    import subprocess
+    import textwrap
+
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    harness = textwrap.dedent(r"""
+        const assert = require("node:assert/strict");
+        const vm = require("node:vm");
+        let source = "";
+        process.stdin.setEncoding("utf8");
+        process.stdin.on("data", chunk => source += chunk);
+        process.stdin.on("end", () => {
+          (async () => {
+            const match = source.match(/<script>([\\s\\S]*?)<\\/script>/i);
+            assert.ok(match, "dashboard inline script missing");
+            const elements = new Map();
+            const document = {
+              getElementById(id) {
+                if (!elements.has(id)) elements.set(id, {
+                  value: "", innerHTML: "", textContent: "", onclick: null
+                });
+                return elements.get(id);
+              },
+              createElement(name) {
+                assert.equal(name, "template");
+                let markup = "";
+                return {
+                  content: { children: [] },
+                  set innerHTML(value) { markup = value; },
+                  get innerHTML() { return markup; }
+                };
+              }
+            };
+            const fetch = async () => ({
+              ok: true,
+              status: 200,
+              json: async () => ({ horizons: {} })
+            });
+            const context = {
+              document,
+              window: { location: { origin: "https://dashboard.example" } },
+              URL,
+              URLSearchParams,
+              fetch
+            };
+            vm.runInNewContext(match[1], context);
+            elements.get("key").value = "test-api-key";
+            await elements.get("performance").onclick();
+            assert.notEqual(
+              elements.get("outcomes").innerHTML,
+              "",
+              "empty performance responses should still render without a scope error"
+            );
+            assert.equal(
+              elements.get("status").textContent.startsWith("Error:"),
+              false,
+              "performance rendering should not report a runtime error"
+            );
+          })().catch(error => { console.error(error); process.exitCode = 1; });
+        });
+    """)
+    result = subprocess.run(
+        ["node", "-e", harness],
+        input=html,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
