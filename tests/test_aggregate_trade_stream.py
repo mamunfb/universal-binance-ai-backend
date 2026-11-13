@@ -84,7 +84,7 @@ def test_aggregate_trade_collector_tracks_forward_id_gaps_without_rewinding():
 
     AggregateTradeCollector._track_trade_id(state, 105)
     assert state["last_trade_id"] == 105
-    assert state["gap_count"] == 1
+    assert state["id_discontinuity_count"] == 1
     assert state["id_gap_span_count"] == 3
     assert state["last_id_discontinuity"]["previous_trade_id"] == 101
     assert state["last_id_discontinuity"]["received_trade_id"] == 105
@@ -93,9 +93,9 @@ def test_aggregate_trade_collector_tracks_forward_id_gaps_without_rewinding():
     # A delayed/duplicate lower ID must not move the high-water mark backwards.
     AggregateTradeCollector._track_trade_id(state, 103)
     assert state["last_trade_id"] == 105
-    assert state["gap_count"] == 1
+    assert state["id_discontinuity_count"] == 1
 
     AggregateTradeCollector._track_trade_id(state, 108)
     assert state["last_trade_id"] == 108
-    assert state["gap_count"] == 2
-    assert state["missing_trade_count"] == 5
+    assert state["id_discontinuity_count"] == 2
+    assert state["id_gap_span_count"] == 5
