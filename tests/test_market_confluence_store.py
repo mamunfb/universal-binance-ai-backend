@@ -176,3 +176,18 @@ def test_history_accepts_integer_string_limit(tmp_path):
     store = MarketConfluenceStore(str(tmp_path / "snapshots.sqlite3"))
     result = store.history("USD_M", "BTCUSDT", "1h", limit="10")
     assert result["returned_count"] == 0
+
+
+@pytest.mark.parametrize("market,symbol,snapshot_id", [
+    (None, "BTCUSDT", "snapshot-id"),
+    (1, "BTCUSDT", "snapshot-id"),
+    ("OTHER", "BTCUSDT", "snapshot-id"),
+    ("USD_M", None, "snapshot-id"),
+    ("USD_M", " ", "snapshot-id"),
+    ("USD_M", "BTCUSDT", None),
+    ("USD_M", "BTCUSDT", ""),
+])
+def test_get_snapshot_rejects_invalid_query_types(tmp_path, market, symbol, snapshot_id):
+    store = MarketConfluenceStore(str(tmp_path / "snapshots.sqlite3"))
+    with pytest.raises(ValueError):
+        store.get_snapshot(market, symbol, snapshot_id)
