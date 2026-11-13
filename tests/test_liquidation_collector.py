@@ -1,3 +1,5 @@
+import pytest
+
 from app.services.liquidation_collector import LiquidationStore, normalize_force_order
 
 
@@ -29,6 +31,35 @@ def test_normalize_force_order_and_notional():
     assert event["side"] == "SELL"
     assert event["approx_cumulative_notional"] == 998.0
     assert event["market_type"] == 1
+
+
+@pytest.mark.parametrize("field,value", [
+    ("ap", "NaN"),
+    ("ap", "Infinity"),
+    ("q", "-1"),
+    ("l", "-0.1"),
+    ("z", "Infinity"),
+    ("E", -1),
+    ("T", -1),
+    ("s", ""),
+    ("S", "HOLD"),
+])
+def test_invalid_force_order_is_ignored(field, value):
+    message = sample_message()
+    if field in {"E"}:
+        message[field] = value
+    elif field == "T":
+        message["o"][field] = value
+    else:
+        message["o"][field] = value
+    assert normalize_force_order(message) is None
+
+
+def test_boolean_timestamp_and_non_object_message_are_rejected():
+    message = sample_message()
+    message["E"] = True
+    assert normalize_force_order(message) is None
+    assert normalize_force_order([]) is None
 
 
 def test_store_persists_and_filters_events(tmp_path):
