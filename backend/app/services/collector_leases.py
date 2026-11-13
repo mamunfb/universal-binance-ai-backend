@@ -19,18 +19,18 @@ def assert_collector_lease_owned(connection: Any, collector_name: str, owner_tok
     than PostgreSQL's transaction-start timestamp.
     """
     row = connection.execute(
-        \"\"\"
+        """
         SELECT owner_token
         FROM public.collector_leases
         WHERE collector_name = %s
           AND owner_token = %s
           AND lease_expires_at > clock_timestamp()
         FOR SHARE
-        \"\"\",
+        """,
         (collector_name, owner_token),
     ).fetchone()
     if row is None:
-        raise CollectorLeaseLostError(f\"Collector lease is not owned: {collector_name}\")
+        raise CollectorLeaseLostError(f"Collector lease is not owned: {collector_name}")
 
 
 class CollectorLeaseStore:
