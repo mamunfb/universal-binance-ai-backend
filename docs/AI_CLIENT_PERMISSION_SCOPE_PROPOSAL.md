@@ -124,3 +124,9 @@ If automatic failover or multiple worker replicas are later required, use a data
 - integration tests with two independent worker instances contending for the same job, lease expiry/takeover, renewal failure, and stale-owner write rejection.
 
 Do not implement a lease until the database connection mode is confirmed to support the chosen locking/transaction semantics. In particular, a session-level advisory lock should not be assumed to work through a transaction-pooled database URL. The current deployment guide and Blueprint do not configure a dedicated worker service, and this proposal does not create one.
+
+## Collector status semantics follow-up
+
+The status audit found that order-book and aggregate-trade endpoints previously returned a top-level `RUNNING` label even when no jobs were configured or all stream jobs were disconnected. Their service status now reports `IDLE` when there are no tasks, `STARTING` before per-job state is initialized, `RUNNING` only when all configured jobs report connected, and `DEGRADED` when at least one job has a recorded connection error. Responses also expose configured task count, active task count, connected job count, and disconnected job count. The historical-kline collector now reports `STOPPED`, `RUNNING`, or `DEGRADED` based on task liveness and its latest error/result state.
+
+These are process-local observations, not a distributed worker health signal. They do not prove another replica's state, and they do not yet normalize every collector into a shared cross-service status enum. Regression tests cover idle/degraded stream status and stopped/degraded historical status. CI must pass before considering this change verified.
