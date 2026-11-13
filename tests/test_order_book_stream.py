@@ -90,3 +90,35 @@ def test_order_book_collector_status_distinguishes_idle_and_degraded(tmp_path):
     assert status["active_task_count"] == 2
     assert status["connected_job_count"] == 1
     assert status["disconnected_job_count"] == 1
+
+
+@pytest.mark.parametrize("level", [
+    ["inf", "1"], ["100", "nan"], ["100", "-1"], ["0", "1"], ["100"],
+])
+def test_order_book_delta_rejects_invalid_levels_without_mutating_side(tmp_path, level):
+    collector = OrderBookStreamCollector(
+        OrderBookHistoryStore(str(tmp_path / "book.sqlite3")),
+        lambda: None, lambda market: None,
+    )
+    bids = {99.0: 2.0}
+    with pytest.raises(ValueError):
+        collector._apply({"b": [level], "a": []}, bids, {})
+    assert bids == {99.0: 2.0}
+
+
+@pytest.mark.parametrize("level", [
+    ["inf", "1"], ["100", "nan"], ["100", "-1"], ["0", "1"], ["100"],
+])
+def test_order_book_snapshot_rejects_invalid_levels(level):
+    with pytest.raises(ValueError):
+        OrderBookStreamCollector._levels([level])
+
+
+def test_order_book_delta_zero_quantity_removes_level(tmp_path):
+    collector = OrderBookStreamCollector(
+        OrderBookHistoryStore(str(tmp_path / "book.sqlite3")),
+        lambda: None, lambda market: None,
+    )
+    bids = {100.0: 2.0}
+    collector._apply({"b": [["100", "0"], ["99.5", "4"]], "a": []}, bids, {})
+    assert bids == {99.5: 4.0}
