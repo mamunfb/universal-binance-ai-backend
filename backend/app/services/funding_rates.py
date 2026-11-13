@@ -7,6 +7,7 @@ import psycopg
 from psycopg.rows import dict_row
 from datetime import datetime, timezone
 from pathlib import Path
+from app.services.collector_leases import assert_collector_lease_owned
 from typing import Any
 
 
@@ -82,6 +83,7 @@ class FundingRateStore:
     def save(
         self, market: str, symbol: str, rows: list[Any],
         source: str = "Binance USD-M public REST API",
+        lease_owner_token: str | None = None,
     ) -> dict[str, Any]:
         market = market.upper()
         symbol = symbol.upper().strip()
@@ -103,6 +105,8 @@ class FundingRateStore:
                   for timestamp, rate, mark in normalized]
         if self.database_url:
             with self._connect_postgres() as connection:
+                if lease_owner_token is not None:
+                    assert_collector_lease_owned(connection, "derivatives-history:all", lease_owner_token)
                 connection.cursor().executemany("""
                     INSERT INTO public.historical_funding_rates (
                         market, symbol, funding_time_ms, funding_rate, mark_price, source, collected_at
@@ -117,6 +121,8 @@ class FundingRateStore:
                 """, (market, symbol)).fetchone()["count"]
             storage = "POSTGRESQL"
         else:
+            if lease_owner_token is not None:
+                raise RuntimeError("Distributed collector lease writes require PostgreSQL storage")
             with sqlite3.connect(self.database_path) as connection:
                 connection.executemany("""
                     INSERT INTO historical_funding_rates (
