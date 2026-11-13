@@ -1,6 +1,7 @@
 import asyncio
 from contextlib import asynccontextmanager
 import hmac
+import logging
 from datetime import datetime, timezone
 import json
 import psycopg
@@ -14,6 +15,8 @@ from pathlib import Path
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 from app.indicators import calculate_indicators
 from app.providers.binance_spot import BinanceSpotProvider
 from app.providers.binance_futures import BinanceFuturesProvider
@@ -142,20 +145,40 @@ async def lifespan(_: FastAPI):
 
         yield
     finally:
+        # Attempt every shutdown independently: one broken collector must not
+        # prevent the remaining background tasks from receiving their stop signal.
+        shutdowns = []
         if order_book_collector is not None:
-            await order_book_collector.stop()
+            collector = order_book_collector
             order_book_collector = None
+            shutdowns.append(("order_book", collector.stop()))
         if aggregate_trade_collector is not None:
-            await aggregate_trade_collector.stop()
+            collector = aggregate_trade_collector
             aggregate_trade_collector = None
+            shutdowns.append(("aggregate_trade", collector.stop()))
         if derivatives_collector is not None:
-            await derivatives_collector.stop()
+            collector = derivatives_collector
             derivatives_collector = None
-        if settings.historical_collector_enabled and historical_collector is not None:
-            await historical_collector.stop()
+            shutdowns.append(("derivatives", collector.stop()))
+        if historical_collector is not None:
+            collector = historical_collector
             historical_collector = None
+            shutdowns.append(("historical", collector.stop()))
         if settings.liquidation_collector_enabled:
-            await liquidation_collector.stop()
+            shutdowns.append(("liquidation", liquidation_collector.stop()))
+
+        if shutdowns:
+            results = await asyncio.gather(
+                *(operation for _, operation in shutdowns),
+                return_exceptions=True,
+            )
+            for (name, _), result in zip(shutdowns, results):
+                if isinstance(result, BaseException):
+                    logger.error(
+                        "Collector shutdown failed for %s (%s)",
+                        name,
+                        type(result).__name__,
+                    )
 
 
 AI_CLIENT_NAMES = ("chatgpt", "gemini", "manus", "claude", "perplexity")
