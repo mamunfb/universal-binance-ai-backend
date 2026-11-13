@@ -222,7 +222,12 @@ async def request_tracking_middleware(request: Request, call_next):
             )
         )
         has_valid_owner_key = isinstance(configured_key, str) and len(configured_key) >= 32
-        if production and not (has_valid_owner_key or has_valid_client_keys):
+        has_weak_client_keys = isinstance(client_keys, dict) and any(
+            len(key) < 32 for key in client_keys.values()
+        )
+        if production and (
+            has_weak_client_keys or not (has_valid_owner_key or has_valid_client_keys)
+        ):
             response = JSONResponse(
                 status_code=503,
                 content=_error_payload(
