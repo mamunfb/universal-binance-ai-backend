@@ -247,18 +247,20 @@ async def request_tracking_middleware(request: Request, call_next):
             scheme, _, supplied_key = authorization.partition(" ")
             matched_client = None
             if scheme.lower() == "bearer" and supplied_key:
+                matched_identities = []
                 if isinstance(client_keys, dict):
                     for client_name in AI_CLIENT_NAMES:
                         client_key = client_keys.get(client_name)
                         if isinstance(client_key, str) and hmac.compare_digest(
                             supplied_key.encode("utf-8"), client_key.encode("utf-8")
                         ):
-                            matched_client = client_name
-                            break
+                            matched_identities.append(client_name)
                 if configured_key and hmac.compare_digest(
                     supplied_key.encode("utf-8"), configured_key.encode("utf-8")
                 ):
-                    matched_client = "owner"
+                    matched_identities.append("owner")
+                if len(matched_identities) == 1:
+                    matched_client = matched_identities[0]
             if matched_client is None:
                 response = JSONResponse(
                     status_code=401,
