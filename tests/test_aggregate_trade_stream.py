@@ -1,5 +1,6 @@
 from app.services.aggregate_trade_stream import (
-    AggregateTradeStore, aggregate_trade_stream_url, normalize_aggregate_trade,
+    AggregateTradeCollector, AggregateTradeStore,
+    aggregate_trade_stream_url, normalize_aggregate_trade,
 )
 
 
