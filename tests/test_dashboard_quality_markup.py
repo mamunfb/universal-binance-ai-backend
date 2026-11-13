@@ -279,7 +279,7 @@ def test_dashboard_backend_url_policy_executes_in_javascript_runtime():
 
 def test_dashboard_sanitizer_restricts_svg_paint_values():
     html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
-    sanitizer = html.split("const sanitizeHtml=markup=>", 1)[1].split("\\nconst renderCollector", 1)[0]
+    sanitizer = html.split("const sanitizeHtml=markup=>", 1)[1].split("\nconst renderCollector", 1)[0]
     assert "const paintAttrs=new Set(['fill','stroke'])" in sanitizer
     assert "paintAttrs.has(name)" in sanitizer
     assert "currentcolor|transparent" in sanitizer
