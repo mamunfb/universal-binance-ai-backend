@@ -159,3 +159,17 @@ Keep data access and upstream consumption distinct in the policy design:
 - Existing proposed write scopes remain separate for snapshot persistence, history collection and EVM indexing.
 
 These labels are a design suggestion only. Do not change runtime access or client assignments until the owner explicitly approves the scope model, endpoint mapping, rate limits and owner-key behavior. GET does not mean side-effect-free: even without local writes, outbound requests can consume quota and disclose request metadata to configured providers.
+
+
+### MCP tool adapter side-effect audit (static review)
+
+The current `mcp-server/server.py` exposes the canonical REST API through thin MCP tools. A static call-site review of the current branch found:
+
+- Exactly one MCP tool calls the adapter's `_post(...)` helper: `save_market_confluence_snapshot`, which posts to the fixed `/api/v1/history/market-confluence/snapshots` path and persists a descriptive research snapshot.
+- The other MCP tools call `_get(...)` and do not invoke the adapter's POST helper.
+- This is an adapter-level HTTP-method finding only. It does **not** prove that every GET route is local-only or free of external side effects: the upstream-cost examples above show that some GET routes call Binance, RSS, or EVM RPC providers.
+- The MCP tool inventory does not expose order placement, signing, withdrawals, or trade execution in the reviewed file.
+
+Before treating the MCP surface as least-privilege, add regression tests that enumerate registered MCP tools and assert the intended side-effect allowlist, and separately test that the snapshot-save tool is denied for identities without its eventual approved write scope. Keep the route-level REST authorization as the actual enforcement boundary; omitting a tool from MCP is not a substitute for backend authorization.
+
+This review is static and scoped to `mcp-server/server.py` at this branch revision. It does not validate remote MCP transport, live credentials, provider behavior, or permissions at any AI platform account.
