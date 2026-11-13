@@ -155,4 +155,3 @@ def test_rpc_error_payload_does_not_disclose_upstream_url_or_credentials():
                 assert secret not in str(caught.value)
 
     asyncio.run(run())
-\n
