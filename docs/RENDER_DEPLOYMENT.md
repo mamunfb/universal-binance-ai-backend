@@ -60,7 +60,7 @@ Render Free web services spin down after 15 minutes without inbound traffic and 
 - Keep `PERSONAL_API_KEY` and `DATABASE_URL` only in Render's environment/secret settings.
 - Do not commit `.env` or paste secrets into issues, pull requests, or chat.
 - Keep auto-deploy disabled until CI is green and a manual deployment is explicitly approved.
-- Do not merge PR #4 or deploy to production without the owner's explicit approval.
+- Do not merge PR #21 or deploy to production without the owner's explicit approval.
 
 ## Cloudflare custom domain (optional; configure only after Render service exists)
 
@@ -76,3 +76,16 @@ Use this sequence when the owner supplies a registered domain and the Render ser
 Do not proxy mail, verification, or unrelated DNS records as part of this change. Preserve existing MX, TXT, SPF, DKIM, and DMARC records. Cloudflare proxying is an optional later step; DNS setup alone does not deploy the application or secure an API whose application authentication is misconfigured.
 
 Official provider instructions: [Render — Configuring Cloudflare DNS](https://render.com/docs/configure-cloudflare-dns). The record target, domain ownership, current DNS zone, and certificate state must be read from the owner's actual accounts; this repository does not contain those values.
+## Reverse-proxy and browser security notes
+
+The current FastAPI application does not install proxy-header middleware, a trusted-host middleware, HTTPS redirect middleware, or CORS middleware. Its browser security headers include `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, and `Permissions-Policy`; it does not currently emit HSTS. The dashboard calls the API on the configured backend origin, so a same-origin deployment does not require permissive CORS rules.
+
+For the Cloudflare custom-domain rollout:
+
+- Keep TLS termination at Cloudflare/Render as documented by Render. Do not add blanket trust for arbitrary `X-Forwarded-*` headers; the application currently does not need those headers to construct redirects.
+- Do not add application-level HTTPS redirects or trust client-supplied forwarded-proto headers without a narrowly configured trusted-proxy boundary and tests.
+- Configure HSTS at the trusted edge only after the custom hostname has a valid HTTPS certificate and all intended subdomains are confirmed HTTPS-capable. Start without `includeSubDomains` or preload unless the owner has verified those broader requirements.
+- Do not add `Access-Control-Allow-Origin: *` as a Cloudflare workaround. If the dashboard and API are kept on the same origin, no cross-origin browser access is required.
+- Keep the private API Bearer key out of URLs, DNS records, Cloudflare rules, and browser persistent storage. The current dashboard asks for the key in a password input and does not persist it.
+
+These are deployment safeguards, not evidence that Cloudflare is already connected or that the live Render service has been inspected.
