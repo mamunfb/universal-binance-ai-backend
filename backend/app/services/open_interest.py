@@ -7,6 +7,7 @@ import psycopg
 from psycopg.rows import dict_row
 from datetime import datetime, timezone
 from pathlib import Path
+from app.services.collector_leases import assert_collector_lease_owned
 from typing import Any
 
 
@@ -88,6 +89,7 @@ class OpenInterestStore:
     def save(
         self, market: str, symbol: str, period: str, rows: list[Any],
         source: str = "Binance USD-M public REST API",
+        lease_owner_token: str | None = None,
     ) -> dict[str, Any]:
         market = market.upper()
         symbol = symbol.upper().strip()
@@ -111,6 +113,8 @@ class OpenInterestStore:
                   for timestamp, amount, value, supply in normalized]
         if self.database_url:
             with self._connect_postgres() as connection:
+                if lease_owner_token is not None:
+                    assert_collector_lease_owned(connection, "derivatives-history:all", lease_owner_token)
                 connection.cursor().executemany("""
                     INSERT INTO public.historical_open_interest (
                         market, symbol, period, timestamp_ms, sum_open_interest,
@@ -128,6 +132,8 @@ class OpenInterestStore:
                 """, (market, symbol, period)).fetchone()["count"]
             storage = "POSTGRESQL"
         else:
+            if lease_owner_token is not None:
+                raise RuntimeError("Distributed collector lease writes require PostgreSQL storage")
             with sqlite3.connect(self.database_path) as connection:
                 connection.executemany("""
                     INSERT INTO historical_open_interest (

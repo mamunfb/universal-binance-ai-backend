@@ -7,6 +7,32 @@ from typing import Any
 import psycopg
 
 
+class CollectorLeaseLostError(RuntimeError):
+    """Raised when a collector attempts a write without its current database lease."""
+
+
+def assert_collector_lease_owned(connection: Any, collector_name: str, owner_token: str) -> None:
+    """Lock the lease row while a collector write transaction is in progress.
+
+    FOR SHARE prevents a new owner from replacing the lease row until this write
+    transaction commits. clock_timestamp() checks real wall-clock expiry rather
+    than PostgreSQL's transaction-start timestamp.
+    """
+    row = connection.execute(
+        """
+        SELECT owner_token
+        FROM public.collector_leases
+        WHERE collector_name = %s
+          AND owner_token = %s
+          AND lease_expires_at > clock_timestamp()
+        FOR SHARE
+        """,
+        (collector_name, owner_token),
+    ).fetchone()
+    if row is None:
+        raise CollectorLeaseLostError(f"Collector lease is not owned: {collector_name}")
+
+
 class CollectorLeaseStore:
     """PostgreSQL-backed single-owner leases shared by all application processes."""
 
@@ -33,12 +59,12 @@ class CollectorLeaseStore:
                 INSERT INTO public.collector_leases (
                     collector_name, owner_token, lease_expires_at, updated_at
                 )
-                VALUES (%s, %s, NOW() + (%s * INTERVAL '1 second'), NOW())
+                VALUES (%s, %s, clock_timestamp() + (%s * INTERVAL '1 second'), clock_timestamp())
                 ON CONFLICT (collector_name) DO UPDATE SET
                     owner_token = EXCLUDED.owner_token,
-                    lease_expires_at = NOW() + (%s * INTERVAL '1 second'),
-                    updated_at = NOW()
-                WHERE public.collector_leases.lease_expires_at <= NOW()
+                    lease_expires_at = clock_timestamp() + (%s * INTERVAL '1 second'),
+                    updated_at = clock_timestamp()
+                WHERE public.collector_leases.lease_expires_at <= clock_timestamp()
                    OR public.collector_leases.owner_token = EXCLUDED.owner_token
                 RETURNING collector_name
                 """,
@@ -53,11 +79,11 @@ class CollectorLeaseStore:
             row = connection.execute(
                 """
                 UPDATE public.collector_leases
-                SET lease_expires_at = NOW() + (%s * INTERVAL '1 second'),
-                    updated_at = NOW()
+                SET lease_expires_at = clock_timestamp() + (%s * INTERVAL '1 second'),
+                    updated_at = clock_timestamp()
                 WHERE collector_name = %s
                   AND owner_token = %s
-                  AND lease_expires_at > NOW()
+                  AND lease_expires_at > clock_timestamp()
                 RETURNING collector_name
                 """,
                 (ttl_seconds, collector_name, owner_token),
@@ -83,7 +109,7 @@ class CollectorLeaseCoordinator:
         self,
         store: CollectorLeaseStore,
         collector_name: str,
-        start_collector: Callable[[], Any],
+        start_collector: Callable[[str], Any],
         stop_collector: Callable[[], Awaitable[Any]],
         *,
         owner_token: str,
@@ -171,7 +197,7 @@ class CollectorLeaseCoordinator:
             self._state = "ACTIVE"
             self._last_error = None
             try:
-                self.start_collector()
+                self.start_collector(self.owner_token)
                 self._collector_started = True
                 while not self._stop_event.is_set():
                     if await self._wait(self.heartbeat_seconds):

@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from websockets.asyncio.client import connect
+from app.services.collector_leases import assert_collector_lease_owned
 
 logger = logging.getLogger(__name__)
 STREAM_URL = "wss://fstream.binance.com/market/ws/!forceOrder@arr"
@@ -105,9 +106,11 @@ class LiquidationStore:
     def _connect_postgres(self):
         return psycopg.connect(self.database_url, sslmode=("disable" if "sslmode=disable" in self.database_url else "require"), connect_timeout=15, row_factory=dict_row)
 
-    def insert(self, event: dict[str, Any]) -> None:
+    def insert(self, event: dict[str, Any], lease_owner_token: str | None = None) -> None:
         if self.database_url:
             with self._connect_postgres() as connection:
+                if lease_owner_token is not None:
+                    assert_collector_lease_owned(connection, "liquidation:all", lease_owner_token)
                 connection.execute("""
                     INSERT INTO public.liquidation_events (
                         event_time_ms, trade_time_ms, symbol, pair_symbol, market_type, side,
@@ -123,6 +126,8 @@ class LiquidationStore:
                     event["raw_json"],
                 ))
             return
+        if lease_owner_token is not None:
+            raise RuntimeError("Distributed collector lease writes require PostgreSQL storage")
         columns = (
             "event_time_ms, trade_time_ms, symbol, pair_symbol, market_type, side, "
             "order_type, status, average_price, original_quantity, last_filled_quantity, "
@@ -208,8 +213,10 @@ class LiquidationCollector:
         self.last_error: str | None = None
         self.reconnect_count = 0
         self.received_count = 0
+        self._lease_owner_token: str | None = None
 
-    def start(self) -> None:
+    def start(self, lease_owner_token: str | None = None) -> None:
+        self._lease_owner_token = lease_owner_token
         if self.task is None or self.task.done():
             self.task = asyncio.create_task(self.run())
 
@@ -237,7 +244,7 @@ class LiquidationCollector:
                             event = normalize_force_order(message)
                             if event is None:
                                 continue
-                            await asyncio.to_thread(self.store.insert, event)
+                            await asyncio.to_thread(self.store.insert, event, self._lease_owner_token)
                             self.received_count += 1
                             self.last_message_at = datetime.now(timezone.utc).isoformat()
             except asyncio.CancelledError:

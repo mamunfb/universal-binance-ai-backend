@@ -65,13 +65,15 @@ class DerivativesHistoryCollector:
         self._task: asyncio.Task | None = None
         self._stop_event = asyncio.Event()
         self._lock = asyncio.Lock()
+        self._lease_owner_token: str | None = None
         self._status: dict[str, Any] = {
             "status": "IDLE", "enabled": True, "job_count": len(self.jobs),
             "poll_seconds": poll_seconds, "cycles": 0, "successful_jobs": 0,
             "failed_jobs": 0, "last_cycle_at": None, "last_results": [],
         }
 
-    def start(self) -> None:
+    def start(self, lease_owner_token: str | None = None) -> None:
+        self._lease_owner_token = lease_owner_token
         if self._task is None or self._task.done():
             self._stop_event.clear()
             self._task = asyncio.create_task(self._run_loop())
@@ -140,6 +142,7 @@ class DerivativesHistoryCollector:
                 self.funding_store.save,
                 "USD_M", symbol, rows,
                 source="Binance USD-M public REST API (scheduled collector)",
+            lease_owner_token=self._lease_owner_token,
             )
         period = job["period"]
         history = await asyncio.to_thread(
@@ -155,6 +158,7 @@ class DerivativesHistoryCollector:
             self.open_interest_store.save,
             "USD_M", symbol, period, rows,
             source="Binance USD-M public REST API (scheduled collector)",
+        lease_owner_token=self._lease_owner_token,
         )
 
     @staticmethod

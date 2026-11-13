@@ -12,6 +12,7 @@ from typing import Any, Callable
 from urllib.parse import quote
 
 from websockets.asyncio.client import connect
+from app.services.collector_leases import assert_collector_lease_owned
 
 logger = logging.getLogger(__name__)
 
@@ -65,9 +66,11 @@ class OrderBookHistoryStore:
     def _connect_postgres(self):
         return psycopg.connect(self.database_url, sslmode=("disable" if "sslmode=disable" in self.database_url else "require"), connect_timeout=15, row_factory=dict_row)
 
-    def insert(self, row: dict[str, Any]) -> None:
+    def insert(self, row: dict[str, Any], lease_owner_token: str | None = None) -> None:
         if self.database_url:
             with self._connect_postgres() as db:
+                if lease_owner_token is not None:
+                    assert_collector_lease_owned(db, "order-book:all", lease_owner_token)
                 db.execute("""
                     INSERT INTO public.order_book_samples (
                         market, symbol, event_time_ms, transaction_time_ms, update_id,
@@ -84,6 +87,8 @@ class OrderBookHistoryStore:
                     json.dumps(row["asks"], separators=(",", ":")),
                 ))
             return
+        if lease_owner_token is not None:
+            raise RuntimeError("Distributed collector lease writes require PostgreSQL storage")
         with sqlite3.connect(self.database_path) as db:
             db.execute("""
                 INSERT OR IGNORE INTO order_book_samples (
@@ -195,6 +200,7 @@ class OrderBookStreamCollector:
         self.tasks: list[asyncio.Task] = []
         self.states: dict[str, dict[str, Any]] = {}
         self._stop = asyncio.Event()
+        self._lease_owner_token: str | None = None
 
     def _jobs(self) -> list[dict[str, str]]:
         try:
@@ -219,7 +225,8 @@ class OrderBookStreamCollector:
             jobs.append({"market": market, "symbol": symbol})
         return jobs
 
-    def start(self) -> None:
+    def start(self, lease_owner_token: str | None = None) -> None:
+        self._lease_owner_token = lease_owner_token
         if self.tasks:
             return
         self._stop.clear()
@@ -328,7 +335,7 @@ class OrderBookStreamCollector:
                             if now - last_sample >= self.sample_interval_seconds:
                                 row = self._sample(market, symbol, event, last_id, bids, asks)
                                 if row is not None:
-                                    await asyncio.to_thread(self.store.insert, row)
+                                    await asyncio.to_thread(self.store.insert, row, self._lease_owner_token)
                                     state["stored_count"] += 1
                                     last_sample = now
                     finally:
