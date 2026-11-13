@@ -450,7 +450,10 @@ def get_evm_provider() -> EVMRPCProvider:
     try:
         return EVMRPCProvider(settings.evm_rpc_url, settings.http_timeout_seconds)
     except ValueError as exc:
-        raise HTTPException(status_code=503, detail={"status": "BLOCKED", "error": str(exc)}) from exc
+        raise HTTPException(
+            status_code=503,
+            detail={"status": "BLOCKED", "error": "EVM_RPC_CONFIGURATION_INVALID"},
+        ) from exc
 
 
 def parse_exchange_addresses(raw: str) -> dict[str, str]:
