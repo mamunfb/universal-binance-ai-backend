@@ -7,7 +7,14 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
-from app.services.collector_leases import CollectorLeaseCoordinator, CollectorLeaseStore
+from app.services.collector_leases import (
+    ACTIVE_COLLECTOR_LEASE,
+    CollectorLeaseContext,
+    CollectorLeaseCoordinator,
+    CollectorLeaseLostError,
+    CollectorLeaseStore,
+    assert_current_collector_lease,
+)
 
 
 def test_collector_lease_store_allows_only_one_concurrent_owner():
@@ -20,17 +27,22 @@ def test_collector_lease_store_allows_only_one_concurrent_owner():
     owners = [f"owner-{uuid.uuid4().hex}", f"owner-{uuid.uuid4().hex}"]
     try:
         with ThreadPoolExecutor(max_workers=2) as pool:
-            results = list(pool.map(
+            generations = list(pool.map(
                 lambda owner: store.acquire(collector_name, owner, 30), owners
             ))
-        assert sorted(results) == [False, True]
-        winner = owners[results.index(True)]
-        loser = owners[results.index(False)]
-        assert store.renew(collector_name, winner, 30) is True
-        assert store.renew(collector_name, loser, 30) is False
-        assert store.release(collector_name, loser) is False
-        assert store.release(collector_name, winner) is True
-        assert store.acquire(collector_name, loser, 30) is True
+        assert sum(generation is not None for generation in generations) == 1
+        winner_index = next(i for i, generation in enumerate(generations) if generation is not None)
+        loser_index = 1 - winner_index
+        winner, loser = owners[winner_index], owners[loser_index]
+        winner_generation = generations[winner_index]
+        assert winner_generation == 1
+        assert store.renew(collector_name, winner, winner_generation, 30) is True
+        assert store.renew(collector_name, loser, winner_generation, 30) is False
+        assert store.release(collector_name, loser, winner_generation) is False
+        assert store.release(collector_name, winner, winner_generation) is True
+        next_generation = store.acquire(collector_name, loser, 30)
+        assert next_generation == 2
+        assert store.release(collector_name, loser, next_generation) is True
     finally:
         with store._connect() as connection:
             connection.execute(
@@ -49,7 +61,8 @@ def test_collector_lease_expired_owner_can_be_replaced():
     first_owner = f"owner-{uuid.uuid4().hex}"
     next_owner = f"owner-{uuid.uuid4().hex}"
     try:
-        assert store.acquire(collector_name, first_owner, 30) is True
+        first_generation = store.acquire(collector_name, first_owner, 30)
+        assert first_generation == 1
         with store._connect() as connection:
             connection.execute(
                 """
@@ -59,10 +72,11 @@ def test_collector_lease_expired_owner_can_be_replaced():
                 """,
                 (collector_name,),
             )
-        assert store.renew(collector_name, first_owner, 30) is False
-        assert store.acquire(collector_name, next_owner, 30) is True
-        assert store.release(collector_name, first_owner) is False
-        assert store.release(collector_name, next_owner) is True
+        assert store.renew(collector_name, first_owner, first_generation, 30) is False
+        next_generation = store.acquire(collector_name, next_owner, 30)
+        assert next_generation == first_generation + 1
+        assert store.release(collector_name, first_owner, first_generation) is False
+        assert store.release(collector_name, next_owner, next_generation) is True
     finally:
         with store._connect() as connection:
             connection.execute(
@@ -78,7 +92,7 @@ async def test_lease_coordinator_starts_and_stops_collector_with_owned_lease():
             self.released = False
 
         def acquire(self, *_args):
-            return True
+            return 7
 
         def renew(self, *_args):
             return True
@@ -117,7 +131,7 @@ async def test_lease_coordinator_starts_and_stops_collector_with_owned_lease():
 async def test_lease_coordinator_stops_collector_when_lease_renewal_is_rejected():
     class FakeLeaseStore:
         def acquire(self, *_args):
-            return True
+            return 8
 
         def renew(self, *_args):
             return False
@@ -146,3 +160,60 @@ async def test_lease_coordinator_stops_collector_when_lease_renewal_is_rejected(
 
     assert coordinator.status()["state"] == "LEASE_LOST"
     assert coordinator.status()["lease_owned"] is False
+
+
+def test_fencing_context_rejects_old_owner_after_takeover():
+    database_url = os.getenv("TEST_DATABASE_URL")
+    if not database_url:
+        pytest.skip("TEST_DATABASE_URL is not configured")
+
+    store = CollectorLeaseStore(database_url)
+    collector_name = f"test-fence-{uuid.uuid4().hex}"
+    first_owner = f"owner-{uuid.uuid4().hex}"
+    next_owner = f"owner-{uuid.uuid4().hex}"
+    first_context_token = None
+    try:
+        first_generation = store.acquire(collector_name, first_owner, 30)
+        assert first_generation == 1
+        first_context_token = ACTIVE_COLLECTOR_LEASE.set(
+            CollectorLeaseContext(collector_name, first_owner, first_generation)
+        )
+        with store._connect() as connection:
+            assert_current_collector_lease(connection, collector_name)
+        ACTIVE_COLLECTOR_LEASE.reset(first_context_token)
+        first_context_token = None
+
+        with store._connect() as connection:
+            connection.execute(
+                """
+                UPDATE public.collector_leases
+                SET lease_expires_at = NOW() - INTERVAL '1 second'
+                WHERE collector_name=%s
+                """,
+                (collector_name,),
+            )
+        next_generation = store.acquire(collector_name, next_owner, 30)
+        assert next_generation == first_generation + 1
+
+        first_context_token = ACTIVE_COLLECTOR_LEASE.set(
+            CollectorLeaseContext(collector_name, first_owner, first_generation)
+        )
+        with store._connect() as connection:
+            with pytest.raises(CollectorLeaseLostError):
+                assert_current_collector_lease(connection, collector_name)
+        ACTIVE_COLLECTOR_LEASE.reset(first_context_token)
+        first_context_token = None
+
+        first_context_token = ACTIVE_COLLECTOR_LEASE.set(
+            CollectorLeaseContext(collector_name, next_owner, next_generation)
+        )
+        with store._connect() as connection:
+            assert_current_collector_lease(connection, collector_name)
+    finally:
+        if first_context_token is not None:
+            ACTIVE_COLLECTOR_LEASE.reset(first_context_token)
+        with store._connect() as connection:
+            connection.execute(
+                "DELETE FROM public.collector_leases WHERE collector_name=%s",
+                (collector_name,),
+            )
