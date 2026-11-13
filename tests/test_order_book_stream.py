@@ -261,3 +261,10 @@ def test_history_store_count_rejects_invalid_filters(tmp_path, market, symbol):
 def test_history_store_recent_accepts_integer_string_query_bounds(tmp_path):
     store = OrderBookHistoryStore(str(tmp_path / "book.sqlite3"))
     assert store.recent("SPOT", "BTCUSDT", "10", "100", "200") == []
+
+
+def test_history_store_query_market_filters_remain_case_insensitive(tmp_path):
+    store = OrderBookHistoryStore(str(tmp_path / "book.sqlite3"))
+    store.insert(_valid_store_row())
+    assert store.recent("usd_m", "btcusdt", 10)[0]["symbol"] == "BTCUSDT"
+    assert store.count("usd_m", "btcusdt") == 1
