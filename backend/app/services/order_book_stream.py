@@ -369,15 +369,25 @@ class OrderBookStreamCollector:
         if not isinstance(event, dict):
             raise ValueError("Invalid order-book event")
         for key, book_side in (("b", bids), ("a", asks)):
-            levels = OrderBookStreamCollector._levels(event.get(key, []))
-            for price, quantity in levels.items():
-                book_side[price] = quantity
-            # Zero-quantity levels are deletions; validate their prices as well.
             raw_levels = event.get(key, [])
+            if not isinstance(raw_levels, list):
+                raise ValueError("Invalid order-book levels")
+            parsed = []
             for level in raw_levels:
-                quantity = float(level[1])
+                if not isinstance(level, (list, tuple)) or len(level) != 2:
+                    raise ValueError("Invalid order-book level")
+                try:
+                    price, quantity = float(level[0]), float(level[1])
+                except (TypeError, ValueError, OverflowError) as exc:
+                    raise ValueError("Invalid order-book level") from exc
+                if not math.isfinite(price) or not math.isfinite(quantity) or price <= 0 or quantity < 0:
+                    raise ValueError("Order-book price and quantity must be finite; price positive and quantity non-negative")
+                parsed.append((price, quantity))
+            for price, quantity in parsed:
                 if quantity == 0:
-                    book_side.pop(float(level[0]), None)
+                    book_side.pop(price, None)
+                else:
+                    book_side[price] = quantity
 
     def _sample(
         self, market: str, symbol: str, event: dict[str, Any], update_id: int,
