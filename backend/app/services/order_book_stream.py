@@ -239,15 +239,38 @@ class OrderBookStreamCollector:
     def _provider(self, market: str) -> Any:
         return self.spot_provider_factory() if market == "SPOT" else self.futures_provider_factory(market)
 
+    @staticmethod
+    def _signal_reader_closed(queue: asyncio.Queue) -> None:
+        """Ensure the consumer receives a shutdown signal, even when the buffer is full.
+
+        If the buffer is saturated, discard its oldest pending delta and enqueue the
+        sentinel. The consumer will detect the resulting sequence gap and rebuild
+        from a fresh REST snapshot rather than waiting forever on an orphaned reader.
+        """
+        try:
+            queue.put_nowait(None)
+            return
+        except asyncio.QueueFull:
+            pass
+
+        try:
+            queue.get_nowait()
+        except asyncio.QueueEmpty:
+            pass
+
+        try:
+            queue.put_nowait(None)
+        except asyncio.QueueFull:
+            # Queue operations above are synchronous on the event loop; this is a
+            # defensive fallback in case a custom queue implementation is supplied.
+            logger.error("Could not enqueue order-book reader shutdown signal")
+
     async def _reader(self, socket: Any, queue: asyncio.Queue) -> None:
         try:
             async for raw in socket:
                 await queue.put(json.loads(raw))
         finally:
-            try:
-                queue.put_nowait(None)
-            except asyncio.QueueFull:
-                pass
+            self._signal_reader_closed(queue)
 
     async def _run_job(self, job: dict[str, str]) -> None:
         market, symbol = job["market"], job["symbol"]
