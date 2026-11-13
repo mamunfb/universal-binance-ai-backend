@@ -351,3 +351,14 @@ def test_dashboard_readiness_clears_stale_data_and_checks_phase_count():
     assert "$('readinessSummary').innerHTML='';$('readinessMarket').innerHTML=''" in html
     assert "phase.phase_count!==phases.length" in html
     assert "Phase count does not match the returned phase list" in html
+
+
+def test_dashboard_readiness_keeps_independent_endpoint_results_on_partial_failure():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "Promise.allSettled([" in html
+    assert "preflightResult.status==='fulfilled'" in html
+    assert "phaseResult.status==='fulfilled'" in html
+    assert "if(preflight){" in html
+    assert "if(phase){" in html
+    assert "Partial readiness result — " in html
+    assert "phase_readiness:phase||{error:" in html
