@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import os
 import uuid
+import time
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
@@ -211,6 +212,47 @@ async def test_coordinator_started_collector_task_keeps_lease_context_in_thread(
     assert observed_context["thread"] == expected
     await coordinator.stop()
     assert coordinator.status()["state"] == "STOPPED"
+
+
+def test_fenced_write_lock_blocks_expired_lease_takeover():
+    database_url = os.getenv("TEST_DATABASE_URL")
+    if not database_url:
+        pytest.skip("TEST_DATABASE_URL is not configured")
+
+    store = CollectorLeaseStore(database_url)
+    collector_name = f"test-fence-lock-{uuid.uuid4().hex}"
+    first_owner = f"owner-{uuid.uuid4().hex}"
+    next_owner = f"owner-{uuid.uuid4().hex}"
+    connection = None
+    try:
+        first_generation = store.acquire(collector_name, first_owner, 5)
+        assert first_generation == 1
+
+        # Keep the transaction (and its FOR SHARE row lock) open while the lease
+        # expires. A takeover must wait for this fenced write transaction to end.
+        connection = store._connect()
+        assert_current_collector_lease(connection, collector_name)
+        time.sleep(5.2)
+
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            takeover = pool.submit(store.acquire, collector_name, next_owner, 30)
+            time.sleep(0.25)
+            assert takeover.done() is False
+            connection.commit()
+            connection.close()
+            connection = None
+            next_generation = takeover.result(timeout=3)
+
+        assert next_generation == first_generation + 1
+        assert store.release(collector_name, next_owner, next_generation) is True
+    finally:
+        if connection is not None:
+            connection.close()
+        with store._connect() as cleanup:
+            cleanup.execute(
+                "DELETE FROM public.collector_leases WHERE collector_name=%s",
+                (collector_name,),
+            )
 
 
 def test_fencing_context_rejects_old_owner_after_takeover():
