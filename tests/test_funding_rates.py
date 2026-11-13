@@ -42,7 +42,7 @@ def test_funding_store_rejects_boolean_values(tmp_path, row):
     assert store.history("USD_M", "BTCUSDT")["returned_count"] == 0
 
 
-@pytest.mark.parametrize("timestamp", [1700000000000.5, "1700000000000.5", "1e3"])
+@pytest.mark.parametrize("timestamp", [1700000000000.5, "1700000000000.5", "1.0001e3"])
 def test_funding_store_rejects_fractional_timestamps(tmp_path, timestamp):
     store = FundingRateStore(str(tmp_path / "funding.sqlite3"))
     with pytest.raises(ValueError, match="timestamp"):
