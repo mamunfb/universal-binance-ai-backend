@@ -72,6 +72,36 @@ def test_indexer_rejects_oversized_range_before_rpc(tmp_path):
         raise AssertionError("Expected range guard")
 
 
+@pytest.mark.parametrize(
+    "chain_id,contract,start,end",
+    [
+        (0, CONTRACT, 1, 2),
+        (-1, CONTRACT, 1, 2),
+        (True, CONTRACT, 1, 2),
+        (1, "not-an-address", 1, 2),
+        (1, "0x" + "g" * 40, 1, 2),
+        (1, CONTRACT, -1, 2),
+        (1, CONTRACT, 2, 1),
+        (1, CONTRACT, True, 2),
+        (1, CONTRACT, 1, False),
+    ],
+)
+def test_save_chunk_rejects_invalid_scope_before_writing(
+    tmp_path, chain_id, contract, start, end
+):
+    store = EVMTransferStore(str(tmp_path / "history.sqlite3"))
+    with pytest.raises(ValueError):
+        store.save_chunk(chain_id, contract, start, end, [])
+    assert store.coverage(1, CONTRACT) == []
+
+
+def test_save_chunk_rejects_non_list_logs(tmp_path):
+    store = EVMTransferStore(str(tmp_path / "history.sqlite3"))
+    with pytest.raises(ValueError, match="logs must be a list"):
+        store.save_chunk(1, CONTRACT, 1, 2, None)
+    assert store.coverage(1, CONTRACT) == []
+
+
 def test_malformed_log_does_not_create_coverage(tmp_path):
     store = EVMTransferStore(str(tmp_path / "history.sqlite3"))
     malformed = {"topics": [], "transactionHash": "0x" + "c" * 64}
