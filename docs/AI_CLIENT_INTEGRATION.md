@@ -104,7 +104,7 @@ The local MCP adapter exposes a read-only `get_stored_historical_klines` tool fo
 ## Private access and security
 
 - The intended user is one owner. Do not create public sign-up or multi-customer account flows.
-- API routes under `/api/` accept a Bearer key when `PERSONAL_API_KEY` is configured.
+- API routes under `/api/` require a Bearer key whenever `PERSONAL_API_KEY` or `AI_CLIENT_API_KEYS` is configured; the supported client identities are `chatgpt`, `gemini`, `manus`, `claude`, and `perplexity`.
 - Set `APP_ENV=production` and `PERSONAL_API_KEY` to a randomly generated secret of at least 32 characters before production deployment. Production API requests fail closed with 503 if a sufficiently long key is not configured.
 - In development, an empty `PERSONAL_API_KEY` leaves API routes unauthenticated for local testing only. Never expose that configuration to the public internet.
 - Example environment configuration (use your own secret; do not commit it):
@@ -122,7 +122,7 @@ curl -H "Authorization: Bearer $PERSONAL_API_KEY" \
 ```
 
 - Protect the private API with server-side authentication before exposing it beyond localhost/private network.
-- Configure separate keys for the three AI clients with `AI_CLIENT_API_KEYS`, a JSON object mapping `chatgpt`, `gemini`, `manus`, `claude`, and `perplexity` to independent random secrets of at least 32 characters.
+- Configure separate keys for the five supported AI clients with `AI_CLIENT_API_KEYS`, a JSON object mapping `chatgpt`, `gemini`, `manus`, `claude`, and `perplexity` to independent random secrets of at least 32 characters.
 - Example only (replace every value with a unique randomly generated secret; never commit real secrets):
 
 ```env
