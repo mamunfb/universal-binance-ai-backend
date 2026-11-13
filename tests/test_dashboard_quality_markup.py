@@ -197,3 +197,12 @@ def test_dashboard_sanitizer_does_not_allow_scriptable_elements_or_event_attribu
     assert "'onclick'" not in sanitizer
     assert "'href'" not in sanitizer
     assert "return template.innerHTML" in sanitizer
+
+
+def test_dashboard_sanitizer_restricts_svg_paint_values():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    sanitizer = html.split("const sanitizeHtml=markup=>", 1)[1].split("\nconst renderCollector", 1)[0]
+    assert "const paintAttrs=new Set(['fill','stroke'])" in sanitizer
+    assert "paintAttrs.has(name)" in sanitizer
+    assert "currentcolor|transparent" in sanitizer
+    assert "url(" not in sanitizer
