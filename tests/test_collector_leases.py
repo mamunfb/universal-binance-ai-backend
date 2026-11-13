@@ -236,31 +236,35 @@ def test_write_transaction_lock_blocks_expired_lease_takeover_until_commit():
         store._connect = tracked_connect
         with ThreadPoolExecutor(max_workers=1) as pool:
             takeover = pool.submit(store.acquire, collector_name, new_owner, 30)
-            assert takeover_connection_ready.wait(timeout=3)
-            backend_pid = takeover_backend_pid["pid"]
+            try:
+                assert takeover_connection_ready.wait(timeout=3)
+                backend_pid = takeover_backend_pid["pid"]
 
-            # Confirm PostgreSQL reports a real blocking lock, not just a slow thread.
-            deadline = time.monotonic() + 5
-            blocking_pids: list[int] = []
-            while time.monotonic() < deadline:
-                with original_connect() as monitor:
-                    blocking_pids = monitor.execute(
-                        "SELECT pg_blocking_pids(%s)", (backend_pid,)
-                    ).fetchone()[0]
-                if blocking_pids:
-                    break
-                if takeover.done():
-                    break
-                time.sleep(0.025)
+                # Confirm PostgreSQL reports a real blocking lock, not just a slow thread.
+                deadline = time.monotonic() + 5
+                blocking_pids: list[int] = []
+                while time.monotonic() < deadline:
+                    with original_connect() as monitor:
+                        blocking_pids = monitor.execute(
+                            "SELECT pg_blocking_pids(%s)", (backend_pid,)
+                        ).fetchone()[0]
+                    if blocking_pids:
+                        break
+                    if takeover.done():
+                        break
+                    time.sleep(0.025)
 
-            assert blocking_pids, (
-                "Expected PostgreSQL to report the takeover backend as blocked "
-                "by the open FOR SHARE write transaction"
-            )
-            assert takeover.done() is False
+                assert blocking_pids, (
+                    "Expected PostgreSQL to report the takeover backend as blocked "
+                    "by the open FOR SHARE write transaction"
+                )
+                assert takeover.done() is False
 
-            connection.commit()
-            assert takeover.result(timeout=5) is True
+                connection.commit()
+                assert takeover.result(timeout=5) is True
+            finally:
+                # Always release FOR SHARE before the executor waits for its worker.
+                connection.rollback()
 
         store._connect = original_connect
         with original_connect() as check:
