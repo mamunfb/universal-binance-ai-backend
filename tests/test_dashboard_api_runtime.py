@@ -51,6 +51,9 @@ def test_dashboard_api_url_validation_and_request_runtime():
             for (const url of [
               "http://api.example",
               "ftp://api.example",
+              "https:/api.example",
+              "https:api.example",
+              "https:\\api.example",
               "https://user:pass@api.example",
               "https://@api.example",
               "https://api.example?",
