@@ -68,3 +68,25 @@ def test_sample_calculates_spread_and_depth(tmp_path):
     assert row["best_ask"] == 101.0
     assert row["spread_bps"] > 0
     assert row["depth_imbalance"] < 0  # Ask-side price-weighted notional exceeds bid-side notional.
+
+def test_order_book_collector_status_distinguishes_idle_and_degraded(tmp_path):
+    store = OrderBookHistoryStore(str(tmp_path / "book.sqlite3"))
+    collector = OrderBookStreamCollector(store, lambda: None, lambda market: None)
+    assert collector.status()["status"] == "IDLE"
+    assert collector.status()["job_count"] == 0
+
+    class ActiveTask:
+        def done(self):
+            return False
+
+    collector.tasks = [ActiveTask(), ActiveTask()]
+    collector.states = {
+        "SPOT:BTCUSDT": {"connected": True, "last_error": None},
+        "USD_M:BTCUSDT": {"connected": False, "last_error": "ConnectionError"},
+    }
+    status = collector.status()
+    assert status["status"] == "DEGRADED"
+    assert status["job_count"] == 2
+    assert status["active_task_count"] == 2
+    assert status["connected_job_count"] == 1
+    assert status["disconnected_job_count"] == 1
