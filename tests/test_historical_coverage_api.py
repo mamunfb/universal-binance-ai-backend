@@ -84,3 +84,36 @@ def test_coverage_endpoint_prefers_dedicated_historical_database_url(monkeypatch
     assert response.status_code == 200
     assert response.json() == {"status": "COMPLETED"}
     assert captured["database_url"] == "postgresql://history.example/db"
+
+
+def test_coverage_endpoint_falls_back_to_shared_database_url(monkeypatch, tmp_path):
+    captured = {}
+
+    class FakeCoverageEngine:
+        def __init__(self, database_path, database_url=""):
+            captured["database_url"] = database_url
+
+        def inspect(self, market, symbol, interval, start_time_ms, end_time_ms):
+            return {"status": "COMPLETED"}
+
+    monkeypatch.setattr(
+        main.settings, "historical_kline_database_path",
+        str(tmp_path / "unused.sqlite3"),
+    )
+    monkeypatch.setattr(
+        main.settings, "database_url", "postgresql://shared.example/db",
+    )
+    monkeypatch.setattr(main.settings, "historical_kline_database_url", "")
+    monkeypatch.setattr(main, "HistoricalCoverageEngine", FakeCoverageEngine)
+
+    response = client.get(
+        "/api/v1/history/klines/SPOT/BTCUSDT/coverage",
+        params={
+            "interval": "1m",
+            "start_time_ms": 1_700_000_040_000,
+            "end_time_ms": 1_700_000_100_000,
+        },
+    )
+
+    assert response.status_code == 200
+    assert captured["database_url"] == "postgresql://shared.example/db"
