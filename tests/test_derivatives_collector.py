@@ -164,3 +164,47 @@ async def test_collector_retries_failed_job_on_next_cycle(tmp_path):
     assert recovered["status"] == "RUNNING"
     assert recovered["last_results"][0]["status"] == "COMPLETED"
     assert funding.history("USD_M", "BTCUSDT")["returned_count"] == 2
+
+
+@pytest.mark.asyncio
+async def test_collector_cancellation_waits_for_inflight_derivative_database_write(tmp_path):
+    import asyncio
+    import threading
+
+    started = threading.Event()
+    release = threading.Event()
+
+    class BlockingFundingStore:
+        def history(self, *args, **kwargs):
+            return {"events": []}
+
+        def save(self, *args, **kwargs):
+            started.set()
+            if not release.wait(timeout=3):
+                raise TimeoutError("test write release timed out")
+            return {"status": "COMPLETED", "stored_count": 1}
+
+    class EmptyOIStore:
+        def history(self, *args, **kwargs):
+            return {"records": []}
+
+        def save(self, *args, **kwargs):
+            return {"status": "COMPLETED"}
+
+    provider = FakeProvider()
+    collector = DerivativesHistoryCollector(
+        BlockingFundingStore(), EmptyOIStore(), lambda market: provider,
+        '[{"type":"FUNDING_RATE","symbol":"BTCUSDT"}]',
+    )
+
+    task = asyncio.create_task(collector.run_once())
+    try:
+        assert await asyncio.to_thread(started.wait, 1)
+        task.cancel()
+        await asyncio.sleep(0.05)
+        assert not task.done(), "cancellation must wait for the DB worker"
+    finally:
+        release.set()
+
+    with pytest.raises(asyncio.CancelledError):
+        await task
