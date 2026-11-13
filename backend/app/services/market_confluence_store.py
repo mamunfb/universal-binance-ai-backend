@@ -68,8 +68,10 @@ class MarketConfluenceStore:
         stamp = MarketConfluenceStore._integer(raw_stamp, "analyzed_at_ms")
         if market not in {"SPOT", "USD_M", "COIN_M"} or not symbol or not interval or stamp <= 0:
             raise ValueError("Snapshot requires valid market, symbol, interval and analyzed_at_ms")
-        confluence = payload.get("confluence") or {}
-        reference = payload.get("reference") or {}
+        confluence = payload.get("confluence", {})
+        reference = payload.get("reference", {})
+        confluence = {} if confluence is None else confluence
+        reference = {} if reference is None else reference
         if not isinstance(confluence, dict) or not isinstance(reference, dict):
             raise ValueError("Snapshot confluence and reference fields must be JSON objects")
         raw_bias = confluence.get("bias", "UNKNOWN")
