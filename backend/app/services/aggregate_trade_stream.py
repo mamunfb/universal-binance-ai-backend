@@ -13,6 +13,7 @@ from typing import Any
 from urllib.parse import quote
 
 from websockets.asyncio.client import connect
+from app.services.collector_leases import assert_collector_lease_owned
 
 logger = logging.getLogger(__name__)
 
@@ -99,9 +100,11 @@ class AggregateTradeStore:
     def _connect_postgres(self):
         return psycopg.connect(self.database_url, sslmode=("disable" if "sslmode=disable" in self.database_url else "require"), connect_timeout=15, row_factory=dict_row)
 
-    def insert(self, row: dict[str, Any]) -> None:
+    def insert(self, row: dict[str, Any], lease_owner_token: str | None = None) -> None:
         if self.database_url:
             with self._connect_postgres() as db:
+                if lease_owner_token is not None:
+                    assert_collector_lease_owned(db, "aggregate-trades:all", lease_owner_token)
                 db.execute("""
                     INSERT INTO public.aggregate_trades (
                         market, symbol, trade_id, event_time_ms, trade_time_ms,
@@ -114,6 +117,8 @@ class AggregateTradeStore:
                     row["buyer_is_maker"], row["aggressor_side"], row["raw_json"],
                 ))
             return
+        if lease_owner_token is not None:
+            raise RuntimeError("Distributed collector lease writes require PostgreSQL storage")
         with sqlite3.connect(self.database_path) as db:
             db.execute("""
                 INSERT OR IGNORE INTO aggregate_trades (
@@ -195,6 +200,7 @@ class AggregateTradeCollector:
         self.jobs_json = jobs_json
         self.tasks: list[asyncio.Task] = []
         self.states: dict[str, dict[str, Any]] = {}
+        self._lease_owner_token: str | None = None
 
     def _jobs(self) -> list[dict[str, str]]:
         try:
@@ -218,7 +224,8 @@ class AggregateTradeCollector:
             jobs.append({"market": market, "symbol": symbol})
         return jobs
 
-    def start(self) -> None:
+    def start(self, lease_owner_token: str | None = None) -> None:
+        self._lease_owner_token = lease_owner_token
         if self.tasks:
             return
         self.tasks = [
@@ -257,7 +264,7 @@ class AggregateTradeCollector:
                         if row is None or row["symbol"] != symbol:
                             continue
                         self._track_trade_id(state, row["trade_id"])
-                        await asyncio.to_thread(self.store.insert, row)
+                        await asyncio.to_thread(self.store.insert, row, self._lease_owner_token)
                         state["received_count"] += 1
                         state["last_trade_at"] = datetime.now(timezone.utc).isoformat()
             except asyncio.CancelledError:
