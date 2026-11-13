@@ -53,7 +53,7 @@ def test_dashboard_displays_future_clock_skew_separately_from_age():
 def test_dashboard_displays_regime_bias_confidence_and_overlap_metrics():
     html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
     assert "Market-regime × bias reliability" in html
-    assert "x.positive_fraction_ci_95_wilson.lower" in html
+    assert "ciPct(x.positive_fraction_ci_95_wilson)" in html
     assert "x.sample_size_status" in html
     assert "x.non_overlapping_directional_sample_size" in html
     assert "x.overlap_excluded_count" in html
@@ -64,7 +64,7 @@ def test_dashboard_displays_regime_bias_alignment_breakdown():
     html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
     assert "market_regime" in html and "Market regime" in html
     assert "regime_bias_alignment_breakdown" in html
-    assert "x.positive_fraction_ci_95_wilson.lower" in html
+    assert "ciPct(x.positive_fraction_ci_95_wilson)" in html
     assert "escapeHtml(alignment)" in html
 
 def test_dashboard_displays_alignment_breakdowns_for_all_regime_dimensions():
