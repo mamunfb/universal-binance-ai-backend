@@ -92,7 +92,9 @@ class MarketConfluenceStore:
         if price is not None and (not math.isfinite(price) or price <= 0):
             raise ValueError("reference price must be finite and positive")
         close = reference.get("close_time_ms")
-        close = MarketConfluenceStore._integer(close, "reference close_time_ms") if close is not None and price is not None else None
+        close = MarketConfluenceStore._integer(close, "reference close_time_ms") if close is not None else None
+        if close is not None and close < 0:
+            raise ValueError("reference close_time_ms must be non-negative")
         if price is not None and close is None:
             raise ValueError("reference close_time_ms is required with reference price")
         if close is not None and close > stamp:
