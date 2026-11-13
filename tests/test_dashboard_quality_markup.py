@@ -545,3 +545,14 @@ def test_dashboard_performance_handles_incomplete_wilson_interval_payload():
         check=False,
     )
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_dashboard_performance_leaderboard_validates_and_escapes_api_values():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    performance_handler = next(
+        line for line in html.splitlines() if "$('performance').onclick" in line
+    )
+    assert "Number.isFinite(row.value)?(percentage?" in performance_handler
+    assert "escapeHtml(row.rank)" in performance_handler
+    assert performance_handler.count("escapeHtml(row.sample_size)") == 2
+    assert "escapeHtml(row.non_overlapping_directional_sample_size)" in performance_handler
