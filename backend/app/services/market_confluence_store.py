@@ -54,23 +54,39 @@ class MarketConfluenceStore:
 
     @staticmethod
     def _validate(payload: dict[str, Any]) -> tuple[str, str, str, int, str, str, float | None, int | None, str, str]:
-        market = str(payload.get("market", "")).upper()
-        symbol = str(payload.get("symbol", "")).upper()
-        interval = str(payload.get("interval", ""))
+        if not isinstance(payload, dict):
+            raise ValueError("Snapshot payload must be a JSON object")
+        raw_market = payload.get("market", "")
+        raw_symbol = payload.get("symbol", "")
+        raw_interval = payload.get("interval", "")
+        if not all(isinstance(value, str) for value in (raw_market, raw_symbol, raw_interval)):
+            raise ValueError("Snapshot market, symbol and interval must be strings")
+        market = raw_market.upper()
+        symbol = raw_symbol.upper()
+        interval = raw_interval
         raw_stamp = payload.get("analyzed_at_ms")
         stamp = MarketConfluenceStore._integer(raw_stamp, "analyzed_at_ms")
         if market not in {"SPOT", "USD_M", "COIN_M"} or not symbol or not interval or stamp <= 0:
             raise ValueError("Snapshot requires valid market, symbol, interval and analyzed_at_ms")
         confluence = payload.get("confluence") or {}
-        bias = str(confluence.get("bias", "UNKNOWN")).upper()
+        reference = payload.get("reference") or {}
+        if not isinstance(confluence, dict) or not isinstance(reference, dict):
+            raise ValueError("Snapshot confluence and reference fields must be JSON objects")
+        raw_bias = confluence.get("bias", "UNKNOWN")
+        alignment = confluence.get("alignment", "UNKNOWN")
+        if not isinstance(raw_bias, str) or not isinstance(alignment, str):
+            raise ValueError("Snapshot bias and alignment must be strings")
+        bias = raw_bias.upper()
         if bias not in {"BULLISH", "BEARISH", "MIXED", "UNKNOWN"}:
             raise ValueError("Unsupported confluence bias")
-        alignment = str(confluence.get("alignment", "UNKNOWN"))
-        reference = payload.get("reference") or {}
         price = reference.get("price")
         if isinstance(price, bool):
             raise ValueError("reference price must be numeric, not boolean")
-        price = float(price) if price is not None else None
+        if price is not None:
+            try:
+                price = float(price)
+            except (TypeError, ValueError, OverflowError) as exc:
+                raise ValueError("reference price must be numeric") from exc
         if price is not None and (not math.isfinite(price) or price <= 0):
             raise ValueError("reference price must be finite and positive")
         close = reference.get("close_time_ms")
