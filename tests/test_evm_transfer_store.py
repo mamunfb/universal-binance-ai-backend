@@ -279,4 +279,3 @@ def test_indexer_provider_failure_does_not_disclose_rpc_url_or_credentials(tmp_p
     serialized = str(result)
     for secret in ("rpc-user", "rpc-password", "rpc-secret", secret_url):
         assert secret not in serialized
-\n
