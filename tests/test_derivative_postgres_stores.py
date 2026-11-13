@@ -70,9 +70,9 @@ def test_funding_store_postgres_save_and_history_are_parameterized(monkeypatch):
     assert "funding_time_ms>=%s" in select_sql
     assert "funding_time_ms<=%s" in select_sql
     assert "ORDER BY funding_time_ms DESC LIMIT %s" in select_sql
-    assert select_values == (
+    assert select_values == [
         "USD_M", "BTCUSDT", 1_699_999_000_000, 1_700_001_000_000, 1000,
-    )
+    ]
 
 
 def test_open_interest_store_postgres_save_and_history_are_parameterized(monkeypatch):
@@ -111,6 +111,6 @@ def test_open_interest_store_postgres_save_and_history_are_parameterized(monkeyp
     assert "timestamp_ms>=%s" in select_sql
     assert "timestamp_ms<=%s" in select_sql
     assert "ORDER BY timestamp_ms DESC LIMIT %s" in select_sql
-    assert select_values == (
+    assert select_values == [
         "USD_M", "BTCUSDT", "1h", 1_699_999_000_000, 1_700_001_000_000, 500,
-    )
+    ]
