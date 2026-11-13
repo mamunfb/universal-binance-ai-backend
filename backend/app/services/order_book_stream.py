@@ -67,7 +67,88 @@ class OrderBookHistoryStore:
     def _connect_postgres(self):
         return psycopg.connect(self.database_url, sslmode=("disable" if "sslmode=disable" in self.database_url else "require"), connect_timeout=15, row_factory=dict_row)
 
+    @staticmethod
+    def _validated_row(row: dict[str, Any]) -> dict[str, Any]:
+        if not isinstance(row, dict):
+            raise ValueError("order-book sample must be an object")
+        required = {
+            "market", "symbol", "update_id", "sampled_at", "best_bid", "best_ask",
+            "mid_price", "spread_bps", "bid_notional", "ask_notional",
+            "depth_imbalance", "bids", "asks",
+        }
+        if not required.issubset(row):
+            raise ValueError("order-book sample is missing required fields")
+        market = row["market"]
+        symbol = row["symbol"]
+        if not isinstance(market, str) or market not in {"SPOT", "USD_M", "COIN_M"}:
+            raise ValueError("Invalid order-book market")
+        if not isinstance(symbol, str) or not symbol.strip() or len(symbol) > 40:
+            raise ValueError("Invalid order-book symbol")
+        if not isinstance(row["sampled_at"], str) or not row["sampled_at"].strip():
+            raise ValueError("Invalid order-book sample timestamp")
+
+        def integer(value: Any, field: str, optional: bool = False) -> int | None:
+            if value is None and optional:
+                return None
+            if isinstance(value, bool):
+                raise ValueError(f"Invalid order-book {field}")
+            try:
+                number = Decimal(str(value))
+            except (InvalidOperation, TypeError, ValueError):
+                raise ValueError(f"Invalid order-book {field}") from None
+            if not number.is_finite() or number != number.to_integral_value() or number < 0:
+                raise ValueError(f"Invalid order-book {field}")
+            return int(number)
+
+        def finite(value: Any, field: str) -> float:
+            if isinstance(value, bool):
+                raise ValueError(f"Invalid order-book {field}")
+            try:
+                number = float(value)
+            except (TypeError, ValueError, OverflowError):
+                raise ValueError(f"Invalid order-book {field}") from None
+            if not math.isfinite(number):
+                raise ValueError(f"Invalid order-book {field}")
+            return number
+
+        validated: dict[str, Any] = dict(row)
+        validated["update_id"] = integer(row["update_id"], "update ID")
+        validated["event_time_ms"] = integer(row.get("event_time_ms"), "event time", optional=True)
+        validated["transaction_time_ms"] = integer(row.get("transaction_time_ms"), "transaction time", optional=True)
+        for field in ("best_bid", "best_ask", "mid_price", "spread_bps",
+                      "bid_notional", "ask_notional", "depth_imbalance"):
+            validated[field] = finite(row[field], field)
+        if (validated["best_bid"] <= 0 or validated["best_ask"] <= validated["best_bid"]
+                or validated["mid_price"] <= 0 or validated["spread_bps"] < 0
+                or validated["bid_notional"] < 0 or validated["ask_notional"] < 0
+                or not -1 <= validated["depth_imbalance"] <= 1):
+            raise ValueError("Invalid order-book sample metrics")
+
+        for side, descending in (("bids", True), ("asks", False)):
+            levels = row[side]
+            if not isinstance(levels, list) or not 1 <= len(levels) <= 1000:
+                raise ValueError(f"Invalid order-book {side}")
+            normalized = []
+            previous = None
+            for level in levels:
+                if not isinstance(level, (list, tuple)) or len(level) != 2:
+                    raise ValueError(f"Invalid order-book {side} level")
+                price = finite(level[0], f"{side} price")
+                quantity = finite(level[1], f"{side} quantity")
+                if price <= 0 or quantity < 0:
+                    raise ValueError(f"Invalid order-book {side} level")
+                if previous is not None and ((descending and price >= previous) or (not descending and price <= previous)):
+                    raise ValueError(f"Unsorted order-book {side}")
+                previous = price
+                normalized.append([price, quantity])
+            validated[side] = normalized
+        if (validated["bids"][0][0] != validated["best_bid"]
+                or validated["asks"][0][0] != validated["best_ask"]):
+            raise ValueError("Order-book best prices do not match stored levels")
+        return validated
+
     def insert(self, row: dict[str, Any]) -> None:
+        row = self._validated_row(row)
         if self.database_url:
             with self._connect_postgres() as db:
                 db.execute("""
