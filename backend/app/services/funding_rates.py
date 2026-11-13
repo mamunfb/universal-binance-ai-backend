@@ -42,6 +42,8 @@ class FundingRateStore:
     @staticmethod
     def _finite(value: Any, field: str) -> float:
         try:
+            if isinstance(value, bool):
+                raise ValueError
             number = float(value)
         except (TypeError, ValueError, OverflowError) as exc:
             raise ValueError(f"Invalid funding {field}") from exc
@@ -54,6 +56,8 @@ class FundingRateStore:
         if not isinstance(row, dict):
             raise ValueError("Malformed Binance funding row")
         try:
+            if isinstance(row["fundingTime"], bool):
+                raise ValueError
             funding_time = int(row["fundingTime"])
         except (KeyError, TypeError, ValueError, OverflowError) as exc:
             raise ValueError("Invalid funding timestamp") from exc
