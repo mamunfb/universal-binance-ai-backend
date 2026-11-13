@@ -166,6 +166,53 @@ async def test_lease_coordinator_stops_collector_when_lease_renewal_is_rejected(
     assert coordinator.status()["lease_owned"] is False
 
 
+@pytest.mark.asyncio
+async def test_coordinator_started_collector_task_keeps_lease_context_in_thread():
+    class FakeLeaseStore:
+        def acquire(self, *_args):
+            return 19
+
+        def renew(self, *_args):
+            return True
+
+        def release(self, *_args):
+            return True
+
+    observed = asyncio.Event()
+    observed_context = {}
+    collector_task = None
+
+    async def collector_worker():
+        observed_context["task"] = ACTIVE_COLLECTOR_LEASE.get()
+        observed_context["thread"] = await asyncio.to_thread(
+            ACTIVE_COLLECTOR_LEASE.get
+        )
+        observed.set()
+        await asyncio.Event().wait()
+
+    def start_collector():
+        nonlocal collector_task
+        collector_task = asyncio.create_task(collector_worker())
+
+    async def stop_collector():
+        if collector_task is not None:
+            collector_task.cancel()
+            await asyncio.gather(collector_task, return_exceptions=True)
+
+    coordinator = CollectorLeaseCoordinator(
+        FakeLeaseStore(), "test-task-context", start_collector, stop_collector,
+        owner_token="owner-task-context", ttl_seconds=5,
+        heartbeat_seconds=10, retry_seconds=1,
+    )
+    coordinator.start()
+    await asyncio.wait_for(observed.wait(), timeout=1)
+    expected = CollectorLeaseContext("test-task-context", "owner-task-context", 19)
+    assert observed_context["task"] == expected
+    assert observed_context["thread"] == expected
+    await coordinator.stop()
+    assert coordinator.status()["state"] == "STOPPED"
+
+
 def test_fencing_context_rejects_old_owner_after_takeover():
     database_url = os.getenv("TEST_DATABASE_URL")
     if not database_url:
