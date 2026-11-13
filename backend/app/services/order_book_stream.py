@@ -5,6 +5,7 @@ import json
 import logging
 import math
 import sqlite3
+from decimal import Decimal, InvalidOperation
 import psycopg
 from psycopg.rows import dict_row
 from datetime import datetime, timezone
@@ -325,18 +326,36 @@ class OrderBookStreamCollector:
                 state["synchronized"] = False
 
     @staticmethod
+    def _strict_integer(value: Any, field: str) -> int:
+        if isinstance(value, bool):
+            raise ValueError(f"Invalid order-book {field}")
+        try:
+            number = Decimal(str(value))
+        except (InvalidOperation, TypeError, ValueError) as exc:
+            raise ValueError(f"Invalid order-book {field}") from exc
+        if not number.is_finite() or number != number.to_integral_value():
+            raise ValueError(f"Invalid order-book {field}")
+        return int(number)
+
+    @staticmethod
     def _validate_sequence(market: str, event: dict[str, Any], last_id: int, first_event: bool) -> None:
-        first_id, final_id = int(event.get("U", 0)), int(event.get("u", 0))
-        if first_event:
-            if not (first_id <= last_id + 1 <= final_id):
-                raise RuntimeError("DEPTH_INITIAL_SEQUENCE_GAP")
-            return
-        if market in {"USD_M", "COIN_M"}:
+        try:
+            first_id = OrderBookStreamCollector._strict_integer(event.get("U", 0), "first update ID")
+            final_id = OrderBookStreamCollector._strict_integer(event.get("u", 0), "final update ID")
             previous_id = event.get("pu")
-            if previous_id is None or int(previous_id) != last_id:
+            if final_id < first_id:
+                raise ValueError("Invalid order-book update range")
+            if first_event:
+                if not (first_id <= last_id + 1 <= final_id):
+                    raise RuntimeError("DEPTH_INITIAL_SEQUENCE_GAP")
+                return
+            if market in {"USD_M", "COIN_M"}:
+                if previous_id is None or OrderBookStreamCollector._strict_integer(previous_id, "previous update ID") != last_id:
+                    raise RuntimeError("DEPTH_SEQUENCE_GAP")
+            elif first_id > last_id + 1:
                 raise RuntimeError("DEPTH_SEQUENCE_GAP")
-        elif first_id > last_id + 1:
-            raise RuntimeError("DEPTH_SEQUENCE_GAP")
+        except (TypeError, ValueError) as exc:
+            raise RuntimeError("DEPTH_INVALID_SEQUENCE") from exc
 
     def _trim_book(self, bids: dict[float, float], asks: dict[float, float]) -> None:
         if len(bids) > self.snapshot_limit:
@@ -393,6 +412,21 @@ class OrderBookStreamCollector:
         self, market: str, symbol: str, event: dict[str, Any], update_id: int,
         bids: dict[float, float], asks: dict[float, float],
     ) -> dict[str, Any] | None:
+        if not isinstance(event, dict):
+            raise ValueError("Invalid order-book event")
+        update_id = self._strict_integer(update_id, "update ID")
+        if update_id < 0:
+            raise ValueError("Invalid order-book update ID")
+        event_time = event.get("E")
+        transaction_time = event.get("T")
+        if event_time is not None:
+            event_time = self._strict_integer(event_time, "event time")
+            if event_time < 0:
+                raise ValueError("Invalid order-book event time")
+        if transaction_time is not None:
+            transaction_time = self._strict_integer(transaction_time, "transaction time")
+            if transaction_time < 0:
+                raise ValueError("Invalid order-book transaction time")
         bid_rows = sorted(bids.items(), reverse=True)[:self.stored_levels]
         ask_rows = sorted(asks.items())[:self.stored_levels]
         if not bid_rows or not ask_rows or bid_rows[0][0] >= ask_rows[0][0]:
@@ -409,7 +443,7 @@ class OrderBookStreamCollector:
             return None
         return {
             "market": market, "symbol": symbol,
-            "event_time_ms": event.get("E"), "transaction_time_ms": event.get("T"),
+            "event_time_ms": event_time, "transaction_time_ms": transaction_time,
             "update_id": update_id, "sampled_at": datetime.now(timezone.utc).isoformat(),
             "best_bid": bid_rows[0][0], "best_ask": ask_rows[0][0], "mid_price": mid,
             "spread_bps": spread_bps,
