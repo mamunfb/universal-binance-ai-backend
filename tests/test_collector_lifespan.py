@@ -24,6 +24,7 @@ async def test_lifespan_stops_started_collectors_when_later_startup_fails(monkey
 
         async def stop(self):
             events.append("order-book-stop")
+            raise RuntimeError("simulated collector shutdown failure")
 
     monkeypatch.setattr(main.settings, "require_database_url", False)
     monkeypatch.setattr(main.settings, "liquidation_collector_enabled", True)
