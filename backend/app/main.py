@@ -241,8 +241,10 @@ async def request_tracking_middleware(request: Request, call_next):
 
     if request.url.path.startswith("/api/"):
         configured_key = settings.personal_api_key
+        raw_client_keys = settings.ai_client_api_keys or ""
+        client_key_config_invalid = False
         try:
-            client_keys = json.loads(settings.ai_client_api_keys or "{}")
+            client_keys = json.loads(raw_client_keys or "{}")
             if not isinstance(client_keys, dict) or any(
                 not isinstance(name, str) or not isinstance(key, str)
                 for name, key in client_keys.items()
@@ -250,8 +252,20 @@ async def request_tracking_middleware(request: Request, call_next):
                 raise ValueError("AI_CLIENT_API_KEYS must be a JSON object of client names to keys")
         except (TypeError, ValueError, json.JSONDecodeError):
             client_keys = None
+            client_key_config_invalid = bool(raw_client_keys.strip())
 
         production = settings.app_env.lower() in {"production", "prod"}
+        if client_key_config_invalid and not configured_key:
+            response = JSONResponse(
+                status_code=503,
+                content=_error_payload(
+                    "AUTH_NOT_CONFIGURED",
+                    "AI client API key configuration is invalid; correct it before accepting API requests.",
+                    request_id=request_id,
+                ),
+            )
+            response.headers["X-Request-ID"] = request_id
+            return _apply_security_headers(response, request)
         has_valid_client_keys = (
             isinstance(client_keys, dict)
             and all(
