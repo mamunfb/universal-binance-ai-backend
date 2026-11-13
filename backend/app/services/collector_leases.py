@@ -243,8 +243,10 @@ class CollectorLeaseCoordinator:
                 CollectorLeaseContext(self.collector_name, self.owner_token, generation)
             )
             try:
-                self.start_collector()
+                # Treat startup as potentially partial: if start() raises after
+                # creating one or more tasks, the matching stop() must still run.
                 self._collector_started = True
+                self.start_collector()
                 while not self._stop_event.is_set():
                     if await self._wait(self.heartbeat_seconds):
                         break
