@@ -131,6 +131,7 @@ async def test_collector_stop_cancels_inflight_provider_request(tmp_path):
     await asyncio.wait_for(collector.stop(), timeout=1)
 
     assert collector.status()["status"] == "STOPPED"
+    assert "one collector process per database" in collector.status()["warning"]
     assert collector._task is None
 
 
