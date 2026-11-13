@@ -13,7 +13,7 @@ def test_dashboard_api_runtime_auth_transport_and_errors():
         let source = "";
         process.stdin.setEncoding("utf8");
         process.stdin.on("data", chunk => source += chunk);
-        process.stdin.on("end", async () => {
+        process.stdin.on("end", () => {\n          (async () => {
           const match = source.match(/<script>([\s\S]*?)<\/script>/i);
           assert.ok(match, "dashboard inline script missing");
           const elements = new Map();
@@ -59,7 +59,7 @@ def test_dashboard_api_runtime_auth_transport_and_errors():
 
           response = { ok: false, status: 502, json: async () => { throw Error("not JSON"); } };
           await assert.rejects(call("/api/v1/research/preflight"), /non-JSON response \(HTTP 502\)/);
-        }).catch(error => { console.error(error); process.exitCode = 1; });
+          })().catch(error => { console.error(error); process.exitCode = 1; });\n        });
     """)
     result = subprocess.run(
         ["node", "-e", harness],
