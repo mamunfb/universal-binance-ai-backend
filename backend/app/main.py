@@ -93,12 +93,17 @@ derivatives_collector: DerivativesHistoryCollector | None = None
 collector_lease_coordinators: dict[str, CollectorLeaseCoordinator] = {}
 
 
-def _start_collector_with_lease(name: str, collector: Any) -> None:
-    if not settings.database_url.strip():
+def _start_collector_with_lease(
+    name: str, collector: Any, lease_database_url: str | None = None
+) -> None:
+    # The lease row must live in the same PostgreSQL database as the collector's
+    # data write so FOR SHARE and the write commit are one atomic transaction.
+    coordination_database_url = (lease_database_url or settings.database_url).strip()
+    if not coordination_database_url:
         collector.start()
         return
     coordinator = CollectorLeaseCoordinator(
-        CollectorLeaseStore(settings.database_url),
+        CollectorLeaseStore(coordination_database_url),
         name,
         collector.start,
         collector.stop,
@@ -151,63 +156,82 @@ async def lifespan(_: FastAPI):
             "DATABASE_URL is required for this deployment; configure the Neon PostgreSQL connection "
             "before starting the production service."
         )
-    if settings.liquidation_collector_enabled:
-        _start_collector_with_lease("liquidation:all", liquidation_collector)
-    if settings.order_book_collector_enabled:
-        order_book_collector = OrderBookStreamCollector(
-            store=order_book_history_store,
-            spot_provider_factory=get_spot_provider,
-            futures_provider_factory=get_futures_provider,
-            jobs_json=settings.order_book_collector_jobs,
-            sample_interval_seconds=settings.order_book_sample_interval_seconds,
-            snapshot_limit=settings.order_book_snapshot_limit,
-            stored_levels=settings.order_book_stored_levels,
-        )
-        _start_collector_with_lease("order-book:all", order_book_collector)
-    if settings.aggregate_trade_collector_enabled:
-        aggregate_trade_collector = AggregateTradeCollector(
-            store=aggregate_trade_store,
-            jobs_json=settings.aggregate_trade_collector_jobs,
-        )
-        _start_collector_with_lease("aggregate-trades:all", aggregate_trade_collector)
-    if settings.derivatives_collector_enabled:
-        derivatives_collector = DerivativesHistoryCollector(
-            funding_store=funding_rate_store,
-            open_interest_store=open_interest_store,
-            provider_factory=get_futures_provider,
-            jobs_json=settings.derivatives_collector_jobs,
-            poll_seconds=settings.derivatives_collector_poll_seconds,
-            funding_limit=settings.derivatives_collector_funding_limit,
-            open_interest_limit=settings.derivatives_collector_open_interest_limit,
-        )
-        _start_collector_with_lease("derivatives-history:all", derivatives_collector)
-    if settings.historical_collector_enabled:
-        historical_collector = HistoricalKlineCollector(
-            store=historical_kline_store,
-            spot_provider_factory=get_spot_provider,
-            futures_provider_factory=get_futures_provider,
-            jobs_json=settings.historical_collector_jobs,
-            poll_seconds=settings.historical_collector_poll_seconds,
-            initial_limit=settings.historical_collector_initial_limit,
-        )
-        _start_collector_with_lease("historical-klines:all", historical_collector)
     try:
+        if settings.liquidation_collector_enabled:
+            _start_collector_with_lease("liquidation:all", liquidation_collector)
+        if settings.order_book_collector_enabled:
+            order_book_collector = OrderBookStreamCollector(
+                store=order_book_history_store,
+                spot_provider_factory=get_spot_provider,
+                futures_provider_factory=get_futures_provider,
+                jobs_json=settings.order_book_collector_jobs,
+                sample_interval_seconds=settings.order_book_sample_interval_seconds,
+                snapshot_limit=settings.order_book_snapshot_limit,
+                stored_levels=settings.order_book_stored_levels,
+            )
+            _start_collector_with_lease("order-book:all", order_book_collector)
+        if settings.aggregate_trade_collector_enabled:
+            aggregate_trade_collector = AggregateTradeCollector(
+                store=aggregate_trade_store,
+                jobs_json=settings.aggregate_trade_collector_jobs,
+            )
+            _start_collector_with_lease("aggregate-trades:all", aggregate_trade_collector)
+        if settings.derivatives_collector_enabled:
+            derivatives_collector = DerivativesHistoryCollector(
+                funding_store=funding_rate_store,
+                open_interest_store=open_interest_store,
+                provider_factory=get_futures_provider,
+                jobs_json=settings.derivatives_collector_jobs,
+                poll_seconds=settings.derivatives_collector_poll_seconds,
+                funding_limit=settings.derivatives_collector_funding_limit,
+                open_interest_limit=settings.derivatives_collector_open_interest_limit,
+            )
+            _start_collector_with_lease("derivatives-history:all", derivatives_collector)
+        if settings.historical_collector_enabled:
+            historical_collector = HistoricalKlineCollector(
+                store=historical_kline_store,
+                spot_provider_factory=get_spot_provider,
+                futures_provider_factory=get_futures_provider,
+                jobs_json=settings.historical_collector_jobs,
+                poll_seconds=settings.historical_collector_poll_seconds,
+                initial_limit=settings.historical_collector_initial_limit,
+            )
+            _start_collector_with_lease(
+                "historical-klines:all",
+                historical_collector,
+                historical_kline_store.database_url or settings.database_url,
+            )
         yield
     finally:
-        if order_book_collector is not None:
-            await _stop_collector_with_lease("order-book:all", order_book_collector)
-            order_book_collector = None
-        if aggregate_trade_collector is not None:
-            await _stop_collector_with_lease("aggregate-trades:all", aggregate_trade_collector)
-            aggregate_trade_collector = None
-        if derivatives_collector is not None:
-            await _stop_collector_with_lease("derivatives-history:all", derivatives_collector)
-            derivatives_collector = None
-        if settings.historical_collector_enabled and historical_collector is not None:
-            await _stop_collector_with_lease("historical-klines:all", historical_collector)
-            historical_collector = None
-        if settings.liquidation_collector_enabled:
-            await _stop_collector_with_lease("liquidation:all", liquidation_collector)
+        # Attempt every shutdown even if one collector's stop routine fails.
+        shutdown_errors: list[Exception] = []
+        collectors = [
+            ("order-book:all", order_book_collector, "order_book"),
+            ("aggregate-trades:all", aggregate_trade_collector, "aggregate_trade"),
+            ("derivatives-history:all", derivatives_collector, "derivatives"),
+            ("historical-klines:all", historical_collector, "historical"),
+            ("liquidation:all", liquidation_collector if settings.liquidation_collector_enabled else None, "liquidation"),
+        ]
+        for name, collector, kind in collectors:
+            if collector is None:
+                continue
+            try:
+                await _stop_collector_with_lease(name, collector)
+            except Exception as exc:
+                shutdown_errors.append(exc)
+            finally:
+                if kind == "order_book":
+                    order_book_collector = None
+                elif kind == "aggregate_trade":
+                    aggregate_trade_collector = None
+                elif kind == "derivatives":
+                    derivatives_collector = None
+                elif kind == "historical":
+                    historical_collector = None
+        if shutdown_errors:
+            raise RuntimeError(
+                f"{len(shutdown_errors)} collector(s) failed to stop cleanly"
+            ) from shutdown_errors[0]
 
 
 app = FastAPI(

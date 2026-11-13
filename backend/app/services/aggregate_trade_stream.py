@@ -6,6 +6,7 @@ import logging
 import math
 import sqlite3
 import psycopg
+from app.services.collector_leases import assert_current_collector_lease
 from psycopg.rows import dict_row
 from datetime import datetime, timezone
 from pathlib import Path
@@ -102,6 +103,7 @@ class AggregateTradeStore:
     def insert(self, row: dict[str, Any]) -> None:
         if self.database_url:
             with self._connect_postgres() as db:
+                assert_current_collector_lease(db, "aggregate-trades:all")
                 db.execute("""
                     INSERT INTO public.aggregate_trades (
                         market, symbol, trade_id, event_time_ms, trade_time_ms,
