@@ -350,3 +350,23 @@ def test_expired_lease_is_rejected_even_when_transaction_started_before_expiry()
                 "DELETE FROM public.collector_leases WHERE collector_name=%s",
                 (collector_name,),
             )
+
+
+@pytest.mark.asyncio
+async def test_lease_context_propagates_to_collector_tasks_and_worker_threads():
+    lease = CollectorLeaseContext(
+        "aggregate-trades:all", "owner-context-propagation", 42
+    )
+    context_token = ACTIVE_COLLECTOR_LEASE.set(lease)
+    try:
+        async def read_in_task():
+            task_lease = ACTIVE_COLLECTOR_LEASE.get()
+            thread_lease = await asyncio.to_thread(ACTIVE_COLLECTOR_LEASE.get)
+            return task_lease, thread_lease
+
+        task = asyncio.create_task(read_in_task())
+        task_lease, thread_lease = await task
+        assert task_lease == lease
+        assert thread_lease == lease
+    finally:
+        ACTIVE_COLLECTOR_LEASE.reset(context_token)
