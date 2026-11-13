@@ -320,7 +320,7 @@ def test_dashboard_escape_html_helper_runs_in_node_runtime():
         process.stdin.setEncoding("utf8");
         process.stdin.on("data", chunk => source += chunk);
         process.stdin.on("end", () => {
-          const match = source.match(/<script>([\\s\\S]*?)<\\/script>/i);
+          const match = source.match(/<script>([\s\S]*?)<\/script>/i);
           assert.ok(match, "dashboard inline script missing");
           const document = {
             getElementById() {
@@ -335,11 +335,11 @@ def test_dashboard_escape_html_helper_runs_in_node_runtime():
             fetch: async () => { throw new Error("unexpected fetch"); }
           };
           vm.runInNewContext(
-            match[1] + "\\nglobalThis.__escapeHtmlForTest = escapeHtml;",
+            match[1] + "\nglobalThis.__escapeHtmlForTest = escapeHtml;",
             context
           );
           assert.equal(
-            context.__escapeHtmlForTest("<div class=\\"x\\">&'\\\"</div>"),
+            context.__escapeHtmlForTest("<div class=\"x\">&'\\"</div>"),
             "&lt;div class=&quot;x&quot;&gt;&amp;&#39;&quot;&lt;/div&gt;"
           );
         });
