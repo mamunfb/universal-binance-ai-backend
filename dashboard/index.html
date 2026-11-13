@@ -85,27 +85,40 @@ $('scanMarkets').onclick=async()=>{try{
   $('raw').textContent=JSON.stringify(result,null,2);
 }catch(e){$('scannerStatus').textContent='Scanner error: '+e.message;}};
 
-$('refreshReadiness').onclick=async()=>{try{
+$('refreshReadiness').onclick=async()=>{
  $('readinessStatus').textContent='Checking backend readiness…';
  $('readinessSummary').innerHTML='';$('readinessMarket').innerHTML='';$('readinessCapabilities').innerHTML='';$('readinessPhases').innerHTML='';$('readinessLimitations').innerHTML='';
- const [preflight,phase]=await Promise.all([
+ $('raw').textContent='Loading readiness responses…';
+ const results=await Promise.allSettled([
   call('/api/v1/research/preflight'),
   call('/api/v1/research/phase-readiness')
  ]);
- if(!isRecord(preflight)||!isRecord(phase))throw Error('Readiness API returned an unexpected response shape');
- const market=asRecord(preflight.market_data),caps=asRecord(preflight.capabilities);
- const statusClass=s=>s==='AVAILABLE'||s==='CONFIGURED'?'status-good':s==='PARTIAL'?'status-warn':'status-warn';
- const marketRows=[['Binance Spot',market.spot],['Binance USDⓈ-M',market.usdm],['Binance COIN-M',market.coinm]];
- $('readinessMarket').innerHTML=marketRows.map(([label,item])=>{const x=asRecord(item);return '<div class="panel"><b>'+escapeHtml(label)+'</b><p class="'+statusClass(x.status)+'">'+escapeHtml(x.status||'UNKNOWN')+'</p><small>Symbols: '+escapeHtml(x.symbol_count??'—')+'</small>'+(x.error_type?'<small>Error: '+escapeHtml(x.error_type)+'</small>':'')+'</div>'}).join('');
- $('readinessCapabilities').innerHTML=Object.entries(caps).map(([name,value])=>'<div class="panel"><small>'+escapeHtml(name.replaceAll('_',' '))+'</small><p>'+escapeHtml(value??'—')+'</p></div>').join('');
- const phases=Array.isArray(phase.phases)?phase.phases:[];
- const validPhases=phases.filter(isRecord);
- if(phase.phase_count!==undefined&&Number.isSafeInteger(phase.phase_count)&&phase.phase_count!==phases.length)throw Error('Phase count does not match the returned phase list');
- $('readinessSummary').innerHTML=[['Overall readiness',phase.status??'UNKNOWN'],['Phase count',safeCount(phase.phase_count)],['Completed phases',safeCount(phase.completed_phase_count)],['Execution claimed',phase.execution_claim===true?'YES':phase.execution_claim===false?'NO':'NOT REPORTED']].map(([label,value])=>'<div class="panel"><small>'+escapeHtml(label)+'</small><div class="metric">'+escapeHtml(value)+'</div></div>').join('')+(phase.important_rule?'<p>'+escapeHtml(phase.important_rule)+'</p>':'');
- $('readinessPhases').innerHTML='<h3>Phase readiness ('+validPhases.length+' reported)</h3>'+ (phases.length?'<div style="overflow-x:auto"><table><thead><tr><th>Phase</th><th>Status</th><th>Missing requirements</th></tr></thead><tbody>'+validPhases.map(x=>'<tr><td>'+escapeHtml(x.phase_number??'—')+'. '+escapeHtml(x.phase_name??'Unnamed phase')+'</td><td>'+escapeHtml(x.readiness??'UNKNOWN')+'</td><td>'+escapeHtml(x.gap??'No gap detail reported')+'</td></tr>').join('')+'</tbody></table></div>':'<p>Phase response schema did not include a phases array; raw status is available below.</p>');
- const limits=Array.isArray(preflight.limitations)?preflight.limitations:[];
- $('readinessLimitations').innerHTML=limits.length?'<h3>Known limitations</h3><ul>'+limits.map(x=>'<li>'+escapeHtml(x)+'</li>').join('')+'</ul>':'';
- $('readinessStatus').textContent='Checked: '+escapeHtml(preflight.generated_at_utc||'time not reported')+' · Trading enabled: '+escapeHtml(preflight.trading_enabled??'not reported');
- $('raw').textContent=JSON.stringify({preflight,phase_readiness:phase},null,2);
-}catch(e){$('readinessStatus').textContent='Readiness check failed: '+e.message;}};
+ const preflightResult=results[0],phaseResult=results[1];
+ const preflight=preflightResult.status==='fulfilled'&&isRecord(preflightResult.value)?preflightResult.value:null;
+ const phase=phaseResult.status==='fulfilled'&&isRecord(phaseResult.value)?phaseResult.value:null;
+ const errors=[];
+ if(!preflight)errors.push('Preflight: '+(preflightResult.status==='rejected'?preflightResult.reason?.message||'request failed':'unexpected response shape'));
+ if(!phase)errors.push('Phase readiness: '+(phaseResult.status==='rejected'?phaseResult.reason?.message||'request failed':'unexpected response shape'));
+ if(preflight){
+  const market=asRecord(preflight.market_data),caps=asRecord(preflight.capabilities);
+  const statusClass=s=>s==='AVAILABLE'||s==='CONFIGURED'?'status-good':s==='PARTIAL'?'status-warn':'status-warn';
+  const marketRows=[['Binance Spot',market.spot],['Binance USDⓈ-M',market.usdm],['Binance COIN-M',market.coinm]];
+  $('readinessMarket').innerHTML=marketRows.map(([label,item])=>{const x=asRecord(item);return '<div class="panel"><b>'+escapeHtml(label)+'</b><p class="'+statusClass(x.status)+'">'+escapeHtml(x.status||'UNKNOWN')+'</p><small>Symbols: '+escapeHtml(x.symbol_count??'—')+'</small>'+(x.error_type?'<small>Error: '+escapeHtml(x.error_type)+'</small>':'')+'</div>'}).join('');
+  $('readinessCapabilities').innerHTML=Object.entries(caps).map(([name,value])=>'<div class="panel"><small>'+escapeHtml(name.replaceAll('_',' '))+'</small><p>'+escapeHtml(value??'—')+'</p></div>').join('');
+  const limits=Array.isArray(preflight.limitations)?preflight.limitations:[];
+  $('readinessLimitations').innerHTML=limits.length?'<h3>Known limitations</h3><ul>'+limits.map(x=>'<li>'+escapeHtml(x)+'</li>').join('')+'</ul>':'';
+ }
+ if(phase){
+  const phases=Array.isArray(phase.phases)?phase.phases:[];
+  const validPhases=phases.filter(isRecord);
+  if(phase.phase_count!==undefined&&Number.isSafeInteger(phase.phase_count)&&phase.phase_count!==phases.length){
+   errors.push('Phase count does not match the returned phase list');
+  }else{
+   $('readinessSummary').innerHTML=[['Overall readiness',phase.status??'UNKNOWN'],['Phase count',safeCount(phase.phase_count)],['Completed phases',safeCount(phase.completed_phase_count)],['Execution claimed',phase.execution_claim===true?'YES':phase.execution_claim===false?'NO':'NOT REPORTED']].map(([label,value])=>'<div class="panel"><small>'+escapeHtml(label)+'</small><div class="metric">'+escapeHtml(value)+'</div></div>').join('')+(phase.important_rule?'<p>'+escapeHtml(phase.important_rule)+'</p>':'');
+   $('readinessPhases').innerHTML='<h3>Phase readiness ('+validPhases.length+' reported)</h3>'+ (phases.length?'<div style="overflow-x:auto"><table><thead><tr><th>Phase</th><th>Status</th><th>Missing requirements</th></tr></thead><tbody>'+validPhases.map(x=>'<tr><td>'+escapeHtml(x.phase_number??'—')+'. '+escapeHtml(x.phase_name??'Unnamed phase')+'</td><td>'+escapeHtml(x.readiness??'UNKNOWN')+'</td><td>'+escapeHtml(x.gap??'No gap detail reported')+'</td></tr>').join('')+'</tbody></table></div>':'<p>Phase response schema did not include a phases array; raw status is available below.</p>');
+  }
+ }
+ $('raw').textContent=JSON.stringify({preflight:preflight||{error:errors.find(x=>x.startsWith('Preflight'))||'Unavailable'},phase_readiness:phase||{error:errors.find(x=>x.startsWith('Phase readiness'))||'Unavailable'}},null,2);
+ $('readinessStatus').textContent=errors.length?'Partial readiness result — '+errors.join(' · '):'Checked: '+escapeHtml(preflight.generated_at_utc||'time not reported')+' · Trading enabled: '+escapeHtml(preflight.trading_enabled??'not reported');
+};
 </script></body></html>
