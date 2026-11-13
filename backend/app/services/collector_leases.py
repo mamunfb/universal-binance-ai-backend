@@ -64,7 +64,7 @@ class CollectorLeaseStore:
                     owner_token = EXCLUDED.owner_token,
                     lease_expires_at = clock_timestamp() + (%s * INTERVAL '1 second'),
                     updated_at = clock_timestamp()
-                WHERE public.collector_leases.lease_expires_at <= NOW()
+                WHERE public.collector_leases.lease_expires_at <= clock_timestamp()
                    OR public.collector_leases.owner_token = EXCLUDED.owner_token
                 RETURNING collector_name
                 """,
