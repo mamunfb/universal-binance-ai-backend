@@ -614,6 +614,7 @@ def test_cross_chain_token_intelligence_does_not_disclose_rpc_exception(monkeypa
     async def fake_flows(*args, **kwargs):
         return {
             "chains": [{
+                "status": "INCOMPLETE",
                 "chain_id": 1,
                 "contract_address": "0x" + "1" * 40,
                 "coverage": {"complete": False, "gaps": []},
