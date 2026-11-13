@@ -1,3 +1,5 @@
+import pytest
+
 from app.services.market_confluence_store import MarketConfluenceStore
 
 def test_snapshot_save_is_idempotent(tmp_path):
