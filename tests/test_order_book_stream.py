@@ -1,3 +1,4 @@
+import asyncio
 import json
 import sqlite3
 
@@ -104,9 +105,5 @@ def test_reader_shutdown_signal_preserves_existing_items_when_queue_has_space():
 
     OrderBookStreamCollector._signal_reader_closed(queue)
 
-    assert awaitable_not_used(queue.get_nowait()) == {"u": 101}
+    assert queue.get_nowait() == {"u": 101}
     assert queue.get_nowait() is None
-
-
-def awaitable_not_used(value):
-    return value
