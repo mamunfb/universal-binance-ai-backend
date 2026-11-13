@@ -73,6 +73,12 @@ def test_dashboard_api_runtime_auth_transport_and_errors():
           assert.equal(requests[1].options.headers["Content-Type"], "application/json",
             "caller-supplied headers must not override the JSON content type");
 
+          response = { ok: true, status: 200, json: async () => null };
+          await assert.rejects(call("/api/v1/research/preflight"), /invalid JSON object/);
+          response = { ok: true, status: 200, json: async () => [] };
+          await assert.rejects(call("/api/v1/research/preflight"), /invalid JSON object/);
+          response = { ok: true, status: 200, json: async () => ({ ready: true }) };
+
           fetchError = Error("network unavailable");
           await assert.rejects(call("/api/v1/research/preflight"), /network unavailable/);
           fetchError = null;
