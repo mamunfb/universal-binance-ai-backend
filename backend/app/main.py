@@ -157,6 +157,9 @@ async def lifespan(_: FastAPI):
             await liquidation_collector.stop()
 
 
+AI_CLIENT_NAMES = ("chatgpt", "gemini", "manus", "claude", "perplexity")
+
+
 app = FastAPI(
     lifespan=lifespan,
     title=settings.app_name,
@@ -218,7 +221,7 @@ async def request_tracking_middleware(request: Request, call_next):
             isinstance(client_keys, dict)
             and all(
                 isinstance(client_keys.get(name), str) and len(client_keys[name]) >= 32
-                for name in ("chatgpt", "gemini", "manus", "claude", "perplexity")
+                for name in AI_CLIENT_NAMES
             )
         )
         has_valid_owner_key = isinstance(configured_key, str) and len(configured_key) >= 32
@@ -245,8 +248,9 @@ async def request_tracking_middleware(request: Request, call_next):
             matched_client = None
             if scheme.lower() == "bearer" and supplied_key:
                 if isinstance(client_keys, dict):
-                    for client_name, client_key in client_keys.items():
-                        if hmac.compare_digest(
+                    for client_name in AI_CLIENT_NAMES:
+                        client_key = client_keys.get(client_name)
+                        if isinstance(client_key, str) and hmac.compare_digest(
                             supplied_key.encode("utf-8"), client_key.encode("utf-8")
                         ):
                             matched_client = client_name
