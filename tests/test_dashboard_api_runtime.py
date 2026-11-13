@@ -44,7 +44,7 @@ def test_dashboard_api_runtime_auth_transport_and_errors():
           await assert.rejects(call("/api/v1/research/preflight"), /Bearer API key/);
           assert.equal(requests.length, 0, "missing key must never make a request");
 
-          key.value = "private-test-key";
+          key.value = " private-test-key ";
           base.value = "http://api.example";
           await assert.rejects(call("/api/v1/research/preflight"), /HTTPS is required/);
           assert.equal(requests.length, 0, "insecure remote URL must never make a request");
@@ -60,8 +60,13 @@ def test_dashboard_api_runtime_auth_transport_and_errors():
           assert.equal(requests[0].options.body, undefined, "read-only dashboard requests must not send an implicit body");
 
           await call("/api/v1/research/preflight", {
+            method: "POST",
+            body: JSON.stringify({ confirm: true }),
             headers: { Authorization: "Bearer caller-override", "Content-Type": "text/plain" }
           });
+          assert.equal(requests[1].options.method, "POST", "explicit request methods must be preserved");
+          assert.equal(requests[1].options.body, JSON.stringify({ confirm: true }),
+            "explicit request bodies must be preserved");
           assert.equal(requests[1].options.headers.Authorization, "Bearer private-test-key",
             "caller-supplied headers must not override the dashboard API key");
           assert.equal(requests[1].options.headers["Content-Type"], "application/json",
