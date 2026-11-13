@@ -24,6 +24,7 @@ jobs:
     timeout-minutes: 20
     env:
       TEST_DATABASE_URL: ${{ secrets.NEON_STAGING_TEST_DATABASE_URL }}
+      TARGET_CONFIRMATION: ${{ inputs.target_confirmation }}
     steps:
       - name: Check out the staging-test branch
         uses: actions/checkout@v4
@@ -42,6 +43,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          if [[ "${TARGET_CONFIRMATION:-}" != "render-staging-backend" ]]; then
+            echo "::error::Explicit staging-branch confirmation is required."
+            exit 1
+          fi
           if [[ -z "${TEST_DATABASE_URL:-}" ]]; then
             echo "::error::Missing repository Actions secret NEON_STAGING_TEST_DATABASE_URL."
             exit 1
