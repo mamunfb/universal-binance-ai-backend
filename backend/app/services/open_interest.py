@@ -4,6 +4,7 @@ import math
 import sqlite3
 from decimal import Decimal, InvalidOperation
 import psycopg
+from app.services.collector_leases import assert_current_collector_lease
 from psycopg.rows import dict_row
 from datetime import datetime, timezone
 from pathlib import Path
@@ -111,6 +112,7 @@ class OpenInterestStore:
                   for timestamp, amount, value, supply in normalized]
         if self.database_url:
             with self._connect_postgres() as connection:
+                assert_current_collector_lease(connection, "derivatives-history:all")
                 connection.cursor().executemany("""
                     INSERT INTO public.historical_open_interest (
                         market, symbol, period, timestamp_ms, sum_open_interest,
