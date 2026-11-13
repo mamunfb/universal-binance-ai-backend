@@ -309,3 +309,20 @@ def test_dashboard_readiness_escapes_provider_and_phase_data():
     assert "escapeHtml(x.readiness??'UNKNOWN')" in html
     assert "escapeHtml(x.gap??'No gap detail reported')" in html
     assert "escapeHtml(x)" in html
+
+
+def test_dashboard_quality_summary_counts_actual_statuses_and_shows_limitations():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert 'id="qualityLimitations"' in html
+    assert "const counts=Object.create(null)" in html
+    assert "Object.entries(counts).map(([state,count])=>['Status '+state,count])" in html
+    assert "Array.isArray(r.limitations)&&r.limitations.length" in html
+    assert "r.limitations.map(item=>'<li>'+escapeHtml(item)" in html
+
+
+def test_dashboard_quality_handles_missing_candle_object_and_unknown_status():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "const candle=asRecord(sources.historical_klines)" in html
+    assert "candle.status??'UNKNOWN'" in html
+    assert "candle.freshness??'UNKNOWN'" in html
+    assert "typeof x.status==='string'?x.status:'UNKNOWN'" in html
