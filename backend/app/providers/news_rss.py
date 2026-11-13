@@ -49,8 +49,23 @@ def _parse_datetime(value: str | None) -> str | None:
     return parsed.astimezone(timezone.utc).isoformat()
 
 
+def _public_source_url(source_url: str) -> str:
+    """Remove URL userinfo, query parameters, and fragments before returning feed metadata."""
+    parsed = urlparse(source_url)
+    hostname = parsed.hostname or ""
+    if ":" in hostname and not hostname.startswith("["):
+        hostname = f"[{hostname}]"
+    try:
+        port = parsed.port
+    except ValueError:
+        port = None
+    netloc = f"{hostname}:{port}" if port is not None else hostname
+    return parsed._replace(netloc=netloc, query="", fragment="").geturl()
+
+
 def parse_feed(xml_content: str, source_name: str, source_url: str) -> list[dict[str, Any]]:
     """Parse common RSS 2.0 and Atom feed entries without executing feed content."""
+    public_source_url = _public_source_url(source_url)
     root = ET.fromstring(xml_content)
     items = [
         node for node in root.iter()
@@ -76,7 +91,7 @@ def parse_feed(xml_content: str, source_name: str, source_url: str) -> list[dict
             "summary": summary[:4000] if summary else None,
             "published_at": _parse_datetime(published),
             "source_name": source_name,
-            "source_url": source_url,
+            "source_url": public_source_url,
         })
     return parsed_items
 
