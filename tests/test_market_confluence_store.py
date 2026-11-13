@@ -191,3 +191,16 @@ def test_get_snapshot_rejects_invalid_query_types(tmp_path, market, symbol, snap
     store = MarketConfluenceStore(str(tmp_path / "snapshots.sqlite3"))
     with pytest.raises(ValueError):
         store.get_snapshot(market, symbol, snapshot_id)
+
+
+def test_snapshot_rejects_negative_reference_close_timestamp(tmp_path):
+    store = MarketConfluenceStore(str(tmp_path / "snapshots.sqlite3"))
+    payload = {
+        "market": "USD_M", "symbol": "BTCUSDT", "interval": "1h",
+        "analyzed_at_ms": 1000,
+        "confluence": {"bias": "BULLISH"},
+        "reference": {"price": 100.0, "close_time_ms": -1},
+    }
+    with pytest.raises(ValueError, match="non-negative"):
+        store.save(payload)
+    assert store.history("USD_M", "BTCUSDT", "1h")["returned_count"] == 0
