@@ -359,18 +359,34 @@ def test_private_api_rejects_unauthenticated_write_and_collection_endpoints(monk
     monkeypatch.setattr(settings, "app_env", "development")
     monkeypatch.setattr(settings, "personal_api_key", "test-owner-key-with-enough-entropy")
     monkeypatch.setattr(settings, "ai_client_api_keys", "{}")
-    snapshot = client.post(
-        "/api/v1/history/market-confluence/snapshots",
-        json={"status": "COMPLETED"},
-    )
-    collection = client.post(
-        "/api/v1/history/klines/SPOT/BTCUSDT/collect",
-        params={"interval": "1h", "limit": 1},
-    )
-    assert snapshot.status_code == 401
-    assert collection.status_code == 401
-    assert snapshot.json()["error"]["code"] == "UNAUTHORIZED"
-    assert collection.json()["error"]["code"] == "UNAUTHORIZED"
+    requests = [
+        client.post(
+            "/api/v1/history/market-confluence/snapshots",
+            json={"status": "COMPLETED"},
+        ),
+        client.post(
+            "/api/v1/history/funding-rates/USD_M/BTCUSDT/collect",
+            params={"limit": 1},
+        ),
+        client.post(
+            "/api/v1/history/open-interest/USD_M/BTCUSDT/collect",
+            params={"limit": 1},
+        ),
+        client.post(
+            "/api/v1/history/derivatives-ratios/USD_M/global_long_short_account/BTCUSDT/collect",
+            params={"limit": 1},
+        ),
+        client.post(
+            "/api/v1/history/klines/SPOT/BTCUSDT/collect",
+            params={"interval": "1h", "limit": 1},
+        ),
+        client.post(
+            "/api/v1/onchain/evm/token/0x1111111111111111111111111111111111111111/index",
+            json={"from_block": 1, "to_block": 2},
+        ),
+    ]
+    assert [response.status_code for response in requests] == [401] * 6
+    assert all(response.json()["error"]["code"] == "UNAUTHORIZED" for response in requests)
 
 
 def test_malformed_client_key_configuration_fails_closed_without_owner_key(monkeypatch):
