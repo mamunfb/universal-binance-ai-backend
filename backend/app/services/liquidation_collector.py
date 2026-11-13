@@ -135,27 +135,61 @@ class LiquidationStore:
                 values,
             )
 
+    def history(
+        self, symbol: str | None = None, limit: int = 100,
+        start_time_ms: int | None = None, end_time_ms: int | None = None,
+    ) -> list[dict[str, Any]]:
+        if not 1 <= limit <= 20000:
+            raise ValueError("limit must be between 1 and 20000")
+        if start_time_ms is not None and start_time_ms < 0:
+            raise ValueError("start_time_ms must be non-negative")
+        if end_time_ms is not None and end_time_ms < 0:
+            raise ValueError("end_time_ms must be non-negative")
+        if start_time_ms is not None and end_time_ms is not None and end_time_ms < start_time_ms:
+            raise ValueError("end_time_ms must be >= start_time_ms")
+
+        columns = (
+            "event_time_ms, trade_time_ms, symbol, pair_symbol, market_type, side, "
+            "status, average_price, cumulative_filled_quantity, approx_cumulative_notional"
+        )
+        if self.database_url:
+            clauses: list[str] = []
+            params: list[Any] = []
+            if symbol:
+                clauses.append("symbol=%s"); params.append(symbol.upper())
+            if start_time_ms is not None:
+                clauses.append("event_time_ms >= %s"); params.append(start_time_ms)
+            if end_time_ms is not None:
+                clauses.append("event_time_ms <= %s"); params.append(end_time_ms)
+            query = "SELECT " + columns + " FROM public.liquidation_events"
+            if clauses:
+                query += " WHERE " + " AND ".join(clauses)
+            query += " ORDER BY event_time_ms DESC, id DESC LIMIT %s"
+            params.append(limit)
+            with self._connect_postgres() as connection:
+                return [dict(row) for row in connection.execute(query, params).fetchall()]
+
+        clauses = []
+        params_sql: list[Any] = []
+        if symbol:
+            clauses.append("symbol=?"); params_sql.append(symbol.upper())
+        if start_time_ms is not None:
+            clauses.append("event_time_ms>=?"); params_sql.append(start_time_ms)
+        if end_time_ms is not None:
+            clauses.append("event_time_ms<=?"); params_sql.append(end_time_ms)
+        query = "SELECT " + columns + " FROM liquidation_events"
+        if clauses:
+            query += " WHERE " + " AND ".join(clauses)
+        query += " ORDER BY event_time_ms DESC, id DESC LIMIT ?"
+        params_sql.append(limit)
+        with sqlite3.connect(self.database_path) as connection:
+            connection.row_factory = sqlite3.Row
+            return [dict(row) for row in connection.execute(query, params_sql)]
+
     def recent(self, symbol: str | None = None, limit: int = 100) -> list[dict[str, Any]]:
         if not 1 <= limit <= 1000:
             raise ValueError("limit must be between 1 and 1000")
-        if self.database_url:
-            query = "SELECT event_time_ms, trade_time_ms, symbol, pair_symbol, market_type, side, status, average_price, cumulative_filled_quantity, approx_cumulative_notional FROM public.liquidation_events"
-            params: list[Any] = []
-            if symbol:
-                query += " WHERE symbol=%s"; params.append(symbol.upper())
-            query += " ORDER BY event_time_ms DESC, id DESC LIMIT %s"; params.append(limit)
-            with self._connect_postgres() as connection:
-                return [dict(row) for row in connection.execute(query, params).fetchall()]
-        query = "SELECT event_time_ms, trade_time_ms, symbol, pair_symbol, market_type, side, status, average_price, cumulative_filled_quantity, approx_cumulative_notional FROM liquidation_events"
-        params: tuple[Any, ...] = ()
-        if symbol:
-            query += " WHERE symbol = ?"
-            params = (symbol.upper(),)
-        query += " ORDER BY event_time_ms DESC LIMIT ?"
-        params = (*params, limit)
-        with sqlite3.connect(self.database_path) as connection:
-            connection.row_factory = sqlite3.Row
-            return [dict(row) for row in connection.execute(query, params).fetchall()]
+        return self.history(symbol=symbol, limit=limit)
 
     def count(self) -> int:
         if self.database_url:
@@ -229,4 +263,12 @@ class LiquidationCollector:
             "last_message_at": self.last_message_at,
             "last_error": self.last_error,
             "status": "CONNECTED" if self.connected else "DISCONNECTED_OR_STARTING",
+            "coverage_warning": (
+                "Binance publishes at most the latest force-order snapshot per symbol per 1000ms; "
+                "this feed is not a complete liquidation tape or historical archive."
+            ),
+            "deduplication": (
+                "Not applied: the documented public forceOrder payload has no stable event/order ID, "
+                "so heuristic deduplication could discard distinct snapshots."
+            ),
         }
