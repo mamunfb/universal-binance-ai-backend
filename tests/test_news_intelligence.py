@@ -70,3 +70,29 @@ async def test_no_sources_is_blocked_not_empty_success():
     result = await collect_news_intelligence(RSSNewsProvider(), [], ["BTC"])
     assert result["status"] == "BLOCKED"
     assert result["returned_count"] == 0
+
+async def test_rss_provider_failure_does_not_disclose_upstream_url_or_credentials():
+    secret_url = "https://rpc-user:rpc-password@feeds.example.test/rss?token=feed-secret"
+
+    def fail_with_url(request):
+        raise httpx.ConnectError(
+            f"connection failed for {secret_url}; request={request.url}",
+            request=request,
+        )
+
+    transport = httpx.MockTransport(fail_with_url)
+    async with httpx.AsyncClient(transport=transport) as client:
+        fetched = await RSSNewsProvider().collect(
+            [{"name": "PrivateFeed", "url": secret_url}], client=client
+        )
+
+    assert fetched["failed_sources"] == 1
+    assert fetched["failures"] == [{
+        "source": "PrivateFeed",
+        "error": "FEED_FETCH_FAILED",
+        "error_type": "ConnectError",
+    }]
+    serialized = str(fetched["failures"])
+    for secret in ("rpc-user", "rpc-password", "feed-secret", secret_url):
+        assert secret not in serialized
+\n
