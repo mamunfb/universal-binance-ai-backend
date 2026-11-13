@@ -208,7 +208,6 @@ def test_write_transaction_lock_blocks_expired_lease_takeover_until_commit():
         pytest.skip("TEST_DATABASE_URL is not configured")
 
     import threading
-    from concurrent.futures import TimeoutError as FutureTimeoutError
 
     store = CollectorLeaseStore(database_url)
     collector_name = f"test-fencing-lock-{uuid.uuid4().hex}"
@@ -222,27 +221,54 @@ def test_write_transaction_lock_blocks_expired_lease_takeover_until_commit():
 
         # Keep the authorized write transaction open until the lease expires.
         time.sleep(5.2)
-        acquire_started = threading.Event()
 
-        def acquire_new_owner():
-            acquire_started.set()
-            return store.acquire(collector_name, new_owner, 30)
+        takeover_connection_ready = threading.Event()
+        takeover_backend_pid: dict[str, int] = {}
+        original_connect = store._connect
 
+        def tracked_connect():
+            takeover_connection = original_connect()
+            takeover_backend_pid["pid"] = takeover_connection.info.backend_pid
+            takeover_connection_ready.set()
+            return takeover_connection
+
+        # Observe the actual backend used by acquire(), without changing its SQL.
+        store._connect = tracked_connect
         with ThreadPoolExecutor(max_workers=1) as pool:
-            takeover = pool.submit(acquire_new_owner)
-            assert acquire_started.wait(timeout=1)
-            # The expired lease row is still protected by the write's FOR SHARE lock.
-            with pytest.raises(FutureTimeoutError):
-                takeover.result(timeout=0.3)
+            takeover = pool.submit(store.acquire, collector_name, new_owner, 30)
+            assert takeover_connection_ready.wait(timeout=3)
+            backend_pid = takeover_backend_pid["pid"]
+
+            # Confirm PostgreSQL reports a real blocking lock, not just a slow thread.
+            deadline = time.monotonic() + 5
+            blocking_pids: list[int] = []
+            while time.monotonic() < deadline:
+                with original_connect() as monitor:
+                    blocking_pids = monitor.execute(
+                        "SELECT pg_blocking_pids(%s)", (backend_pid,)
+                    ).fetchone()[0]
+                if blocking_pids:
+                    break
+                if takeover.done():
+                    break
+                time.sleep(0.025)
+
+            assert blocking_pids, (
+                "Expected PostgreSQL to report the takeover backend as blocked "
+                "by the open FOR SHARE write transaction"
+            )
+            assert takeover.done() is False
 
             connection.commit()
-            assert takeover.result(timeout=3) is True
+            assert takeover.result(timeout=5) is True
 
-        with store._connect() as check:
+        store._connect = original_connect
+        with original_connect() as check:
             with pytest.raises(CollectorLeaseLostError):
                 assert_collector_lease_owned(check, collector_name, old_owner)
             assert_collector_lease_owned(check, collector_name, new_owner)
     finally:
+        store._connect = original_connect if "original_connect" in locals() else store._connect
         if connection is not None:
             connection.rollback()
             connection.close()
@@ -297,6 +323,8 @@ def test_aggregate_trade_store_rejects_stale_lease_owner():
             trade_store.insert(row, old_owner)
 
         trade_store.insert(row, new_owner)
+        persisted = trade_store.recent("SPOT", symbol, limit=10)
+        assert any(item["trade_id"] == trade_id for item in persisted)
     finally:
         with psycopg.connect(database_url) as connection:
             connection.execute(
