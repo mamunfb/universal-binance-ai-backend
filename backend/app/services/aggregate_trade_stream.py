@@ -239,8 +239,8 @@ class AggregateTradeCollector:
         state = self.states.setdefault(key, {
             "market": market, "symbol": symbol, "connected": False,
             "received_count": 0, "reconnect_count": 0, "last_trade_at": None,
-            "last_error": None, "last_trade_id": None, "gap_count": 0,
-            "missing_trade_count": 0, "last_gap": None,
+            "last_error": None, "last_trade_id": None, "id_discontinuity_count": 0,
+            "id_gap_span_count": 0, "last_id_discontinuity": None,
         })
         delay = 1
         while True:
@@ -273,17 +273,18 @@ class AggregateTradeCollector:
 
     @staticmethod
     def _track_trade_id(state: dict[str, Any], trade_id: int) -> None:
-        """Record forward aggregate-trade ID gaps without inventing missing data."""
+        """Record forward aggregate-trade ID discontinuities, not confirmed data loss."""
         previous_id = state.get("last_trade_id")
         if previous_id is not None and trade_id > previous_id + 1:
-            missing = trade_id - previous_id - 1
-            state["gap_count"] = state.get("gap_count", 0) + 1
-            state["missing_trade_count"] = state.get("missing_trade_count", 0) + missing
-            state["last_gap"] = {
-                "expected_trade_id": previous_id + 1,
+            span = trade_id - previous_id - 1
+            state["id_discontinuity_count"] = state.get("id_discontinuity_count", 0) + 1
+            state["id_gap_span_count"] = state.get("id_gap_span_count", 0) + span
+            state["last_id_discontinuity"] = {
+                "previous_trade_id": previous_id,
                 "received_trade_id": trade_id,
-                "missing_trade_count": missing,
+                "id_gap_span": span,
                 "detected_at": datetime.now(timezone.utc).isoformat(),
+                "interpretation": "ID_DISCONTINUITY_NOT_CONFIRMED_MISSING_TRADES",
             }
         if previous_id is None or trade_id > previous_id:
             state["last_trade_id"] = trade_id
@@ -294,12 +295,13 @@ class AggregateTradeCollector:
             "enabled": True, "job_count": len(jobs),
             "jobs": jobs,
             "stored_trade_count": self.store.count(),
-            "data_integrity_status": (
-                "GAP_DETECTED" if any(job.get("gap_count", 0) for job in jobs)
-                else "NO_GAP_OBSERVED"
+            "aggregate_trade_id_status": (
+                "ID_DISCONTINUITY_OBSERVED"
+                if any(job.get("id_discontinuity_count", 0) for job in jobs)
+                else "NO_ID_DISCONTINUITY_OBSERVED"
             ),
             "warning": (
                 "Aggregate trade collection starts on enablement; no earlier trade history is backfilled. "
-                "Detected ID gaps are reported but are not automatically backfilled."
+                "Forward ID discontinuities are diagnostic only and do not prove missing trades."
             ),
         }
