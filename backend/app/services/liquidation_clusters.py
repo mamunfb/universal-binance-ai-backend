@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import math
-import sqlite3
 from collections import defaultdict
-from pathlib import Path
 from typing import Any
 
 from app.services.liquidation_collector import LiquidationStore
@@ -36,24 +34,12 @@ class LiquidationClusterAnalysis:
         if not 1 <= min_events <= 1000:
             raise ValueError("min_events must be between 1 and 1000")
 
-        clauses = ["symbol=?"]
-        params: list[Any] = [symbol]
-        if start_time_ms is not None:
-            clauses.append("event_time_ms>=?")
-            params.append(start_time_ms)
-        if end_time_ms is not None:
-            clauses.append("event_time_ms<=?")
-            params.append(end_time_ms)
-        params.append(limit)
-        with sqlite3.connect(self.store.database_path) as connection:
-            connection.row_factory = sqlite3.Row
-            rows = connection.execute(
-                "SELECT event_time_ms, trade_time_ms, symbol, side, status, "
-                "average_price, cumulative_filled_quantity, approx_cumulative_notional "
-                "FROM liquidation_events WHERE " + " AND ".join(clauses) +
-                " ORDER BY event_time_ms DESC LIMIT ?", params,
-            ).fetchall()
-        events = [dict(row) for row in rows]
+        events = self.store.history(
+            symbol=symbol,
+            limit=limit,
+            start_time_ms=start_time_ms,
+            end_time_ms=end_time_ms,
+        )
         if not events:
             return {
                 "status": "NO_STORED_DATA", "symbol": symbol,
