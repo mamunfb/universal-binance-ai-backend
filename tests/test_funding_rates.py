@@ -31,6 +31,26 @@ def test_funding_store_upserts_same_event_idempotently(tmp_path):
 
 
 @pytest.mark.parametrize("row", [
+    event(timestamp=True),
+    event(rate=True),
+    event(mark=True),
+])
+def test_funding_store_rejects_boolean_values(tmp_path, row):
+    store = FundingRateStore(str(tmp_path / "funding.sqlite3"))
+    with pytest.raises(ValueError):
+        store.save("USD_M", "BTCUSDT", [row])
+    assert store.history("USD_M", "BTCUSDT")["returned_count"] == 0
+
+
+@pytest.mark.parametrize("timestamp", [1700000000000.5, "1700000000000.5", "1.0001e3"])
+def test_funding_store_rejects_fractional_timestamps(tmp_path, timestamp):
+    store = FundingRateStore(str(tmp_path / "funding.sqlite3"))
+    with pytest.raises(ValueError, match="timestamp"):
+        store.save("USD_M", "BTCUSDT", [event(timestamp=timestamp)])
+    assert store.history("USD_M", "BTCUSDT")["returned_count"] == 0
+
+
+@pytest.mark.parametrize("row", [
     {"fundingTime": -1, "fundingRate": "0.1"},
     {"fundingTime": 10, "fundingRate": "nan"},
     {"fundingTime": 10, "fundingRate": "0.1", "markPrice": "inf"},
@@ -63,14 +83,3 @@ def test_funding_history_validates_bounds_and_limit(tmp_path):
         store.history("USD_M", "BTCUSDT", 20, 10)
     with pytest.raises(ValueError, match="limit"):
         store.history("USD_M", "BTCUSDT", limit=5001)
-
-@pytest.mark.parametrize("row", [
-    event(timestamp=True),
-    event(rate=True),
-    event(mark=True),
-])
-def test_funding_store_rejects_boolean_values(tmp_path, row):
-    store = FundingRateStore(str(tmp_path / "funding.sqlite3"))
-    with pytest.raises(ValueError):
-        store.save("USD_M", "BTCUSDT", [row])
-    assert store.history("USD_M", "BTCUSDT")["returned_count"] == 0

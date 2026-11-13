@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import sqlite3
+from decimal import Decimal, InvalidOperation
 import psycopg
 from psycopg.rows import dict_row
 from datetime import datetime, timezone
@@ -51,15 +52,25 @@ class FundingRateStore:
             raise ValueError(f"Invalid funding {field}")
         return number
 
+    @staticmethod
+    def _integer(value: Any, field: str) -> int:
+        if isinstance(value, bool):
+            raise ValueError(f"Invalid {field}")
+        try:
+            number = Decimal(str(value))
+            if not number.is_finite() or number != number.to_integral_value():
+                raise ValueError
+            return int(number)
+        except (InvalidOperation, TypeError, ValueError, OverflowError) as exc:
+            raise ValueError(f"Invalid {field}") from exc
+
     @classmethod
     def _normalize(cls, row: Any) -> tuple[int, float, float | None]:
         if not isinstance(row, dict):
             raise ValueError("Malformed Binance funding row")
         try:
-            if isinstance(row["fundingTime"], bool):
-                raise ValueError
-            funding_time = int(row["fundingTime"])
-        except (KeyError, TypeError, ValueError, OverflowError) as exc:
+            funding_time = cls._integer(row["fundingTime"], "funding timestamp")
+        except KeyError as exc:
             raise ValueError("Invalid funding timestamp") from exc
         rate = cls._finite(row.get("fundingRate"), "rate")
         mark_raw = row.get("markPrice")

@@ -2499,7 +2499,10 @@ async def inspect_historical_kline_coverage(
     start_time_ms: int = Query(..., ge=0),
     end_time_ms: int = Query(..., ge=0),
 ) -> dict:
-    engine = HistoricalCoverageEngine(settings.historical_kline_database_path, database_url=settings.database_url)
+    engine = HistoricalCoverageEngine(
+        settings.historical_kline_database_path,
+        database_url=settings.historical_kline_database_url or settings.database_url,
+    )
     try:
         return await asyncio.to_thread(
             engine.inspect, market, symbol, interval, start_time_ms, end_time_ms

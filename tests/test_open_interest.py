@@ -41,6 +41,27 @@ def test_open_interest_periods_are_separate_series(tmp_path):
 
 
 @pytest.mark.parametrize("row", [
+    record(timestamp=True),
+    record(amount=True),
+    record(value=True),
+    record(supply=True),
+])
+def test_open_interest_store_rejects_boolean_values(tmp_path, row):
+    store = OpenInterestStore(str(tmp_path / "oi.sqlite3"))
+    with pytest.raises(ValueError):
+        store.save("USD_M", "BTCUSDT", "1h", [row])
+    assert store.history("USD_M", "BTCUSDT", "1h")["returned_count"] == 0
+
+
+@pytest.mark.parametrize("timestamp", [1700000000000.5, "1700000000000.5", "1.0001e3"])
+def test_open_interest_store_rejects_fractional_timestamps(tmp_path, timestamp):
+    store = OpenInterestStore(str(tmp_path / "oi.sqlite3"))
+    with pytest.raises(ValueError, match="timestamp"):
+        store.save("USD_M", "BTCUSDT", "1h", [record(timestamp=timestamp)])
+    assert store.history("USD_M", "BTCUSDT", "1h")["returned_count"] == 0
+
+
+@pytest.mark.parametrize("row", [
     {"symbol": "BTCUSDT", "timestamp": -1, "sumOpenInterest": "1", "sumOpenInterestValue": "2"},
     record(amount="nan"),
     record(value="inf"),
@@ -72,15 +93,3 @@ def test_open_interest_history_validates_period_bounds_and_limit(tmp_path):
         store.history("USD_M", "BTCUSDT", "1h", 20, 10)
     with pytest.raises(ValueError, match="limit"):
         store.history("USD_M", "BTCUSDT", "1h", limit=5001)
-
-@pytest.mark.parametrize("row", [
-    record(timestamp=True),
-    record(amount=True),
-    record(value=True),
-    record(supply=True),
-])
-def test_open_interest_store_rejects_boolean_values(tmp_path, row):
-    store = OpenInterestStore(str(tmp_path / "oi.sqlite3"))
-    with pytest.raises(ValueError):
-        store.save("USD_M", "BTCUSDT", "1h", [row])
-    assert store.history("USD_M", "BTCUSDT", "1h")["returned_count"] == 0
