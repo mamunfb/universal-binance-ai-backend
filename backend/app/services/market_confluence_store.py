@@ -44,7 +44,10 @@ class MarketConfluenceStore:
         market = str(payload.get("market", "")).upper()
         symbol = str(payload.get("symbol", "")).upper()
         interval = str(payload.get("interval", ""))
-        stamp = int(payload.get("analyzed_at_ms") or 0)
+        raw_stamp = payload.get("analyzed_at_ms")
+        if isinstance(raw_stamp, bool):
+            raise ValueError("Invalid analyzed_at_ms")
+        stamp = int(raw_stamp or 0)
         if market not in {"SPOT", "USD_M", "COIN_M"} or not symbol or not interval or stamp <= 0:
             raise ValueError("Snapshot requires valid market, symbol, interval and analyzed_at_ms")
         confluence = payload.get("confluence") or {}
@@ -54,10 +57,14 @@ class MarketConfluenceStore:
         alignment = str(confluence.get("alignment", "UNKNOWN"))
         reference = payload.get("reference") or {}
         price = reference.get("price")
+        if isinstance(price, bool):
+            raise ValueError("reference price must be numeric, not boolean")
         price = float(price) if price is not None else None
         if price is not None and (not math.isfinite(price) or price <= 0):
             raise ValueError("reference price must be finite and positive")
         close = reference.get("close_time_ms")
+        if isinstance(close, bool):
+            raise ValueError("Invalid reference close_time_ms")
         close = int(close) if close is not None and price is not None else None
         if price is not None and close is None:
             raise ValueError("reference close_time_ms is required with reference price")
