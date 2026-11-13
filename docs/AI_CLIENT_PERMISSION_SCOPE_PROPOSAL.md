@@ -100,3 +100,25 @@ Recommended follow-up tests (not yet implemented by this documentation change):
 1. Add/retain coverage that disabled flags start no collector tasks and that all collector shutdowns are attempted after an error or timeout.
 2. Status endpoints should distinguish disabled, starting, running, degraded, disconnected, and stopped states accurately.
 3. Keep the single collector-owner process requirement explicit until distributed coordination exists.
+
+
+## Distributed collector coordination design (not implemented)
+
+The current collectors are process-local asyncio tasks. Do not add a best-effort in-memory lock: it cannot coordinate separate Render instances or survive process restarts.
+
+Preferred deployment shape:
+1. Keep the public API web service collector-disabled.
+2. Run a separately managed collector worker process/service with explicit collector flags and the same durable PostgreSQL database.
+3. Initially enforce one worker instance operationally; do not scale it horizontally until a database-backed coordination protocol is implemented and tested.
+4. Expose worker health/status separately from API web-instance status, or store worker heartbeat/status in PostgreSQL with a worker identity and last-seen timestamp.
+
+If automatic failover or multiple worker replicas are later required, use a database-backed lease per collector job (or an explicitly chosen shared lease key), not an in-process mutex. The design must include:
+- atomic lease acquisition/renewal using database time and a unique process owner ID;
+- a bounded lease expiry and heartbeat interval with documented safety margin;
+- a monotonically increasing fencing token/epoch on each successful acquisition;
+- stop-and-relinquish behavior when renewal fails or ownership is lost;
+- write-side fencing where supported, so an expired former owner cannot continue persisting after a replacement takes ownership;
+- explicit behavior for database outage, clock skew (avoid application-clock comparisons), worker restart, and graceful shutdown;
+- integration tests with two independent worker instances contending for the same job, lease expiry/takeover, renewal failure, and stale-owner write rejection.
+
+Do not implement a lease until the database connection mode is confirmed to support the chosen locking/transaction semantics. In particular, a session-level advisory lock should not be assumed to work through a transaction-pooled database URL. The current deployment guide and Blueprint do not configure a dedicated worker service, and this proposal does not create one.
