@@ -637,3 +637,25 @@ def test_dashboard_performance_fraction_metrics_use_strict_percentage_formatter(
     for expression in expressions:
         assert f"pct({expression})" in performance_handler
         assert f"({expression}*100).toFixed(1)+'%'" not in performance_handler
+
+
+def test_dashboard_performance_confidence_intervals_and_regime_fractions_are_finite_checked():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    performance_handler = next(
+        line for line in html.splitlines() if "$('performance').onclick" in line
+    )
+    assert "const ciPct=ci=>!ci||!Number.isFinite(ci.lower)||!Number.isFinite(ci.upper)?'—':pct(ci.lower)+'–'+pct(ci.upper);" in performance_handler
+    for expression in (
+        "w.test_directional_positive_fraction_ci_95_wilson",
+        "f.test_directional_positive_fraction_ci_95_wilson",
+        "x.test_directional_positive_fraction_ci_95_wilson",
+        "g.positive_fraction_ci_95_wilson",
+        "x.positive_fraction_ci_95_wilson",
+    ):
+        assert f"ciPct({expression})" in performance_handler
+    for expression in (
+        "(g.early||{}).positive_fraction", "(g.late||{}).positive_fraction",
+        "(t.pre_transition||{}).positive_fraction",
+        "(t.post_transition||{}).positive_fraction",
+    ):
+        assert f"pct({expression})" in performance_handler
