@@ -4,6 +4,7 @@ import asyncio
 import os
 import uuid
 import time
+from threading import Event
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
@@ -238,8 +239,15 @@ def test_fenced_write_lock_blocks_expired_lease_takeover():
         assert_current_collector_lease(connection, collector_name)
         time.sleep(5.2)
 
+        attempt_started = Event()
+
+        def attempt_takeover():
+            attempt_started.set()
+            return store.acquire(collector_name, next_owner, 30)
+
         with ThreadPoolExecutor(max_workers=1) as pool:
-            takeover = pool.submit(store.acquire, collector_name, next_owner, 30)
+            takeover = pool.submit(attempt_takeover)
+            assert attempt_started.wait(timeout=1)
             time.sleep(0.25)
             assert takeover.done() is False
             connection.commit()
