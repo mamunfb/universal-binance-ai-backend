@@ -50,7 +50,7 @@ Render Free web services spin down after 15 minutes without inbound traffic and 
 
 ## Distributed background collector ownership
 
-Before enabling any background collector on a PostgreSQL deployment, apply all migrations in order, including `migrations/011_collector_leases.sql`, to the primary `DATABASE_URL`. The application does not run schema migrations automatically.
+Before enabling any background collector on a PostgreSQL deployment, apply all migrations in order, including `migrations/011_collector_leases.sql` and `migrations/012_collector_lease_fencing_generation.sql`, to the primary `DATABASE_URL`. The application does not run schema migrations automatically.
 
 All application instances that share collector data must use the same primary `DATABASE_URL`. Each collector group claims one PostgreSQL lease row before starting:
 - Liquidation stream: `liquidation:all`
@@ -61,9 +61,9 @@ All application instances that share collector data must use the same primary `D
 
 The coordinator uses PostgreSQL server time, a 30-second lease, a 10-second renewal heartbeat, and a 5-second retry interval. A process that cannot acquire a lease waits without starting that collector. Graceful shutdown stops the collector and releases its lease; after an abrupt process loss, another instance can take ownership after the lease expires. If lease acquisition or renewal fails, the coordinator fails closed and stops its collector rather than continuing without confirmed ownership. Collector status endpoints expose the coordination mode and state.
 
-SQLite/local development remains process-local and does not provide cross-process coordination. A configured PostgreSQL `DATABASE_URL` is required for distributed leases. If `HISTORICAL_KLINE_DATABASE_URL` points to a separate database, leases still live in the shared primary `DATABASE_URL`; all replicas must share that primary coordination database.
+Migration 012 adds a monotonically increasing fencing generation. Every PostgreSQL write performed by the five scheduled collector groups checks the active owner token, generation, and lease expiry in the same transaction as the data write. The check takes a row-level shared lock on the lease record, so a concurrent takeover cannot advance the generation until that write transaction commits. A paused old worker that resumes after takeover is rejected at the database write boundary, even if its in-memory task has not yet processed the lost-lease signal.
 
-**Safety limitation:** this lease coordinator prevents normal duplicate collector startup and supports failover, but it is not yet a fencing-token implementation. A severely paused or partitioned process could resume briefly after its lease expires before its worker is stopped. Keep one application instance for collector workloads until write-path fencing is added and verified; do not treat leases alone as proof of strict single-writer safety.
+SQLite/local development remains process-local and does not provide cross-process coordination or write fencing. A configured PostgreSQL `DATABASE_URL` is required for distributed leases. If `HISTORICAL_KLINE_DATABASE_URL` points to a separate database, leases still live in the shared primary `DATABASE_URL`; all replicas must share that primary coordination database. Manual API-triggered collection requests are not background lease owners; their writes continue through their endpoint-specific validation and upsert protections.
 
 ## Security
 
