@@ -83,6 +83,21 @@ class EVMTransferStore:
 
     def save_chunk(self, chain_id: int, contract: str, start: int, end: int,
                    logs: list[dict[str, Any]]) -> int:
+        # Keep direct store calls consistent across SQLite and PostgreSQL.
+        if isinstance(chain_id, bool) or not isinstance(chain_id, int) or chain_id <= 0:
+            raise ValueError("chain_id must be a positive integer")
+        if (not isinstance(contract, str) or len(contract) != 42 or
+                not contract.startswith("0x")):
+            raise ValueError("contract must be a 20-byte 0x-prefixed EVM address")
+        try:
+            int(contract[2:], 16)
+        except ValueError as exc:
+            raise ValueError("contract must be a valid hexadecimal EVM address") from exc
+        if (isinstance(start, bool) or not isinstance(start, int) or start < 0 or
+                isinstance(end, bool) or not isinstance(end, int) or end < start):
+            raise ValueError("block range must contain non-negative integers with end >= start")
+        if not isinstance(logs, list):
+            raise ValueError("logs must be a list")
         now = datetime.now(timezone.utc).isoformat()
         rows = []
         for log in logs:
