@@ -297,3 +297,63 @@ def test_history_store_count_none_none_returns_unfiltered_total(tmp_path):
     store = OrderBookHistoryStore(str(tmp_path / "book.sqlite3"))
     store.insert(_valid_store_row())
     assert store.count(None, None) == 1
+
+
+
+def test_postgres_history_store_insert_recent_and_count(monkeypatch, tmp_path):
+    from app.services import order_book_stream as order_book_stream_module
+
+    class FakePostgresConnection:
+        def __init__(self):
+            self.statements = []
+            self.inserted = None
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return False
+
+        def execute(self, query, params=()):
+            self.statements.append((query, params))
+            if query.lstrip().startswith("INSERT INTO public.order_book_samples"):
+                self.inserted = params
+            return self
+
+        def fetchone(self):
+            return {"count": 1}
+
+        def fetchall(self):
+            return [{
+                "market": "USD_M", "symbol": "BTCUSDT", "event_time_ms": 1000,
+                "transaction_time_ms": 1000, "update_id": 12,
+                "sampled_at": "2026-01-01T00:00:00+00:00",
+                "best_bid": 99.0, "best_ask": 101.0, "mid_price": 100.0,
+                "spread_bps": 200.0, "bid_notional": 990.0, "ask_notional": 101.0,
+                "depth_imbalance": 0.8, "bids": [[99.0, 10.0]], "asks": [[101.0, 1.0]],
+            }]
+
+    fake_db = FakePostgresConnection()
+    monkeypatch.setattr(order_book_stream_module.psycopg, "connect", lambda *args, **kwargs: fake_db)
+    store = OrderBookHistoryStore(str(tmp_path / "unused.sqlite3"), database_url="postgresql://db.example/test")
+    row = _valid_store_row()
+    store.insert(row)
+
+    insert_sql, insert_params = fake_db.statements[-1]
+    assert "ON CONFLICT(market, symbol, update_id) DO NOTHING" in insert_sql
+    assert insert_params[0:5] == ("USD_M", "BTCUSDT", 1000, 1000, 12)
+    assert json.loads(insert_params[-2]) == [[99.0, 10.0]]
+    assert json.loads(insert_params[-1]) == [[101.0, 1.0]]
+
+    recent = store.recent("usd_m", "btcusdt", 10, 500, 1500)
+    recent_sql, recent_params = fake_db.statements[-1]
+    assert "event_time_ms >= %s" in recent_sql
+    assert "event_time_ms <= %s" in recent_sql
+    assert recent_params == ["USD_M", "BTCUSDT", 500, 1500, 10]
+    assert recent[0]["bids"] == [[99.0, 10.0]]
+    assert recent[0]["asks"] == [[101.0, 1.0]]
+
+    assert store.count("usd_m", "btcusdt") == 1
+    count_sql, count_params = fake_db.statements[-1]
+    assert "FROM public.order_book_samples" in count_sql
+    assert count_params == ["USD_M", "BTCUSDT"]
