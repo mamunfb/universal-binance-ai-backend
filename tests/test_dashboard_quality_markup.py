@@ -189,7 +189,7 @@ def test_dashboard_sanitizes_all_api_derived_html_render_targets():
 
 def test_dashboard_sanitizer_does_not_allow_scriptable_elements_or_event_attributes():
     html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
-    sanitizer = html.split("const sanitizeHtml=markup=>", 1)[1].split("\\nconst renderCollector", 1)[0]
+    sanitizer = html.split("const sanitizeHtml=markup=>", 1)[1].split("\nconst renderCollector", 1)[0]
     assert "'script'" not in sanitizer
     assert "'iframe'" not in sanitizer
     assert "'img'" not in sanitizer
