@@ -197,3 +197,111 @@ def test_write_fencing_rejects_previous_owner_after_lease_takeover():
                 "DELETE FROM public.collector_leases WHERE collector_name=%s",
                 (collector_name,),
             )
+
+
+def test_write_transaction_lock_blocks_expired_lease_takeover_until_commit():
+    database_url = os.getenv("TEST_DATABASE_URL")
+    if not database_url:
+        pytest.skip("TEST_DATABASE_URL is not configured")
+
+    import threading
+    import time
+    from concurrent.futures import TimeoutError as FutureTimeoutError
+
+    store = CollectorLeaseStore(database_url)
+    collector_name = f"test-fencing-lock-{uuid.uuid4().hex}"
+    old_owner = f"owner-{uuid.uuid4().hex}"
+    new_owner = f"owner-{uuid.uuid4().hex}"
+    connection = None
+    try:
+        assert store.acquire(collector_name, old_owner, 5) is True
+        connection = store._connect()
+        assert_collector_lease_owned(connection, collector_name, old_owner)
+
+        # Keep the authorized write transaction open until the lease expires.
+        time.sleep(5.2)
+        acquire_started = threading.Event()
+
+        def acquire_new_owner():
+            acquire_started.set()
+            return store.acquire(collector_name, new_owner, 30)
+
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            takeover = pool.submit(acquire_new_owner)
+            assert acquire_started.wait(timeout=1)
+            # The expired lease row is still protected by the write's FOR SHARE lock.
+            with pytest.raises(FutureTimeoutError):
+                takeover.result(timeout=0.3)
+
+            connection.commit()
+            assert takeover.result(timeout=3) is True
+
+        with store._connect() as check:
+            with pytest.raises(CollectorLeaseLostError):
+                assert_collector_lease_owned(check, collector_name, old_owner)
+            assert_collector_lease_owned(check, collector_name, new_owner)
+    finally:
+        if connection is not None:
+            connection.rollback()
+            connection.close()
+        with store._connect() as cleanup:
+            cleanup.execute(
+                "DELETE FROM public.collector_leases WHERE collector_name=%s",
+                (collector_name,),
+            )
+
+
+def test_aggregate_trade_store_rejects_stale_lease_owner():
+    database_url = os.getenv("TEST_DATABASE_URL")
+    if not database_url:
+        pytest.skip("TEST_DATABASE_URL is not configured")
+
+    from app.services.aggregate_trade_stream import AggregateTradeStore
+
+    lease_store = CollectorLeaseStore(database_url)
+    trade_store = AggregateTradeStore("", database_url)
+    collector_name = "aggregate-trades:all"
+    old_owner = f"owner-{uuid.uuid4().hex}"
+    new_owner = f"owner-{uuid.uuid4().hex}"
+    symbol = f"LEASE{uuid.uuid4().hex[:10].upper()}"
+    trade_id = time.time_ns() % 9_000_000_000_000_000
+    row = {
+        "market": "SPOT",
+        "symbol": symbol,
+        "trade_id": trade_id,
+        "event_time_ms": 1,
+        "trade_time_ms": 1,
+        "price": 1.0,
+        "quantity": 1.0,
+        "notional": 1.0,
+        "buyer_is_maker": False,
+        "aggressor_side": "BUY",
+        "raw_json": "{}",
+    }
+    try:
+        assert lease_store.acquire(collector_name, old_owner, 30) is True
+        with lease_store._connect() as connection:
+            connection.execute(
+                """
+                UPDATE public.collector_leases
+                SET lease_expires_at = clock_timestamp() - INTERVAL '1 second'
+                WHERE collector_name=%s
+                """,
+                (collector_name,),
+            )
+        assert lease_store.acquire(collector_name, new_owner, 30) is True
+
+        with pytest.raises(CollectorLeaseLostError):
+            trade_store.insert(row, old_owner)
+
+        trade_store.insert(row, new_owner)
+    finally:
+        with psycopg.connect(database_url) as connection:
+            connection.execute(
+                "DELETE FROM public.aggregate_trades WHERE market=%s AND symbol=%s AND trade_id=%s",
+                ("SPOT", symbol, trade_id),
+            )
+            connection.execute(
+                "DELETE FROM public.collector_leases WHERE collector_name=%s AND owner_token IN (%s, %s)",
+                (collector_name, old_owner, new_owner),
+            )
