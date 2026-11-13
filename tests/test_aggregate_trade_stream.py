@@ -70,3 +70,32 @@ def test_aggregate_trade_normalization_trims_symbol_and_rejects_empty_symbol():
 
     payload["s"] = "   "
     assert normalize_aggregate_trade(payload, "SPOT") is None
+
+
+def test_aggregate_trade_collector_reports_id_discontinuities_without_rewinding():
+    from app.services.aggregate_trade_stream import AggregateTradeCollector
+
+    state = {"last_trade_id": None, "id_discontinuity_count": 0, "id_gap_span_count": 0, "last_id_discontinuity": None}
+
+    AggregateTradeCollector._track_trade_id(state, 100)
+    AggregateTradeCollector._track_trade_id(state, 101)
+    assert state["last_trade_id"] == 101
+    assert state["id_discontinuity_count"] == 0
+
+    AggregateTradeCollector._track_trade_id(state, 105)
+    assert state["last_trade_id"] == 105
+    assert state["id_discontinuity_count"] == 1
+    assert state["id_gap_span_count"] == 3
+    assert state["last_id_discontinuity"]["previous_trade_id"] == 101
+    assert state["last_id_discontinuity"]["received_trade_id"] == 105
+    assert state["last_id_discontinuity"]["interpretation"] == "ID_DISCONTINUITY_NOT_CONFIRMED_MISSING_TRADES"
+
+    # A delayed/duplicate lower ID must not move the high-water mark backwards.
+    AggregateTradeCollector._track_trade_id(state, 103)
+    assert state["last_trade_id"] == 105
+    assert state["id_discontinuity_count"] == 1
+
+    AggregateTradeCollector._track_trade_id(state, 108)
+    assert state["last_trade_id"] == 108
+    assert state["id_discontinuity_count"] == 2
+    assert state["id_gap_span_count"] == 5

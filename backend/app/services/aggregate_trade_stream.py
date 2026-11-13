@@ -239,7 +239,8 @@ class AggregateTradeCollector:
         state = self.states.setdefault(key, {
             "market": market, "symbol": symbol, "connected": False,
             "received_count": 0, "reconnect_count": 0, "last_trade_at": None,
-            "last_error": None,
+            "last_error": None, "last_trade_id": None, "id_discontinuity_count": 0,
+            "id_gap_span_count": 0, "last_id_discontinuity": None,
         })
         delay = 1
         while True:
@@ -255,6 +256,7 @@ class AggregateTradeCollector:
                         row = normalize_aggregate_trade(payload, market)
                         if row is None or row["symbol"] != symbol:
                             continue
+                        self._track_trade_id(state, row["trade_id"])
                         await asyncio.to_thread(self.store.insert, row)
                         state["received_count"] += 1
                         state["last_trade_at"] = datetime.now(timezone.utc).isoformat()
@@ -269,10 +271,37 @@ class AggregateTradeCollector:
             finally:
                 state["connected"] = False
 
+    @staticmethod
+    def _track_trade_id(state: dict[str, Any], trade_id: int) -> None:
+        """Record forward aggregate-trade ID discontinuities, not confirmed data loss."""
+        previous_id = state.get("last_trade_id")
+        if previous_id is not None and trade_id > previous_id + 1:
+            span = trade_id - previous_id - 1
+            state["id_discontinuity_count"] = state.get("id_discontinuity_count", 0) + 1
+            state["id_gap_span_count"] = state.get("id_gap_span_count", 0) + span
+            state["last_id_discontinuity"] = {
+                "previous_trade_id": previous_id,
+                "received_trade_id": trade_id,
+                "id_gap_span": span,
+                "detected_at": datetime.now(timezone.utc).isoformat(),
+                "interpretation": "ID_DISCONTINUITY_NOT_CONFIRMED_MISSING_TRADES",
+            }
+        if previous_id is None or trade_id > previous_id:
+            state["last_trade_id"] = trade_id
+
     def status(self) -> dict[str, Any]:
+        jobs = list(self.states.values())
         return {
-            "enabled": True, "job_count": len(self.states),
-            "jobs": list(self.states.values()),
+            "enabled": True, "job_count": len(jobs),
+            "jobs": jobs,
             "stored_trade_count": self.store.count(),
-            "warning": "Aggregate trade collection starts on enablement; no earlier trade history is backfilled.",
+            "aggregate_trade_id_status": (
+                "ID_DISCONTINUITY_OBSERVED"
+                if any(job.get("id_discontinuity_count", 0) for job in jobs)
+                else "NO_ID_DISCONTINUITY_OBSERVED"
+            ),
+            "warning": (
+                "Aggregate trade collection starts on enablement; no earlier trade history is backfilled. "
+                "Forward ID discontinuities are diagnostic only and do not prove missing trades."
+            ),
         }
