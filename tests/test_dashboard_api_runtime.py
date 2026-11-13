@@ -54,6 +54,7 @@ def test_dashboard_api_url_validation_and_request_runtime():
               "https:/api.example",
               "https:api.example",
               "https:\\api.example",
+              "https://api.example\\path",
               "https://user:pass@api.example",
               "https://@api.example",
               "https://api.example?",
@@ -75,6 +76,10 @@ def test_dashboard_api_url_validation_and_request_runtime():
             await call("/health");
             assert.equal(requests[1].url, "http://127.0.0.1:8000/health");
 
+            base.value = "http://[::1]:8000";
+            await call("/health");
+            assert.equal(requests[2].url, "http://[::1]:8000/health");
+
             base.value = "https://api.example/v1/";
             await call("/health", {
               method: "POST",
@@ -85,13 +90,13 @@ def test_dashboard_api_url_validation_and_request_runtime():
                 "X-Test": "preserved"
               }
             });
-            assert.equal(requests[2].url, "https://api.example/v1/health");
-            assert.equal(requests[2].options.headers.Authorization, "Bearer private-test-key");
-            assert.equal(requests[2].options.headers["Content-Type"], "application/json");
-            assert.equal(requests[2].options.headers["X-Test"], "preserved");
-            assert.equal(requests[2].options.method, "POST");
-            assert.equal(requests[2].options.body, JSON.stringify({ confirm: true }));
-            assert.equal(requests[2].url.includes("private-test-key"), false);
+            assert.equal(requests[3].url, "https://api.example/v1/health");
+            assert.equal(requests[3].options.headers.Authorization, "Bearer private-test-key");
+            assert.equal(requests[3].options.headers["Content-Type"], "application/json");
+            assert.equal(requests[3].options.headers["X-Test"], "preserved");
+            assert.equal(requests[3].options.method, "POST");
+            assert.equal(requests[3].options.body, JSON.stringify({ confirm: true }));
+            assert.equal(requests[3].url.includes("private-test-key"), false);
 
             response = { ok: true, status: 200, json: async () => null };
             await assert.rejects(call("/health"), /invalid JSON object/);
