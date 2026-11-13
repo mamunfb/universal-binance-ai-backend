@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import os
+import time
 import uuid
+
+import psycopg
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
@@ -205,7 +208,6 @@ def test_write_transaction_lock_blocks_expired_lease_takeover_until_commit():
         pytest.skip("TEST_DATABASE_URL is not configured")
 
     import threading
-    import time
     from concurrent.futures import TimeoutError as FutureTimeoutError
 
     store = CollectorLeaseStore(database_url)
