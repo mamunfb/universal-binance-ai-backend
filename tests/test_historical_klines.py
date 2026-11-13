@@ -126,3 +126,15 @@ def test_history_accepts_integer_string_query_values(tmp_path):
         start_time_ms="1700000000000", end_time_ms="1700000000000", limit="10",
     )
     assert result["returned_count"] == 1
+
+
+@pytest.mark.parametrize("market,symbol,interval", [
+    (None, "BTCUSDT", "1m"),
+    (1, "BTCUSDT", "1m"),
+    ("SPOT", None, "1m"),
+    ("SPOT", "BTCUSDT", None),
+])
+def test_latest_open_time_rejects_invalid_query_types(tmp_path, market, symbol, interval):
+    store = HistoricalKlineStore(str(tmp_path / "history.sqlite3"))
+    with pytest.raises(ValueError):
+        store.latest_open_time(market, symbol, interval)
