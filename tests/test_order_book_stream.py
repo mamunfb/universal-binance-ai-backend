@@ -134,3 +134,31 @@ def test_sample_skips_finite_levels_that_overflow_derived_metrics(tmp_path):
         {1e200: 1e200}, {2e200: 1e200},
     )
     assert row is None
+
+
+@pytest.mark.parametrize("event", [
+    {"U": 10.5, "u": 12},
+    {"U": 10, "u": "12.5"},
+    {"U": True, "u": 12},
+    {"U": 10, "u": 12, "pu": False},
+])
+def test_order_book_sequence_rejects_non_integer_ids(event):
+    with pytest.raises(RuntimeError, match="DEPTH_INVALID_SEQUENCE"):
+        OrderBookStreamCollector._validate_sequence("USD_M", event, 11, False)
+
+
+@pytest.mark.parametrize("event", [
+    {"E": 10.5, "T": 9},
+    {"E": 10, "T": "9.5"},
+    {"E": True, "T": 9},
+])
+def test_order_book_sample_rejects_non_integer_event_timestamps(tmp_path, event):
+    collector = OrderBookStreamCollector(
+        OrderBookHistoryStore(str(tmp_path / "book.sqlite3")),
+        lambda: None, lambda market: None,
+    )
+    with pytest.raises(ValueError):
+        collector._sample(
+            "SPOT", "BTCUSDT", event, 15,
+            {100.0: 2.0}, {101.0: 1.0},
+        )
