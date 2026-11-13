@@ -109,7 +109,7 @@ class EVMTransferStore:
                     not isinstance(topics[0], str) or topics[0].lower() != TRANSFER_TOPIC or
                     not isinstance(tx_hash, str) or len(tx_hash) != 66 or
                     not tx_hash.startswith("0x")):
-                raise ValueError("RPC returned a malformed or non-Transfer log; refusing to mark this block range complete")
+                raise ValueError("RPC returned a malformed Transfer log or non-Transfer event; refusing to mark this block range complete")
             block_hex, index_hex, data = log.get("blockNumber"), log.get("logIndex"), log.get("data")
             if not all(isinstance(value, str) and value.startswith("0x")
                        for value in (block_hex, index_hex, data)):
