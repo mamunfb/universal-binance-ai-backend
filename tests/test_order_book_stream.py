@@ -222,3 +222,42 @@ def test_history_store_rejects_non_object_row(tmp_path):
     with pytest.raises(ValueError):
         store.insert(None)
     assert store.count() == 0
+
+
+@pytest.mark.parametrize("market,symbol,limit,start,end", [
+    (None, "BTCUSDT", 10, None, None),
+    ("UNKNOWN", "BTCUSDT", 10, None, None),
+    ("SPOT", None, 10, None, None),
+    ("SPOT", "BTCUSDT", True, None, None),
+    ("SPOT", "BTCUSDT", 1.5, None, None),
+    ("SPOT", "BTCUSDT", 0, None, None),
+    ("SPOT", "BTCUSDT", 10001, None, None),
+    ("SPOT", "BTCUSDT", 10, True, None),
+    ("SPOT", "BTCUSDT", 10, 1.5, None),
+    ("SPOT", "BTCUSDT", 10, None, -1),
+    ("SPOT", "BTCUSDT", 10, 20, 10),
+])
+def test_history_store_recent_rejects_invalid_query_inputs(
+    tmp_path, market, symbol, limit, start, end
+):
+    store = OrderBookHistoryStore(str(tmp_path / "book.sqlite3"))
+    with pytest.raises(ValueError):
+        store.recent(market, symbol, limit, start, end)
+
+
+@pytest.mark.parametrize("market,symbol", [
+    (None, None),
+    ("UNKNOWN", None),
+    (True, None),
+    (None, ""),
+    (None, 123),
+])
+def test_history_store_count_rejects_invalid_filters(tmp_path, market, symbol):
+    store = OrderBookHistoryStore(str(tmp_path / "book.sqlite3"))
+    with pytest.raises(ValueError):
+        store.count(market, symbol)
+
+
+def test_history_store_recent_accepts_integer_string_query_bounds(tmp_path):
+    store = OrderBookHistoryStore(str(tmp_path / "book.sqlite3"))
+    assert store.recent("SPOT", "BTCUSDT", "10", "100", "200") == []
