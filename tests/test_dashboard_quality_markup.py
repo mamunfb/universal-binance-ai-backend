@@ -659,3 +659,22 @@ def test_dashboard_performance_confidence_intervals_and_regime_fractions_are_fin
         "(t.post_transition||{}).positive_fraction",
     ):
         assert f"pct({expression})" in performance_handler
+
+
+def test_dashboard_performance_remaining_interval_and_pp_metrics_are_finite_checked():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    performance_handler = next(
+        line for line in html.splitlines() if "$('performance').onclick" in line
+    )
+    assert "const pp=v=>typeof v!=='number'||!Number.isFinite(v)?'—':(v*100).toFixed(1)+' pp';" in performance_handler
+    for expression in (
+        "row.confidence_interval_95_wilson",
+        "x.positive_fraction_ci_95_wilson",
+    ):
+        assert f"ciPct({expression})" in performance_handler
+    for expression in (
+        "row.reliability_assessment.positive_fraction_ci_95_wilson_width",
+        "row.reliability_assessment.overlap_sensitivity_absolute_gap",
+        "w.consistency_assessment.positive_fraction_range",
+    ):
+        assert f"pp({expression})" in performance_handler
