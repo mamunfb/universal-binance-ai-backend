@@ -70,3 +70,25 @@ def test_aggregate_trade_normalization_trims_symbol_and_rejects_empty_symbol():
 
     payload["s"] = "   "
     assert normalize_aggregate_trade(payload, "SPOT") is None
+
+def test_aggregate_trade_collector_status_distinguishes_idle_and_degraded(tmp_path):
+    store = AggregateTradeStore(str(tmp_path / "trades.sqlite3"))
+    collector = AggregateTradeCollector(store)
+    assert collector.status()["status"] == "IDLE"
+    assert collector.status()["job_count"] == 0
+
+    class ActiveTask:
+        def done(self):
+            return False
+
+    collector.tasks = [ActiveTask(), ActiveTask()]
+    collector.states = {
+        "SPOT:BTCUSDT": {"connected": True, "last_error": None},
+        "USD_M:BTCUSDT": {"connected": False, "last_error": "ConnectionError"},
+    }
+    status = collector.status()
+    assert status["status"] == "DEGRADED"
+    assert status["job_count"] == 2
+    assert status["active_task_count"] == 2
+    assert status["connected_job_count"] == 1
+    assert status["disconnected_job_count"] == 1
