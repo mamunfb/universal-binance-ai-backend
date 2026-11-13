@@ -148,3 +148,19 @@ def test_dashboard_api_url_validation_and_request_runtime():
         check=False,
     )
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_dashboard_api_key_is_password_input_and_never_uses_persistent_browser_storage():
+    from pathlib import Path
+    import re
+
+    dashboard = Path(__file__).resolve().parents[1] / "dashboard" / "index.html"
+    html = dashboard.read_text(encoding="utf-8")
+    key_input = re.search(r'<input[^>]*id=["\']key["\'][^>]*>', html, re.IGNORECASE)
+    assert key_input is not None
+    assert re.search(r'type=["\']password["\']', key_input.group(0), re.IGNORECASE)
+
+    script = html.split("<script>", 1)[1].split("</script>", 1)[0]
+    assert not re.search(r'\b(?:localStorage|sessionStorage)\b', script), (
+        "Dashboard must not persist the private API key in browser storage"
+    )
