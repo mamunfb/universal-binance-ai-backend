@@ -27,6 +27,7 @@ def test_real_postgres_liquidation_event_round_trip_and_cleanup(tmp_path):
     }
     try:
         store.insert(event)
+        store.insert(event)
         records = store.recent(symbol, 10)
         assert len(records) == 1
         assert records[0]["event_time_ms"] == event_time
