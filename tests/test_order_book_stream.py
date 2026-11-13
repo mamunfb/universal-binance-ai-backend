@@ -122,3 +122,15 @@ def test_order_book_delta_zero_quantity_removes_level(tmp_path):
     bids = {100.0: 2.0}
     collector._apply({"b": [["100", "0"], ["99.5", "4"]], "a": []}, bids, {})
     assert bids == {99.5: 4.0}
+
+
+def test_sample_skips_finite_levels_that_overflow_derived_metrics(tmp_path):
+    collector = OrderBookStreamCollector(
+        OrderBookHistoryStore(str(tmp_path / "book.sqlite3")),
+        lambda: None, lambda market: None,
+    )
+    row = collector._sample(
+        "SPOT", "BTCUSDT", {"E": 10, "T": 9}, 15,
+        {1e200: 1e200}, {2e200: 1e200},
+    )
+    assert row is None
