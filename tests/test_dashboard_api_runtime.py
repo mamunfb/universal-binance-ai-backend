@@ -7,6 +7,7 @@ import textwrap
 
 def test_dashboard_api_runtime_auth_transport_and_errors():
     html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "</div>\\n<div><label>Outcome candle resolution</label>" not in html
     harness = textwrap.dedent(r"""
         const assert = require("node:assert/strict");
         const vm = require("node:vm");
