@@ -239,7 +239,8 @@ class AggregateTradeCollector:
         state = self.states.setdefault(key, {
             "market": market, "symbol": symbol, "connected": False,
             "received_count": 0, "reconnect_count": 0, "last_trade_at": None,
-            "last_error": None,
+            "last_error": None, "last_trade_id": None, "gap_count": 0,
+            "missing_trade_count": 0, "last_gap": None,
         })
         delay = 1
         while True:
@@ -255,6 +256,7 @@ class AggregateTradeCollector:
                         row = normalize_aggregate_trade(payload, market)
                         if row is None or row["symbol"] != symbol:
                             continue
+                        self._track_trade_id(state, row["trade_id"])
                         await asyncio.to_thread(self.store.insert, row)
                         state["received_count"] += 1
                         state["last_trade_at"] = datetime.now(timezone.utc).isoformat()
@@ -269,10 +271,35 @@ class AggregateTradeCollector:
             finally:
                 state["connected"] = False
 
+    @staticmethod
+    def _track_trade_id(state: dict[str, Any], trade_id: int) -> None:
+        """Record forward aggregate-trade ID gaps without inventing missing data."""
+        previous_id = state.get("last_trade_id")
+        if previous_id is not None and trade_id > previous_id + 1:
+            missing = trade_id - previous_id - 1
+            state["gap_count"] = state.get("gap_count", 0) + 1
+            state["missing_trade_count"] = state.get("missing_trade_count", 0) + missing
+            state["last_gap"] = {
+                "expected_trade_id": previous_id + 1,
+                "received_trade_id": trade_id,
+                "missing_trade_count": missing,
+                "detected_at": datetime.now(timezone.utc).isoformat(),
+            }
+        if previous_id is None or trade_id > previous_id:
+            state["last_trade_id"] = trade_id
+
     def status(self) -> dict[str, Any]:
+        jobs = list(self.states.values())
         return {
-            "enabled": True, "job_count": len(self.states),
-            "jobs": list(self.states.values()),
+            "enabled": True, "job_count": len(jobs),
+            "jobs": jobs,
             "stored_trade_count": self.store.count(),
-            "warning": "Aggregate trade collection starts on enablement; no earlier trade history is backfilled.",
+            "data_integrity_status": (
+                "GAP_DETECTED" if any(job.get("gap_count", 0) for job in jobs)
+                else "NO_GAP_OBSERVED"
+            ),
+            "warning": (
+                "Aggregate trade collection starts on enablement; no earlier trade history is backfilled. "
+                "Detected ID gaps are reported but are not automatically backfilled."
+            ),
         }
