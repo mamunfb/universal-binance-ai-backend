@@ -220,7 +220,7 @@ def test_dashboard_backend_url_policy_executes_in_javascript_runtime():
         process.stdin.setEncoding("utf8");
         process.stdin.on("data", chunk => source += chunk);
         process.stdin.on("end", () => {
-          const match = source.match(/<script>([\\s\\S]*?)<\\/script>/i);
+          const match = source.match(/<script>([\s\S]*?)<\/script>/i);
           assert.ok(match, "dashboard script must exist");
           const elements = new Map();
           const document = {
@@ -231,7 +231,7 @@ def test_dashboard_backend_url_policy_executes_in_javascript_runtime():
           };
           const window = { location: { origin: "https://dashboard.example" } };
           const context = { document, window, URL, fetch: async () => { throw new Error("unexpected fetch"); } };
-          vm.runInNewContext(match[1] + "\\nglobalThis.__apiForTest = api;", context);
+          vm.runInNewContext(match[1] + "\nglobalThis.__apiForTest = api;", context);
           const base = elements.get("base");
           const api = context.__apiForTest;
           const accepted = [
@@ -247,11 +247,11 @@ def test_dashboard_backend_url_policy_executes_in_javascript_runtime():
           }
           const rejected = [
             ["http://api.example", /HTTPS is required/],
-            ["ftp://api.example", /must be HTTP\\(S\\)/],
+            ["ftp://api.example", /must be HTTP\(S\)/],
             ["https://user:pass@api.example", /without credentials/],
             ["https://api.example/path?token=x", /without credentials/],
             ["https://api.example/path#fragment", /without credentials/],
-            ["not a URL", /absolute HTTP\\(S\\) URL/]
+            ["not a URL", /absolute HTTP\(S\) URL/]
           ];
           for (const [input, error] of rejected) {
             base.value = input;
