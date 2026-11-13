@@ -45,6 +45,27 @@ REST/OpenAPI is the canonical API contract. MCP may be used as a shared tool int
 
 Platform capabilities and plan availability can change. A platform is not considered integrated until a real end-to-end connection test succeeds in the owner's account.
 
+### Current API key permission boundary
+
+The REST authentication middleware currently uses the five supported client keys to identify the caller, but it does not enforce per-client endpoint scopes. Owner and AI-client keys therefore reach the same authenticated `/api/` route surface. `request.state.ai_client` records the matched identity for attribution; route handlers do not currently use it to authorize individual operations. Do not describe a client key as read-only or least-privilege until route-level authorization is implemented and tested.
+
+The current POST routes have different side effects:
+
+| Route | Current behavior | Side-effect class |
+|---|---|---|
+| `/api/v1/analysis/qualification-gates` | Computes qualification checks from the submitted payload | Analysis request |
+| `/api/v1/analysis/signal-lifecycle` | Builds a descriptive signal lifecycle from the submitted payload | Analysis request |
+| `/api/v1/analysis/trade-risk-plan` | Calculates a user-supplied scenario; explicitly marks trading disabled | Analysis request |
+| `/api/v1/history/market-confluence/snapshots` | Saves a descriptive research snapshot | Persistent research write |
+| `/api/v1/history/funding-rates/USD_M/{symbol}/collect` | Fetches funding events and stores returned history | External collection + persistent write |
+| `/api/v1/history/open-interest/USD_M/{symbol}/collect` | Fetches open-interest observations and stores returned history | External collection + persistent write |
+| `/api/v1/history/derivatives-ratios/USD_M/{ratio_type}/{symbol}/collect` | Fetches ratio observations and stores returned history | External collection + persistent write |
+| `/api/v1/history/klines/{market}/{symbol}/collect` | Fetches candles and stores returned history | External collection + persistent write |
+| `/api/v1/onchain/evm/token/{contract}/index` | Reads bounded EVM transfer logs and indexes them locally | External collection + persistent write |
+
+These routes are authenticated by the same Bearer-key middleware. The table describes observed handler behavior, not a recommendation that every AI client should receive every permission. Before introducing per-client scopes, decide explicitly which identities may run analysis-only requests, save research snapshots, trigger exchange-history collection, or initiate EVM indexing. Keep order placement, signing, withdrawals, and trade execution out of scope.
+
+
 ## API discovery
 
 - OpenAPI JSON: `GET /openapi.json`
@@ -56,7 +77,7 @@ For a hosted deployment, use its HTTPS origin. Do not expose a development serve
 ## Minimal client flow
 
 1. Discover the operation and parameter bounds from `/openapi.json`.
-2. Call only the necessary read-only endpoint.
+2. Prefer the necessary read-only endpoint. For any write or collection operation, first verify that the caller is explicitly authorized for that side effect.
 3. Inspect `status`, source, generated time, snapshot block, freshness, indexed coverage, and warning fields where present.
 4. Treat `INCOMPLETE`, `UNKNOWN`, empty results, and missing coverage as uncertainty—not as zero activity or proof that no event occurred.
 5. Preserve `X-Request-ID` for troubleshooting. Error bodies also include `request_id`.
