@@ -369,6 +369,22 @@ def test_production_rejects_weak_client_key_even_with_strong_owner_key(monkeypat
     assert response.json()["error"]["code"] == "AUTH_NOT_CONFIGURED"
 
 
+def test_production_accepts_complete_strong_client_key_set_without_owner_key(monkeypatch):
+    client_keys = {
+        name: f"{name}-" + ("x" * 40)
+        for name in ("chatgpt", "gemini", "manus", "claude", "perplexity")
+    }
+    monkeypatch.setattr(settings, "app_env", "production")
+    monkeypatch.setattr(settings, "personal_api_key", "")
+    monkeypatch.setattr(settings, "ai_client_api_keys", json.dumps(client_keys))
+    response = client.get(
+        "/api/v1/analysis/futures/liquidations/status",
+        headers={"Authorization": f"Bearer {client_keys['chatgpt']}"},
+    )
+    assert response.status_code == 200
+    assert response.json()["status"] == "DISABLED"
+
+
 def test_production_rejects_weak_owner_key_even_with_strong_client_keys(monkeypatch):
     client_keys = {
         name: f"{name}-" + ("x" * 40)
