@@ -1,0 +1,98 @@
+name: Neon Staging PostgreSQL Integration
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_confirmation:
+        description: Confirm that the configured Neon connection string points to render-staging-backend (not the default branch).
+        required: true
+        type: choice
+        options:
+          - render-staging-backend
+
+permissions:
+  contents: read
+
+concurrency:
+  group: neon-staging-postgres-integration
+  cancel-in-progress: false
+
+jobs:
+  integration:
+    if: github.ref == 'refs/heads/fix/binance-public-market-data-endpoints'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TEST_DATABASE_URL: ${{ secrets.NEON_STAGING_TEST_DATABASE_URL }}
+    steps:
+      - name: Check out the staging-test branch
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install application and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Validate staging database configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${TEST_DATABASE_URL:-}" ]]; then
+            echo "::error::Missing repository Actions secret NEON_STAGING_TEST_DATABASE_URL."
+            exit 1
+          fi
+          printf '::add-mask::%s\n' "$TEST_DATABASE_URL"
+          python - <<'PY'
+          import os
+          from urllib.parse import urlparse
+
+          value = os.environ["TEST_DATABASE_URL"]
+          parsed = urlparse(value)
+          if parsed.scheme not in {"postgres", "postgresql"}:
+              raise SystemExit("TEST_DATABASE_URL must use PostgreSQL.")
+          if not parsed.hostname or not parsed.hostname.endswith(".neon.tech"):
+              raise SystemExit("The configured test endpoint must be a Neon endpoint.")
+          if (parsed.path or "").lstrip("/") != "neondb":
+              raise SystemExit("The configured test database must be neondb.")
+          print("Connection string format validated; secret value withheld.")
+          PY
+
+      - name: Apply idempotent schema migrations to staging
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          import psycopg
+
+          migrations = sorted(Path("migrations").glob("*.sql"))
+          if not migrations:
+              raise SystemExit("No SQL migrations were found.")
+          with psycopg.connect(os.environ["TEST_DATABASE_URL"], autocommit=True) as connection:
+              identity = connection.execute(
+                  "SELECT current_database(), current_setting('server_version')"
+              ).fetchone()
+              if identity[0] != "neondb":
+                  raise SystemExit("Connected database identity did not match neondb.")
+              print(f"Connected to {identity[0]} (PostgreSQL {identity[1]}).")
+              for migration in migrations:
+                  connection.execute(migration.read_text(encoding="utf-8"), prepare=False)
+                  print(f"Applied {migration.name}")
+          PY
+
+      - name: Run real PostgreSQL application integration tests
+        run: |
+          pytest -q \
+            tests/test_aggregate_trade_postgres_integration.py \
+            tests/test_derivatives_ratio_postgres_integration.py \
+            tests/test_evm_transfer_postgres_integration.py \
+            tests/test_historical_klines_postgres_integration.py \
+            tests/test_market_confluence_postgres_integration.py \
+            tests/test_derivatives_signal_postgres_integration.py \
+            tests/test_funding_open_interest_postgres_integration.py \
+            tests/test_liquidation_postgres_integration.py \
+            tests/test_order_book_postgres_integration.py
