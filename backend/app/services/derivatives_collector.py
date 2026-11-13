@@ -167,4 +167,11 @@ class DerivativesHistoryCollector:
             raise
 
     def status(self) -> dict[str, Any]:
-        return {**self._status, "jobs": self.jobs}
+        return {
+            **self._status,
+            "jobs": self.jobs,
+            "warning": (
+                "The collector runs in each application process. Use one collector process "
+                "per database unless distributed coordination is configured."
+            ),
+        }
