@@ -28,7 +28,7 @@ class MarketDataQualityEngine:
     def __init__(
         self, kline_db: str, funding_db: str, open_interest_db: str,
         ratio_db: str, aggregate_trade_db: str, order_book_db: str,
-        database_url: str = "",
+        database_url: str = "", kline_database_url: str = "",
     ) -> None:
         self.kline_db = kline_db
         self.funding_db = funding_db
@@ -37,6 +37,7 @@ class MarketDataQualityEngine:
         self.aggregate_trade_db = aggregate_trade_db
         self.order_book_db = order_book_db
         self.database_url = database_url.strip()
+        self.kline_database_url = (kline_database_url or database_url).strip()
 
     @staticmethod
     def _query(db_path: str, sql: str, params: tuple[Any, ...], database_url: str = "") -> tuple[int, int | None]:
@@ -86,14 +87,14 @@ class MarketDataQualityEngine:
         candle_count, latest_candle_open = self._query(
             self.kline_db,
             "SELECT COUNT(*), MAX(open_time_ms) FROM historical_klines WHERE market=? AND symbol=? AND interval=?",
-            (market, symbol, interval), self.database_url,
+            (market, symbol, interval), self.kline_database_url,
         )
         latest_close = None
         if latest_candle_open is not None:
             _, latest_close = self._query(
                 self.kline_db,
                 "SELECT COUNT(*), MAX(close_time_ms) FROM historical_klines WHERE market=? AND symbol=? AND interval=? AND open_time_ms=?",
-                (market, symbol, interval, latest_candle_open), self.database_url,
+                (market, symbol, interval, latest_candle_open), self.kline_database_url,
             )
         candle_freshness = (
             "UNKNOWN" if candle_count < 0 else
@@ -106,7 +107,7 @@ class MarketDataQualityEngine:
             first_open = max(0, latest_candle_open - lookback_hours * 3_600_000)
             first_open = (first_open // interval_ms) * interval_ms
             try:
-                coverage = HistoricalCoverageEngine(self.kline_db, database_url=self.database_url).inspect(
+                coverage = HistoricalCoverageEngine(self.kline_db, database_url=self.kline_database_url).inspect(
                     market, symbol, interval, first_open, latest_candle_open
                 )
             except ValueError as exc:
@@ -134,7 +135,7 @@ class MarketDataQualityEngine:
                 "stale_after_ms": interval_ms * 2,
                 "coverage": coverage,
                 "duplicate_open_times": 0 if candle_count >= 0 else None,
-                "duplicate_note": "The SQLite primary key prevents duplicate (market, symbol, interval, open_time_ms) rows in a valid store; this is a schema guarantee, not an independently performed duplicate scan.",
+                "duplicate_note": "The configured store primary key prevents duplicate (market, symbol, interval, open_time_ms) rows in a valid database; this is a schema guarantee, not an independently performed duplicate scan.",
             }
         }
 

@@ -2458,6 +2458,7 @@ async def inspect_market_data_quality(
         settings.aggregate_trade_database_path,
         settings.order_book_database_path,
         settings.database_url,
+        settings.historical_kline_database_url or settings.database_url,
     )
     try:
         report = await asyncio.to_thread(
