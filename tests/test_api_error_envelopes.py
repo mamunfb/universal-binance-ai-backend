@@ -64,9 +64,16 @@ def test_unauthorized_early_response_includes_security_headers(monkeypatch):
     monkeypatch.setattr(settings, "app_env", "development")
     monkeypatch.setattr(settings, "personal_api_key", "test-owner-key-with-enough-entropy")
     response = client.get("/api/v1/analysis/futures/liquidations/status")
+    body = response.json()
     assert response.status_code == 401
+    assert body["error"]["code"] == "UNAUTHORIZED"
+    assert len(body["request_id"]) == 32
+    assert response.headers["X-Request-ID"] == body["request_id"]
+    assert response.headers["WWW-Authenticate"] == "Bearer"
     assert response.headers["X-Content-Type-Options"] == "nosniff"
     assert response.headers["X-Frame-Options"] == "DENY"
+    assert response.headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
+    assert response.headers["Permissions-Policy"] == "camera=(), microphone=(), geolocation=()"
 
 
 
