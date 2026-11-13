@@ -48,3 +48,38 @@ def test_funding_store_rejects_fractional_timestamps(tmp_path, timestamp):
     with pytest.raises(ValueError, match="timestamp"):
         store.save("USD_M", "BTCUSDT", [event(timestamp=timestamp)])
     assert store.history("USD_M", "BTCUSDT")["returned_count"] == 0
+
+
+@pytest.mark.parametrize("row", [
+    {"fundingTime": -1, "fundingRate": "0.1"},
+    {"fundingTime": 10, "fundingRate": "nan"},
+    {"fundingTime": 10, "fundingRate": "0.1", "markPrice": "inf"},
+    {"fundingRate": "0.1"},
+])
+def test_funding_store_rejects_invalid_rows(tmp_path, row):
+    store = FundingRateStore(str(tmp_path / "funding.sqlite3"))
+    with pytest.raises(ValueError):
+        store.save("USD_M", "BTCUSDT", [row])
+    assert store.history("USD_M", "BTCUSDT")["returned_count"] == 0
+
+
+def test_funding_store_rejects_symbol_mismatch(tmp_path):
+    store = FundingRateStore(str(tmp_path / "funding.sqlite3"))
+    with pytest.raises(ValueError, match="symbol"):
+        store.save("USD_M", "BTCUSDT", [event() | {"symbol": "ETHUSDT"}])
+
+
+def test_funding_store_rejects_duplicate_timestamps_and_wrong_market(tmp_path):
+    store = FundingRateStore(str(tmp_path / "funding.sqlite3"))
+    with pytest.raises(ValueError, match="Duplicate"):
+        store.save("USD_M", "BTCUSDT", [event(), event()])
+    with pytest.raises(ValueError, match="USD_M"):
+        store.save("COIN_M", "BTCUSD_PERP", [event()])
+
+
+def test_funding_history_validates_bounds_and_limit(tmp_path):
+    store = FundingRateStore(str(tmp_path / "funding.sqlite3"))
+    with pytest.raises(ValueError, match="end_time_ms"):
+        store.history("USD_M", "BTCUSDT", 20, 10)
+    with pytest.raises(ValueError, match="limit"):
+        store.history("USD_M", "BTCUSDT", limit=5001)
