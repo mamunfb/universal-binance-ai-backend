@@ -46,7 +46,7 @@ def assert_current_collector_lease(connection: Any, collector_name: str) -> None
         WHERE collector_name = %s
           AND owner_token = %s
           AND lease_generation = %s
-          AND lease_expires_at > NOW()
+          AND lease_expires_at > clock_timestamp()
         FOR SHARE
         """,
         (lease.collector_name, lease.owner_token, lease.lease_generation),
@@ -84,18 +84,18 @@ class CollectorLeaseStore:
                 INSERT INTO public.collector_leases (
                     collector_name, owner_token, lease_expires_at, updated_at
                 )
-                VALUES (%s, %s, NOW() + (%s * INTERVAL '1 second'), NOW())
+                VALUES (%s, %s, clock_timestamp() + (%s * INTERVAL '1 second'), clock_timestamp())
                 ON CONFLICT (collector_name) DO UPDATE SET
                     owner_token = EXCLUDED.owner_token,
                     lease_generation = CASE
                         WHEN public.collector_leases.owner_token = EXCLUDED.owner_token
-                         AND public.collector_leases.lease_expires_at > NOW()
+                         AND public.collector_leases.lease_expires_at > clock_timestamp()
                             THEN public.collector_leases.lease_generation
                         ELSE public.collector_leases.lease_generation + 1
                     END,
-                    lease_expires_at = NOW() + (%s * INTERVAL '1 second'),
-                    updated_at = NOW()
-                WHERE public.collector_leases.lease_expires_at <= NOW()
+                    lease_expires_at = clock_timestamp() + (%s * INTERVAL '1 second'),
+                    updated_at = clock_timestamp()
+                WHERE public.collector_leases.lease_expires_at <= clock_timestamp()
                    OR public.collector_leases.owner_token = EXCLUDED.owner_token
                 RETURNING lease_generation
                 """,
@@ -113,12 +113,12 @@ class CollectorLeaseStore:
             row = connection.execute(
                 """
                 UPDATE public.collector_leases
-                SET lease_expires_at = NOW() + (%s * INTERVAL '1 second'),
-                    updated_at = NOW()
+                SET lease_expires_at = clock_timestamp() + (%s * INTERVAL '1 second'),
+                    updated_at = clock_timestamp()
                 WHERE collector_name = %s
                   AND owner_token = %s
                   AND lease_generation = %s
-                  AND lease_expires_at > NOW()
+                  AND lease_expires_at > clock_timestamp()
                 RETURNING collector_name
                 """,
                 (ttl_seconds, collector_name, owner_token, lease_generation),
@@ -132,7 +132,7 @@ class CollectorLeaseStore:
             cursor = connection.execute(
                 """
                 UPDATE public.collector_leases
-                SET lease_expires_at = NOW(), updated_at = NOW()
+                SET lease_expires_at = clock_timestamp(), updated_at = clock_timestamp()
                 WHERE collector_name = %s
                   AND owner_token = %s
                   AND lease_generation = %s
