@@ -73,3 +73,38 @@ async def test_lifespan_attempts_remaining_shutdown_after_one_stop_fails(monkeyp
     assert stopped == ["order-book:all", "aggregate-trades:all"]
     assert main.order_book_collector is None
     assert main.aggregate_trade_collector is None
+
+
+def test_collector_lease_can_use_the_same_database_as_its_write_store(monkeypatch):
+    captured = {}
+
+    class FakeLeaseStore:
+        def __init__(self, database_url):
+            captured["database_url"] = database_url
+
+    class FakeCoordinator:
+        def __init__(self, store, *_args, **_kwargs):
+            captured["store"] = store
+
+        def start(self):
+            captured["started"] = True
+
+    async def stop_collector():
+        return None
+
+    collector = SimpleNamespace(start=lambda: None, stop=stop_collector)
+    monkeypatch.setattr(main.settings, "database_url", "postgresql://primary")
+    monkeypatch.setattr(main, "CollectorLeaseStore", FakeLeaseStore)
+    monkeypatch.setattr(main, "CollectorLeaseCoordinator", FakeCoordinator)
+
+    main._start_collector_with_lease(
+        "historical-klines:all",
+        collector,
+        "postgresql://historical",
+    )
+
+    try:
+        assert captured["database_url"] == "postgresql://historical"
+        assert captured["started"] is True
+    finally:
+        main.collector_lease_coordinators.pop("historical-klines:all", None)
