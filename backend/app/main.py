@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 import hmac
 from datetime import datetime, timezone
 import json
+import logging
 import psycopg
 from typing import Any, Literal
 from uuid import uuid4
@@ -67,6 +68,8 @@ from app.services.wallet_attribution import load_wallet_registry, annotate_walle
 from app.services.cross_chain_wallets import parse_chain_rpc_configs, cross_chain_native_wallet_snapshot
 from app.services.cross_chain_tokens import parse_chain_token_configs, cross_chain_erc20_snapshot
 from app.services.cross_chain_smart_money import cross_chain_verified_wallet_flows
+
+logger = logging.getLogger(__name__)
 
 liquidation_store = LiquidationStore(settings.liquidation_database_path, settings.database_url)
 liquidation_collector = LiquidationCollector(liquidation_store)
@@ -143,20 +146,34 @@ async def lifespan(_: FastAPI):
             historical_collector.start()
         yield
     finally:
-        if order_book_collector is not None:
-            await order_book_collector.stop()
-            order_book_collector = None
-        if aggregate_trade_collector is not None:
-            await aggregate_trade_collector.stop()
-            aggregate_trade_collector = None
-        if derivatives_collector is not None:
-            await derivatives_collector.stop()
-            derivatives_collector = None
-        if historical_collector is not None:
-            await historical_collector.stop()
-            historical_collector = None
+        # Attempt every cleanup even if one collector's stop operation fails.
+        cleanup_targets = [
+            ("order-book", order_book_collector),
+            ("aggregate-trade", aggregate_trade_collector),
+            ("derivatives", derivatives_collector),
+            ("historical", historical_collector),
+        ]
+        for collector_name, collector in cleanup_targets:
+            if collector is None:
+                continue
+            try:
+                await collector.stop()
+            except Exception:
+                logger.exception("Failed to stop %s collector during application shutdown", collector_name)
+            finally:
+                if collector_name == "order-book":
+                    order_book_collector = None
+                elif collector_name == "aggregate-trade":
+                    aggregate_trade_collector = None
+                elif collector_name == "derivatives":
+                    derivatives_collector = None
+                elif collector_name == "historical":
+                    historical_collector = None
         if settings.liquidation_collector_enabled:
-            await liquidation_collector.stop()
+            try:
+                await liquidation_collector.stop()
+            except Exception:
+                logger.exception("Failed to stop liquidation collector during application shutdown")
 
 
 app = FastAPI(
