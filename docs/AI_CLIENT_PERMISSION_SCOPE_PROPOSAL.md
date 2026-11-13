@@ -8,6 +8,8 @@ This document records a permission model for a future route-level authorization 
 
 The API middleware authenticates configured owner/client Bearer keys and records the matched identity in `request.state.ai_client`. It does not currently enforce route-level scopes. Consequently, every successfully authenticated identity can reach the same API route surface.
 
+Authentication configuration is fail-closed for malformed non-empty `AI_CLIENT_API_KEYS` when no owner key is configured: requests receive `503 AUTH_NOT_CONFIGURED`. A configured owner key remains usable if the client-key JSON is malformed, but no client key can be matched from that invalid configuration. If one secret matches both an owner key and a client key (or multiple client identities), the request is rejected as ambiguous with `401 UNAUTHORIZED`. Regression coverage is in `tests/test_api_error_envelopes.py`.
+
 The following three POST handlers are request-payload computations and do not call a persistence store or external provider in their handler/helper paths:
 
 - `POST /api/v1/analysis/qualification-gates`
