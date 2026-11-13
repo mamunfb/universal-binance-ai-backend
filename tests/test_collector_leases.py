@@ -228,34 +228,19 @@ def test_stale_lease_generation_cannot_write_aggregate_trade():
 
     lease_store = CollectorLeaseStore(database_url)
     trade_store = AggregateTradeStore("unused.sqlite3", database_url)
-    collector_name = f"test-trade-fence-{uuid.uuid4().hex}"
+    collector_name = "aggregate-trades:all"
     symbol = f"FENCE{uuid.uuid4().hex[:12].upper()}"
     first_owner = f"owner-{uuid.uuid4().hex}"
     next_owner = f"owner-{uuid.uuid4().hex}"
     context_token = None
     try:
-        first_generation = lease_store.acquire(collector_name, first_owner, 30)
-        assert first_generation == 1
-        context_token = ACTIVE_COLLECTOR_LEASE.set(
-            CollectorLeaseContext("aggregate-trades:all", first_owner, first_generation)
-        )
-        # This store checks the exact shared collector group name. Use a matching
-        # group lease for the actual insert path.
-        ACTIVE_COLLECTOR_LEASE.reset(context_token)
-        context_token = None
-        lease_store.release(collector_name, first_owner, first_generation)
-
-        collector_name = "aggregate-trades:all"
-        # Use a unique lease row to avoid collisions with other integration tests.
-        collector_name = f"aggregate-trades-test-{uuid.uuid4().hex}"
-        first_generation = lease_store.acquire(collector_name, first_owner, 30)
-        assert first_generation == 1
-        # The store's production guard is intentionally tied to the production
-        # collector key. Create a temporary test store call through the same guard
-        # name by using the actual collector key only in an isolated test DB.
-        lease_store.release(collector_name, first_owner, first_generation)
-
-        collector_name = "aggregate-trades:all"
+        # The CI PostgreSQL database is ephemeral; clear a leftover row from an
+        # interrupted test run before claiming this collector's production key.
+        with lease_store._connect() as connection:
+            connection.execute(
+                "DELETE FROM public.collector_leases WHERE collector_name=%s",
+                (collector_name,),
+            )
         first_generation = lease_store.acquire(collector_name, first_owner, 30)
         assert first_generation is not None
         context_token = ACTIVE_COLLECTOR_LEASE.set(
