@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from app.providers.evm_rpc import EVMRPCProvider
+from app.providers.evm_rpc import EVMRPCProvider, TRANSFER_TOPIC
 
 
 class _PostgresConnection:
@@ -105,8 +105,11 @@ class EVMTransferStore:
                 raise ValueError("RPC returned a non-object log; refusing to mark this block range complete")
             topics = log.get("topics") or []
             tx_hash = log.get("transactionHash")
-            if len(topics) < 3 or not isinstance(tx_hash, str) or len(tx_hash) != 66 or not tx_hash.startswith("0x"):
-                raise ValueError("RPC returned a malformed Transfer log; refusing to mark this block range complete")
+            if (not isinstance(topics, list) or len(topics) < 3 or
+                    not isinstance(topics[0], str) or topics[0].lower() != TRANSFER_TOPIC or
+                    not isinstance(tx_hash, str) or len(tx_hash) != 66 or
+                    not tx_hash.startswith("0x")):
+                raise ValueError("RPC returned a malformed or non-Transfer log; refusing to mark this block range complete")
             block_hex, index_hex, data = log.get("blockNumber"), log.get("logIndex"), log.get("data")
             if not all(isinstance(value, str) and value.startswith("0x")
                        for value in (block_hex, index_hex, data)):
