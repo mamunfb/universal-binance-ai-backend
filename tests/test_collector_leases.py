@@ -91,7 +91,10 @@ async def test_lease_coordinator_starts_and_stops_collector_with_owned_lease():
     stopped = asyncio.Event()
     store = FakeLeaseStore()
 
-    def start_collector():
+    started_tokens = []
+
+    def start_collector(owner_token):
+        started_tokens.append(owner_token)
         started.set()
 
     async def stop_collector():
@@ -105,6 +108,7 @@ async def test_lease_coordinator_starts_and_stops_collector_with_owned_lease():
     coordinator.start()
     await asyncio.wait_for(started.wait(), timeout=1)
     assert coordinator.status()["state"] == "ACTIVE"
+    assert started_tokens == ["owner-1"]
     await coordinator.stop()
     await asyncio.wait_for(stopped.wait(), timeout=1)
 
@@ -128,7 +132,10 @@ async def test_lease_coordinator_stops_collector_when_lease_renewal_is_rejected(
     started = asyncio.Event()
     stopped = asyncio.Event()
 
-    def start_collector():
+    started_tokens = []
+
+    def start_collector(owner_token):
+        started_tokens.append(owner_token)
         started.set()
 
     async def stop_collector():
@@ -142,6 +149,7 @@ async def test_lease_coordinator_stops_collector_when_lease_renewal_is_rejected(
     coordinator.start()
     await asyncio.wait_for(started.wait(), timeout=1)
     await asyncio.wait_for(stopped.wait(), timeout=2)
+    assert started_tokens == ["owner-2"]
     await coordinator.stop()
 
     assert coordinator.status()["state"] == "LEASE_LOST"
