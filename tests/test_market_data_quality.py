@@ -200,3 +200,31 @@ def test_quality_query_uses_postgres_when_database_url_is_configured(monkeypatch
     assert result == (7, 1_700_000_000_000)
     assert "market=%s AND symbol=%s" in calls[0][0]
     assert calls[0][1] == ("USD_M", "BTCUSDT")
+
+
+def test_quality_uses_separate_historical_kline_database_url(monkeypatch, tmp_path):
+    calls = []
+
+    def fake_query(db_path, sql, params, database_url=""):
+        calls.append((db_path, database_url))
+        return 0, None
+
+    monkeypatch.setattr(MarketDataQualityEngine, "_query", staticmethod(fake_query))
+    quality = MarketDataQualityEngine(
+        str(tmp_path / "klines.sqlite3"),
+        str(tmp_path / "funding.sqlite3"),
+        str(tmp_path / "oi.sqlite3"),
+        str(tmp_path / "ratios.sqlite3"),
+        str(tmp_path / "trades.sqlite3"),
+        str(tmp_path / "book.sqlite3"),
+        "postgresql://shared.example/db",
+        "postgresql://history.example/db",
+    )
+
+    result = quality.inspect(
+        "SPOT", "BTCUSDT", "1h", lookback_hours=24, now_ms=1_700_000_000_000,
+    )
+
+    assert result["status"] == "COMPLETED"
+    assert calls[0][1] == "postgresql://history.example/db"
+    assert all(url == "postgresql://shared.example/db" for _, url in calls[1:])
