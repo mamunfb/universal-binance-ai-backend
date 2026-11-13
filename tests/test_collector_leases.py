@@ -134,6 +134,48 @@ async def test_lease_coordinator_starts_and_stops_collector_with_owned_lease():
 
 
 @pytest.mark.asyncio
+async def test_coordinator_stops_partially_started_collector_after_start_error():
+    class FakeLeaseStore:
+        def __init__(self):
+            self.released = False
+
+        def acquire(self, *_args):
+            return 23
+
+        def renew(self, *_args):
+            return True
+
+        def release(self, *_args):
+            self.released = True
+            return True
+
+    start_attempted = asyncio.Event()
+    stop_called = asyncio.Event()
+    store = FakeLeaseStore()
+
+    def start_collector():
+        start_attempted.set()
+        raise RuntimeError("partial startup failure")
+
+    async def stop_collector():
+        stop_called.set()
+
+    coordinator = CollectorLeaseCoordinator(
+        store, "test-partial-start", start_collector, stop_collector,
+        owner_token="owner-partial-start", ttl_seconds=5,
+        heartbeat_seconds=1, retry_seconds=1,
+    )
+    coordinator.start()
+    await asyncio.wait_for(start_attempted.wait(), timeout=1)
+    await asyncio.wait_for(stop_called.wait(), timeout=1)
+    await coordinator.stop()
+
+    assert store.released is True
+    assert coordinator.status()["state"] == "DEGRADED"
+    assert coordinator.status()["lease_owned"] is False
+
+
+@pytest.mark.asyncio
 async def test_lease_coordinator_stops_collector_when_lease_renewal_is_rejected():
     class FakeLeaseStore:
         def acquire(self, *_args):
