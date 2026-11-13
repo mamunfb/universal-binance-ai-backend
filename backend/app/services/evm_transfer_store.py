@@ -473,7 +473,9 @@ async def index_erc20_transfer_history(
             "completed_range": {"from": from_block, "to": next_block - 1} if completed_chunks else None,
             "next_block_to_retry": next_block, "completed_chunks": completed_chunks,
             "stored_log_count_including_replayed_chunks": indexed_logs,
-            "error": f"{type(exc).__name__}: {str(exc)[:300]}",
+            # Provider exceptions may contain RPC URLs, credentials, or response data.
+            "error": "UPSTREAM_UNAVAILABLE",
+            "error_type": type(exc).__name__,
             "coverage_note": "Only fully successful chunks are recorded. Retry from next_block_to_retry; writes are idempotent.",
         }
     return {
