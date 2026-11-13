@@ -62,3 +62,23 @@ Add tests covering:
 - consistent machine-readable 401/403 responses.
 
 Keep order placement, signing, withdrawals, and trade execution outside this proposal. No such capability is authorized by this document.
+
+## Additional operational side effects found in the route/startup audit
+
+The API route inventory in `backend/app/main.py` contains 82 declared application routes: 76 GET and 6 POST? **Do not use this count as an authorization guarantee**; the permission boundary must be based on each route's actual handler and dependencies. The explicit side-effecting POST routes are enumerated above. No PUT, PATCH, or DELETE route decorators were found in this file at the current audited revision.
+
+Many GET endpoints are not necessarily local-only reads: market/news/on-chain endpoints can make outbound requests to public exchange, RSS, or configured EVM RPC providers. They do not thereby become database-write operations, but they can consume upstream quota, incur latency, or expose request metadata to those providers. A future policy may want a separate `upstream:read` capability or rate budget if that distinction is operationally important; this is a proposal, not current enforcement.
+
+The application lifespan also starts optional background collectors from deployment settings, independently of any AI-client request:
+
+- liquidation collector when `LIQUIDATION_COLLECTOR_ENABLED` is enabled;
+- order-book stream collector when `ORDER_BOOK_COLLECTOR_ENABLED` is enabled;
+- aggregate-trade collector when `AGGREGATE_TRADE_COLLECTOR_ENABLED` is enabled;
+- derivatives history collector when `DERIVATIVES_COLLECTOR_ENABLED` is enabled;
+- historical-kline collector when `HISTORICAL_COLLECTOR_ENABLED` is enabled.
+
+These collectors can call external providers and persist observations. Route-level AI-client scopes do not control them. They require separate deployment-operator controls, explicit environment configuration, and operational monitoring. Do not treat a client scope denial as stopping a collector that is enabled at application startup.
+
+## Audit caveats
+
+This was a static source audit of the checked-out PR branch. It does not prove that every transitive helper is side-effect-free beyond the three named analysis helper implementations, nor does it validate live provider behavior, deployment environment values, or production collector state. Re-audit helper call graphs and deployment configuration before enabling a production permission policy.
