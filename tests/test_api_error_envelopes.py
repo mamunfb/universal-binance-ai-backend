@@ -580,3 +580,26 @@ def test_binance_market_get_routes_do_not_expose_provider_exception_details(monk
             assert secret not in detail
         else:
             raise AssertionError(f"Expected sanitized HTTP 502 for {expected_code}")
+
+
+def test_evm_rpc_configuration_error_does_not_expose_endpoint_credentials(monkeypatch):
+    from app import main
+
+    secret = "rpc-user:rpc-password@private-rpc.example"
+
+    def invalid_provider(*args, **kwargs):
+        raise ValueError(f"Invalid RPC endpoint https://{secret}/")
+
+    monkeypatch.setattr(settings, "evm_rpc_url", "https://rpc.example")
+    monkeypatch.setattr(main, "EVMRPCProvider", invalid_provider)
+
+    try:
+        main.get_evm_provider()
+    except Exception as exc:
+        assert getattr(exc, "status_code", None) == 503
+        detail = str(getattr(exc, "detail", ""))
+        assert "EVM_RPC_CONFIGURATION_INVALID" in detail
+        assert "rpc-password" not in detail
+        assert secret not in detail
+    else:
+        raise AssertionError("Expected sanitized HTTP 503")
