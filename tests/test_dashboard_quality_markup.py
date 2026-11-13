@@ -359,4 +359,4 @@ def test_dashboard_performance_api_output_is_sanitized_before_rendering():
         line for line in html.splitlines() if "$('performance').onclick" in line
     )
     assert "$('outcomes').innerHTML=sanitizeHtml(" in performance_handler
-    assert "+'</pre>'))}catch(e){fail(e)}};" in performance_handler
+    assert "+'</pre>')}catch(e){fail(e)}};" in performance_handler
