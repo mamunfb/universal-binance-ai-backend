@@ -93,12 +93,17 @@ derivatives_collector: DerivativesHistoryCollector | None = None
 collector_lease_coordinators: dict[str, CollectorLeaseCoordinator] = {}
 
 
-def _start_collector_with_lease(name: str, collector: Any) -> None:
-    if not settings.database_url.strip():
+def _start_collector_with_lease(
+    name: str, collector: Any, lease_database_url: str | None = None
+) -> None:
+    # The lease row must live in the same PostgreSQL database as the collector's
+    # data write so FOR SHARE and the write commit are one atomic transaction.
+    coordination_database_url = (lease_database_url or settings.database_url).strip()
+    if not coordination_database_url:
         collector.start()
         return
     coordinator = CollectorLeaseCoordinator(
-        CollectorLeaseStore(settings.database_url),
+        CollectorLeaseStore(coordination_database_url),
         name,
         collector.start,
         collector.stop,
@@ -191,7 +196,11 @@ async def lifespan(_: FastAPI):
                 poll_seconds=settings.historical_collector_poll_seconds,
                 initial_limit=settings.historical_collector_initial_limit,
             )
-            _start_collector_with_lease("historical-klines:all", historical_collector)
+            _start_collector_with_lease(
+                "historical-klines:all",
+                historical_collector,
+                historical_kline_store.database_url or settings.database_url,
+            )
         yield
     finally:
         # Attempt every shutdown even if one collector's stop routine fails.
