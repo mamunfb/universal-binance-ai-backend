@@ -113,3 +113,29 @@ def test_historical_collector_status_reports_stopped_and_degraded(tmp_path):
     status = collector.status()
     assert status["status"] == "DEGRADED"
     assert status["task_active"] is True
+
+
+def test_historical_collector_recovers_status_after_successful_cycle(tmp_path):
+    class EmptyProvider:
+        async def klines(self, *args, **kwargs):
+            return []
+
+    collector = HistoricalKlineCollector(
+        store=HistoricalKlineStore(str(tmp_path / "recovery.sqlite3")),
+        spot_provider_factory=EmptyProvider,
+        futures_provider_factory=lambda _market: EmptyProvider(),
+        jobs_json='[{"market":"SPOT","symbol":"BTCUSDT","interval":"1m"}]',
+    )
+
+    class ActiveTask:
+        def done(self):
+            return False
+
+    collector._task = ActiveTask()
+    collector._last_error = "RuntimeError"
+    collector._last_cycle_degraded = True
+    result = asyncio.run(collector.run_once())
+
+    assert result["status"] == "COMPLETED"
+    assert collector.status()["status"] == "RUNNING"
+    assert collector.status()["last_error_type"] == "RuntimeError"
