@@ -87,7 +87,7 @@ $('scanMarkets').onclick=async()=>{try{
 
 $('refreshReadiness').onclick=async()=>{try{
  $('readinessStatus').textContent='Checking backend readiness…';
- $('readinessMarket').innerHTML='';$('readinessCapabilities').innerHTML='';$('readinessPhases').innerHTML='';$('readinessLimitations').innerHTML='';
+ $('readinessSummary').innerHTML='';$('readinessMarket').innerHTML='';$('readinessCapabilities').innerHTML='';$('readinessPhases').innerHTML='';$('readinessLimitations').innerHTML='';
  const [preflight,phase]=await Promise.all([
   call('/api/v1/research/preflight'),
   call('/api/v1/research/phase-readiness')
@@ -100,6 +100,7 @@ $('refreshReadiness').onclick=async()=>{try{
  $('readinessCapabilities').innerHTML=Object.entries(caps).map(([name,value])=>'<div class="panel"><small>'+escapeHtml(name.replaceAll('_',' '))+'</small><p>'+escapeHtml(value??'—')+'</p></div>').join('');
  const phases=Array.isArray(phase.phases)?phase.phases:[];
  const validPhases=phases.filter(isRecord);
+ if(phase.phase_count!==undefined&&Number.isSafeInteger(phase.phase_count)&&phase.phase_count!==phases.length)throw Error('Phase count does not match the returned phase list');
  $('readinessSummary').innerHTML=[['Overall readiness',phase.status??'UNKNOWN'],['Phase count',safeCount(phase.phase_count)],['Completed phases',safeCount(phase.completed_phase_count)],['Execution claimed',phase.execution_claim===true?'YES':phase.execution_claim===false?'NO':'NOT REPORTED']].map(([label,value])=>'<div class="panel"><small>'+escapeHtml(label)+'</small><div class="metric">'+escapeHtml(value)+'</div></div>').join('')+(phase.important_rule?'<p>'+escapeHtml(phase.important_rule)+'</p>':'');
  $('readinessPhases').innerHTML='<h3>Phase readiness ('+validPhases.length+' reported)</h3>'+ (phases.length?'<div style="overflow-x:auto"><table><thead><tr><th>Phase</th><th>Status</th><th>Missing requirements</th></tr></thead><tbody>'+validPhases.map(x=>'<tr><td>'+escapeHtml(x.phase_number??'—')+'. '+escapeHtml(x.phase_name??'Unnamed phase')+'</td><td>'+escapeHtml(x.readiness??'UNKNOWN')+'</td><td>'+escapeHtml(x.gap??'No gap detail reported')+'</td></tr>').join('')+'</tbody></table></div>':'<p>Phase response schema did not include a phases array; raw status is available below.</p>');
  const limits=Array.isArray(preflight.limitations)?preflight.limitations:[];
