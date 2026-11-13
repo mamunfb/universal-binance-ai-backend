@@ -1,6 +1,15 @@
 name: Neon Staging PostgreSQL Integration
 
 on:
+  push:
+    branches:
+      - fix/binance-public-market-data-endpoints
+    paths:
+      - ".github/workflows/neon-staging-integration.yml"
+      - "backend/**"
+      - "migrations/**"
+      - "tests/**"
+      - "pyproject.toml"
   workflow_dispatch:
     inputs:
       target_confirmation:
@@ -24,7 +33,7 @@ jobs:
     timeout-minutes: 20
     env:
       TEST_DATABASE_URL: ${{ secrets.NEON_STAGING_TEST_DATABASE_URL }}
-      TARGET_CONFIRMATION: ${{ inputs.target_confirmation }}
+      TARGET_CONFIRMATION: ${{ github.event_name == 'push' && 'render-staging-backend' || inputs.target_confirmation }}
     steps:
       - name: Check out the staging-test branch
         uses: actions/checkout@v4
@@ -51,7 +60,7 @@ jobs:
             echo "::error::Missing repository Actions secret NEON_STAGING_TEST_DATABASE_URL."
             exit 1
           fi
-          printf '::add-mask::%s\n' "$TEST_DATABASE_URL"
+          printf '::add-mask::%s\\n' "$TEST_DATABASE_URL"
           python - <<'PY'
           import os
           from urllib.parse import urlparse
@@ -62,42 +71,60 @@ jobs:
               raise SystemExit("TEST_DATABASE_URL must use PostgreSQL.")
           if not parsed.hostname or not parsed.hostname.endswith(".neon.tech"):
               raise SystemExit("The configured test endpoint must be a Neon endpoint.")
+          if "-pooler" in parsed.hostname:
+              raise SystemExit("Use the direct (non-pooled) Neon staging connection.")
           if (parsed.path or "").lstrip("/") != "neondb":
               raise SystemExit("The configured test database must be neondb.")
           print("Connection string format validated; secret value withheld.")
           PY
 
-      - name: Apply idempotent schema migrations to staging
+      - name: Verify the existing staging schema without modifying it
         run: |
           python - <<'PY'
           import os
-          from pathlib import Path
           import psycopg
 
-          migrations = sorted(Path("migrations").glob("*.sql"))
-          if not migrations:
-              raise SystemExit("No SQL migrations were found.")
-          with psycopg.connect(os.environ["TEST_DATABASE_URL"], autocommit=True) as connection:
+          expected = {
+              "aggregate_trades",
+              "derivatives_ratio_history",
+              "derivatives_signal_snapshots",
+              "evm_transfer_index_ranges",
+              "evm_transfer_logs",
+              "historical_funding_rates",
+              "historical_klines",
+              "historical_open_interest",
+              "liquidation_events",
+              "market_confluence_snapshots",
+              "market_scan_runs",
+              "order_book_samples",
+          }
+          with psycopg.connect(os.environ["TEST_DATABASE_URL"]) as connection:
               identity = connection.execute(
                   "SELECT current_database(), current_setting('server_version')"
               ).fetchone()
               if identity[0] != "neondb":
                   raise SystemExit("Connected database identity did not match neondb.")
+              rows = connection.execute(
+                  """SELECT table_name FROM information_schema.tables
+                     WHERE table_schema = 'public' AND table_type = 'BASE TABLE'"""
+              ).fetchall()
+              actual = {row[0] for row in rows}
+              missing = sorted(expected - actual)
+              if missing:
+                  raise SystemExit("Staging schema is missing expected tables: " + ", ".join(missing))
               print(f"Connected to {identity[0]} (PostgreSQL {identity[1]}).")
-              for migration in migrations:
-                  connection.execute(migration.read_text(encoding="utf-8"), prepare=False)
-                  print(f"Applied {migration.name}")
+              print(f"Verified all {len(expected)} expected application tables; no schema changes made.")
           PY
 
       - name: Run real PostgreSQL application integration tests
         run: |
-          pytest -q \
-            tests/test_aggregate_trade_postgres_integration.py \
-            tests/test_derivatives_ratio_postgres_integration.py \
-            tests/test_evm_transfer_postgres_integration.py \
-            tests/test_historical_klines_postgres_integration.py \
-            tests/test_market_confluence_postgres_integration.py \
-            tests/test_derivatives_signal_postgres_integration.py \
-            tests/test_funding_open_interest_postgres_integration.py \
-            tests/test_liquidation_postgres_integration.py \
+          pytest -q \\
+            tests/test_aggregate_trade_postgres_integration.py \\
+            tests/test_derivatives_ratio_postgres_integration.py \\
+            tests/test_evm_transfer_postgres_integration.py \\
+            tests/test_historical_klines_postgres_integration.py \\
+            tests/test_market_confluence_postgres_integration.py \\
+            tests/test_derivatives_signal_postgres_integration.py \\
+            tests/test_funding_open_interest_postgres_integration.py \\
+            tests/test_liquidation_postgres_integration.py \\
             tests/test_order_book_postgres_integration.py
