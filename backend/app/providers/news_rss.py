@@ -104,9 +104,13 @@ class RSSNewsProvider:
                     response.raise_for_status()
                     results.extend(parse_feed(response.text, source["name"], source["url"]))
                 except Exception as exc:
+                    # HTTP client exceptions can embed the full upstream URL,
+                    # including userinfo, query tokens, and other credentials.
+                    # Expose only a stable code and the non-sensitive exception class.
                     failures.append({
                         "source": source.get("name", "unknown"),
-                        "error": f"{type(exc).__name__}: {str(exc)[:300]}",
+                        "error": "FEED_FETCH_FAILED",
+                        "error_type": type(exc).__name__,
                     })
         finally:
             if owns_client:
