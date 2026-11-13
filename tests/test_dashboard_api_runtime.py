@@ -37,10 +37,16 @@ def test_dashboard_api_url_validation_and_request_runtime():
               window: { location: { origin: "https://dashboard.example" } },
               URL, URLSearchParams, Headers, fetch
             };
-            vm.runInNewContext(match[1] + "\nglobalThis.__callForTest = call; globalThis.__statusClassForTest = statusClass; globalThis.__escapeHtmlForTest = escapeHtml;", context);
+            vm.runInNewContext(match[1] + "\nglobalThis.__callForTest = call; globalThis.__statusClassForTest = statusClass; globalThis.__escapeHtmlForTest = escapeHtml; globalThis.__safeCountForTest = safeCount;", context);
             const call = context.__callForTest;
             const statusClass = context.__statusClassForTest;
             const escapeHtml = context.__escapeHtmlForTest;
+            const safeCount = context.__safeCountForTest;
+            assert.equal(safeCount(123), "123");
+            assert.equal(safeCount("123"), "123");
+            assert.equal(safeCount("<img src=x onerror=alert(1)>"), "—");
+            assert.equal(safeCount("1.5"), "—");
+            assert.equal(safeCount("-1"), "—");
             assert.equal(escapeHtml("<img src=x onerror=alert(1)> & \"quoted\" 'text'"), "&lt;img src=x onerror=alert(1)&gt; &amp; &quot;quoted&quot; &#39;text&#39;");
             assert.equal(statusClass("HEALTHY"), "status-good");
             assert.equal(statusClass("constructor"), "status-muted");
