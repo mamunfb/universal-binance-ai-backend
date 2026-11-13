@@ -21,7 +21,7 @@ def test_dashboard_api_url_validation_and_request_runtime():
             const document = {
               getElementById(id) {
                 if (!elements.has(id)) elements.set(id, {
-                  value: "", innerHTML: "", textContent: "", onclick: null
+                  value: "", innerHTML: "", textContent: "", onclick: null, style: { display: "" }
                 });
                 return elements.get(id);
               }
