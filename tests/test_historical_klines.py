@@ -208,3 +208,35 @@ def test_postgres_upsert_only_accepts_newer_observation(monkeypatch):
     assert "ON CONFLICT(market, symbol, interval, open_time_ms) DO UPDATE SET" in connection.executemany_query
     assert "WHERE public.historical_klines.observation_started_at_ns IS NULL" in connection.executemany_query
     assert "excluded.observation_started_at_ns > public.historical_klines.observation_started_at_ns" in connection.executemany_query
+
+def test_postgres_store_preserves_newer_observation_after_out_of_order_writes():
+    import os
+    import uuid
+    import pytest
+
+    database_url = os.getenv("TEST_DATABASE_URL")
+    if not database_url:
+        pytest.skip("TEST_DATABASE_URL is not configured")
+    from app.services.historical_klines import HistoricalKlineStore
+    import psycopg
+
+    symbol = f"OBS{uuid.uuid4().hex[:20].upper()}"
+    store = HistoricalKlineStore("unused.sqlite3", database_url)
+    try:
+        store.save_klines(
+            "SPOT", symbol, "1m", [candle(close="102")],
+            observation_started_at_ns=20_000,
+        )
+        store.save_klines(
+            "SPOT", symbol, "1m", [candle(close="101")],
+            observation_started_at_ns=10_000,
+        )
+        history = store.history("SPOT", symbol, "1m")
+        assert history["candles"][0]["close"] == 102.0
+        assert history["candles"][0]["observation_started_at_ns"] == 20_000
+    finally:
+        with psycopg.connect(database_url) as connection:
+            connection.execute(
+                "DELETE FROM public.historical_klines WHERE market=%s AND symbol=%s AND interval=%s",
+                ("SPOT", symbol, "1m"),
+            )
