@@ -96,7 +96,8 @@ class OrderBookHistoryStore:
                 number = Decimal(str(value))
             except (InvalidOperation, TypeError, ValueError):
                 raise ValueError(f"Invalid order-book {field}") from None
-            if not number.is_finite() or number != number.to_integral_value() or number < 0:
+            if (not number.is_finite() or number != number.to_integral_value()
+                    or number < 0 or number > (2**63 - 1)):
                 raise ValueError(f"Invalid order-book {field}")
             return int(number)
 
@@ -191,7 +192,8 @@ class OrderBookHistoryStore:
             number = Decimal(str(value))
         except (InvalidOperation, TypeError, ValueError):
             raise ValueError(f"Invalid order-book {field}") from None
-        if not number.is_finite() or number != number.to_integral_value() or number < minimum:
+        if (not number.is_finite() or number != number.to_integral_value()
+                or number < minimum or number > (2**63 - 1)):
             raise ValueError(f"Invalid order-book {field}")
         return int(number)
 
