@@ -4,6 +4,7 @@ import hashlib
 import json
 import math
 import sqlite3
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
@@ -40,14 +41,24 @@ class MarketConfluenceStore:
         return psycopg.connect(self.database_url, sslmode=("disable" if "sslmode=disable" in self.database_url else "require"), connect_timeout=15, row_factory=dict_row)
 
     @staticmethod
+    def _integer(value: Any, field: str) -> int:
+        if isinstance(value, bool):
+            raise ValueError(f"Invalid {field}")
+        try:
+            number = Decimal(str(value))
+        except (InvalidOperation, TypeError, ValueError) as exc:
+            raise ValueError(f"Invalid {field}") from exc
+        if not number.is_finite() or number != number.to_integral_value():
+            raise ValueError(f"Invalid {field}")
+        return int(number)
+
+    @staticmethod
     def _validate(payload: dict[str, Any]) -> tuple[str, str, str, int, str, str, float | None, int | None, str, str]:
         market = str(payload.get("market", "")).upper()
         symbol = str(payload.get("symbol", "")).upper()
         interval = str(payload.get("interval", ""))
         raw_stamp = payload.get("analyzed_at_ms")
-        if isinstance(raw_stamp, bool):
-            raise ValueError("Invalid analyzed_at_ms")
-        stamp = int(raw_stamp or 0)
+        stamp = MarketConfluenceStore._integer(raw_stamp, "analyzed_at_ms")
         if market not in {"SPOT", "USD_M", "COIN_M"} or not symbol or not interval or stamp <= 0:
             raise ValueError("Snapshot requires valid market, symbol, interval and analyzed_at_ms")
         confluence = payload.get("confluence") or {}
@@ -63,9 +74,7 @@ class MarketConfluenceStore:
         if price is not None and (not math.isfinite(price) or price <= 0):
             raise ValueError("reference price must be finite and positive")
         close = reference.get("close_time_ms")
-        if isinstance(close, bool):
-            raise ValueError("Invalid reference close_time_ms")
-        close = int(close) if close is not None and price is not None else None
+        close = MarketConfluenceStore._integer(close, "reference close_time_ms") if close is not None and price is not None else None
         if price is not None and close is None:
             raise ValueError("reference close_time_ms is required with reference price")
         if close is not None and close > stamp:
