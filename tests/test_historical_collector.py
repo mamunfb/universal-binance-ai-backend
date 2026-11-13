@@ -93,3 +93,48 @@ def test_collector_records_job_failure_and_continues(tmp_path):
     assert result["results"][0]["status"] == "FAILED"
     assert result["results"][0]["error_type"] == "RuntimeError"
     assert "provider secret" not in str(result)
+
+
+def test_collector_cancellation_waits_for_inflight_database_write(tmp_path):
+    import threading
+    import time
+
+    db = str(tmp_path / "history.sqlite3")
+    store = HistoricalKlineStore(db)
+    started = threading.Event()
+    release = threading.Event()
+    original_save = store.save_klines
+
+    def blocking_save(*args, **kwargs):
+        started.set()
+        if not release.wait(timeout=3):
+            raise TimeoutError("test write release timed out")
+        return original_save(*args, **kwargs)
+
+    store.save_klines = blocking_save
+    start = 1_700_000_040_000
+    provider = FakeProvider([candle(start)])
+    collector = HistoricalKlineCollector(
+        store=store,
+        spot_provider_factory=lambda: provider,
+        futures_provider_factory=lambda _market: provider,
+        jobs_json='[{"market":"SPOT","symbol":"BTCUSDT","interval":"1m"}]',
+        poll_seconds=10,
+        initial_limit=10,
+    )
+
+    async def scenario():
+        task = asyncio.create_task(collector.run_once())
+        try:
+            assert await asyncio.to_thread(started.wait, 1)
+            task.cancel()
+            await asyncio.sleep(0.05)
+            assert not task.done(), "cancellation must wait for the DB worker"
+        finally:
+            release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    asyncio.run(scenario())
+    store.save_klines = original_save
+    assert store.history("SPOT", "BTCUSDT", "1m")["returned_count"] == 1
