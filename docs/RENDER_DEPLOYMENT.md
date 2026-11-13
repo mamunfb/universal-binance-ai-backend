@@ -72,3 +72,13 @@ The collector status endpoints are process-local observations; a healthy status 
 - Do not commit `.env` or paste secrets into issues, pull requests, or chat.
 - Keep auto-deploy disabled until CI is green and a manual deployment is explicitly approved.
 - Do not merge PR #4 or deploy to production without the owner's explicit approval.
+
+### Historical Kline stale-response race: required follow-up
+
+The collector intentionally re-fetches the latest candle because an exchange candle can still be forming. Its current store UPSERT has no source-observation ordering condition, so concurrent requests for the same series can overwrite one another in commit order rather than observation order.
+
+Do not use the existing `collected_at` field as a freshness token without a schema/semantics migration: it is currently generated during the store write, after the provider response has returned. A delayed request can therefore receive a later value even if its data was observed earlier.
+
+A future fix should introduce an explicit request-observation token captured immediately before each upstream kline request, persist it separately from write/ingestion time, and apply conflict updates only when the incoming observation token is newer. Pass the token through every write path, including the scheduled collector and manual historical-collection API. Preserve a compatibility policy for existing rows whose observation token is unknown, and add deterministic race tests proving that a slower earlier request cannot overwrite a later observation in both SQLite and PostgreSQL.
+
+This ordering token only establishes local request-start ordering; it does not prove Binance upstream data is newer or eliminate stale intermediary responses. Keep that limitation visible in metadata/diagnostics. No such freshness guard is implemented by this documentation change.
