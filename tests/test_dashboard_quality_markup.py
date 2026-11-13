@@ -204,7 +204,7 @@ def test_dashboard_requires_https_for_remote_api_urls():
     assert "const parsed=new URL(raw)" in html
     assert "parsed.protocol!=='https:'&&!loopback" in html
     assert "host==='localhost'||host==='127.0.0.1'||host==='[::1]'" in html
-    assert "parsed.username||parsed.password||parsed.search||parsed.hash" in html
+    assert "authority.includes('@')||parsed.username||parsed.password||parsed.search||parsed.hash" in html
     assert "HTTPS is required for remote backend URLs" in html
 
 
@@ -250,6 +250,8 @@ def test_dashboard_backend_url_policy_executes_in_javascript_runtime():
             ["http://api.example", /HTTPS is required/],
             ["ftp://api.example", /must be HTTP\(S\)/],
             ["https://user:pass@api.example", /without credentials/],
+            ["https://@api.example", /without credentials/],
+            ["https://:@api.example", /without credentials/],
             ["https://api.example/path?token=x", /without credentials/],
             ["https://api.example/path#fragment", /without credentials/],
             ["not a URL", /absolute HTTP\(S\) URL/]
