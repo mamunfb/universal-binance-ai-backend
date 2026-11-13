@@ -154,6 +154,7 @@ AI_CLIENT_API_KEYS={"chatgpt":"REPLACE_WITH_CHATGPT_RANDOM_SECRET_32_CHARS_MIN",
 - Production requires either all five valid per-client keys or a strong owner-level `PERSONAL_API_KEY`. The owner key can be used for administration; prefer the individual client keys for AI integrations.
 - During development, an empty key configuration leaves API routes unauthenticated for local testing only. Never expose that configuration to the public internet.
 - Each client key can be revoked or rotated independently by changing its environment value and restarting/redeploying the service.
+- A non-empty malformed `AI_CLIENT_API_KEYS` value fails closed with `503 AUTH_NOT_CONFIGURED` when no owner key is configured. If a valid owner key is configured, the owner can still authenticate while the malformed client-key configuration is corrected; no AI client key can be matched from invalid JSON.
 - Never commit raw credentials.
 - Do not put private API credentials, RPC provider secrets, Binance secrets, wallet seed phrases, or signing keys in prompts or client-side code.
 - Prefer HTTPS. Restrict network access at the deployment boundary where possible.
