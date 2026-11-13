@@ -61,3 +61,18 @@ Render Free web services spin down after 15 minutes without inbound traffic and 
 - Do not commit `.env` or paste secrets into issues, pull requests, or chat.
 - Keep auto-deploy disabled until CI is green and a manual deployment is explicitly approved.
 - Do not merge PR #4 or deploy to production without the owner's explicit approval.
+
+## Cloudflare custom domain (optional; configure only after Render service exists)
+
+Use this sequence when the owner supplies a registered domain and the Render service has an actual `onrender.com` hostname. Do not guess the hostname or modify registrar nameservers/DNS records before reviewing the existing DNS zone.
+
+1. Add the custom domain to the Render service in the Render Dashboard and copy the exact `onrender.com` target shown by Render.
+2. In Cloudflare, open **SSL/TLS → Overview** and set the encryption mode to **Full**, following Render's Cloudflare-specific instructions.
+3. In **DNS → Records**, create the required CNAME record(s), such as `@` for the apex and `www` for the www hostname, targeting the exact Render `onrender.com` hostname.
+4. Keep those CNAME records **DNS only** while Render verifies the domain and issues its certificate. Remove conflicting `AAAA` records for the hostname because Render's current Cloudflare guide says IPv6 AAAA records can interfere with custom-domain behavior.
+5. Wait until the Render Dashboard reports that the custom domain is verified and its certificate is issued/valid. Only then may the owner optionally switch the web CNAME records to **Proxied** in Cloudflare.
+6. Re-test HTTPS, redirects, `/health`, `/dashboard`, authenticated API access, and PostgreSQL persistence through the custom hostname before treating the setup as accepted.
+
+Do not proxy mail, verification, or unrelated DNS records as part of this change. Preserve existing MX, TXT, SPF, DKIM, and DMARC records. Cloudflare proxying is an optional later step; DNS setup alone does not deploy the application or secure an API whose application authentication is misconfigured.
+
+Official provider instructions: [Render — Configuring Cloudflare DNS](https://render.com/docs/configure-cloudflare-dns). The record target, domain ownership, current DNS zone, and certificate state must be read from the owner's actual accounts; this repository does not contain those values.
