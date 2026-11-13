@@ -60,7 +60,7 @@ jobs:
             echo "::error::Missing repository Actions secret NEON_STAGING_TEST_DATABASE_URL."
             exit 1
           fi
-          printf '::add-mask::%s\\n' "$TEST_DATABASE_URL"
+          printf '::add-mask::%s\n' "$TEST_DATABASE_URL"
           python - <<'PY'
           import os
           from urllib.parse import urlparse
@@ -118,13 +118,13 @@ jobs:
 
       - name: Run real PostgreSQL application integration tests
         run: |
-          pytest -q \\
-            tests/test_aggregate_trade_postgres_integration.py \\
-            tests/test_derivatives_ratio_postgres_integration.py \\
-            tests/test_evm_transfer_postgres_integration.py \\
-            tests/test_historical_klines_postgres_integration.py \\
-            tests/test_market_confluence_postgres_integration.py \\
-            tests/test_derivatives_signal_postgres_integration.py \\
-            tests/test_funding_open_interest_postgres_integration.py \\
-            tests/test_liquidation_postgres_integration.py \\
+          pytest -q \
+            tests/test_aggregate_trade_postgres_integration.py \
+            tests/test_derivatives_ratio_postgres_integration.py \
+            tests/test_evm_transfer_postgres_integration.py \
+            tests/test_historical_klines_postgres_integration.py \
+            tests/test_market_confluence_postgres_integration.py \
+            tests/test_derivatives_signal_postgres_integration.py \
+            tests/test_funding_open_interest_postgres_integration.py \
+            tests/test_liquidation_postgres_integration.py \
             tests/test_order_book_postgres_integration.py
