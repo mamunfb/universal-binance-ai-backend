@@ -5,6 +5,7 @@ import json
 import logging
 import sqlite3
 import psycopg
+from app.services.collector_leases import assert_current_collector_lease
 from psycopg.rows import dict_row
 from datetime import datetime, timezone
 from pathlib import Path
@@ -68,6 +69,7 @@ class OrderBookHistoryStore:
     def insert(self, row: dict[str, Any]) -> None:
         if self.database_url:
             with self._connect_postgres() as db:
+                assert_current_collector_lease(db, "order-book:all")
                 db.execute("""
                     INSERT INTO public.order_book_samples (
                         market, symbol, event_time_ms, transaction_time_ms, update_id,
