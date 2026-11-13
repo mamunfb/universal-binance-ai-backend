@@ -2,6 +2,7 @@ import pytest
 import asyncio
 
 from app.services.evm_transfer_store import EVMTransferStore, index_erc20_transfer_history
+from app.providers.evm_rpc import TRANSFER_TOPIC
 
 CONTRACT = "0x" + "a" * 40
 SENDER = "0x" + "1" * 40
@@ -15,7 +16,7 @@ def _topic(address):
 def test_transfer_store_is_idempotent_and_tracks_coverage(tmp_path):
     store = EVMTransferStore(str(tmp_path / "history.sqlite3"))
     log = {
-        "topics": ["0x" + "0" * 64, _topic(SENDER), _topic(RECIPIENT)],
+        "topics": [TRANSFER_TOPIC, _topic(SENDER), _topic(RECIPIENT)],
         "data": hex(12345), "transactionHash": "0x" + "b" * 64,
         "blockNumber": "0x64", "logIndex": "0x0",
     }
@@ -40,7 +41,7 @@ def test_indexer_chunks_and_persists_all_ranges(tmp_path):
         async def token_transfer_logs(self, contract, start, end, max_block_span):
             assert end - start + 1 <= 2
             return [{
-                "topics": ["0x" + "0" * 64, _topic(SENDER), _topic(RECIPIENT)],
+                "topics": [TRANSFER_TOPIC, _topic(SENDER), _topic(RECIPIENT)],
                 "data": hex(100), "transactionHash": "0x" + format(start, "064x"),
                 "blockNumber": hex(start), "logIndex": "0x0",
             }]
@@ -102,6 +103,18 @@ def test_save_chunk_rejects_non_list_logs(tmp_path):
     assert store.coverage(1, CONTRACT) == []
 
 
+def test_non_transfer_event_signature_does_not_create_coverage(tmp_path):
+    store = EVMTransferStore(str(tmp_path / "history.sqlite3"))
+    log = {
+        "topics": ["0x" + "0" * 64, _topic(SENDER), _topic(RECIPIENT)],
+        "data": hex(1), "transactionHash": "0x" + "c" * 64,
+        "blockNumber": "0x64", "logIndex": "0x0",
+    }
+    with pytest.raises(ValueError, match="non-Transfer"):
+        store.save_chunk(1, CONTRACT, 100, 100, [log])
+    assert store.coverage(1, CONTRACT) == []
+
+
 def test_malformed_log_does_not_create_coverage(tmp_path):
     store = EVMTransferStore(str(tmp_path / "history.sqlite3"))
     malformed = {"topics": [], "transactionHash": "0x" + "c" * 64}
@@ -118,10 +131,10 @@ def test_address_flow_summary_uses_exact_raw_integer_totals(tmp_path):
     store = EVMTransferStore(str(tmp_path / "history.sqlite3"))
     huge = 2**80
     logs = [
-        {"topics": ["0x" + "0" * 64, _topic(SENDER), _topic(RECIPIENT)],
+        {"topics": [TRANSFER_TOPIC, _topic(SENDER), _topic(RECIPIENT)],
          "data": hex(huge), "transactionHash": "0x" + "d" * 64,
          "blockNumber": "0x64", "logIndex": "0x0"},
-        {"topics": ["0x" + "0" * 64, _topic(RECIPIENT), _topic(SENDER)],
+        {"topics": [TRANSFER_TOPIC, _topic(RECIPIENT), _topic(SENDER)],
          "data": hex(100), "transactionHash": "0x" + "e" * 64,
          "blockNumber": "0x65", "logIndex": "0x0"},
     ]
@@ -151,7 +164,7 @@ def test_smart_money_activity_only_includes_verified_registry_addresses(tmp_path
     registry_json = '[{"address":"' + SENDER + '","label":"smart_money","entity_name":"Reviewed wallet","verification_status":"verified","evidence_url":"https://example.org/proof","evidence_note":"Operator reviewed public disclosure"}]'
     registry = load_wallet_registry(registry_json, 1)
     log = {
-        "topics": ["0x" + "0" * 64, _topic(SENDER), _topic(RECIPIENT)],
+        "topics": [TRANSFER_TOPIC, _topic(SENDER), _topic(RECIPIENT)],
         "data": hex(10**18), "transactionHash": "0x" + "f" * 64,
         "blockNumber": "0x64", "logIndex": "0x0",
     }
@@ -171,10 +184,10 @@ def test_smart_money_accumulation_trend_groups_net_flows_by_block_window(tmp_pat
     registry_json = '[{"address":"' + SENDER + '","label":"smart_money","verification_status":"verified","evidence_url":"https://example.org/proof","evidence_note":"Reviewed public evidence"}]'
     registry = load_wallet_registry(registry_json, 1)
     logs = [
-        {"topics": ["0x" + "0" * 64, _topic(RECIPIENT), _topic(SENDER)],
+        {"topics": [TRANSFER_TOPIC, _topic(RECIPIENT), _topic(SENDER)],
          "data": hex(5 * 10**18), "transactionHash": "0x" + "a" * 64,
          "blockNumber": "0x64", "logIndex": "0x0"},
-        {"topics": ["0x" + "0" * 64, _topic(SENDER), _topic(RECIPIENT)],
+        {"topics": [TRANSFER_TOPIC, _topic(SENDER), _topic(RECIPIENT)],
          "data": hex(2 * 10**18), "transactionHash": "0x" + "b" * 64,
          "blockNumber": "0x6e", "logIndex": "0x0"},
     ]
@@ -211,7 +224,7 @@ def test_smart_money_trend_cancels_transfers_between_cohort_wallets(tmp_path):
     )
     registry = load_wallet_registry(registry_json, 1)
     log = {
-        "topics": ["0x" + "0" * 64, _topic(SENDER), _topic(second)],
+        "topics": [TRANSFER_TOPIC, _topic(SENDER), _topic(second)],
         "data": hex(7 * 10**18), "transactionHash": "0x" + "c" * 64,
         "blockNumber": "0x64", "logIndex": "0x0",
     }
