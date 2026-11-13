@@ -267,3 +267,33 @@ def test_history_store_query_market_filters_remain_case_insensitive(tmp_path):
     store.insert(_valid_store_row())
     assert store.recent("usd_m", "btcusdt", 10)[0]["symbol"] == "BTCUSDT"
     assert store.count("usd_m", "btcusdt") == 1
+
+
+@pytest.mark.parametrize("field,value", [
+    ("update_id", 2**63),
+    ("event_time_ms", 2**63),
+    ("transaction_time_ms", 2**63),
+])
+def test_history_store_rejects_integer_fields_outside_storage_range(tmp_path, field, value):
+    store = OrderBookHistoryStore(str(tmp_path / "book.sqlite3"))
+    row = _valid_store_row()
+    row[field] = value
+    with pytest.raises(ValueError):
+        store.insert(row)
+    assert store.count() == 0
+
+
+@pytest.mark.parametrize("start,end", [
+    (2**63, None),
+    (None, 2**63),
+])
+def test_history_store_recent_rejects_time_bounds_outside_storage_range(tmp_path, start, end):
+    store = OrderBookHistoryStore(str(tmp_path / "book.sqlite3"))
+    with pytest.raises(ValueError):
+        store.recent("SPOT", "BTCUSDT", 10, start, end)
+
+
+def test_history_store_count_none_none_returns_unfiltered_total(tmp_path):
+    store = OrderBookHistoryStore(str(tmp_path / "book.sqlite3"))
+    store.insert(_valid_store_row())
+    assert store.count(None, None) == 1
