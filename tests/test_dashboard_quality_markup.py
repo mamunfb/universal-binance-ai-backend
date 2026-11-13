@@ -283,3 +283,26 @@ def test_dashboard_scanner_escapes_remote_values_and_discloses_scan_limitations(
     assert "result.coverage_warning" in html
     assert "result.stage1_missing_metrics" in html
     assert "rows.slice(0,100)" in html
+
+
+def test_dashboard_has_live_research_readiness_and_provider_health_panel():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    for identifier in (
+        'id="readinessPanel"', 'id="refreshReadiness"', 'id="readinessStatus"',
+        'id="readinessMarket"', 'id="readinessCapabilities"',
+        'id="readinessPhases"', 'id="readinessLimitations"',
+    ):
+        assert identifier in html
+    assert "call('/api/v1/research/preflight')" in html
+    assert "call('/api/v1/research/phase-readiness')" in html
+    assert "preflight.trading_enabled" in html
+    assert "preflight.limitations" in html
+
+
+def test_dashboard_readiness_escapes_provider_and_phase_data():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "escapeHtml(label)" in html
+    assert "escapeHtml(x.status||'UNKNOWN')" in html
+    assert "escapeHtml(x.error_type)" in html
+    assert "escapeHtml(x.name??x.phase??'—')" in html
+    assert "escapeHtml(x)" in html
