@@ -333,3 +333,14 @@ def test_dashboard_quality_summary_counts_freshness_separately_from_source_statu
     assert "const counts=Object.create(null),freshnessCounts=Object.create(null)" in html
     assert "freshnessCounts[freshness]=(freshnessCounts[freshness]||0)+1" in html
     assert "Object.entries(freshnessCounts).map(([state,count])=>['Freshness '+state,count])" in html
+
+
+def test_dashboard_shows_phase_readiness_summary_and_execution_disclaimer():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert 'id="readinessSummary"' in html
+    assert "phase.status??'UNKNOWN'" in html
+    assert "safeCount(phase.phase_count)" in html
+    assert "safeCount(phase.completed_phase_count)" in html
+    assert "phase.execution_claim===false?'NO':'NOT REPORTED'" in html
+    assert "escapeHtml(phase.important_rule)" in html
+    assert "validPhases.length+' reported'" in html
