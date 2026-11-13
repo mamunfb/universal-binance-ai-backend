@@ -93,12 +93,12 @@ Operational implications:
 - Multiple web replicas with the same collector flags and job configuration may each open streams or poll the same upstream endpoints. Storage uniqueness may reduce duplicate rows in some stores, but it does not prevent duplicate network traffic, provider quota use, or CPU.
 - The historical-kline collector status response explicitly warns that it runs only while the application process is alive and recommends one collector process per database. Equivalent deployment guidance should be made consistent for all collectors.
 - Collector task status is process-local. A status response from one replica does not establish the state of collectors on another replica.
-- The lifespan starts enabled collectors before entering the `try/finally` block that surrounds `yield`. If a later collector constructor or startup step raises after an earlier task has started, the explicit shutdown block may not run for the already-started task. This path needs a regression test and safer startup rollback/cleanup before enabling multiple collectors in production.
-- Shutdown behavior differs by collector: some tasks are cancelled and awaited; derivatives uses a stop event and awaits its loop. Preserve cancellation propagation and test bounded shutdown so a stuck upstream operation cannot indefinitely delay service termination.
+- The lifespan startup sequence is now inside `try/finally`, so a later collector constructor/startup failure triggers cleanup for collectors already started. Regression coverage is in `tests/test_collector_lifespan.py`.
+- Shutdown now attempts all enabled collector stops with `asyncio.gather(..., return_exceptions=True)` and logs per-collector failures, so one failing stop does not prevent the remaining stop attempts. This does not yet guarantee a hard shutdown deadline if an individual collector's `stop()` hangs; bounded shutdown/timeouts remain a follow-up.
 
 Recommended follow-up tests (not yet implemented by this documentation change):
-1. Startup failure after one collector has started must stop and await every previously started collector.
-2. Lifespan shutdown must stop all enabled collectors and leave no pending tasks.
-3. Disabled flags must start no collector tasks.
-4. Status endpoints must distinguish disabled, starting, running, degraded, disconnected, and stopped states accurately.
-5. Deployment documentation must clearly state the single collector-owner process requirement until distributed coordination exists.
+1. Add coverage that disabled flags start no collector tasks.
+2. Add coverage that shutdown attempts every collector even when one stop operation raises.
+3. Add bounded-shutdown behavior so a stuck collector cannot indefinitely delay service termination.
+4. Status endpoints should distinguish disabled, starting, running, degraded, disconnected, and stopped states accurately.
+5. Keep the single collector-owner process requirement explicit until distributed coordination exists.
