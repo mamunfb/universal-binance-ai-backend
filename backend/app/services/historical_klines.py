@@ -51,6 +51,8 @@ class HistoricalKlineStore:
 
     @staticmethod
     def _finite(value: Any, field: str) -> float:
+        if isinstance(value, bool):
+            raise ValueError(f"Invalid candle {field}")
         try:
             number = float(value)
         except (TypeError, ValueError, OverflowError) as exc:
