@@ -150,7 +150,7 @@ Observed locally stored USD-M force-order snapshots can be grouped into configur
 
 ## Real-time order book history
 
-An opt-in sequence-aware Binance diff-depth collector can maintain local Spot, USD-M and COIN-M order books and persist periodic liquidity samples. It is disabled by default and requires a persistent single-process deployment. APIs: `GET /api/v1/history/order-book/status` and `GET /api/v1/history/order-book/{market}/{symbol}`. Configure `ORDER_BOOK_COLLECTOR_ENABLED`, `ORDER_BOOK_COLLECTOR_JOBS`, and related `ORDER_BOOK_*` variables. See [Order Book Liquidity Intelligence](docs/ORDER_BOOK_LIQUIDITY_INTELLIGENCE.md).
+An opt-in sequence-aware Binance diff-depth collector can maintain local Spot, USD-M and COIN-M order books and persist periodic liquidity samples. It is disabled by default and requires a persistent single-process deployment. APIs: `GET /api/v1/history/order-book/status` and `GET /api/v1/history/order-book/{market}/{symbol}`. Configure `ORDER_BOOK_COLLECTOR_ENABLED`, `ORDER_BOOK_COLLECTOR_JOBS`, and related `ORDER_BOOK_*` variables. See [Order Book Liquidity Intelligence](docs/ORDER_BOOK_LIQUIDITY_INTELLIGENCE.md). Multi-instance collector ownership is not implemented; keep collector execution to one process and review [Collector Ownership and Multi-Instance Safety](docs/COLLECTOR_OWNERSHIP_AND_MULTI_INSTANCE_SAFETY.md) before scaling.
 
 
 ## Liquidity behavior and aggregate trade flow
