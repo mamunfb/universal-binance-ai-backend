@@ -48,6 +48,19 @@ def test_dashboard_api_url_validation_and_request_runtime():
             assert.equal(requests.length, 0, "missing API key must not send a request");
 
             key.value = " private-test-key ";
+            for (const path of [
+              "health",
+              "//attacker.example/health",
+              "https://attacker.example/health",
+              "/health\\admin",
+              "/health\nadmin",
+              "/health#fragment"
+            ]) {
+              await assert.rejects(call(path), /safe same-origin absolute path/,
+                "must reject unsafe API path: " + path);
+            }
+            assert.equal(requests.length, 0, "rejected API paths must never reach fetch");
+
             for (const url of [
               "http://api.example",
               "ftp://api.example",
