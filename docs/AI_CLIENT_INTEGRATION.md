@@ -91,7 +91,7 @@ Common codes include `VALIDATION_ERROR`, `NOT_FOUND`, `UNAUTHORIZED`, `FORBIDDEN
 
 ## MCP adapter response handling
 
-The local MCP adapter exposes a read-only `get_stored_historical_klines` tool for locally collected candles. The local historical collector itself is available through the authenticated REST POST endpoint, not through MCP. The adapter preserves successful JSON objects exactly, including source, generated timestamps, freshness, coverage, missing-data, and warning fields. For HTTP failures it returns a normalized object with `status: FAILED`, `http_status`, a stable `error.code`, a safe message, and a `retryable` flag. It also carries the API `request_id` when supplied. Connection failures use `UPSTREAM_CONNECTION_ERROR`; invalid or non-object success JSON uses `UPSTREAM_INVALID_RESPONSE`. These normalized MCP errors are adapter output and do not change the canonical REST API error contract. Retry only when `retryable` is true and apply bounded backoff; do not retry authentication or validation failures unchanged.
+The local MCP adapter exposes `get_stored_historical_klines` as a read-only tool for locally collected candles. It also exposes `save_market_confluence_snapshot`, which performs a narrowly scoped write: it persists a descriptive research snapshot through the authenticated REST POST endpoint. The historical candle collector itself remains available through REST and is not exposed through MCP. The adapter preserves successful JSON objects exactly, including source, generated timestamps, freshness, coverage, missing-data, and warning fields. For HTTP failures it returns a normalized object with `status: FAILED`, `http_status`, a stable `error.code`, a safe message, and a `retryable` flag. It also carries the API `request_id` when supplied. Connection failures use `UPSTREAM_CONNECTION_ERROR`; invalid or non-object success JSON uses `UPSTREAM_INVALID_RESPONSE`. These normalized MCP errors are adapter output and do not change the canonical REST API error contract. Retry only when `retryable` is true and apply bounded backoff; do not retry authentication or validation failures unchanged.
 
 ## Retry guidance
 
@@ -160,14 +160,14 @@ Do not choose a fixed requests-per-minute limit until the deployment, upstream q
 A ChatGPT, Gemini, Manus, Claude, or Perplexity adapter is complete only after:
 1. Its exact supported connection method is confirmed in the target account/environment.
 2. It authenticates to the private backend without exposing credentials in prompts or client code.
-3. It can discover/call a small set of read-only tools.
+3. It can discover/call a small set of research tools; review each tool's documented side effects before enabling it.
 4. It preserves structured errors, request IDs, timestamps, and data-quality metadata.
 5. End-to-end tests pass for success, validation failure, authentication failure, and unavailable upstream data.
 
 
 ## Private MCP stdio adapter
 
-A first shared MCP adapter is available at `mcp-server/server.py`. It exposes a small, read-only set of tools that call the canonical REST API; it does not duplicate market or on-chain analysis logic.
+A first shared MCP adapter is available at `mcp-server/server.py`. It exposes a small set of tools that call the canonical REST API; most are read-only, while `save_market_confluence_snapshot` persists a descriptive research snapshot. It does not expose exchange order placement, signing, withdrawals, or trade execution, and it does not duplicate market or on-chain analysis logic.
 
 Install dependencies with `pip install -r requirements.txt`. Run a separate local MCP process for each AI client, setting these environment variables in that client's MCP server configuration:
 
