@@ -163,3 +163,27 @@ def test_store_rejects_boolean_candle_metrics(tmp_path, index):
     with pytest.raises(ValueError):
         store.save_klines("SPOT", "BTCUSDT", "1m", [row])
     assert store.history("SPOT", "BTCUSDT", "1m")["returned_count"] == 0
+
+
+@pytest.mark.parametrize("index,value", [
+    (0, 2**63),
+    (6, 2**63),
+    (8, 2**63),
+])
+def test_store_rejects_integer_fields_outside_storage_range(tmp_path, index, value):
+    row = candle()
+    row[index] = value
+    store = HistoricalKlineStore(str(tmp_path / "history.sqlite3"))
+    with pytest.raises(ValueError, match="signed 64-bit"):
+        store.save_klines("SPOT", "BTCUSDT", "1m", [row])
+    assert store.history("SPOT", "BTCUSDT", "1m")["returned_count"] == 0
+
+
+@pytest.mark.parametrize("kwargs", [
+    {"start_time_ms": 2**63},
+    {"end_time_ms": 2**63},
+])
+def test_history_rejects_query_bounds_outside_storage_range(tmp_path, kwargs):
+    store = HistoricalKlineStore(str(tmp_path / "history.sqlite3"))
+    with pytest.raises(ValueError, match="signed 64-bit"):
+        store.history("SPOT", "BTCUSDT", "1m", **kwargs)
