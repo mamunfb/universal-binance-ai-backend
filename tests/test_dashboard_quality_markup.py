@@ -434,3 +434,13 @@ def test_dashboard_performance_handler_renders_minimal_holdout_horizon_in_runtim
         check=False,
     )
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_dashboard_performance_optional_metrics_handle_undefined_values():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    performance_handler = next(
+        line for line in html.splitlines() if "$('performance').onclick" in line
+    )
+    # API JSON may omit optional fields entirely; null-only checks do not cover
+    # JavaScript undefined and can still call toFixed() on a missing value.
+    assert "===null" not in performance_handler
