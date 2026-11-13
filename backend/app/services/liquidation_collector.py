@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import math
 import sqlite3
 import psycopg
 from psycopg.rows import dict_row
@@ -15,33 +16,57 @@ STREAM_URL = "wss://fstream.binance.com/market/ws/!forceOrder@arr"
 
 
 def normalize_force_order(message: dict[str, Any]) -> dict[str, Any] | None:
-    if message.get("e") != "forceOrder" or not isinstance(message.get("o"), dict):
+    if not isinstance(message, dict) or message.get("e") != "forceOrder" or not isinstance(message.get("o"), dict):
         return None
     order = message["o"]
     try:
-        avg_price = float(order.get("ap") or 0)
-        filled_qty = float(order.get("z") or 0)
-        event_time = int(message["E"])
-        trade_time = int(order.get("T") or event_time)
-        if avg_price < 0 or filled_qty < 0:
+        event_time_raw = message["E"]
+        trade_time_raw = order.get("T") or event_time_raw
+        if (isinstance(event_time_raw, bool) or isinstance(trade_time_raw, bool)):
             return None
-    except (TypeError, ValueError, KeyError):
+        event_time = int(event_time_raw)
+        trade_time = int(trade_time_raw)
+        if event_time < 0 or trade_time < 0:
+            return None
+
+        def finite_nonnegative(value: Any, field: str) -> float:
+            number = float(value or 0)
+            if not math.isfinite(number) or number < 0:
+                raise ValueError(f"Invalid liquidation {field}")
+            return number
+
+        avg_price = finite_nonnegative(order.get("ap"), "average price")
+        original_qty = finite_nonnegative(order.get("q"), "original quantity")
+        last_filled_qty = finite_nonnegative(order.get("l"), "last filled quantity")
+        filled_qty = finite_nonnegative(order.get("z"), "cumulative filled quantity")
+        notional = avg_price * filled_qty
+        if not math.isfinite(notional):
+            return None
+
+        symbol = str(order.get("s", "")).strip().upper()
+        if not symbol:
+            return None
+        side = str(order.get("S", "")).strip().upper()
+        if side not in {"BUY", "SELL"}:
+            return None
+        raw_json = json.dumps(message, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
+    except (TypeError, ValueError, KeyError, OverflowError):
         return None
     return {
         "event_time_ms": event_time,
         "trade_time_ms": trade_time,
-        "symbol": str(order.get("s", "")).upper(),
-        "pair_symbol": str(order.get("ps", "")).upper() or None,
+        "symbol": symbol,
+        "pair_symbol": str(order.get("ps", "")).strip().upper() or None,
         "market_type": message.get("st"),
-        "side": str(order.get("S", "")).upper(),
+        "side": side,
         "order_type": order.get("o"),
         "status": order.get("X"),
         "average_price": avg_price,
-        "original_quantity": float(order.get("q") or 0),
-        "last_filled_quantity": float(order.get("l") or 0),
+        "original_quantity": original_qty,
+        "last_filled_quantity": last_filled_qty,
         "cumulative_filled_quantity": filled_qty,
-        "approx_cumulative_notional": avg_price * filled_qty,
-        "raw_json": json.dumps(message, separators=(",", ":"), ensure_ascii=False),
+        "approx_cumulative_notional": notional,
+        "raw_json": raw_json,
     }
 
 
