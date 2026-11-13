@@ -145,3 +145,21 @@ def test_snapshot_rejects_fractional_timestamp_fields(tmp_path, field, value):
     with pytest.raises(ValueError):
         store.save(payload)
     assert store.history("USD_M", "BTCUSDT", "1h")["returned_count"] == 0
+
+
+@pytest.mark.parametrize("payload", [
+    None,
+    [],
+    {"market": 1, "symbol": "BTCUSDT", "interval": "1h", "analyzed_at_ms": 1000},
+    {"market": "USD_M", "symbol": ["BTCUSDT"], "interval": "1h", "analyzed_at_ms": 1000},
+    {"market": "USD_M", "symbol": "BTCUSDT", "interval": 60, "analyzed_at_ms": 1000},
+    {"market": "USD_M", "symbol": "BTCUSDT", "interval": "1h", "analyzed_at_ms": 1000, "confluence": []},
+    {"market": "USD_M", "symbol": "BTCUSDT", "interval": "1h", "analyzed_at_ms": 1000, "reference": "invalid"},
+    {"market": "USD_M", "symbol": "BTCUSDT", "interval": "1h", "analyzed_at_ms": 1000, "confluence": {"bias": []}},
+    {"market": "USD_M", "symbol": "BTCUSDT", "interval": "1h", "analyzed_at_ms": 1000, "reference": {"price": "not-a-number"}},
+])
+def test_snapshot_rejects_malformed_object_shapes(tmp_path, payload):
+    store = MarketConfluenceStore(str(tmp_path / "snapshots.sqlite3"))
+    with pytest.raises(ValueError):
+        store.save(payload)
+    assert store.history("USD_M", "BTCUSDT", "1h")["returned_count"] == 0
