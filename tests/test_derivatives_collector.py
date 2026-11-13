@@ -132,3 +132,35 @@ async def test_collector_stop_cancels_inflight_provider_request(tmp_path):
 
     assert collector.status()["status"] == "STOPPED"
     assert collector._task is None
+
+
+@pytest.mark.asyncio
+async def test_collector_retries_failed_job_on_next_cycle(tmp_path):
+    class RecoveringProvider(FakeProvider):
+        def __init__(self):
+            super().__init__()
+            self.fail_once = True
+
+        async def funding_rate(self, *args, **kwargs):
+            if self.fail_once:
+                self.fail_once = False
+                raise RuntimeError("temporary upstream failure")
+            return await super().funding_rate(*args, **kwargs)
+
+    provider = RecoveringProvider()
+    funding = FundingRateStore(str(tmp_path / "funding.sqlite3"))
+    oi = OpenInterestStore(str(tmp_path / "oi.sqlite3"))
+    collector = DerivativesHistoryCollector(
+        funding, oi, lambda market: provider,
+        '[{"type":"FUNDING_RATE","symbol":"BTCUSDT"}]',
+        poll_seconds=30,
+    )
+
+    failed = await collector.run_once()
+    recovered = await collector.run_once()
+
+    assert failed["status"] == "DEGRADED"
+    assert failed["last_results"][0]["status"] == "FAILED"
+    assert recovered["status"] == "RUNNING"
+    assert recovered["last_results"][0]["status"] == "COMPLETED"
+    assert funding.history("USD_M", "BTCUSDT")["returned_count"] == 2
