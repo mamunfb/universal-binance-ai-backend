@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 import sqlite3
 import psycopg
 from psycopg.rows import dict_row
@@ -268,8 +269,8 @@ class OrderBookStreamCollector:
                     try:
                         snapshot = await self._provider(market).order_book(symbol, self.snapshot_limit)
                         last_id = int(snapshot["lastUpdateId"])
-                        bids = {float(p): float(q) for p, q in snapshot["bids"] if float(q) > 0}
-                        asks = {float(p): float(q) for p, q in snapshot["asks"] if float(q) > 0}
+                        bids = self._levels(snapshot["bids"])
+                        asks = self._levels(snapshot["asks"])
                         first_event = True
                         # Discard stale buffered updates, then bridge the snapshot update ID.
                         while not queue.empty():
@@ -345,14 +346,38 @@ class OrderBookStreamCollector:
             for price in sorted(asks, reverse=True)[:-self.snapshot_limit]:
                 asks.pop(price, None)
     @staticmethod
+    def _levels(levels: Any) -> dict[float, float]:
+        """Validate an exchange snapshot side before admitting it into the book."""
+        if not isinstance(levels, list):
+            raise ValueError("Invalid order-book levels")
+        normalized: dict[float, float] = {}
+        for level in levels:
+            if not isinstance(level, (list, tuple)) or len(level) != 2:
+                raise ValueError("Invalid order-book level")
+            try:
+                price, quantity = float(level[0]), float(level[1])
+            except (TypeError, ValueError, OverflowError) as exc:
+                raise ValueError("Invalid order-book level") from exc
+            if not math.isfinite(price) or not math.isfinite(quantity) or price <= 0 or quantity < 0:
+                raise ValueError("Order-book price and quantity must be finite; price positive and quantity non-negative")
+            if quantity > 0:
+                normalized[price] = quantity
+        return normalized
+
+    @staticmethod
     def _apply(event: dict[str, Any], bids: dict[float, float], asks: dict[float, float]) -> None:
+        if not isinstance(event, dict):
+            raise ValueError("Invalid order-book event")
         for key, book_side in (("b", bids), ("a", asks)):
-            for price_raw, qty_raw in event.get(key, []):
-                price, qty = float(price_raw), float(qty_raw)
-                if qty == 0:
-                    book_side.pop(price, None)
-                elif price > 0 and qty > 0:
-                    book_side[price] = qty
+            levels = OrderBookStreamCollector._levels(event.get(key, []))
+            for price, quantity in levels.items():
+                book_side[price] = quantity
+            # Zero-quantity levels are deletions; validate their prices as well.
+            raw_levels = event.get(key, [])
+            for level in raw_levels:
+                quantity = float(level[1])
+                if quantity == 0:
+                    book_side.pop(float(level[0]), None)
 
     def _sample(
         self, market: str, symbol: str, event: dict[str, Any], update_id: int,
