@@ -48,6 +48,23 @@ Do not mark deployment complete based only on a successful container build or he
 
 Render Free web services spin down after 15 minutes without inbound traffic and may take about a minute to wake. Their local filesystem is ephemeral: SQLite files are not durable across spin-down, restart, or redeploy. The Neon `DATABASE_URL` is mandatory for this Render service: `REQUIRE_DATABASE_URL=true` makes startup fail if it is missing. It must be configured and verified before using historical collection or dashboard persistence. Free instances are for testing/hobby use, not production workloads; review current Render plan limits before launch.
 
+## Distributed background collector ownership
+
+Before enabling any background collector on a PostgreSQL deployment, apply all migrations in order, including `migrations/011_collector_leases.sql`, to the primary `DATABASE_URL`. The application does not run schema migrations automatically.
+
+All application instances that share collector data must use the same primary `DATABASE_URL`. Each collector group claims one PostgreSQL lease row before starting:
+- Liquidation stream: `liquidation:all`
+- Order-book streams: `order-book:all`
+- Aggregate-trade streams: `aggregate-trades:all`
+- Funding/open-interest history: `derivatives-history:all`
+- Historical Klines: `historical-klines:all`
+
+The coordinator uses PostgreSQL server time, a 30-second lease, a 10-second renewal heartbeat, and a 5-second retry interval. A process that cannot acquire a lease waits without starting that collector. Graceful shutdown stops the collector and releases its lease; after an abrupt process loss, another instance can take ownership after the lease expires. If lease acquisition or renewal fails, the coordinator fails closed and stops its collector rather than continuing without confirmed ownership. Collector status endpoints expose the coordination mode and state.
+
+SQLite/local development remains process-local and does not provide cross-process coordination. A configured PostgreSQL `DATABASE_URL` is required for distributed leases. If `HISTORICAL_KLINE_DATABASE_URL` points to a separate database, leases still live in the shared primary `DATABASE_URL`; all replicas must share that primary coordination database.
+
+**Safety limitation:** this lease coordinator prevents normal duplicate collector startup and supports failover, but it is not yet a fencing-token implementation. A severely paused or partitioned process could resume briefly after its lease expires before its worker is stopped. Keep one application instance for collector workloads until write-path fencing is added and verified; do not treat leases alone as proof of strict single-writer safety.
+
 ## Security
 
 - Keep `PERSONAL_API_KEY` and `DATABASE_URL` only in Render's environment/secret settings.

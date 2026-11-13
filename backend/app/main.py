@@ -64,6 +64,7 @@ from app.services.multi_timeframe_derivatives import MultiTimeframeDerivativesAn
 from app.services.historical_coverage import HistoricalCoverageEngine
 from app.services.market_data_quality import MarketDataQualityEngine
 from app.services.historical_collector import HistoricalKlineCollector
+from app.services.collector_leases import CollectorLeaseCoordinator, CollectorLeaseStore
 from app.services.wallet_attribution import load_wallet_registry, annotate_wallet_addresses
 from app.services.cross_chain_wallets import parse_chain_rpc_configs, cross_chain_native_wallet_snapshot
 from app.services.cross_chain_tokens import parse_chain_token_configs, cross_chain_erc20_snapshot
@@ -89,6 +90,57 @@ market_confluence_store = MarketConfluenceStore(settings.market_confluence_datab
 market_confluence_performance = MarketConfluencePerformance(market_confluence_store, historical_kline_store)
 historical_collector: HistoricalKlineCollector | None = None
 derivatives_collector: DerivativesHistoryCollector | None = None
+collector_lease_coordinators: dict[str, CollectorLeaseCoordinator] = {}
+
+
+def _start_collector_with_lease(name: str, collector: Any) -> None:
+    if not settings.database_url.strip():
+        collector.start()
+        return
+    coordinator = CollectorLeaseCoordinator(
+        CollectorLeaseStore(settings.database_url),
+        name,
+        collector.start,
+        collector.stop,
+        owner_token=str(uuid4()),
+        ttl_seconds=30,
+        heartbeat_seconds=10,
+        retry_seconds=5,
+    )
+    collector_lease_coordinators[name] = coordinator
+    coordinator.start()
+
+
+async def _stop_collector_with_lease(name: str, collector: Any) -> None:
+    coordinator = collector_lease_coordinators.pop(name, None)
+    if coordinator is not None:
+        await coordinator.stop()
+    else:
+        await collector.stop()
+
+
+def _collector_status_payload(name: str, payload: dict[str, Any], default_status: str | None = None) -> dict[str, Any]:
+    result = dict(payload)
+    coordinator = collector_lease_coordinators.get(name)
+    if coordinator is not None:
+        coordination = coordinator.status()
+        if coordination["state"] != "ACTIVE":
+            result["status"] = coordination["state"]
+    elif settings.database_url.strip():
+        coordination = {
+            "mode": "POSTGRESQL_LEASE", "state": "NOT_INITIALIZED",
+            "collector_name": name, "lease_owned": False,
+        }
+    else:
+        coordination = {
+            "mode": "PROCESS_LOCAL_ONLY", "state": "ACTIVE",
+            "collector_name": name, "lease_owned": False,
+            "warning": "DATABASE_URL is not configured; this collector is not coordinated across processes.",
+        }
+    if default_status and not result.get("status"):
+        result["status"] = default_status
+    result["coordination"] = coordination
+    return result
 
 
 @asynccontextmanager
@@ -100,7 +152,7 @@ async def lifespan(_: FastAPI):
             "before starting the production service."
         )
     if settings.liquidation_collector_enabled:
-        liquidation_collector.start()
+        _start_collector_with_lease("liquidation:all", liquidation_collector)
     if settings.order_book_collector_enabled:
         order_book_collector = OrderBookStreamCollector(
             store=order_book_history_store,
@@ -111,13 +163,13 @@ async def lifespan(_: FastAPI):
             snapshot_limit=settings.order_book_snapshot_limit,
             stored_levels=settings.order_book_stored_levels,
         )
-        order_book_collector.start()
+        _start_collector_with_lease("order-book:all", order_book_collector)
     if settings.aggregate_trade_collector_enabled:
         aggregate_trade_collector = AggregateTradeCollector(
             store=aggregate_trade_store,
             jobs_json=settings.aggregate_trade_collector_jobs,
         )
-        aggregate_trade_collector.start()
+        _start_collector_with_lease("aggregate-trades:all", aggregate_trade_collector)
     if settings.derivatives_collector_enabled:
         derivatives_collector = DerivativesHistoryCollector(
             funding_store=funding_rate_store,
@@ -128,7 +180,7 @@ async def lifespan(_: FastAPI):
             funding_limit=settings.derivatives_collector_funding_limit,
             open_interest_limit=settings.derivatives_collector_open_interest_limit,
         )
-        derivatives_collector.start()
+        _start_collector_with_lease("derivatives-history:all", derivatives_collector)
     if settings.historical_collector_enabled:
         historical_collector = HistoricalKlineCollector(
             store=historical_kline_store,
@@ -138,24 +190,24 @@ async def lifespan(_: FastAPI):
             poll_seconds=settings.historical_collector_poll_seconds,
             initial_limit=settings.historical_collector_initial_limit,
         )
-        historical_collector.start()
+        _start_collector_with_lease("historical-klines:all", historical_collector)
     try:
         yield
     finally:
         if order_book_collector is not None:
-            await order_book_collector.stop()
+            await _stop_collector_with_lease("order-book:all", order_book_collector)
             order_book_collector = None
         if aggregate_trade_collector is not None:
-            await aggregate_trade_collector.stop()
+            await _stop_collector_with_lease("aggregate-trades:all", aggregate_trade_collector)
             aggregate_trade_collector = None
         if derivatives_collector is not None:
-            await derivatives_collector.stop()
+            await _stop_collector_with_lease("derivatives-history:all", derivatives_collector)
             derivatives_collector = None
         if settings.historical_collector_enabled and historical_collector is not None:
-            await historical_collector.stop()
+            await _stop_collector_with_lease("historical-klines:all", historical_collector)
             historical_collector = None
         if settings.liquidation_collector_enabled:
-            await liquidation_collector.stop()
+            await _stop_collector_with_lease("liquidation:all", liquidation_collector)
 
 
 app = FastAPI(
@@ -1458,7 +1510,7 @@ async def order_book_stream_status() -> dict:
         }
     if order_book_collector is None:
         return {"status": "STARTING", "enabled": True}
-    return {"status": "RUNNING", **order_book_collector.status()}
+    return _collector_status_payload("order-book:all", order_book_collector.status(), "RUNNING")
 
 
 @app.get("/api/v1/history/order-book/{market}/{symbol}", tags=["history"])
@@ -1490,7 +1542,7 @@ async def aggregate_trade_collector_status() -> dict:
         }
     if aggregate_trade_collector is None:
         return {"status": "STARTING", "enabled": True}
-    return {"status": "RUNNING", **aggregate_trade_collector.status()}
+    return _collector_status_payload("aggregate-trades:all", aggregate_trade_collector.status(), "RUNNING")
 
 
 @app.get("/api/v1/history/aggregate-trades/{market}/{symbol}", tags=["history"])
@@ -2120,7 +2172,7 @@ async def liquidation_collector_status() -> dict:
             "message": "Set LIQUIDATION_COLLECTOR_ENABLED=true and run a persistent service to collect live events.",
             "stored_event_count": liquidation_store.count(),
         }
-    return liquidation_collector.status()
+    return _collector_status_payload("liquidation:all", liquidation_collector.status())
 
 
 @app.get("/api/v1/analysis/futures/liquidations/recent", tags=["analysis"])
@@ -2151,7 +2203,7 @@ async def historical_collector_status() -> dict:
         }
     if historical_collector is None:
         return {"status": "STARTING", "enabled": True}
-    return historical_collector.status()
+    return _collector_status_payload("historical-klines:all", historical_collector.status())
 
 
 @app.post("/api/v1/history/funding-rates/USD_M/{symbol}/collect", tags=["history"])
@@ -2208,7 +2260,7 @@ async def get_derivatives_collector_status() -> dict:
         return {"status": "DISABLED", "enabled": False, "jobs": []}
     if derivatives_collector is None:
         return {"status": "STARTING", "enabled": True, "jobs": []}
-    return derivatives_collector.status()
+    return _collector_status_payload("derivatives-history:all", derivatives_collector.status())
 
 
 @app.post("/api/v1/history/open-interest/USD_M/{symbol}/collect", tags=["history"])
