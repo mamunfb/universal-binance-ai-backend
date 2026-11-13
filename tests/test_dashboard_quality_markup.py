@@ -206,3 +206,64 @@ def test_dashboard_requires_https_for_remote_api_urls():
     assert "host==='localhost'||host==='127.0.0.1'||host==='[::1]'" in html
     assert "parsed.username||parsed.password||parsed.search||parsed.hash" in html
     assert "HTTPS is required for remote backend URLs" in html
+
+
+def test_dashboard_backend_url_policy_executes_in_javascript_runtime():
+    import subprocess
+    import textwrap
+
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    harness = textwrap.dedent(r"""
+        const assert = require("node:assert/strict");
+        const vm = require("node:vm");
+        let source = "";
+        process.stdin.setEncoding("utf8");
+        process.stdin.on("data", chunk => source += chunk);
+        process.stdin.on("end", () => {
+          const match = source.match(/<script>([\\s\\S]*?)<\\/script>/i);
+          assert.ok(match, "dashboard script must exist");
+          const elements = new Map();
+          const document = {
+            getElementById(id) {
+              if (!elements.has(id)) elements.set(id, { value: "", innerHTML: "", textContent: "", onclick: null });
+              return elements.get(id);
+            }
+          };
+          const window = { location: { origin: "https://dashboard.example" } };
+          const context = { document, window, URL, fetch: async () => { throw new Error("unexpected fetch"); } };
+          vm.runInNewContext(match[1] + "\\nglobalThis.__apiForTest = api;", context);
+          const base = elements.get("base");
+          const api = context.__apiForTest;
+          const accepted = [
+            ["", "https://dashboard.example"],
+            ["https://api.example/v1", "https://api.example/v1"],
+            ["http://localhost:8000", "http://localhost:8000"],
+            ["http://127.0.0.1:8000", "http://127.0.0.1:8000"],
+            ["http://[::1]:8000", "http://[::1]:8000"]
+          ];
+          for (const [input, expected] of accepted) {
+            base.value = input;
+            assert.equal(api(), expected, "expected URL to be accepted: " + input);
+          }
+          const rejected = [
+            ["http://api.example", /HTTPS is required/],
+            ["ftp://api.example", /must be HTTP\\(S\\)/],
+            ["https://user:pass@api.example", /without credentials/],
+            ["https://api.example/path?token=x", /without credentials/],
+            ["https://api.example/path#fragment", /without credentials/],
+            ["not a URL", /absolute HTTP\\(S\\) URL/]
+          ];
+          for (const [input, error] of rejected) {
+            base.value = input;
+            assert.throws(() => api(), error, "expected URL to be rejected: " + input);
+          }
+        });
+    """)
+    result = subprocess.run(
+        ["node", "-e", harness],
+        input=html,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
