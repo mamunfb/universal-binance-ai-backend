@@ -307,3 +307,15 @@ def test_dashboard_markup_has_no_literal_newline_separator():
     dashboard = Path(__file__).resolve().parents[1] / "dashboard" / "index.html"
     html = dashboard.read_text(encoding="utf-8")
     assert r"</div>\n<div>" not in html
+
+
+def test_production_rejects_weak_client_key_even_with_strong_owner_key(monkeypatch):
+    monkeypatch.setattr(settings, "app_env", "production")
+    monkeypatch.setattr(settings, "personal_api_key", "test-owner-key-with-enough-entropy")
+    monkeypatch.setattr(settings, "ai_client_api_keys", '{"chatgpt":"weak-client-key"}')
+    response = client.get(
+        "/api/v1/analysis/futures/liquidations/status",
+        headers={"Authorization": "Bearer test-owner-key-with-enough-entropy"},
+    )
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "AUTH_NOT_CONFIGURED"
