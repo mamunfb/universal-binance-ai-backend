@@ -179,3 +179,46 @@ def test_order_book_sample_rejects_non_integer_update_ids(tmp_path, update_id):
 
 def test_order_book_strict_integer_accepts_integer_strings():
     assert OrderBookStreamCollector._strict_integer("123", "update ID") == 123
+
+
+def _valid_store_row():
+    return {
+        "market": "USD_M", "symbol": "BTCUSDT", "event_time_ms": 1000,
+        "transaction_time_ms": 1000, "update_id": 12,
+        "sampled_at": "2026-01-01T00:00:00+00:00",
+        "best_bid": 99.0, "best_ask": 101.0, "mid_price": 100.0,
+        "spread_bps": 200.0, "bid_notional": 990.0, "ask_notional": 101.0,
+        "depth_imbalance": 0.8, "bids": [[99.0, 10.0]], "asks": [[101.0, 1.0]],
+    }
+
+
+@pytest.mark.parametrize("field,value", [
+    ("update_id", True),
+    ("update_id", 12.5),
+    ("event_time_ms", -1),
+    ("best_bid", float("nan")),
+    ("best_ask", float("inf")),
+    ("mid_price", True),
+    ("spread_bps", -1),
+    ("bid_notional", float("inf")),
+    ("depth_imbalance", 1.5),
+    ("bids", [["99", "nan"]]),
+    ("asks", [["101", -1]]),
+    ("bids", [["99", 1], ["100", 1]]),
+    ("market", "UNKNOWN"),
+    ("symbol", ""),
+])
+def test_history_store_rejects_invalid_rows_before_insert(tmp_path, field, value):
+    store = OrderBookHistoryStore(str(tmp_path / "book.sqlite3"))
+    row = _valid_store_row()
+    row[field] = value
+    with pytest.raises(ValueError):
+        store.insert(row)
+    assert store.count() == 0
+
+
+def test_history_store_rejects_non_object_row(tmp_path):
+    store = OrderBookHistoryStore(str(tmp_path / "book.sqlite3"))
+    with pytest.raises(ValueError):
+        store.insert(None)
+    assert store.count() == 0
