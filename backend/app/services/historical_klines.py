@@ -181,10 +181,10 @@ class HistoricalKlineStore:
 
     def latest_open_time(self, market: str, symbol: str, interval: str) -> int | None:
         """Return the newest locally stored candle open time for one series."""
-        if market.upper() not in {"SPOT", "USD_M", "COIN_M"}:
+        if not isinstance(market, str) or market.upper() not in {"SPOT", "USD_M", "COIN_M"}:
             raise ValueError("market must be SPOT, USD_M, or COIN_M")
-        if not symbol.strip() or not interval.strip():
-            raise ValueError("symbol and interval must not be empty")
+        if not isinstance(symbol, str) or not isinstance(interval, str) or not symbol.strip() or not interval.strip():
+            raise ValueError("symbol and interval must be non-empty strings")
         if self.database_url:
             with self._connect_postgres() as connection:
                 row = connection.execute(
