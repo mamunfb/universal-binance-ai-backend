@@ -284,3 +284,71 @@ def test_dashboard_sanitizer_restricts_svg_paint_values():
     assert "paintAttrs.has(name)" in sanitizer
     assert "currentcolor|transparent" in sanitizer
     assert "url(" not in sanitizer
+
+
+def test_dashboard_escapes_api_derived_text_before_allowlist_sanitization():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    for snippet in (
+        "escapeHtml(x[1]??'—')",
+        "escapeHtml(x.source)",
+        "escapeHtml(x.direction||'NO DIRECTION')",
+        "escapeHtml(x.status)",
+        "escapeHtml(JSON.stringify(x.detail||{},null,2))",
+        "escapeHtml(JSON.stringify(r,null,2))",
+        "escapeHtml(x.snapshot_id)",
+        "escapeHtml(x.bias)",
+        "escapeHtml(r.symbol)",
+        "escapeHtml(r.bias_vs_actual)",
+        "escapeHtml(values[0])",
+        "escapeHtml(values[values.length-1])",
+        "escapeHtml(r.reference_price)",
+        "escapeHtml(h.label)",
+    ):
+        assert snippet in html
+    assert "$('qualityRaw').textContent=JSON.stringify(r,null,2)" in html
+
+
+def test_dashboard_escape_html_helper_runs_in_node_runtime():
+    import subprocess
+    import textwrap
+
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    harness = textwrap.dedent(r"""
+        const assert = require("node:assert/strict");
+        const vm = require("node:vm");
+        let source = "";
+        process.stdin.setEncoding("utf8");
+        process.stdin.on("data", chunk => source += chunk);
+        process.stdin.on("end", () => {
+          const match = source.match(/<script>([\\s\\S]*?)<\\/script>/i);
+          assert.ok(match, "dashboard inline script missing");
+          const document = {
+            getElementById() {
+              return { value: "", innerHTML: "", textContent: "", onclick: null };
+            }
+          };
+          const context = {
+            document,
+            window: { location: { origin: "https://dashboard.example" } },
+            URL,
+            URLSearchParams,
+            fetch: async () => { throw new Error("unexpected fetch"); }
+          };
+          vm.runInNewContext(
+            match[1] + "\\nglobalThis.__escapeHtmlForTest = escapeHtml;",
+            context
+          );
+          assert.equal(
+            context.__escapeHtmlForTest("<div class=\\"x\\">&'\\\"</div>"),
+            "&lt;div class=&quot;x&quot;&gt;&amp;&#39;&quot;&lt;/div&gt;"
+          );
+        });
+    """)
+    result = subprocess.run(
+        ["node", "-e", harness],
+        input=html,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
