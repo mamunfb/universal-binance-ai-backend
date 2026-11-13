@@ -103,9 +103,11 @@ async def test_lease_coordinator_starts_and_stops_collector_with_owned_lease():
 
     started = asyncio.Event()
     stopped = asyncio.Event()
+    observed_lease = {}
     store = FakeLeaseStore()
 
     def start_collector():
+        observed_lease["context"] = ACTIVE_COLLECTOR_LEASE.get()
         started.set()
 
     async def stop_collector():
@@ -119,6 +121,7 @@ async def test_lease_coordinator_starts_and_stops_collector_with_owned_lease():
     coordinator.start()
     await asyncio.wait_for(started.wait(), timeout=1)
     assert coordinator.status()["state"] == "ACTIVE"
+    assert observed_lease["context"] == CollectorLeaseContext("test-collector", "owner-1", 7)
     await coordinator.stop()
     await asyncio.wait_for(stopped.wait(), timeout=1)
 
