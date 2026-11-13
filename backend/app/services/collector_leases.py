@@ -59,7 +59,7 @@ class CollectorLeaseStore:
                 INSERT INTO public.collector_leases (
                     collector_name, owner_token, lease_expires_at, updated_at
                 )
-                VALUES (%s, %s, clock_timestamp() + (%s * INTERVAL '1 second'), NOW())
+                VALUES (%s, %s, clock_timestamp() + (%s * INTERVAL '1 second'), clock_timestamp())
                 ON CONFLICT (collector_name) DO UPDATE SET
                     owner_token = EXCLUDED.owner_token,
                     lease_expires_at = clock_timestamp() + (%s * INTERVAL '1 second'),
