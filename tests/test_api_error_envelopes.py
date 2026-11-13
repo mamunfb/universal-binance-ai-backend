@@ -371,3 +371,29 @@ def test_private_api_rejects_unauthenticated_write_and_collection_endpoints(monk
     assert collection.status_code == 401
     assert snapshot.json()["error"]["code"] == "UNAUTHORIZED"
     assert collection.json()["error"]["code"] == "UNAUTHORIZED"
+
+
+def test_malformed_client_key_configuration_fails_closed_without_owner_key(monkeypatch):
+    monkeypatch.setattr(settings, "app_env", "development")
+    monkeypatch.setattr(settings, "personal_api_key", "")
+    monkeypatch.setattr(settings, "ai_client_api_keys", '{"chatgpt":')
+    response = client.get("/api/v1/analysis/futures/liquidations/status")
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "AUTH_NOT_CONFIGURED"
+
+
+def test_owner_and_client_key_collision_is_rejected_as_ambiguous(monkeypatch):
+    shared_key = "shared-owner-client-key-12345678901234567890"
+    monkeypatch.setattr(settings, "app_env", "development")
+    monkeypatch.setattr(settings, "personal_api_key", shared_key)
+    monkeypatch.setattr(
+        settings,
+        "ai_client_api_keys",
+        json.dumps({"chatgpt": shared_key}),
+    )
+    response = client.get(
+        "/api/v1/analysis/futures/liquidations/status",
+        headers={"Authorization": f"Bearer {shared_key}"},
+    )
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "UNAUTHORIZED"
