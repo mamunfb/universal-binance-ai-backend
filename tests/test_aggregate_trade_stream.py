@@ -72,7 +72,7 @@ def test_aggregate_trade_normalization_trims_symbol_and_rejects_empty_symbol():
     assert normalize_aggregate_trade(payload, "SPOT") is None
 
 
-def test_aggregate_trade_collector_tracks_forward_id_gaps_without_rewinding():
+def test_aggregate_trade_collector_reports_id_discontinuities_without_rewinding():
     from app.services.aggregate_trade_stream import AggregateTradeCollector
 
     state = {"last_trade_id": None, "id_discontinuity_count": 0, "id_gap_span_count": 0, "last_id_discontinuity": None}
