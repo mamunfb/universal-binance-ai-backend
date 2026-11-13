@@ -492,7 +492,7 @@ def test_dashboard_performance_handles_incomplete_wilson_interval_payload():
               }
             };
             const payload = {
-              horizons: { one_hour: { label: "<img src=x onerror=alert(1)>", directional_positive_fraction: "invalid", mean_directional_return_percent: "invalid", mean_favorable_excursion_percent: "invalid", mean_adverse_excursion_percent: "invalid", signal_quality: { f1_score: "invalid", confusion_matrix: { true_positive: "<img src=x onerror=alert(2)>" } } } },
+              horizons: { one_hour: { label: "<img src=x onerror=alert(1)>", directional_positive_fraction: "invalid", mean_directional_return_percent: "invalid", mean_favorable_excursion_percent: "invalid", mean_adverse_excursion_percent: "invalid", signal_quality: { f1_score: "invalid", coverage_complete_fraction: "invalid", overlap_excluded_fraction_of_directional: "invalid", confusion_matrix: { true_positive: "<img src=x onerror=alert(2)>" } } } },
               historical_leaderboard: {
                 dimensions: {
                   market_regime: {
@@ -616,3 +616,24 @@ def test_dashboard_performance_count_metrics_are_html_escaped():
         assert f"escapeHtml({expression})" in performance_handler
         assert f"+({expression})+" not in performance_handler
         assert f"+{expression}+" not in performance_handler
+
+
+def test_dashboard_performance_fraction_metrics_use_strict_percentage_formatter():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    performance_handler = next(
+        line for line in html.splitlines() if "$('performance').onclick" in line
+    )
+    expressions = (
+        "h.directional_positive_fraction",
+        "row.reliability_assessment.coverage_complete_fraction",
+        "q.coverage_complete_fraction",
+        "q.overlap_excluded_fraction_of_directional",
+        "c.historical_positive_fraction", "c.walk_forward_positive_fraction",
+        "w.test_directional_positive_fraction", "w.non_overlapping_positive_fraction",
+        "f.test_directional_positive_fraction", "x.test_directional_positive_fraction",
+        "x.non_overlapping_positive_fraction", "g.positive_fraction",
+        "g.coverage_complete_fraction", "x.positive_fraction",
+    )
+    for expression in expressions:
+        assert f"pct({expression})" in performance_handler
+        assert f"({expression}*100).toFixed(1)+'%'" not in performance_handler
