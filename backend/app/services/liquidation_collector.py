@@ -107,7 +107,7 @@ class LiquidationStore:
                 connection.execute("ALTER TABLE liquidation_events ADD COLUMN event_fingerprint TEXT")
             connection.execute(
                 "CREATE UNIQUE INDEX IF NOT EXISTS idx_liquidation_event_fingerprint "
-                "ON liquidation_events(event_fingerprint) WHERE event_fingerprint IS NOT NULL"
+                "ON liquidation_events(event_fingerprint)"
             )
             connection.execute(
                 "CREATE INDEX IF NOT EXISTS idx_liquidation_symbol_time "
