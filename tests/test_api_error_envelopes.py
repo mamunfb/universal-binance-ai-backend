@@ -413,8 +413,15 @@ def test_malformed_client_key_configuration_fails_closed_without_owner_key(monke
     monkeypatch.setattr(settings, "personal_api_key", "")
     monkeypatch.setattr(settings, "ai_client_api_keys", '{"chatgpt":')
     response = client.get("/api/v1/analysis/futures/liquidations/status")
+    body = response.json()
     assert response.status_code == 503
-    assert response.json()["error"]["code"] == "AUTH_NOT_CONFIGURED"
+    assert body["error"]["code"] == "AUTH_NOT_CONFIGURED"
+    assert len(body["request_id"]) == 32
+    assert response.headers["X-Request-ID"] == body["request_id"]
+    assert response.headers["X-Content-Type-Options"] == "nosniff"
+    assert response.headers["X-Frame-Options"] == "DENY"
+    assert response.headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
+    assert response.headers["Permissions-Policy"] == "camera=(), microphone=(), geolocation=()"
 
 
 def test_owner_and_client_key_collision_is_rejected_as_ambiguous(monkeypatch):
