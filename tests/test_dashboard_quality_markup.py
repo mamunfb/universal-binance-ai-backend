@@ -352,3 +352,11 @@ def test_dashboard_escape_html_helper_runs_in_node_runtime():
         check=False,
     )
     assert result.returncode == 0, result.stdout + result.stderr
+
+def test_dashboard_performance_api_output_is_sanitized_before_rendering():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    performance_handler = next(
+        line for line in html.splitlines() if "$('performance').onclick" in line
+    )
+    assert "$('outcomes').innerHTML=sanitizeHtml(" in performance_handler
+    assert "+'</pre>'))}catch(e){fail(e)}};" in performance_handler
