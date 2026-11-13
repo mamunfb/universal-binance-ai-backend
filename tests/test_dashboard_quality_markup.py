@@ -259,3 +259,27 @@ def test_dashboard_guards_nested_regime_transition_api_data():
 def test_dashboard_validates_snapshot_save_response_shape():
     html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
     assert "Snapshot API returned an unexpected response shape" in html
+
+
+def test_dashboard_has_live_spot_and_futures_market_scanner_controls():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    for identifier in (
+        'id="scannerPanel"', 'id="scannerMarket"', 'id="scannerQuote"',
+        'id="scannerMinVolume"', 'id="scannerPerpetual"', 'id="scanMarkets"',
+        'id="scannerStatus"', 'id="scannerSummary"', 'id="scannerWarnings"',
+        'id="scannerResults"',
+    ):
+        assert identifier in html
+    assert "/api/v1/markets/spot/scan?" in html
+    assert "/api/v1/markets/futures/" in html
+    assert "Showing '+shown.length+' of '+rows.length+' matched rows" in html
+
+
+def test_dashboard_scanner_escapes_remote_values_and_discloses_scan_limitations():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "escapeHtml(label)" in html
+    assert "escapeHtml(value)" in html
+    assert "escapeHtml(x)" in html
+    assert "result.coverage_warning" in html
+    assert "result.stage1_missing_metrics" in html
+    assert "rows.slice(0,100)" in html
