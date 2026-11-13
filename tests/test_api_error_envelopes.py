@@ -185,6 +185,23 @@ def test_unknown_configured_client_name_cannot_authenticate(monkeypatch):
     assert response.json()["error"]["code"] == "UNAUTHORIZED"
 
 
+def test_duplicate_client_api_keys_are_rejected_as_ambiguous(monkeypatch):
+    shared_key = "shared-client-key-12345678901234567890123456789012"
+    monkeypatch.setattr(settings, "app_env", "development")
+    monkeypatch.setattr(settings, "personal_api_key", "")
+    monkeypatch.setattr(
+        settings,
+        "ai_client_api_keys",
+        json.dumps({"chatgpt": shared_key, "gemini": shared_key}),
+    )
+    response = client.get(
+        "/api/v1/analysis/futures/liquidations/status",
+        headers={"Authorization": f"Bearer {shared_key}"},
+    )
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "UNAUTHORIZED"
+
+
 def test_evm_wallet_route_sanitizes_provider_exception(monkeypatch):
     import asyncio
     from app import main
