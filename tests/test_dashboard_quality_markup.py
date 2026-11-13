@@ -492,7 +492,7 @@ def test_dashboard_performance_handles_incomplete_wilson_interval_payload():
               }
             };
             const payload = {
-              horizons: { one_hour: { label: "1h" } },
+              horizons: { one_hour: { label: "1h", directional_positive_fraction: "invalid", mean_directional_return_percent: "invalid", mean_favorable_excursion_percent: "invalid", mean_adverse_excursion_percent: "invalid" } },
               historical_leaderboard: {
                 dimensions: {
                   market_regime: {
