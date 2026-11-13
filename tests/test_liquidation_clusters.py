@@ -49,3 +49,28 @@ def test_liquidation_clusters_report_no_data_and_validate(tmp_path):
         assert "bucket_bps" in str(exc)
     else:
         raise AssertionError("Expected invalid bucket width")
+
+
+def test_liquidation_clusters_use_store_history_interface_without_sqlite_path():
+    class BackendNeutralStore:
+        def history(self, symbol=None, limit=100, start_time_ms=None, end_time_ms=None):
+            assert symbol == "BTCUSDT"
+            assert limit == 5000
+            assert start_time_ms == 1000
+            assert end_time_ms == 2000
+            return [{
+                "event_time_ms": 1500,
+                "trade_time_ms": 1500,
+                "symbol": "BTCUSDT",
+                "side": "SELL",
+                "status": "FILLED",
+                "average_price": 60000.0,
+                "cumulative_filled_quantity": 0.1,
+                "approx_cumulative_notional": 6000.0,
+            }]
+
+    result = LiquidationClusterAnalysis(BackendNeutralStore()).analyze(
+        "BTCUSDT", start_time_ms=1000, end_time_ms=2000,
+    )
+    assert result["status"] == "COMPLETED"
+    assert result["coverage"]["events_usable"] == 1
