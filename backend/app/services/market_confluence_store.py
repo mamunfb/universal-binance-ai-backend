@@ -50,6 +50,8 @@ class MarketConfluenceStore:
             raise ValueError(f"Invalid {field}") from exc
         if not number.is_finite() or number != number.to_integral_value():
             raise ValueError(f"Invalid {field}")
+                if number < -(2**63) or number > (2**63 - 1):
+                    raise ValueError(f"Invalid {field}; outside signed 64-bit storage range")
         return int(number)
 
     @staticmethod
