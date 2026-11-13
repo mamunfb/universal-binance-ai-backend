@@ -84,3 +84,93 @@ def test_lifespan_attempts_remaining_shutdowns_after_one_collector_fails(monkeyp
         assert aggregate.stopped is True
 
     asyncio.run(scenario())
+
+
+def test_lifespan_does_not_construct_collectors_when_all_flags_disabled(monkeypatch):
+    async def scenario():
+        def unexpected_factory(**kwargs):
+            raise AssertionError("disabled collector factory must not be called")
+
+        monkeypatch.setattr(main.settings, "require_database_url", False)
+        for flag in (
+            "liquidation_collector_enabled",
+            "order_book_collector_enabled",
+            "aggregate_trade_collector_enabled",
+            "derivatives_collector_enabled",
+            "historical_collector_enabled",
+        ):
+            monkeypatch.setattr(main.settings, flag, False)
+
+        for name in (
+            "OrderBookStreamCollector",
+            "AggregateTradeCollector",
+            "DerivativesHistoryCollector",
+            "HistoricalKlineCollector",
+        ):
+            monkeypatch.setattr(main, name, unexpected_factory)
+
+        monkeypatch.setattr(main, "order_book_collector", None)
+        monkeypatch.setattr(main, "aggregate_trade_collector", None)
+        monkeypatch.setattr(main, "derivatives_collector", None)
+        monkeypatch.setattr(main, "historical_collector", None)
+
+        async with main.lifespan(main.app):
+            assert main.order_book_collector is None
+            assert main.aggregate_trade_collector is None
+            assert main.derivatives_collector is None
+            assert main.historical_collector is None
+
+    asyncio.run(scenario())
+
+
+class _HangingStopCollector(_StartedCollector):
+    def __init__(self):
+        super().__init__()
+        self.stop_entered = False
+        self.stop_cancelled = False
+
+    async def stop(self):
+        self.stop_entered = True
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            self.stop_cancelled = True
+            raise
+
+
+def test_lifespan_bounds_shutdown_and_continues_other_collectors(monkeypatch):
+    async def scenario():
+        hanging = _HangingStopCollector()
+        aggregate = _StartedCollector()
+
+        class _OrderBookFactory:
+            def __new__(cls, **kwargs):
+                return hanging
+
+        class _AggregateFactory:
+            def __new__(cls, **kwargs):
+                return aggregate
+
+        monkeypatch.setattr(main.settings, "require_database_url", False)
+        monkeypatch.setattr(main.settings, "collector_shutdown_timeout_seconds", 0.01)
+        monkeypatch.setattr(main.settings, "liquidation_collector_enabled", False)
+        monkeypatch.setattr(main.settings, "order_book_collector_enabled", True)
+        monkeypatch.setattr(main.settings, "aggregate_trade_collector_enabled", True)
+        monkeypatch.setattr(main.settings, "derivatives_collector_enabled", False)
+        monkeypatch.setattr(main.settings, "historical_collector_enabled", False)
+        monkeypatch.setattr(main, "OrderBookStreamCollector", _OrderBookFactory)
+        monkeypatch.setattr(main, "AggregateTradeCollector", _AggregateFactory)
+        monkeypatch.setattr(main, "order_book_collector", None)
+        monkeypatch.setattr(main, "aggregate_trade_collector", None)
+        monkeypatch.setattr(main, "derivatives_collector", None)
+        monkeypatch.setattr(main, "historical_collector", None)
+
+        async with main.lifespan(main.app):
+            assert hanging.started is True
+            assert aggregate.started is True
+
+        assert hanging.stop_entered is True
+        assert hanging.stop_cancelled is True
+        assert aggregate.stopped is True
+
+    asyncio.run(scenario())
