@@ -344,3 +344,10 @@ def test_dashboard_shows_phase_readiness_summary_and_execution_disclaimer():
     assert "phase.execution_claim===false?'NO':'NOT REPORTED'" in html
     assert "escapeHtml(phase.important_rule)" in html
     assert "validPhases.length+' reported'" in html
+
+
+def test_dashboard_readiness_clears_stale_data_and_checks_phase_count():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "$('readinessSummary').innerHTML='';$('readinessMarket').innerHTML=''" in html
+    assert "phase.phase_count!==phases.length" in html
+    assert "Phase count does not match the returned phase list" in html
