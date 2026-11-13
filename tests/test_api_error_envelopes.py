@@ -100,7 +100,14 @@ def test_production_api_fails_closed_without_strong_key(monkeypatch):
     monkeypatch.setattr(settings, "personal_api_key", "")
     response = client.get("/api/v1/analysis/futures/liquidations/status")
     assert response.status_code == 503
-    assert response.json()["error"]["code"] == "AUTH_NOT_CONFIGURED"
+    body = response.json()
+    assert body["error"]["code"] == "AUTH_NOT_CONFIGURED"
+    assert len(body["request_id"]) == 32
+    assert response.headers["X-Request-ID"] == body["request_id"]
+    assert response.headers["X-Content-Type-Options"] == "nosniff"
+    assert response.headers["X-Frame-Options"] == "DENY"
+    assert response.headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
+    assert response.headers["Permissions-Policy"] == "camera=(), microphone=(), geolocation=()"
 
 
 
