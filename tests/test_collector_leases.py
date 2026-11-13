@@ -7,7 +7,10 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
-from app.services.collector_leases import CollectorLeaseCoordinator, CollectorLeaseStore
+from app.services.collector_leases import (
+    CollectorLeaseCoordinator, CollectorLeaseLostError, CollectorLeaseStore,
+    assert_collector_lease_owned,
+)
 
 
 def test_collector_lease_store_allows_only_one_concurrent_owner():
@@ -154,3 +157,43 @@ async def test_lease_coordinator_stops_collector_when_lease_renewal_is_rejected(
 
     assert coordinator.status()["state"] == "LEASE_LOST"
     assert coordinator.status()["lease_owned"] is False
+
+
+
+def test_write_fencing_rejects_previous_owner_after_lease_takeover():
+    database_url = os.getenv("TEST_DATABASE_URL")
+    if not database_url:
+        pytest.skip("TEST_DATABASE_URL is not configured")
+
+    store = CollectorLeaseStore(database_url)
+    collector_name = f"test-fencing-{uuid.uuid4().hex}"
+    old_owner = f"owner-{uuid.uuid4().hex}"
+    new_owner = f"owner-{uuid.uuid4().hex}"
+    try:
+        assert store.acquire(collector_name, old_owner, 30) is True
+        with store._connect() as connection:
+            assert_collector_lease_owned(connection, collector_name, old_owner)
+
+        with store._connect() as connection:
+            connection.execute(
+                """
+                UPDATE public.collector_leases
+                SET lease_expires_at = NOW() - INTERVAL '1 second'
+                WHERE collector_name=%s
+                """,
+                (collector_name,),
+            )
+        assert store.acquire(collector_name, new_owner, 30) is True
+
+        with store._connect() as connection:
+            with pytest.raises(CollectorLeaseLostError):
+                assert_collector_lease_owned(connection, collector_name, old_owner)
+
+        with store._connect() as connection:
+            assert_collector_lease_owned(connection, collector_name, new_owner)
+    finally:
+        with store._connect() as connection:
+            connection.execute(
+                "DELETE FROM public.collector_leases WHERE collector_name=%s",
+                (collector_name,),
+            )
