@@ -47,6 +47,8 @@ class OpenInterestStore:
     @staticmethod
     def _finite(value: Any, field: str) -> float:
         try:
+            if isinstance(value, bool):
+                raise ValueError
             number = float(value)
         except (TypeError, ValueError, OverflowError) as exc:
             raise ValueError(f"Invalid open interest {field}") from exc
@@ -59,6 +61,8 @@ class OpenInterestStore:
         if not isinstance(row, dict):
             raise ValueError("Malformed Binance open-interest row")
         try:
+            if isinstance(row["timestamp"], bool):
+                raise ValueError
             timestamp = int(row["timestamp"])
         except (KeyError, TypeError, ValueError, OverflowError) as exc:
             raise ValueError("Invalid open-interest timestamp") from exc
