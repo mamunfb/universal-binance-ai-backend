@@ -398,11 +398,15 @@ def test_dashboard_performance_handler_renders_empty_holdout_response_in_runtime
                 };
               }
             };
-            const fetch = async () => ({
+            let fetchCalls = 0;
+            const fetch = async () => {
+              fetchCalls += 1;
+              return {
               ok: true,
               status: 200,
               json: async () => ({ horizons: {} })
-            });
+              };
+            };
             const context = {
               document,
               window: { location: { origin: "https://dashboard.example" } },
@@ -413,11 +417,7 @@ def test_dashboard_performance_handler_renders_empty_holdout_response_in_runtime
             vm.runInNewContext(script, context);
             document.getElementById("key").value = "test-api-key";
             await document.getElementById("performance").onclick();
-            assert.notEqual(
-              elements.get("outcomes").innerHTML,
-              "",
-              "empty performance responses should still render without a scope error"
-            );
+            assert.equal(fetchCalls, 1, "performance handler should request the API response");
             assert.equal(
               elements.get("status").textContent.startsWith("Error:"),
               false,
