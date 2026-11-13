@@ -546,3 +546,37 @@ def test_unauthenticated_live_market_get_is_rejected_before_provider_call(monkey
     assert response.status_code == 401
     assert response.json()["error"]["code"] == "UNAUTHORIZED"
     assert provider_calls == []
+
+
+def test_binance_market_get_routes_do_not_expose_provider_exception_details(monkeypatch):
+    from app import main
+
+    secret = "https://provider.example/api?token=private-provider-secret"
+
+    class BrokenProvider:
+        async def klines(self, *args, **kwargs):
+            raise RuntimeError(secret)
+
+    monkeypatch.setattr(main, "get_spot_provider", lambda: BrokenProvider())
+    monkeypatch.setattr(main, "get_futures_provider", lambda *args: BrokenProvider())
+
+    cases = [
+        (lambda: main.spot_klines("BTCUSDT"), "SPOT_KLINES_UNAVAILABLE"),
+        (lambda: main.usdm_klines("BTCUSDT"), "USDM_KLINES_UNAVAILABLE"),
+        (lambda: main.coinm_klines("BTCUSDT"), "COINM_KLINES_UNAVAILABLE"),
+        (lambda: main.spot_technical_analysis("BTCUSDT"), "SPOT_TECHNICAL_ANALYSIS_UNAVAILABLE"),
+        (lambda: main.spot_price_levels("BTCUSDT"), "SPOT_PRICE_LEVELS_UNAVAILABLE"),
+        (lambda: main.spot_volume_structure("BTCUSDT"), "SPOT_VOLUME_STRUCTURE_UNAVAILABLE"),
+    ]
+
+    for invoke, expected_code in cases:
+        try:
+            asyncio.run(invoke())
+        except Exception as exc:
+            assert getattr(exc, "status_code", None) == 502
+            detail = str(getattr(exc, "detail", ""))
+            assert expected_code in detail
+            assert "private-provider-secret" not in detail
+            assert secret not in detail
+        else:
+            raise AssertionError(f"Expected sanitized HTTP 502 for {expected_code}")
