@@ -1,4 +1,5 @@
 import asyncio
+import logging
 
 import pytest
 
@@ -87,7 +88,7 @@ def test_invalid_message_is_ignored():
 
 
 
-def test_collector_status_exposes_only_exception_class(tmp_path, monkeypatch):
+def test_collector_status_and_logs_expose_only_exception_class(tmp_path, monkeypatch, caplog):
     class BrokenConnection:
         async def __aenter__(self):
             raise RuntimeError("sensitive provider detail")
@@ -106,9 +107,12 @@ def test_collector_status_exposes_only_exception_class(tmp_path, monkeypatch):
     monkeypatch.setattr(liquidation_module, "connect", fake_connect)
     monkeypatch.setattr(liquidation_module.asyncio, "sleep", cancel_retry)
 
-    with pytest.raises(asyncio.CancelledError):
-        asyncio.run(collector.run())
+    with caplog.at_level(logging.WARNING, logger=liquidation_module.__name__):
+        with pytest.raises(asyncio.CancelledError):
+            asyncio.run(collector.run())
 
     status = collector.status()
     assert status["last_error"] == "RuntimeError"
     assert "sensitive provider detail" not in str(status)
+    assert "RuntimeError" in caplog.text
+    assert "sensitive provider detail" not in caplog.text
