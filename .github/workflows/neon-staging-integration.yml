@@ -34,6 +34,7 @@ jobs:
     env:
       TEST_DATABASE_URL: ${{ secrets.NEON_STAGING_TEST_DATABASE_URL }}
       TARGET_CONFIRMATION: ${{ github.event_name == 'push' && 'render-staging-backend' || inputs.target_confirmation }}
+      EXPECTED_NEON_STAGING_HOST: ep-tiny-fog-b3uh421x.c-4.ap-southeast-1.aws.neon.tech
     steps:
       - name: Check out the staging-test branch
         uses: actions/checkout@v4
@@ -69,13 +70,14 @@ jobs:
           parsed = urlparse(value)
           if parsed.scheme not in {"postgres", "postgresql"}:
               raise SystemExit("TEST_DATABASE_URL must use PostgreSQL.")
-          if not parsed.hostname or not parsed.hostname.endswith(".neon.tech"):
-              raise SystemExit("The configured test endpoint must be a Neon endpoint.")
+          expected_host = os.environ["EXPECTED_NEON_STAGING_HOST"]
+          if parsed.hostname != expected_host:
+              raise SystemExit("TEST_DATABASE_URL does not target the verified render-staging-backend compute endpoint.")
           if "-pooler" in parsed.hostname:
               raise SystemExit("Use the direct (non-pooled) Neon staging connection.")
           if (parsed.path or "").lstrip("/") != "neondb":
               raise SystemExit("The configured test database must be neondb.")
-          print("Connection string format validated; secret value withheld.")
+          print("Verified exact staging compute host and database; secret value withheld.")
           PY
 
       - name: Verify the existing staging schema without modifying it
