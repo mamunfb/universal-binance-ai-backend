@@ -33,23 +33,39 @@ def normalize_aggregate_trade(payload: dict[str, Any], market: str) -> dict[str,
     if payload.get("e") != "aggTrade":
         return None
     try:
-        symbol = str(payload["s"]).upper()
-        trade_id = int(payload["a"])
+        normalized_market = market.upper()
+        if normalized_market not in {"SPOT", "USD_M", "COIN_M"}:
+            return None
+        symbol = str(payload["s"]).strip().upper()
+        if not symbol or len(symbol) > 40:
+            return None
+        raw_trade_id = payload["a"]
+        raw_event_time = payload["E"]
+        raw_trade_time = payload["T"]
+        if any(isinstance(value, bool) for value in (raw_trade_id, raw_event_time, raw_trade_time)):
+            return None
+        trade_id = int(raw_trade_id)
+        event_time_ms = int(raw_event_time)
+        trade_time_ms = int(raw_trade_time)
         price = float(payload["p"])
         quantity = float(payload["q"])
-        event_time_ms = int(payload["E"])
-        trade_time_ms = int(payload["T"])
         buyer_is_maker = payload["m"]
-        if not symbol or price <= 0 or quantity <= 0 or not math.isfinite(price * quantity):
+        notional = price * quantity
+        if (
+            trade_id < 0 or event_time_ms < 0 or trade_time_ms < 0
+            or not math.isfinite(price) or not math.isfinite(quantity)
+            or price <= 0 or quantity <= 0
+            or not math.isfinite(notional) or notional <= 0
+        ):
             return None
         if not isinstance(buyer_is_maker, bool):
             return None
-    except (KeyError, TypeError, ValueError, OverflowError):
+    except (KeyError, TypeError, ValueError, OverflowError, AttributeError):
         return None
     return {
-        "market": market.upper(), "symbol": symbol, "trade_id": trade_id,
+        "market": normalized_market, "symbol": symbol, "trade_id": trade_id,
         "event_time_ms": event_time_ms, "trade_time_ms": trade_time_ms,
-        "price": price, "quantity": quantity, "notional": price * quantity,
+        "price": price, "quantity": quantity, "notional": notional,
         "buyer_is_maker": buyer_is_maker,
         "aggressor_side": "SELL" if buyer_is_maker else "BUY",
         "raw_json": json.dumps(payload, separators=(",", ":")),
