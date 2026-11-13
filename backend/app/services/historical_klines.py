@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import sqlite3
+import time
 from decimal import Decimal, InvalidOperation
 import psycopg
 from psycopg.rows import dict_row
@@ -38,9 +39,13 @@ class HistoricalKlineStore:
                     taker_buy_quote_volume REAL NOT NULL,
                     source TEXT NOT NULL,
                     collected_at TEXT NOT NULL,
+                    observation_started_at_ns INTEGER CHECK (observation_started_at_ns IS NULL OR observation_started_at_ns >= 0),
                     PRIMARY KEY (market, symbol, interval, open_time_ms)
                 )
             """)
+            columns = {row[1] for row in connection.execute("PRAGMA table_info(historical_klines)")}
+            if "observation_started_at_ns" not in columns:
+                connection.execute("ALTER TABLE historical_klines ADD COLUMN observation_started_at_ns INTEGER CHECK (observation_started_at_ns IS NULL OR observation_started_at_ns >= 0)")
             connection.execute("""
                 CREATE INDEX IF NOT EXISTS idx_historical_klines_lookup
                 ON historical_klines(market, symbol, interval, open_time_ms)
@@ -104,7 +109,12 @@ class HistoricalKlineStore:
     def save_klines(
         self, market: str, symbol: str, interval: str, rows: list[Any],
         source: str = "Binance public REST API",
+        observation_started_at_ns: int | None = None,
     ) -> dict[str, Any]:
+        if observation_started_at_ns is None:
+            observation_started_at_ns = time.time_ns()
+        if isinstance(observation_started_at_ns, bool) or not isinstance(observation_started_at_ns, int) or observation_started_at_ns < 0:
+            raise ValueError("observation_started_at_ns must be a non-negative integer")
         market = market.upper()
         symbol = symbol.upper()
         if market not in {"SPOT", "USD_M", "COIN_M"}:
@@ -119,7 +129,7 @@ class HistoricalKlineStore:
         normalized.sort(key=lambda row: row[0])
         now = datetime.now(timezone.utc).isoformat()
         values = [
-            (market, symbol, interval, *row, source, now)
+            (market, symbol, interval, *row, source, now, observation_started_at_ns)
             for row in normalized
         ]
         if self.database_url:
@@ -128,8 +138,9 @@ class HistoricalKlineStore:
                     INSERT INTO public.historical_klines (
                         market, symbol, interval, open_time_ms, open, high, low, close,
                         volume, close_time_ms, quote_volume, trade_count,
-                        taker_buy_base_volume, taker_buy_quote_volume, source, collected_at
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        taker_buy_base_volume, taker_buy_quote_volume, source, collected_at,
+                        observation_started_at_ns
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT(market, symbol, interval, open_time_ms) DO UPDATE SET
                         open=excluded.open, high=excluded.high, low=excluded.low,
                         close=excluded.close, volume=excluded.volume,
@@ -137,7 +148,10 @@ class HistoricalKlineStore:
                         quote_volume=excluded.quote_volume, trade_count=excluded.trade_count,
                         taker_buy_base_volume=excluded.taker_buy_base_volume,
                         taker_buy_quote_volume=excluded.taker_buy_quote_volume,
-                        source=excluded.source, collected_at=excluded.collected_at
+                        source=excluded.source, collected_at=excluded.collected_at,
+                        observation_started_at_ns=excluded.observation_started_at_ns
+                    WHERE public.historical_klines.observation_started_at_ns IS NULL
+                       OR excluded.observation_started_at_ns > public.historical_klines.observation_started_at_ns
                 """, values)
                 total = connection.execute("""
                     SELECT COUNT(*) AS count FROM public.historical_klines
@@ -150,8 +164,9 @@ class HistoricalKlineStore:
                     INSERT INTO historical_klines (
                         market, symbol, interval, open_time_ms, open, high, low, close,
                         volume, close_time_ms, quote_volume, trade_count,
-                        taker_buy_base_volume, taker_buy_quote_volume, source, collected_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        taker_buy_base_volume, taker_buy_quote_volume, source, collected_at,
+                        observation_started_at_ns
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(market, symbol, interval, open_time_ms) DO UPDATE SET
                         open=excluded.open, high=excluded.high, low=excluded.low,
                         close=excluded.close, volume=excluded.volume,
@@ -159,7 +174,10 @@ class HistoricalKlineStore:
                         quote_volume=excluded.quote_volume, trade_count=excluded.trade_count,
                         taker_buy_base_volume=excluded.taker_buy_base_volume,
                         taker_buy_quote_volume=excluded.taker_buy_quote_volume,
-                        source=excluded.source, collected_at=excluded.collected_at
+                        source=excluded.source, collected_at=excluded.collected_at,
+                        observation_started_at_ns=excluded.observation_started_at_ns
+                    WHERE historical_klines.observation_started_at_ns IS NULL
+                       OR excluded.observation_started_at_ns > historical_klines.observation_started_at_ns
                 """, values)
                 total = connection.execute("""
                     SELECT COUNT(*) FROM historical_klines
@@ -177,6 +195,7 @@ class HistoricalKlineStore:
             "first_open_time_ms": normalized[0][0],
             "last_open_time_ms": normalized[-1][0],
             "collected_at": now,
+            "observation_started_at_ns": observation_started_at_ns,
             "source": source,
             "storage": storage,
         }
@@ -245,7 +264,7 @@ class HistoricalKlineStore:
                 rows = connection.execute(f"""
                     SELECT open_time_ms, open, high, low, close, volume, close_time_ms,
                            quote_volume, trade_count, taker_buy_base_volume,
-                           taker_buy_quote_volume, source, collected_at
+                           taker_buy_quote_volume, source, collected_at, observation_started_at_ns
                     FROM public.historical_klines WHERE {' AND '.join(pg_clauses)}
                     ORDER BY open_time_ms DESC LIMIT %s
                 """, pg_params).fetchall()
@@ -257,7 +276,7 @@ class HistoricalKlineStore:
                 rows = connection.execute(f"""
                     SELECT open_time_ms, open, high, low, close, volume, close_time_ms,
                            quote_volume, trade_count, taker_buy_base_volume,
-                           taker_buy_quote_volume, source, collected_at
+                           taker_buy_quote_volume, source, collected_at, observation_started_at_ns
                     FROM historical_klines WHERE {' AND '.join(clauses)}
                     ORDER BY open_time_ms DESC LIMIT ?
                 """, params).fetchall()
