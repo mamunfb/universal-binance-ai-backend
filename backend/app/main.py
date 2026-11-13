@@ -491,7 +491,7 @@ async def evm_token_snapshot(contract: str, addresses: str = "") -> dict:
 @app.post("/api/v1/onchain/evm/token/{contract}/index", tags=["on-chain"])
 async def index_evm_token_history(
     contract: str,
-    payload: dict = Body(..., example={"from_block": 1000000, "to_block": 1001000, "chunk_size": 500}),
+    payload: dict = Body(..., openapi_examples={"default": {"summary": "Bounded block range", "value": {"from_block": 1000000, "to_block": 1001000, "chunk_size": 500}}}),
 ) -> dict:
     try:
         from_block = int(payload["from_block"])
