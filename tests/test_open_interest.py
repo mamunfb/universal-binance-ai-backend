@@ -59,3 +59,37 @@ def test_open_interest_store_rejects_fractional_timestamps(tmp_path, timestamp):
     with pytest.raises(ValueError, match="timestamp"):
         store.save("USD_M", "BTCUSDT", "1h", [record(timestamp=timestamp)])
     assert store.history("USD_M", "BTCUSDT", "1h")["returned_count"] == 0
+
+
+@pytest.mark.parametrize("row", [
+    {"symbol": "BTCUSDT", "timestamp": -1, "sumOpenInterest": "1", "sumOpenInterestValue": "2"},
+    record(amount="nan"),
+    record(value="inf"),
+    record(supply="-1"),
+    {"symbol": "BTCUSDT", "sumOpenInterest": "1", "sumOpenInterestValue": "2"},
+])
+def test_open_interest_store_rejects_invalid_records(tmp_path, row):
+    store = OpenInterestStore(str(tmp_path / "oi.sqlite3"))
+    with pytest.raises(ValueError):
+        store.save("USD_M", "BTCUSDT", "1h", [row])
+    assert store.history("USD_M", "BTCUSDT", "1h")["returned_count"] == 0
+
+
+def test_open_interest_store_rejects_duplicate_timestamp_symbol_mismatch_and_market(tmp_path):
+    store = OpenInterestStore(str(tmp_path / "oi.sqlite3"))
+    with pytest.raises(ValueError, match="Duplicate"):
+        store.save("USD_M", "BTCUSDT", "1h", [record(), record()])
+    with pytest.raises(ValueError, match="symbol"):
+        store.save("USD_M", "BTCUSDT", "1h", [record() | {"symbol": "ETHUSDT"}])
+    with pytest.raises(ValueError, match="USD_M"):
+        store.save("COIN_M", "BTCUSD_PERP", "1h", [record()])
+
+
+def test_open_interest_history_validates_period_bounds_and_limit(tmp_path):
+    store = OpenInterestStore(str(tmp_path / "oi.sqlite3"))
+    with pytest.raises(ValueError, match="period"):
+        store.history("USD_M", "BTCUSDT", "2w")
+    with pytest.raises(ValueError, match="end_time_ms"):
+        store.history("USD_M", "BTCUSDT", "1h", 20, 10)
+    with pytest.raises(ValueError, match="limit"):
+        store.history("USD_M", "BTCUSDT", "1h", limit=5001)
