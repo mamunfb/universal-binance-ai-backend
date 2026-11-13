@@ -210,7 +210,9 @@ class LiquidationCollector:
                 raise
             except Exception as exc:
                 self.connected = False
-                self.last_error = str(exc)
+                # Do not expose exception text: transport errors can include URLs or
+                # provider details that should remain in server logs only.
+                self.last_error = type(exc).__name__
                 self.reconnect_count += 1
                 logger.exception("Liquidation stream disconnected; retrying in %s seconds", delay)
                 await asyncio.sleep(delay)
