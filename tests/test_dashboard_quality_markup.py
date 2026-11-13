@@ -376,8 +376,10 @@ def test_dashboard_performance_handler_renders_empty_holdout_response_in_runtime
         process.stdin.on("data", chunk => source += chunk);
         process.stdin.on("end", () => {
           (async () => {
-            const match = source.match(/<script>([\\s\\S]*?)<\\/script>/i);
-            assert.ok(match, "dashboard inline script missing");
+            const scriptStart = source.indexOf("<script>");
+            const scriptEnd = source.lastIndexOf("</script>");
+            assert.ok(scriptStart >= 0 && scriptEnd > scriptStart, "dashboard inline script missing");
+            const script = source.slice(scriptStart + 8, scriptEnd);
             const elements = new Map();
             const document = {
               getElementById(id) {
@@ -408,7 +410,7 @@ def test_dashboard_performance_handler_renders_empty_holdout_response_in_runtime
               URLSearchParams,
               fetch
             };
-            vm.runInNewContext(match[1], context);
+            vm.runInNewContext(script, context);
             elements.get("key").value = "test-api-key";
             await elements.get("performance").onclick();
             assert.notEqual(
