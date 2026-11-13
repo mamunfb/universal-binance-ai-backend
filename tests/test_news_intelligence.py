@@ -59,7 +59,8 @@ async def test_collect_news_marks_items_unverified_and_reports_coverage():
                     "failed_sources": 0, "failures": []}
 
     result = await collect_news_intelligence(
-        FakeProvider(), [{"name": "Example", "url": "https://example.test/rss"}], ["BTC"]
+        FakeProvider(), [{"name": "Example", "url": "https://example.test/rss"}], ["BTC"],
+        hours=24 * 365,
     )
     assert result["status"] == "COMPLETED"
     assert result["items"][0]["verification_status"] == "UNVERIFIED"
