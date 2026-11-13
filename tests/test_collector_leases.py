@@ -217,3 +217,106 @@ def test_fencing_context_rejects_old_owner_after_takeover():
                 "DELETE FROM public.collector_leases WHERE collector_name=%s",
                 (collector_name,),
             )
+
+
+def test_stale_lease_generation_cannot_write_aggregate_trade():
+    database_url = os.getenv("TEST_DATABASE_URL")
+    if not database_url:
+        pytest.skip("TEST_DATABASE_URL is not configured")
+
+    from app.services.aggregate_trade_stream import AggregateTradeStore
+
+    lease_store = CollectorLeaseStore(database_url)
+    trade_store = AggregateTradeStore("unused.sqlite3", database_url)
+    collector_name = f"test-trade-fence-{uuid.uuid4().hex}"
+    symbol = f"FENCE{uuid.uuid4().hex[:12].upper()}"
+    first_owner = f"owner-{uuid.uuid4().hex}"
+    next_owner = f"owner-{uuid.uuid4().hex}"
+    context_token = None
+    try:
+        first_generation = lease_store.acquire(collector_name, first_owner, 30)
+        assert first_generation == 1
+        context_token = ACTIVE_COLLECTOR_LEASE.set(
+            CollectorLeaseContext("aggregate-trades:all", first_owner, first_generation)
+        )
+        # This store checks the exact shared collector group name. Use a matching
+        # group lease for the actual insert path.
+        ACTIVE_COLLECTOR_LEASE.reset(context_token)
+        context_token = None
+        lease_store.release(collector_name, first_owner, first_generation)
+
+        collector_name = "aggregate-trades:all"
+        # Use a unique lease row to avoid collisions with other integration tests.
+        collector_name = f"aggregate-trades-test-{uuid.uuid4().hex}"
+        first_generation = lease_store.acquire(collector_name, first_owner, 30)
+        assert first_generation == 1
+        # The store's production guard is intentionally tied to the production
+        # collector key. Create a temporary test store call through the same guard
+        # name by using the actual collector key only in an isolated test DB.
+        lease_store.release(collector_name, first_owner, first_generation)
+
+        collector_name = "aggregate-trades:all"
+        first_generation = lease_store.acquire(collector_name, first_owner, 30)
+        assert first_generation is not None
+        context_token = ACTIVE_COLLECTOR_LEASE.set(
+            CollectorLeaseContext(collector_name, first_owner, first_generation)
+        )
+        trade_store.insert({
+            "market": "SPOT", "symbol": symbol, "trade_id": 900001,
+            "event_time_ms": 1_700_000_000_000, "trade_time_ms": 1_700_000_000_000,
+            "price": 1.0, "quantity": 1.0, "notional": 1.0,
+            "buyer_is_maker": False, "aggressor_side": "BUY", "raw_json": "{}",
+        })
+        ACTIVE_COLLECTOR_LEASE.reset(context_token)
+        context_token = None
+
+        with lease_store._connect() as connection:
+            connection.execute(
+                """
+                UPDATE public.collector_leases
+                SET lease_expires_at = NOW() - INTERVAL '1 second'
+                WHERE collector_name=%s
+                """,
+                (collector_name,),
+            )
+        next_generation = lease_store.acquire(collector_name, next_owner, 30)
+        assert next_generation == first_generation + 1
+
+        context_token = ACTIVE_COLLECTOR_LEASE.set(
+            CollectorLeaseContext(collector_name, first_owner, first_generation)
+        )
+        with pytest.raises(CollectorLeaseLostError):
+            trade_store.insert({
+                "market": "SPOT", "symbol": symbol, "trade_id": 900002,
+                "event_time_ms": 1_700_000_000_001, "trade_time_ms": 1_700_000_000_001,
+                "price": 1.0, "quantity": 1.0, "notional": 1.0,
+                "buyer_is_maker": False, "aggressor_side": "BUY", "raw_json": "{}",
+            })
+        ACTIVE_COLLECTOR_LEASE.reset(context_token)
+        context_token = None
+
+        assert [row["trade_id"] for row in trade_store.recent("SPOT", symbol)] == [900001]
+        context_token = ACTIVE_COLLECTOR_LEASE.set(
+            CollectorLeaseContext(collector_name, next_owner, next_generation)
+        )
+        trade_store.insert({
+            "market": "SPOT", "symbol": symbol, "trade_id": 900003,
+            "event_time_ms": 1_700_000_000_002, "trade_time_ms": 1_700_000_000_002,
+            "price": 1.0, "quantity": 1.0, "notional": 1.0,
+            "buyer_is_maker": False, "aggressor_side": "BUY", "raw_json": "{}",
+        })
+        ACTIVE_COLLECTOR_LEASE.reset(context_token)
+        context_token = None
+        assert sorted(row["trade_id"] for row in trade_store.recent("SPOT", symbol)) == [900001, 900003]
+    finally:
+        if context_token is not None:
+            ACTIVE_COLLECTOR_LEASE.reset(context_token)
+        with lease_store._connect() as connection:
+            connection.execute(
+                "DELETE FROM public.aggregate_trades WHERE market=%s AND symbol=%s",
+                ("SPOT", symbol),
+            )
+            connection.execute(
+                "DELETE FROM public.collector_leases WHERE collector_name=%s",
+                (collector_name,),
+            )
