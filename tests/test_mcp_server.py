@@ -33,7 +33,7 @@ def _load_server(monkeypatch, client_name="chatgpt", base_url="https://api.examp
     return _execute_server_module()
 
 
-def test_mcp_registers_only_read_only_tool_surface(monkeypatch):
+def test_mcp_uses_client_scoped_server_identity(monkeypatch):
     server = _load_server(monkeypatch)
     assert server.CLIENT_NAME == "chatgpt"
     assert server.mcp.name == "Personal Crypto Intelligence (chatgpt)"
