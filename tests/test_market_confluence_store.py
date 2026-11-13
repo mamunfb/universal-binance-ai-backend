@@ -163,3 +163,16 @@ def test_snapshot_rejects_malformed_object_shapes(tmp_path, payload):
     with pytest.raises(ValueError):
         store.save(payload)
     assert store.history("USD_M", "BTCUSDT", "1h")["returned_count"] == 0
+
+
+@pytest.mark.parametrize("limit", [True, False, 1.5, "1.5", float("inf")])
+def test_history_rejects_non_integer_limits(tmp_path, limit):
+    store = MarketConfluenceStore(str(tmp_path / "snapshots.sqlite3"))
+    with pytest.raises(ValueError):
+        store.history("USD_M", "BTCUSDT", "1h", limit=limit)
+
+
+def test_history_accepts_integer_string_limit(tmp_path):
+    store = MarketConfluenceStore(str(tmp_path / "snapshots.sqlite3"))
+    result = store.history("USD_M", "BTCUSDT", "1h", limit="10")
+    assert result["returned_count"] == 0
