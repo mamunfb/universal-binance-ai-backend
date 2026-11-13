@@ -82,3 +82,23 @@ These collectors can call external providers and persist observations. Route-lev
 ## Audit caveats
 
 This was a static source audit of the checked-out PR branch. It does not prove that every transitive helper is side-effect-free beyond the three named analysis helper implementations, nor does it validate live provider behavior, deployment environment values, or production collector state. Re-audit helper call graphs and deployment configuration before enabling a production permission policy.
+
+## Background collector lifecycle findings
+
+All five collector enable flags in `backend/app/config.py` default to `False`. When enabled, `backend/app/main.py` starts collector tasks during FastAPI lifespan startup. These are process-local tasks, not a separately coordinated distributed worker service.
+
+Operational implications:
+
+- Run collector-enabled application deployments as a single collector-owning process per configured job set unless a distributed lease/leader-election mechanism is added.
+- Multiple web replicas with the same collector flags and job configuration may each open streams or poll the same upstream endpoints. Storage uniqueness may reduce duplicate rows in some stores, but it does not prevent duplicate network traffic, provider quota use, or CPU.
+- The historical-kline collector status response explicitly warns that it runs only while the application process is alive and recommends one collector process per database. Equivalent deployment guidance should be made consistent for all collectors.
+- Collector task status is process-local. A status response from one replica does not establish the state of collectors on another replica.
+- The lifespan starts enabled collectors before entering the `try/finally` block that surrounds `yield`. If a later collector constructor or startup step raises after an earlier task has started, the explicit shutdown block may not run for the already-started task. This path needs a regression test and safer startup rollback/cleanup before enabling multiple collectors in production.
+- Shutdown behavior differs by collector: some tasks are cancelled and awaited; derivatives uses a stop event and awaits its loop. Preserve cancellation propagation and test bounded shutdown so a stuck upstream operation cannot indefinitely delay service termination.
+
+Recommended follow-up tests (not yet implemented by this documentation change):
+1. Startup failure after one collector has started must stop and await every previously started collector.
+2. Lifespan shutdown must stop all enabled collectors and leave no pending tasks.
+3. Disabled flags must start no collector tasks.
+4. Status endpoints must distinguish disabled, starting, running, degraded, disconnected, and stopped states accurately.
+5. Deployment documentation must clearly state the single collector-owner process requirement until distributed coordination exists.
