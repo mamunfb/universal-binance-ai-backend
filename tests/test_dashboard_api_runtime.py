@@ -53,6 +53,7 @@ def test_dashboard_api_url_validation_and_request_runtime():
               "ftp://api.example",
               "https:/api.example",
               "https:api.example",
+              "https:///api.example",
               "https:\\api.example",
               "https://api.example\\path",
               "https://user:pass@api.example",
