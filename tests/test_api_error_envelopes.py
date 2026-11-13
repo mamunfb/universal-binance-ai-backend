@@ -369,6 +369,22 @@ def test_production_rejects_weak_client_key_even_with_strong_owner_key(monkeypat
     assert response.json()["error"]["code"] == "AUTH_NOT_CONFIGURED"
 
 
+def test_production_rejects_weak_owner_key_even_with_strong_client_keys(monkeypatch):
+    client_keys = {
+        name: f"{name}-" + ("x" * 40)
+        for name in ("chatgpt", "gemini", "manus", "claude", "perplexity")
+    }
+    monkeypatch.setattr(settings, "app_env", "production")
+    monkeypatch.setattr(settings, "personal_api_key", "weak-owner-key")
+    monkeypatch.setattr(settings, "ai_client_api_keys", json.dumps(client_keys))
+    response = client.get(
+        "/api/v1/analysis/futures/liquidations/status",
+        headers={"Authorization": "Bearer weak-owner-key"},
+    )
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "AUTH_NOT_CONFIGURED"
+
+
 def test_private_api_rejects_unauthenticated_post_endpoints(monkeypatch):
     monkeypatch.setattr(settings, "app_env", "development")
     monkeypatch.setattr(settings, "personal_api_key", "test-owner-key-with-enough-entropy")
