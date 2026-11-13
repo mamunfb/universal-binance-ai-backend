@@ -19,6 +19,12 @@ The repository root contains `render.yaml`. It defines one Docker-based web serv
 
 Do not change the source branch to `main` until the owner explicitly approves merging and deployment.
 
+## Background collector deployment safety
+
+The five optional background collectors are disabled by default. If any collector is enabled, run only one collector-owning application process for each configured job set and database. Do not scale the collector-enabled web service to multiple instances: each instance starts its own process-local collector tasks and may duplicate Binance stream connections, REST polling, database writes, and upstream quota use. The current application does not implement a distributed lease or leader election. Keep all collector enable flags disabled on a horizontally scaled web service until a separately coordinated worker/lease design is implemented and tested.
+
+Collector status is process-local; a status response from one web instance does not report the state of other instances. The current Render Blueprint declares one Free web service, but this is not proof of the live service's instance count or environment configuration.
+
 ## Create the Render service
 
 1. Sign in to Render and choose **New → Blueprint**.
