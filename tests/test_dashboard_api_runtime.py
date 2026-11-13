@@ -56,6 +56,8 @@ def test_dashboard_api_url_validation_and_request_runtime():
               "https:///api.example",
               "https:\\api.example",
               "https://api.example\\path",
+              "https://api.exa\nmple",
+              "https://api.exa\tmple",
               "https://user:pass@api.example",
               "https://@api.example",
               "https://api.example?",
