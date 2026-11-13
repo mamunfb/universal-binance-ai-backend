@@ -362,3 +362,11 @@ def test_dashboard_readiness_keeps_independent_endpoint_results_on_partial_failu
     assert "if(phase){" in html
     assert "Partial readiness result — " in html
     assert "phase_readiness:phase||{error:" in html
+
+
+def test_dashboard_quality_refresh_clears_stale_report_on_loading_and_failure():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "$('qualityLimitations').innerHTML='';" in html
+    assert "$('qualityRaw').textContent='Loading quality report…';" in html
+    assert "$('qualityRaw').textContent='Quality report unavailable: '+e.message" in html
+    assert "$('qualitySources').innerHTML='';$('qualityLimitations').innerHTML='';$('qualityCollectors').innerHTML='';" in html
