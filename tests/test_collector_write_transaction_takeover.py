@@ -145,8 +145,10 @@ def test_expired_lease_takeover_waits_for_inflight_fenced_store_write(
             observation_started_at_ns=time.time_ns(),
         )
 
+    writer_context = contextvars.copy_context()
+
     def run_old_writer():
-        return contextvars.copy_context().run(write)
+        return writer_context.run(write)
 
     def attempt_takeover():
         takeover_started.set()
