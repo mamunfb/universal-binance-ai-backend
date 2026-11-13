@@ -104,3 +104,34 @@ def test_store_history_rejects_invalid_range(tmp_path):
     store = LiquidationStore(str(tmp_path / "events.sqlite3"))
     with pytest.raises(ValueError, match="end_time_ms"):
         store.history(start_time_ms=2000, end_time_ms=1000)
+
+
+def test_store_history_uses_postgres_parameterized_query(monkeypatch):
+    store = LiquidationStore("unused.sqlite3", "postgresql://example.invalid/db")
+    captured = {}
+
+    class Result:
+        def fetchall(self):
+            return [{"symbol": "BTCUSDT", "event_time_ms": 1500}]
+
+    class Connection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def execute(self, query, params):
+            captured["query"] = query
+            captured["params"] = params
+            return Result()
+
+    monkeypatch.setattr(store, "_connect_postgres", lambda: Connection())
+    rows = store.history(
+        symbol="btcusdt", start_time_ms=1000, end_time_ms=2000, limit=25,
+    )
+
+    assert rows == [{"symbol": "BTCUSDT", "event_time_ms": 1500}]
+    assert "FROM public.liquidation_events" in captured["query"]
+    assert "symbol=%s" in captured["query"]
+    assert captured["params"] == ["BTCUSDT", 1000, 2000, 25]
