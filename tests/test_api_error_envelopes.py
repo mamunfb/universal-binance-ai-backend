@@ -355,11 +355,23 @@ def test_production_rejects_weak_client_key_even_with_strong_owner_key(monkeypat
     assert response.json()["error"]["code"] == "AUTH_NOT_CONFIGURED"
 
 
-def test_private_api_rejects_unauthenticated_write_and_collection_endpoints(monkeypatch):
+def test_private_api_rejects_unauthenticated_post_endpoints(monkeypatch):
     monkeypatch.setattr(settings, "app_env", "development")
     monkeypatch.setattr(settings, "personal_api_key", "test-owner-key-with-enough-entropy")
     monkeypatch.setattr(settings, "ai_client_api_keys", "{}")
     requests = [
+        client.post(
+            "/api/v1/analysis/qualification-gates",
+            json={},
+        ),
+        client.post(
+            "/api/v1/analysis/signal-lifecycle",
+            json={},
+        ),
+        client.post(
+            "/api/v1/analysis/trade-risk-plan",
+            json={},
+        ),
         client.post(
             "/api/v1/history/market-confluence/snapshots",
             json={"status": "COMPLETED"},
@@ -385,7 +397,7 @@ def test_private_api_rejects_unauthenticated_write_and_collection_endpoints(monk
             json={"from_block": 1, "to_block": 2},
         ),
     ]
-    assert [response.status_code for response in requests] == [401] * 6
+    assert [response.status_code for response in requests] == [401] * 9
     assert all(response.json()["error"]["code"] == "UNAUTHORIZED" for response in requests)
 
 
