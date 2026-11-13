@@ -169,9 +169,20 @@ class HistoricalKlineCollector:
             self._running = False
 
     def status(self) -> dict[str, Any]:
+        task_active = self._task is not None and not self._task.done()
+        last_cycle_failed = any(
+            item.get("status") == "FAILED" for item in self._last_results
+        )
+        if not task_active:
+            lifecycle_status = "STOPPED"
+        elif last_cycle_failed or self._last_error is not None:
+            lifecycle_status = "DEGRADED"
+        else:
+            lifecycle_status = "RUNNING"
         return {
-            "status": "RUNNING" if self._task is not None and not self._task.done() else "STOPPED",
+            "status": lifecycle_status,
             "enabled": True,
+            "task_active": task_active,
             "running_cycle": self._running,
             "poll_seconds": self.poll_seconds,
             "job_count": len(self.jobs),
