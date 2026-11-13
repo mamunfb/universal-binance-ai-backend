@@ -210,9 +210,16 @@ class LiquidationCollector:
                 raise
             except Exception as exc:
                 self.connected = False
-                self.last_error = str(exc)
+                # Transport exception messages may contain sensitive connection details.
+                # Keep both the status payload and application logs limited to the exception class.
+                error_type = type(exc).__name__
+                self.last_error = error_type
                 self.reconnect_count += 1
-                logger.exception("Liquidation stream disconnected; retrying in %s seconds", delay)
+                logger.warning(
+                    "Liquidation stream disconnected (%s); retrying in %s seconds",
+                    error_type,
+                    delay,
+                )
                 await asyncio.sleep(delay)
                 delay = min(delay * 2, 60)
             finally:

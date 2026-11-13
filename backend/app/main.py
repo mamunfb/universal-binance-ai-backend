@@ -1,6 +1,7 @@
 import asyncio
 from contextlib import asynccontextmanager
 import hmac
+import logging
 from datetime import datetime, timezone
 import json
 import psycopg
@@ -14,6 +15,8 @@ from pathlib import Path
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 from app.indicators import calculate_indicators
 from app.providers.binance_spot import BinanceSpotProvider
 from app.providers.binance_futures import BinanceFuturesProvider
@@ -98,63 +101,98 @@ async def lifespan(_: FastAPI):
             "DATABASE_URL is required for this deployment; configure the Neon PostgreSQL connection "
             "before starting the production service."
         )
-    if settings.liquidation_collector_enabled:
-        liquidation_collector.start()
-    if settings.order_book_collector_enabled:
-        order_book_collector = OrderBookStreamCollector(
-            store=order_book_history_store,
-            spot_provider_factory=get_spot_provider,
-            futures_provider_factory=get_futures_provider,
-            jobs_json=settings.order_book_collector_jobs,
-            sample_interval_seconds=settings.order_book_sample_interval_seconds,
-            snapshot_limit=settings.order_book_snapshot_limit,
-            stored_levels=settings.order_book_stored_levels,
-        )
-        order_book_collector.start()
-    if settings.aggregate_trade_collector_enabled:
-        aggregate_trade_collector = AggregateTradeCollector(
-            store=aggregate_trade_store,
-            jobs_json=settings.aggregate_trade_collector_jobs,
-        )
-        aggregate_trade_collector.start()
-    if settings.derivatives_collector_enabled:
-        derivatives_collector = DerivativesHistoryCollector(
-            funding_store=funding_rate_store,
-            open_interest_store=open_interest_store,
-            provider_factory=get_futures_provider,
-            jobs_json=settings.derivatives_collector_jobs,
-            poll_seconds=settings.derivatives_collector_poll_seconds,
-            funding_limit=settings.derivatives_collector_funding_limit,
-            open_interest_limit=settings.derivatives_collector_open_interest_limit,
-        )
-        derivatives_collector.start()
-    if settings.historical_collector_enabled:
-        historical_collector = HistoricalKlineCollector(
-            store=historical_kline_store,
-            spot_provider_factory=get_spot_provider,
-            futures_provider_factory=get_futures_provider,
-            jobs_json=settings.historical_collector_jobs,
-            poll_seconds=settings.historical_collector_poll_seconds,
-            initial_limit=settings.historical_collector_initial_limit,
-        )
-        historical_collector.start()
     try:
+        if settings.liquidation_collector_enabled:
+            liquidation_collector.start()
+        if settings.order_book_collector_enabled:
+            order_book_collector = OrderBookStreamCollector(
+                store=order_book_history_store,
+                spot_provider_factory=get_spot_provider,
+                futures_provider_factory=get_futures_provider,
+                jobs_json=settings.order_book_collector_jobs,
+                sample_interval_seconds=settings.order_book_sample_interval_seconds,
+                snapshot_limit=settings.order_book_snapshot_limit,
+                stored_levels=settings.order_book_stored_levels,
+            )
+            order_book_collector.start()
+        if settings.aggregate_trade_collector_enabled:
+            aggregate_trade_collector = AggregateTradeCollector(
+                store=aggregate_trade_store,
+                jobs_json=settings.aggregate_trade_collector_jobs,
+            )
+            aggregate_trade_collector.start()
+        if settings.derivatives_collector_enabled:
+            derivatives_collector = DerivativesHistoryCollector(
+                funding_store=funding_rate_store,
+                open_interest_store=open_interest_store,
+                provider_factory=get_futures_provider,
+                jobs_json=settings.derivatives_collector_jobs,
+                poll_seconds=settings.derivatives_collector_poll_seconds,
+                funding_limit=settings.derivatives_collector_funding_limit,
+                open_interest_limit=settings.derivatives_collector_open_interest_limit,
+            )
+            derivatives_collector.start()
+        if settings.historical_collector_enabled:
+            historical_collector = HistoricalKlineCollector(
+                store=historical_kline_store,
+                spot_provider_factory=get_spot_provider,
+                futures_provider_factory=get_futures_provider,
+                jobs_json=settings.historical_collector_jobs,
+                poll_seconds=settings.historical_collector_poll_seconds,
+                initial_limit=settings.historical_collector_initial_limit,
+            )
+            historical_collector.start()
+
         yield
     finally:
+        # Attempt every shutdown independently: one broken collector must not
+        # prevent the remaining background tasks from receiving their stop signal.
+        shutdowns = []
         if order_book_collector is not None:
-            await order_book_collector.stop()
+            collector = order_book_collector
             order_book_collector = None
+            shutdowns.append(("order_book", collector.stop()))
         if aggregate_trade_collector is not None:
-            await aggregate_trade_collector.stop()
+            collector = aggregate_trade_collector
             aggregate_trade_collector = None
+            shutdowns.append(("aggregate_trade", collector.stop()))
         if derivatives_collector is not None:
-            await derivatives_collector.stop()
+            collector = derivatives_collector
             derivatives_collector = None
-        if settings.historical_collector_enabled and historical_collector is not None:
-            await historical_collector.stop()
+            shutdowns.append(("derivatives", collector.stop()))
+        if historical_collector is not None:
+            collector = historical_collector
             historical_collector = None
+            shutdowns.append(("historical", collector.stop()))
         if settings.liquidation_collector_enabled:
-            await liquidation_collector.stop()
+            shutdowns.append(("liquidation", liquidation_collector.stop()))
+
+        async def stop_with_timeout(name: str, operation: Any) -> None:
+            try:
+                await asyncio.wait_for(
+                    operation,
+                    timeout=settings.collector_shutdown_timeout_seconds,
+                )
+            except asyncio.TimeoutError:
+                logger.error(
+                    "Collector shutdown timed out for %s after %.1f seconds",
+                    name,
+                    settings.collector_shutdown_timeout_seconds,
+                )
+            except Exception as exc:
+                logger.error(
+                    "Collector shutdown failed for %s (%s)",
+                    name,
+                    type(exc).__name__,
+                )
+
+        if shutdowns:
+            await asyncio.gather(
+                *(stop_with_timeout(name, operation) for name, operation in shutdowns)
+            )
+
+
+AI_CLIENT_NAMES = ("chatgpt", "gemini", "manus", "claude", "perplexity")
 
 
 app = FastAPI(
@@ -203,8 +241,10 @@ async def request_tracking_middleware(request: Request, call_next):
 
     if request.url.path.startswith("/api/"):
         configured_key = settings.personal_api_key
+        raw_client_keys = settings.ai_client_api_keys or ""
+        client_key_config_invalid = False
         try:
-            client_keys = json.loads(settings.ai_client_api_keys or "{}")
+            client_keys = json.loads(raw_client_keys or "{}")
             if not isinstance(client_keys, dict) or any(
                 not isinstance(name, str) or not isinstance(key, str)
                 for name, key in client_keys.items()
@@ -212,17 +252,37 @@ async def request_tracking_middleware(request: Request, call_next):
                 raise ValueError("AI_CLIENT_API_KEYS must be a JSON object of client names to keys")
         except (TypeError, ValueError, json.JSONDecodeError):
             client_keys = None
+            client_key_config_invalid = bool(raw_client_keys.strip())
 
         production = settings.app_env.lower() in {"production", "prod"}
+        if client_key_config_invalid and not configured_key:
+            response = JSONResponse(
+                status_code=503,
+                content=_error_payload(
+                    "AUTH_NOT_CONFIGURED",
+                    "AI client API key configuration is invalid; correct it before accepting API requests.",
+                    request_id=request_id,
+                ),
+            )
+            response.headers["X-Request-ID"] = request_id
+            return _apply_security_headers(response, request)
         has_valid_client_keys = (
             isinstance(client_keys, dict)
             and all(
                 isinstance(client_keys.get(name), str) and len(client_keys[name]) >= 32
-                for name in ("chatgpt", "gemini", "manus", "claude", "perplexity")
+                for name in AI_CLIENT_NAMES
             )
         )
         has_valid_owner_key = isinstance(configured_key, str) and len(configured_key) >= 32
-        if production and not (has_valid_owner_key or has_valid_client_keys):
+        has_weak_owner_key = bool(configured_key) and not has_valid_owner_key
+        has_weak_client_keys = isinstance(client_keys, dict) and any(
+            len(key) < 32 for key in client_keys.values()
+        )
+        if production and (
+            has_weak_owner_key
+            or has_weak_client_keys
+            or not (has_valid_owner_key or has_valid_client_keys)
+        ):
             response = JSONResponse(
                 status_code=503,
                 content=_error_payload(
@@ -239,17 +299,20 @@ async def request_tracking_middleware(request: Request, call_next):
             scheme, _, supplied_key = authorization.partition(" ")
             matched_client = None
             if scheme.lower() == "bearer" and supplied_key:
+                matched_identities = []
                 if isinstance(client_keys, dict):
-                    for client_name, client_key in client_keys.items():
-                        if hmac.compare_digest(
+                    for client_name in AI_CLIENT_NAMES:
+                        client_key = client_keys.get(client_name)
+                        if isinstance(client_key, str) and hmac.compare_digest(
                             supplied_key.encode("utf-8"), client_key.encode("utf-8")
                         ):
-                            matched_client = client_name
-                            break
+                            matched_identities.append(client_name)
                 if configured_key and hmac.compare_digest(
                     supplied_key.encode("utf-8"), configured_key.encode("utf-8")
                 ):
-                    matched_client = "owner"
+                    matched_identities.append("owner")
+                if len(matched_identities) == 1:
+                    matched_client = matched_identities[0]
             if matched_client is None:
                 response = JSONResponse(
                     status_code=401,
@@ -387,7 +450,10 @@ def get_evm_provider() -> EVMRPCProvider:
     try:
         return EVMRPCProvider(settings.evm_rpc_url, settings.http_timeout_seconds)
     except ValueError as exc:
-        raise HTTPException(status_code=503, detail={"status": "BLOCKED", "error": str(exc)}) from exc
+        raise HTTPException(
+            status_code=503,
+            detail={"status": "BLOCKED", "error": "EVM_RPC_CONFIGURATION_INVALID"},
+        ) from exc
 
 
 def parse_exchange_addresses(raw: str) -> dict[str, str]:
@@ -431,7 +497,7 @@ async def evm_token_snapshot(contract: str, addresses: str = "") -> dict:
 @app.post("/api/v1/onchain/evm/token/{contract}/index", tags=["on-chain"])
 async def index_evm_token_history(
     contract: str,
-    payload: dict = Body(..., example={"from_block": 1000000, "to_block": 1001000, "chunk_size": 500}),
+    payload: dict = Body(..., openapi_examples={"default": {"summary": "Bounded block range", "value": {"from_block": 1000000, "to_block": 1001000, "chunk_size": 500}}}),
 ) -> dict:
     try:
         from_block = int(payload["from_block"])
@@ -709,9 +775,18 @@ async def cross_chain_token_intelligence(
                 }
             concentration_status = concentration["status"]
         except Exception as exc:
-            entity_flows = {"error": f"{type(exc).__name__}: {str(exc)[:200]}"}
+            # Provider/configuration exceptions may contain RPC URLs or credentials.
+            # Expose only a stable error identifier and the exception class.
+            entity_flows = {
+                "error": "CHAIN_INTELLIGENCE_UNAVAILABLE",
+                "error_type": type(exc).__name__,
+            }
             entity_flow_status = "FAILED"
-            concentration = {"status": "FAILED", "error": f"{type(exc).__name__}: {str(exc)[:200]}"}
+            concentration = {
+                "status": "FAILED",
+                "error": "CHAIN_INTELLIGENCE_UNAVAILABLE",
+                "error_type": type(exc).__name__,
+            }
             concentration_status = "FAILED"
         flow_coverage = flow.get("coverage", {})
         cohort_coverage = (cohort or {}).get("coverage", {})
@@ -1425,7 +1500,7 @@ async def usdm_klines(
     try:
         rows = await get_futures_provider("USD_M").klines(symbol, interval, limit)
     except Exception as exc:
-        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": "USDM_KLINES_UNAVAILABLE"}) from exc
     return {"status": "COMPLETED", "source": "Binance USD-M Futures public REST API",
             "symbol": symbol.upper(), "interval": interval, "count": len(rows), "klines": rows}
 
@@ -1442,7 +1517,7 @@ async def coinm_klines(
     try:
         rows = await get_futures_provider("COIN_M").klines(symbol, interval, limit)
     except Exception as exc:
-        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": "COINM_KLINES_UNAVAILABLE"}) from exc
     return {"status": "COMPLETED", "source": "Binance COIN-M Futures public REST API",
             "symbol": symbol.upper(), "interval": interval, "count": len(rows), "klines": rows}
 
@@ -2002,7 +2077,7 @@ async def spot_technical_analysis(
         closes = [float(row[4]) for row in rows]
         indicators = calculate_indicators(closes)
     except Exception as exc:
-        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": "SPOT_TECHNICAL_ANALYSIS_UNAVAILABLE"}) from exc
     required_indicator_paths = {
         "ema_20": indicators.get("ema_20"),
         "ema_50": indicators.get("ema_50"),
@@ -2057,7 +2132,7 @@ async def spot_price_levels(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": "SPOT_PRICE_LEVELS_UNAVAILABLE"}) from exc
     return {
         "status": "COMPLETED" if support_resistance["status"] == "COMPLETED" and fibonacci["status"] == "COMPLETED" else "INCOMPLETE",
         "source": "Binance Spot public REST klines",
@@ -2095,7 +2170,7 @@ async def spot_volume_structure(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": "SPOT_VOLUME_STRUCTURE_UNAVAILABLE"}) from exc
     sections = [vwap["status"], volume_profile["status"], market_structure["status"]]
     return {
         "status": "COMPLETED" if all(s == "COMPLETED" for s in sections) else "INCOMPLETE",
@@ -2533,7 +2608,7 @@ async def spot_klines(
     try:
         rows = await get_spot_provider().klines(symbol, interval, limit)
     except Exception as exc:
-        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": "SPOT_KLINES_UNAVAILABLE"}) from exc
     return {
         "status": "COMPLETED",
         "source": "Binance Spot public REST API",

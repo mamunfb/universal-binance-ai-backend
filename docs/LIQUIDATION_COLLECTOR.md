@@ -33,7 +33,7 @@ The notional field is calculated as average price × cumulative filled quantity 
 ## Operational caveats
 
 - The collector records only messages received while it is connected and running.
-- Disconnects create gaps; reconnect count and last error are exposed in status.
+- Disconnects create gaps; reconnect count and the last error class (not raw exception text) are exposed in status.
 - No historical backfill is provided.
 - No heatmap or liquidation price clusters are claimed.
 - For production multi-instance deployments, replace SQLite with a managed database and use a single elected stream consumer or a durable message queue.

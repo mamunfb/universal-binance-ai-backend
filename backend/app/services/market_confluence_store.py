@@ -4,6 +4,7 @@ import hashlib
 import json
 import math
 import sqlite3
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
@@ -40,32 +41,62 @@ class MarketConfluenceStore:
         return psycopg.connect(self.database_url, sslmode=("disable" if "sslmode=disable" in self.database_url else "require"), connect_timeout=15, row_factory=dict_row)
 
     @staticmethod
+    def _integer(value: Any, field: str) -> int:
+        if isinstance(value, bool):
+            raise ValueError(f"Invalid {field}")
+        try:
+            number = Decimal(str(value))
+        except (InvalidOperation, TypeError, ValueError) as exc:
+            raise ValueError(f"Invalid {field}") from exc
+        if not number.is_finite() or number != number.to_integral_value():
+            raise ValueError(f"Invalid {field}")
+        if number < -(2**63) or number > (2**63 - 1):
+            raise ValueError(f"Invalid {field}; outside signed 64-bit storage range")
+        return int(number)
+
+    @staticmethod
     def _validate(payload: dict[str, Any]) -> tuple[str, str, str, int, str, str, float | None, int | None, str, str]:
-        market = str(payload.get("market", "")).upper()
-        symbol = str(payload.get("symbol", "")).upper()
-        interval = str(payload.get("interval", ""))
+        if not isinstance(payload, dict):
+            raise ValueError("Snapshot payload must be a JSON object")
+        raw_market = payload.get("market", "")
+        raw_symbol = payload.get("symbol", "")
+        raw_interval = payload.get("interval", "")
+        if not all(isinstance(value, str) for value in (raw_market, raw_symbol, raw_interval)):
+            raise ValueError("Snapshot market, symbol and interval must be strings")
+        market = raw_market.upper()
+        symbol = raw_symbol.upper()
+        interval = raw_interval
         raw_stamp = payload.get("analyzed_at_ms")
-        if isinstance(raw_stamp, bool):
-            raise ValueError("Invalid analyzed_at_ms")
-        stamp = int(raw_stamp or 0)
+        stamp = MarketConfluenceStore._integer(raw_stamp, "analyzed_at_ms")
         if market not in {"SPOT", "USD_M", "COIN_M"} or not symbol or not interval or stamp <= 0:
             raise ValueError("Snapshot requires valid market, symbol, interval and analyzed_at_ms")
-        confluence = payload.get("confluence") or {}
-        bias = str(confluence.get("bias", "UNKNOWN")).upper()
+        confluence = payload.get("confluence", {})
+        reference = payload.get("reference", {})
+        confluence = {} if confluence is None else confluence
+        reference = {} if reference is None else reference
+        if not isinstance(confluence, dict) or not isinstance(reference, dict):
+            raise ValueError("Snapshot confluence and reference fields must be JSON objects")
+        raw_bias = confluence.get("bias", "UNKNOWN")
+        alignment = confluence.get("alignment", "UNKNOWN")
+        if not isinstance(raw_bias, str) or not isinstance(alignment, str):
+            raise ValueError("Snapshot bias and alignment must be strings")
+        bias = raw_bias.upper()
         if bias not in {"BULLISH", "BEARISH", "MIXED", "UNKNOWN"}:
             raise ValueError("Unsupported confluence bias")
-        alignment = str(confluence.get("alignment", "UNKNOWN"))
-        reference = payload.get("reference") or {}
         price = reference.get("price")
         if isinstance(price, bool):
             raise ValueError("reference price must be numeric, not boolean")
-        price = float(price) if price is not None else None
+        if price is not None:
+            try:
+                price = float(price)
+            except (TypeError, ValueError, OverflowError) as exc:
+                raise ValueError("reference price must be numeric") from exc
         if price is not None and (not math.isfinite(price) or price <= 0):
             raise ValueError("reference price must be finite and positive")
         close = reference.get("close_time_ms")
-        if isinstance(close, bool):
-            raise ValueError("Invalid reference close_time_ms")
-        close = int(close) if close is not None and price is not None else None
+        close = MarketConfluenceStore._integer(close, "reference close_time_ms") if close is not None else None
+        if close is not None and close < 0:
+            raise ValueError("reference close_time_ms must be non-negative")
         if price is not None and close is None:
             raise ValueError("reference close_time_ms is required with reference price")
         if close is not None and close > stamp:
@@ -118,9 +149,14 @@ class MarketConfluenceStore:
         return item
 
     def history(self, market: str, symbol: str, interval: str = "1h", limit: int = 100) -> dict[str, Any]:
+        if not isinstance(market, str) or not isinstance(symbol, str) or not isinstance(interval, str):
+            raise ValueError("market, symbol and interval must be strings")
         normalized_market = market.upper()
         if normalized_market not in {"SPOT", "USD_M", "COIN_M"}:
             raise ValueError("Invalid market")
+        if not symbol.strip() or not interval.strip():
+            raise ValueError("symbol and interval must not be empty")
+        limit = self._integer(limit, "history limit")
         if not 1 <= limit <= 1000:
             raise ValueError("limit must be between 1 and 1000")
         if self.database_url:
@@ -145,9 +181,13 @@ class MarketConfluenceStore:
                 "returned_count": len(snapshots), "snapshots": snapshots, "source": source}
 
     def get_snapshot(self, market: str, symbol: str, snapshot_id: str) -> dict[str, Any] | None:
-        normalized_market = market.upper()
-        if normalized_market not in {"SPOT", "USD_M", "COIN_M"}:
+        if not isinstance(market, str) or market.upper() not in {"SPOT", "USD_M", "COIN_M"}:
             raise ValueError("Invalid market")
+        if not isinstance(symbol, str) or not symbol.strip():
+            raise ValueError("symbol must be a non-empty string")
+        if not isinstance(snapshot_id, str) or not snapshot_id.strip():
+            raise ValueError("snapshot_id must be a non-empty string")
+        normalized_market = market.upper()
         if self.database_url:
             with self._connect_postgres() as db:
                 row = db.execute("""SELECT * FROM public.market_confluence_snapshots

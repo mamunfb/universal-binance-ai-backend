@@ -69,6 +69,7 @@ class HistoricalKlineCollector:
         self._last_cycle_at: str | None = None
         self._last_success_at: str | None = None
         self._last_error: str | None = None
+        self._last_cycle_degraded = False
         self._cycles = 0
         self._successes = 0
         self._failures = 0
@@ -97,6 +98,7 @@ class HistoricalKlineCollector:
                 raise
             except Exception as exc:
                 self._last_error = type(exc).__name__
+                self._last_cycle_degraded = True
             await asyncio.sleep(self.poll_seconds)
 
     async def run_once(self) -> dict[str, Any]:
@@ -157,6 +159,7 @@ class HistoricalKlineCollector:
                     })
             self._last_results = results
             failed = any(item["status"] == "FAILED" for item in results)
+            self._last_cycle_degraded = failed
             status = "INCOMPLETE" if failed else ("IDLE" if not self.jobs else "COMPLETED")
             return {
                 "status": status,
@@ -169,9 +172,19 @@ class HistoricalKlineCollector:
             self._running = False
 
     def status(self) -> dict[str, Any]:
+        task_active = self._task is not None and not self._task.done()
+        if not task_active:
+            lifecycle_status = "STOPPED"
+        elif self._cycles == 0:
+            lifecycle_status = "STARTING"
+        elif self._last_cycle_degraded:
+            lifecycle_status = "DEGRADED"
+        else:
+            lifecycle_status = "RUNNING"
         return {
-            "status": "RUNNING" if self._task is not None and not self._task.done() else "STOPPED",
+            "status": lifecycle_status,
             "enabled": True,
+            "task_active": task_active,
             "running_cycle": self._running,
             "poll_seconds": self.poll_seconds,
             "job_count": len(self.jobs),

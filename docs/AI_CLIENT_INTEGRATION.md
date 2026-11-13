@@ -45,6 +45,27 @@ REST/OpenAPI is the canonical API contract. MCP may be used as a shared tool int
 
 Platform capabilities and plan availability can change. A platform is not considered integrated until a real end-to-end connection test succeeds in the owner's account.
 
+### Current API key permission boundary
+
+The REST authentication middleware currently uses the five supported client keys to identify the caller, but it does not enforce per-client endpoint scopes. Owner and AI-client keys therefore reach the same authenticated `/api/` route surface. `request.state.ai_client` records the matched identity for attribution; route handlers do not currently use it to authorize individual operations. Do not describe a client key as read-only or least-privilege until route-level authorization is implemented and tested.
+
+The current POST routes have different side effects:
+
+| Route | Current behavior | Side-effect class |
+|---|---|---|
+| `/api/v1/analysis/qualification-gates` | Computes qualification checks from the submitted payload | Analysis request |
+| `/api/v1/analysis/signal-lifecycle` | Builds a descriptive signal lifecycle from the submitted payload | Analysis request |
+| `/api/v1/analysis/trade-risk-plan` | Calculates a user-supplied scenario; explicitly marks trading disabled | Analysis request |
+| `/api/v1/history/market-confluence/snapshots` | Saves a descriptive research snapshot | Persistent research write |
+| `/api/v1/history/funding-rates/USD_M/{symbol}/collect` | Fetches funding events and stores returned history | External collection + persistent write |
+| `/api/v1/history/open-interest/USD_M/{symbol}/collect` | Fetches open-interest observations and stores returned history | External collection + persistent write |
+| `/api/v1/history/derivatives-ratios/USD_M/{ratio_type}/{symbol}/collect` | Fetches ratio observations and stores returned history | External collection + persistent write |
+| `/api/v1/history/klines/{market}/{symbol}/collect` | Fetches candles and stores returned history | External collection + persistent write |
+| `/api/v1/onchain/evm/token/{contract}/index` | Reads bounded EVM transfer logs and indexes them locally | External collection + persistent write |
+
+These routes are authenticated by the same Bearer-key middleware. The table describes observed handler behavior, not a recommendation that every AI client should receive every permission. Before introducing per-client scopes, decide explicitly which identities may run analysis-only requests, save research snapshots, trigger exchange-history collection, or initiate EVM indexing. Keep order placement, signing, withdrawals, and trade execution out of scope.
+
+
 ## API discovery
 
 - OpenAPI JSON: `GET /openapi.json`
@@ -56,7 +77,7 @@ For a hosted deployment, use its HTTPS origin. Do not expose a development serve
 ## Minimal client flow
 
 1. Discover the operation and parameter bounds from `/openapi.json`.
-2. Call only the necessary read-only endpoint.
+2. Prefer the necessary read-only endpoint. For any write or collection operation, first verify that the caller is explicitly authorized for that side effect.
 3. Inspect `status`, source, generated time, snapshot block, freshness, indexed coverage, and warning fields where present.
 4. Treat `INCOMPLETE`, `UNKNOWN`, empty results, and missing coverage as uncertainty—not as zero activity or proof that no event occurred.
 5. Preserve `X-Request-ID` for troubleshooting. Error bodies also include `request_id`.
@@ -91,7 +112,7 @@ Common codes include `VALIDATION_ERROR`, `NOT_FOUND`, `UNAUTHORIZED`, `FORBIDDEN
 
 ## MCP adapter response handling
 
-The local MCP adapter exposes a read-only `get_stored_historical_klines` tool for locally collected candles. The local historical collector itself is available through the authenticated REST POST endpoint, not through MCP. The adapter preserves successful JSON objects exactly, including source, generated timestamps, freshness, coverage, missing-data, and warning fields. For HTTP failures it returns a normalized object with `status: FAILED`, `http_status`, a stable `error.code`, a safe message, and a `retryable` flag. It also carries the API `request_id` when supplied. Connection failures use `UPSTREAM_CONNECTION_ERROR`; invalid or non-object success JSON uses `UPSTREAM_INVALID_RESPONSE`. These normalized MCP errors are adapter output and do not change the canonical REST API error contract. Retry only when `retryable` is true and apply bounded backoff; do not retry authentication or validation failures unchanged.
+The local MCP adapter exposes `get_stored_historical_klines` as a read-only tool for locally collected candles. It also exposes `save_market_confluence_snapshot`, which performs a narrowly scoped write: it persists a descriptive research snapshot through the authenticated REST POST endpoint. The historical candle collector itself remains available through REST and is not exposed through MCP. The adapter preserves successful JSON objects exactly, including source, generated timestamps, freshness, coverage, missing-data, and warning fields. For HTTP failures it returns a normalized object with `status: FAILED`, `http_status`, a stable `error.code`, a safe message, and a `retryable` flag. It also carries the API `request_id` when supplied. Connection failures use `UPSTREAM_CONNECTION_ERROR`; invalid or non-object success JSON uses `UPSTREAM_INVALID_RESPONSE`. These normalized MCP errors are adapter output and do not change the canonical REST API error contract. Retry only when `retryable` is true and apply bounded backoff; do not retry authentication or validation failures unchanged.
 
 ## Retry guidance
 
@@ -104,7 +125,7 @@ The local MCP adapter exposes a read-only `get_stored_historical_klines` tool fo
 ## Private access and security
 
 - The intended user is one owner. Do not create public sign-up or multi-customer account flows.
-- API routes under `/api/` accept a Bearer key when `PERSONAL_API_KEY` is configured.
+- API routes under `/api/` require a Bearer key whenever `PERSONAL_API_KEY` or `AI_CLIENT_API_KEYS` is configured; the supported client identities are `chatgpt`, `gemini`, `manus`, `claude`, and `perplexity`.
 - Set `APP_ENV=production` and `PERSONAL_API_KEY` to a randomly generated secret of at least 32 characters before production deployment. Production API requests fail closed with 503 if a sufficiently long key is not configured.
 - In development, an empty `PERSONAL_API_KEY` leaves API routes unauthenticated for local testing only. Never expose that configuration to the public internet.
 - Example environment configuration (use your own secret; do not commit it):
@@ -122,7 +143,7 @@ curl -H "Authorization: Bearer $PERSONAL_API_KEY" \
 ```
 
 - Protect the private API with server-side authentication before exposing it beyond localhost/private network.
-- Configure separate keys for the three AI clients with `AI_CLIENT_API_KEYS`, a JSON object mapping `chatgpt`, `gemini`, `manus`, `claude`, and `perplexity` to independent random secrets of at least 32 characters.
+- Configure separate keys for the five supported AI clients with `AI_CLIENT_API_KEYS`, a JSON object mapping `chatgpt`, `gemini`, `manus`, `claude`, and `perplexity` to independent random secrets of at least 32 characters.
 - Example only (replace every value with a unique randomly generated secret; never commit real secrets):
 
 ```env
@@ -133,6 +154,7 @@ AI_CLIENT_API_KEYS={"chatgpt":"REPLACE_WITH_CHATGPT_RANDOM_SECRET_32_CHARS_MIN",
 - Production requires either all five valid per-client keys or a strong owner-level `PERSONAL_API_KEY`. The owner key can be used for administration; prefer the individual client keys for AI integrations.
 - During development, an empty key configuration leaves API routes unauthenticated for local testing only. Never expose that configuration to the public internet.
 - Each client key can be revoked or rotated independently by changing its environment value and restarting/redeploying the service.
+- A non-empty malformed `AI_CLIENT_API_KEYS` value fails closed with `503 AUTH_NOT_CONFIGURED` when no owner key is configured. If a valid owner key is configured, the owner can still authenticate while the malformed client-key configuration is corrected; no AI client key can be matched from invalid JSON.
 - Never commit raw credentials.
 - Do not put private API credentials, RPC provider secrets, Binance secrets, wallet seed phrases, or signing keys in prompts or client-side code.
 - Prefer HTTPS. Restrict network access at the deployment boundary where possible.
@@ -160,14 +182,14 @@ Do not choose a fixed requests-per-minute limit until the deployment, upstream q
 A ChatGPT, Gemini, Manus, Claude, or Perplexity adapter is complete only after:
 1. Its exact supported connection method is confirmed in the target account/environment.
 2. It authenticates to the private backend without exposing credentials in prompts or client code.
-3. It can discover/call a small set of read-only tools.
+3. It can discover/call a small set of research tools; review each tool's documented side effects before enabling it.
 4. It preserves structured errors, request IDs, timestamps, and data-quality metadata.
 5. End-to-end tests pass for success, validation failure, authentication failure, and unavailable upstream data.
 
 
 ## Private MCP stdio adapter
 
-A first shared MCP adapter is available at `mcp-server/server.py`. It exposes a small, read-only set of tools that call the canonical REST API; it does not duplicate market or on-chain analysis logic.
+A first shared MCP adapter is available at `mcp-server/server.py`. It exposes a small set of tools that call the canonical REST API; most are read-only, while `save_market_confluence_snapshot` persists a descriptive research snapshot. It does not expose exchange order placement, signing, withdrawals, or trade execution, and it does not duplicate market or on-chain analysis logic.
 
 Install dependencies with `pip install -r requirements.txt`. Run a separate local MCP process for each AI client, setting these environment variables in that client's MCP server configuration:
 

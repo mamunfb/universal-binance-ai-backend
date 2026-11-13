@@ -270,9 +270,27 @@ class AggregateTradeCollector:
                 state["connected"] = False
 
     def status(self) -> dict[str, Any]:
+        jobs = list(self.states.values())
+        connected = sum(1 for job in jobs if job.get("connected"))
+        task_count = len(self.tasks)
+        if task_count == 0:
+            status = "IDLE"
+        elif not jobs:
+            status = "STARTING"
+        elif connected == len(jobs):
+            status = "RUNNING"
+        elif any(job.get("last_error") for job in jobs):
+            status = "DEGRADED"
+        else:
+            status = "CONNECTING"
         return {
-            "enabled": True, "job_count": len(self.states),
-            "jobs": list(self.states.values()),
+            "status": status,
+            "enabled": True,
+            "job_count": task_count,
+            "active_task_count": sum(1 for task in self.tasks if not task.done()),
+            "connected_job_count": connected,
+            "disconnected_job_count": max(0, len(jobs) - connected),
+            "jobs": jobs,
             "stored_trade_count": self.store.count(),
             "warning": "Aggregate trade collection starts on enablement; no earlier trade history is backfilled.",
         }

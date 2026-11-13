@@ -134,3 +134,24 @@ def test_rpc_does_not_retry_client_error():
 def test_provider_rejects_invalid_retry_attempts(attempts):
     with pytest.raises(ValueError, match="retry_attempts"):
         EVMRPCProvider("https://rpc.example", retry_attempts=attempts)
+
+def test_rpc_error_payload_does_not_disclose_upstream_url_or_credentials():
+    secret_url = "https://rpc-user:rpc-password@rpc.example.test/?token=rpc-secret"
+
+    def handler(request):
+        payload = json.loads(request.content)
+        return httpx.Response(200, json={
+            "jsonrpc": "2.0",
+            "id": payload["id"],
+            "error": {"code": -32000, "message": f"provider failed at {secret_url}"},
+        })
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            provider = EVMRPCProvider("https://rpc.example")
+            with pytest.raises(RuntimeError, match="JSON-RPC eth_chainId failed") as caught:
+                await provider._rpc("eth_chainId", [], client=client)
+            for secret in ("rpc-user", "rpc-password", "rpc-secret", secret_url):
+                assert secret not in str(caught.value)
+
+    asyncio.run(run())

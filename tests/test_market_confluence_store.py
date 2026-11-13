@@ -122,3 +122,106 @@ def test_snapshot_rejects_boolean_numeric_fields(tmp_path, field, value):
     with pytest.raises(ValueError):
         store.save(payload)
     assert store.history("USD_M", "BTCUSDT", "1h")["returned_count"] == 0
+
+
+@pytest.mark.parametrize("field,value", [
+    ("analyzed_at_ms", 1000.5),
+    ("analyzed_at_ms", "1000.5"),
+    ("close_time_ms", 999.5),
+    ("close_time_ms", "999.5"),
+])
+def test_snapshot_rejects_fractional_timestamp_fields(tmp_path, field, value):
+    store = MarketConfluenceStore(str(tmp_path / "snapshots.sqlite3"))
+    payload = {
+        "market": "USD_M", "symbol": "BTCUSDT", "interval": "1h",
+        "analyzed_at_ms": 1000,
+        "confluence": {"bias": "BULLISH"},
+        "reference": {"price": 100.0, "close_time_ms": 999},
+    }
+    if field == "analyzed_at_ms":
+        payload[field] = value
+    else:
+        payload["reference"][field] = value
+    with pytest.raises(ValueError):
+        store.save(payload)
+    assert store.history("USD_M", "BTCUSDT", "1h")["returned_count"] == 0
+
+
+@pytest.mark.parametrize("payload", [
+    None,
+    [],
+    {"market": 1, "symbol": "BTCUSDT", "interval": "1h", "analyzed_at_ms": 1000},
+    {"market": "USD_M", "symbol": ["BTCUSDT"], "interval": "1h", "analyzed_at_ms": 1000},
+    {"market": "USD_M", "symbol": "BTCUSDT", "interval": 60, "analyzed_at_ms": 1000},
+    {"market": "USD_M", "symbol": "BTCUSDT", "interval": "1h", "analyzed_at_ms": 1000, "confluence": []},
+    {"market": "USD_M", "symbol": "BTCUSDT", "interval": "1h", "analyzed_at_ms": 1000, "reference": "invalid"},
+    {"market": "USD_M", "symbol": "BTCUSDT", "interval": "1h", "analyzed_at_ms": 1000, "confluence": {"bias": []}},
+    {"market": "USD_M", "symbol": "BTCUSDT", "interval": "1h", "analyzed_at_ms": 1000, "reference": {"price": "not-a-number"}},
+])
+def test_snapshot_rejects_malformed_object_shapes(tmp_path, payload):
+    store = MarketConfluenceStore(str(tmp_path / "snapshots.sqlite3"))
+    with pytest.raises(ValueError):
+        store.save(payload)
+    assert store.history("USD_M", "BTCUSDT", "1h")["returned_count"] == 0
+
+
+@pytest.mark.parametrize("limit", [True, False, 1.5, "1.5", float("inf")])
+def test_history_rejects_non_integer_limits(tmp_path, limit):
+    store = MarketConfluenceStore(str(tmp_path / "snapshots.sqlite3"))
+    with pytest.raises(ValueError):
+        store.history("USD_M", "BTCUSDT", "1h", limit=limit)
+
+
+def test_history_accepts_integer_string_limit(tmp_path):
+    store = MarketConfluenceStore(str(tmp_path / "snapshots.sqlite3"))
+    result = store.history("USD_M", "BTCUSDT", "1h", limit="10")
+    assert result["returned_count"] == 0
+
+
+@pytest.mark.parametrize("market,symbol,snapshot_id", [
+    (None, "BTCUSDT", "snapshot-id"),
+    (1, "BTCUSDT", "snapshot-id"),
+    ("OTHER", "BTCUSDT", "snapshot-id"),
+    ("USD_M", None, "snapshot-id"),
+    ("USD_M", " ", "snapshot-id"),
+    ("USD_M", "BTCUSDT", None),
+    ("USD_M", "BTCUSDT", ""),
+])
+def test_get_snapshot_rejects_invalid_query_types(tmp_path, market, symbol, snapshot_id):
+    store = MarketConfluenceStore(str(tmp_path / "snapshots.sqlite3"))
+    with pytest.raises(ValueError):
+        store.get_snapshot(market, symbol, snapshot_id)
+
+
+def test_snapshot_rejects_negative_reference_close_timestamp(tmp_path):
+    store = MarketConfluenceStore(str(tmp_path / "snapshots.sqlite3"))
+    payload = {
+        "market": "USD_M", "symbol": "BTCUSDT", "interval": "1h",
+        "analyzed_at_ms": 1000,
+        "confluence": {"bias": "BULLISH"},
+        "reference": {"price": 100.0, "close_time_ms": -1},
+    }
+    with pytest.raises(ValueError, match="non-negative"):
+        store.save(payload)
+    assert store.history("USD_M", "BTCUSDT", "1h")["returned_count"] == 0
+
+
+@pytest.mark.parametrize("field,value", [
+    ("analyzed_at_ms", 2**63),
+    ("close_time_ms", 2**63),
+])
+def test_snapshot_rejects_timestamps_outside_storage_integer_range(tmp_path, field, value):
+    store = MarketConfluenceStore(str(tmp_path / "snapshots.sqlite3"))
+    payload = {
+        "market": "USD_M", "symbol": "BTCUSDT", "interval": "1h",
+        "analyzed_at_ms": 1000,
+        "confluence": {"bias": "BULLISH"},
+        "reference": {"price": 100.0, "close_time_ms": 999},
+    }
+    if field == "analyzed_at_ms":
+        payload[field] = value
+    else:
+        payload["reference"][field] = value
+    with pytest.raises(ValueError, match="signed 64-bit"):
+        store.save(payload)
+    assert store.history("USD_M", "BTCUSDT", "1h")["returned_count"] == 0

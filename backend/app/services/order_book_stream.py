@@ -3,7 +3,9 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 import sqlite3
+from decimal import Decimal, InvalidOperation
 import psycopg
 from psycopg.rows import dict_row
 from datetime import datetime, timezone
@@ -65,7 +67,89 @@ class OrderBookHistoryStore:
     def _connect_postgres(self):
         return psycopg.connect(self.database_url, sslmode=("disable" if "sslmode=disable" in self.database_url else "require"), connect_timeout=15, row_factory=dict_row)
 
+    @staticmethod
+    def _validated_row(row: dict[str, Any]) -> dict[str, Any]:
+        if not isinstance(row, dict):
+            raise ValueError("order-book sample must be an object")
+        required = {
+            "market", "symbol", "update_id", "sampled_at", "best_bid", "best_ask",
+            "mid_price", "spread_bps", "bid_notional", "ask_notional",
+            "depth_imbalance", "bids", "asks",
+        }
+        if not required.issubset(row):
+            raise ValueError("order-book sample is missing required fields")
+        market = row["market"]
+        symbol = row["symbol"]
+        if not isinstance(market, str) or market not in {"SPOT", "USD_M", "COIN_M"}:
+            raise ValueError("Invalid order-book market")
+        if not isinstance(symbol, str) or not symbol.strip() or len(symbol) > 40:
+            raise ValueError("Invalid order-book symbol")
+        if not isinstance(row["sampled_at"], str) or not row["sampled_at"].strip():
+            raise ValueError("Invalid order-book sample timestamp")
+
+        def integer(value: Any, field: str, optional: bool = False) -> int | None:
+            if value is None and optional:
+                return None
+            if isinstance(value, bool):
+                raise ValueError(f"Invalid order-book {field}")
+            try:
+                number = Decimal(str(value))
+            except (InvalidOperation, TypeError, ValueError):
+                raise ValueError(f"Invalid order-book {field}") from None
+            if (not number.is_finite() or number != number.to_integral_value()
+                    or number < 0 or number > (2**63 - 1)):
+                raise ValueError(f"Invalid order-book {field}")
+            return int(number)
+
+        def finite(value: Any, field: str) -> float:
+            if isinstance(value, bool):
+                raise ValueError(f"Invalid order-book {field}")
+            try:
+                number = float(value)
+            except (TypeError, ValueError, OverflowError):
+                raise ValueError(f"Invalid order-book {field}") from None
+            if not math.isfinite(number):
+                raise ValueError(f"Invalid order-book {field}")
+            return number
+
+        validated: dict[str, Any] = dict(row)
+        validated["update_id"] = integer(row["update_id"], "update ID")
+        validated["event_time_ms"] = integer(row.get("event_time_ms"), "event time", optional=True)
+        validated["transaction_time_ms"] = integer(row.get("transaction_time_ms"), "transaction time", optional=True)
+        for field in ("best_bid", "best_ask", "mid_price", "spread_bps",
+                      "bid_notional", "ask_notional", "depth_imbalance"):
+            validated[field] = finite(row[field], field)
+        if (validated["best_bid"] <= 0 or validated["best_ask"] <= validated["best_bid"]
+                or validated["mid_price"] <= 0 or validated["spread_bps"] < 0
+                or validated["bid_notional"] < 0 or validated["ask_notional"] < 0
+                or not -1 <= validated["depth_imbalance"] <= 1):
+            raise ValueError("Invalid order-book sample metrics")
+
+        for side, descending in (("bids", True), ("asks", False)):
+            levels = row[side]
+            if not isinstance(levels, list) or not 1 <= len(levels) <= 1000:
+                raise ValueError(f"Invalid order-book {side}")
+            normalized = []
+            previous = None
+            for level in levels:
+                if not isinstance(level, (list, tuple)) or len(level) != 2:
+                    raise ValueError(f"Invalid order-book {side} level")
+                price = finite(level[0], f"{side} price")
+                quantity = finite(level[1], f"{side} quantity")
+                if price <= 0 or quantity < 0:
+                    raise ValueError(f"Invalid order-book {side} level")
+                if previous is not None and ((descending and price >= previous) or (not descending and price <= previous)):
+                    raise ValueError(f"Unsorted order-book {side}")
+                previous = price
+                normalized.append([price, quantity])
+            validated[side] = normalized
+        if (validated["bids"][0][0] != validated["best_bid"]
+                or validated["asks"][0][0] != validated["best_ask"]):
+            raise ValueError("Order-book best prices do not match stored levels")
+        return validated
+
     def insert(self, row: dict[str, Any]) -> None:
+        row = self._validated_row(row)
         if self.database_url:
             with self._connect_postgres() as db:
                 db.execute("""
@@ -100,13 +184,44 @@ class OrderBookHistoryStore:
                 json.dumps(row["asks"], separators=(",", ":")),
             ))
 
+    @staticmethod
+    def _query_integer(value: Any, field: str, *, minimum: int = 0) -> int:
+        if isinstance(value, bool):
+            raise ValueError(f"Invalid order-book {field}")
+        try:
+            number = Decimal(str(value))
+        except (InvalidOperation, TypeError, ValueError):
+            raise ValueError(f"Invalid order-book {field}") from None
+        if (not number.is_finite() or number != number.to_integral_value()
+                or number < minimum or number > (2**63 - 1)):
+            raise ValueError(f"Invalid order-book {field}")
+        return int(number)
+
+    @staticmethod
+    def _validate_query_market_symbol(market: Any, symbol: Any) -> tuple[str, str]:
+        if not isinstance(market, str) or market.upper() not in {"SPOT", "USD_M", "COIN_M"}:
+            raise ValueError("Invalid order-book market")
+        if not isinstance(symbol, str) or not symbol.strip() or len(symbol) > 40:
+            raise ValueError("Invalid order-book symbol")
+        return market.upper(), symbol.upper()
+
     def recent(
         self, market: str, symbol: str, limit: int = 100,
         start_time_ms: int | None = None, end_time_ms: int | None = None,
     ) -> list[dict[str, Any]]:
+        market, symbol = self._validate_query_market_symbol(market, symbol)
+        limit = self._query_integer(limit, "query limit", minimum=1)
+        if limit > 10000:
+            raise ValueError("Invalid order-book query limit")
+        if start_time_ms is not None:
+            start_time_ms = self._query_integer(start_time_ms, "start time")
+        if end_time_ms is not None:
+            end_time_ms = self._query_integer(end_time_ms, "end time")
+        if start_time_ms is not None and end_time_ms is not None and start_time_ms > end_time_ms:
+            raise ValueError("Invalid order-book time range")
         if self.database_url:
             clauses = ["market=%s", "symbol=%s"]
-            params: list[Any] = [market.upper(), symbol.upper()]
+            params: list[Any] = [market, symbol]
             if start_time_ms is not None:
                 clauses.append("event_time_ms >= %s"); params.append(start_time_ms)
             if end_time_ms is not None:
@@ -130,7 +245,7 @@ class OrderBookHistoryStore:
                    update_id, sampled_at, best_bid, best_ask, mid_price, spread_bps,
                    bid_notional, ask_notional, depth_imbalance, bids_json, asks_json
                    FROM order_book_samples WHERE market=? AND symbol=?"""
-        params: list[Any] = [market.upper(), symbol.upper()]
+        params: list[Any] = [market, symbol]
         if start_time_ms is not None:
             query += " AND event_time_ms >= ?"
             params.append(start_time_ms)
@@ -148,21 +263,27 @@ class OrderBookHistoryStore:
         return rows
 
     def count(self, market: str | None = None, symbol: str | None = None) -> int:
+        if market is not None and (not isinstance(market, str) or market.upper() not in {"SPOT", "USD_M", "COIN_M"}):
+            raise ValueError("Invalid order-book market")
+        if market is not None:
+            market = market.upper()
+        if symbol is not None and (not isinstance(symbol, str) or not symbol.strip() or len(symbol) > 40):
+            raise ValueError("Invalid order-book symbol")
         if self.database_url:
             query = "SELECT COUNT(*) AS count FROM public.order_book_samples WHERE 1=1"
             params: list[Any] = []
-            if market:
-                query += " AND market=%s"; params.append(market.upper())
-            if symbol:
+            if market is not None:
+                query += " AND market=%s"; params.append(market)
+            if symbol is not None:
                 query += " AND symbol=%s"; params.append(symbol.upper())
             with self._connect_postgres() as db:
                 return int(db.execute(query, params).fetchone()["count"])
         query = "SELECT COUNT(*) FROM order_book_samples WHERE 1=1"
         params: list[Any] = []
-        if market:
+        if market is not None:
             query += " AND market=?"
-            params.append(market.upper())
-        if symbol:
+            params.append(market)
+        if symbol is not None:
             query += " AND symbol=?"
             params.append(symbol.upper())
         with sqlite3.connect(self.database_path) as db:
@@ -267,21 +388,21 @@ class OrderBookStreamCollector:
                     reader = asyncio.create_task(self._reader(socket, queue))
                     try:
                         snapshot = await self._provider(market).order_book(symbol, self.snapshot_limit)
-                        last_id = int(snapshot["lastUpdateId"])
-                        bids = {float(p): float(q) for p, q in snapshot["bids"] if float(q) > 0}
-                        asks = {float(p): float(q) for p, q in snapshot["asks"] if float(q) > 0}
+                        last_id = self._strict_integer(snapshot["lastUpdateId"], "snapshot update ID")
+                        bids = self._levels(snapshot["bids"])
+                        asks = self._levels(snapshot["asks"])
                         first_event = True
                         # Discard stale buffered updates, then bridge the snapshot update ID.
                         while not queue.empty():
                             event = queue.get_nowait()
                             if event is None:
                                 raise RuntimeError("DEPTH_STREAM_CLOSED_DURING_SYNC")
-                            if int(event.get("u", 0)) <= last_id:
+                            if self._strict_integer(event.get("u", 0), "final update ID") <= last_id:
                                 continue
                             self._validate_sequence(market, event, last_id, first_event)
                             self._apply(event, bids, asks)
                             self._trim_book(bids, asks)
-                            last_id = int(event["u"])
+                            last_id = self._strict_integer(event["u"], "final update ID")
                             first_event = False
                         state["synchronized"] = not first_event
                         delay = 1
@@ -291,7 +412,7 @@ class OrderBookStreamCollector:
                             event = await queue.get()
                             if event is None:
                                 raise RuntimeError("DEPTH_STREAM_CLOSED")
-                            final_id = int(event.get("u", 0))
+                            final_id = self._strict_integer(event.get("u", 0), "final update ID")
                             if final_id <= last_id:
                                 continue
                             self._validate_sequence(market, event, last_id, first_event)
@@ -324,18 +445,36 @@ class OrderBookStreamCollector:
                 state["synchronized"] = False
 
     @staticmethod
+    def _strict_integer(value: Any, field: str) -> int:
+        if isinstance(value, bool):
+            raise ValueError(f"Invalid order-book {field}")
+        try:
+            number = Decimal(str(value))
+        except (InvalidOperation, TypeError, ValueError) as exc:
+            raise ValueError(f"Invalid order-book {field}") from exc
+        if not number.is_finite() or number != number.to_integral_value():
+            raise ValueError(f"Invalid order-book {field}")
+        return int(number)
+
+    @staticmethod
     def _validate_sequence(market: str, event: dict[str, Any], last_id: int, first_event: bool) -> None:
-        first_id, final_id = int(event.get("U", 0)), int(event.get("u", 0))
-        if first_event:
-            if not (first_id <= last_id + 1 <= final_id):
-                raise RuntimeError("DEPTH_INITIAL_SEQUENCE_GAP")
-            return
-        if market in {"USD_M", "COIN_M"}:
+        try:
+            first_id = OrderBookStreamCollector._strict_integer(event.get("U", 0), "first update ID")
+            final_id = OrderBookStreamCollector._strict_integer(event.get("u", 0), "final update ID")
             previous_id = event.get("pu")
-            if previous_id is None or int(previous_id) != last_id:
+            if final_id < first_id:
+                raise ValueError("Invalid order-book update range")
+            if first_event:
+                if not (first_id <= last_id + 1 <= final_id):
+                    raise RuntimeError("DEPTH_INITIAL_SEQUENCE_GAP")
+                return
+            if market in {"USD_M", "COIN_M"}:
+                if previous_id is None or OrderBookStreamCollector._strict_integer(previous_id, "previous update ID") != last_id:
+                    raise RuntimeError("DEPTH_SEQUENCE_GAP")
+            elif first_id > last_id + 1:
                 raise RuntimeError("DEPTH_SEQUENCE_GAP")
-        elif first_id > last_id + 1:
-            raise RuntimeError("DEPTH_SEQUENCE_GAP")
+        except (TypeError, ValueError) as exc:
+            raise RuntimeError("DEPTH_INVALID_SEQUENCE") from exc
 
     def _trim_book(self, bids: dict[float, float], asks: dict[float, float]) -> None:
         if len(bids) > self.snapshot_limit:
@@ -345,19 +484,68 @@ class OrderBookStreamCollector:
             for price in sorted(asks, reverse=True)[:-self.snapshot_limit]:
                 asks.pop(price, None)
     @staticmethod
+    def _levels(levels: Any) -> dict[float, float]:
+        """Validate an exchange snapshot side before admitting it into the book."""
+        if not isinstance(levels, list):
+            raise ValueError("Invalid order-book levels")
+        normalized: dict[float, float] = {}
+        for level in levels:
+            if not isinstance(level, (list, tuple)) or len(level) != 2:
+                raise ValueError("Invalid order-book level")
+            try:
+                price, quantity = float(level[0]), float(level[1])
+            except (TypeError, ValueError, OverflowError) as exc:
+                raise ValueError("Invalid order-book level") from exc
+            if not math.isfinite(price) or not math.isfinite(quantity) or price <= 0 or quantity < 0:
+                raise ValueError("Order-book price and quantity must be finite; price positive and quantity non-negative")
+            if quantity > 0:
+                normalized[price] = quantity
+        return normalized
+
+    @staticmethod
     def _apply(event: dict[str, Any], bids: dict[float, float], asks: dict[float, float]) -> None:
+        if not isinstance(event, dict):
+            raise ValueError("Invalid order-book event")
         for key, book_side in (("b", bids), ("a", asks)):
-            for price_raw, qty_raw in event.get(key, []):
-                price, qty = float(price_raw), float(qty_raw)
-                if qty == 0:
+            raw_levels = event.get(key, [])
+            if not isinstance(raw_levels, list):
+                raise ValueError("Invalid order-book levels")
+            parsed = []
+            for level in raw_levels:
+                if not isinstance(level, (list, tuple)) or len(level) != 2:
+                    raise ValueError("Invalid order-book level")
+                try:
+                    price, quantity = float(level[0]), float(level[1])
+                except (TypeError, ValueError, OverflowError) as exc:
+                    raise ValueError("Invalid order-book level") from exc
+                if not math.isfinite(price) or not math.isfinite(quantity) or price <= 0 or quantity < 0:
+                    raise ValueError("Order-book price and quantity must be finite; price positive and quantity non-negative")
+                parsed.append((price, quantity))
+            for price, quantity in parsed:
+                if quantity == 0:
                     book_side.pop(price, None)
-                elif price > 0 and qty > 0:
-                    book_side[price] = qty
+                else:
+                    book_side[price] = quantity
 
     def _sample(
         self, market: str, symbol: str, event: dict[str, Any], update_id: int,
         bids: dict[float, float], asks: dict[float, float],
     ) -> dict[str, Any] | None:
+        if not isinstance(event, dict):
+            raise ValueError("Invalid order-book event")
+        update_id = self._strict_integer(update_id, "update ID")
+        if update_id < 0:
+            raise ValueError("Invalid order-book update ID")
+        event_time = event.get("E")
+        transaction_time = event.get("T")
+        if event_time is not None:
+            event_time = self._strict_integer(event_time, "event time")
+            if event_time < 0:
+                raise ValueError("Invalid order-book event time")
+        if transaction_time is not None:
+            transaction_time = self._strict_integer(transaction_time, "transaction time")
+            if transaction_time < 0:
+                raise ValueError("Invalid order-book transaction time")
         bid_rows = sorted(bids.items(), reverse=True)[:self.stored_levels]
         ask_rows = sorted(asks.items())[:self.stored_levels]
         if not bid_rows or not ask_rows or bid_rows[0][0] >= ask_rows[0][0]:
@@ -365,22 +553,46 @@ class OrderBookStreamCollector:
         bid_notional = sum(p * q for p, q in bid_rows)
         ask_notional = sum(p * q for p, q in ask_rows)
         total = bid_notional + ask_notional
-        mid = (bid_rows[0][0] + ask_rows[0][0]) / 2
+        mid = bid_rows[0][0] / 2 + ask_rows[0][0] / 2
+        spread_bps = (ask_rows[0][0] - bid_rows[0][0]) / mid * 10000
+        depth_imbalance = (bid_notional - ask_notional) / total if total else 0.0
+        derived = (bid_notional, ask_notional, total, mid, spread_bps, depth_imbalance)
+        if not all(math.isfinite(value) for value in derived) or total <= 0 or mid <= 0:
+            # Skip pathological finite inputs whose derived notionals overflow IEEE-754.
+            return None
         return {
             "market": market, "symbol": symbol,
-            "event_time_ms": event.get("E"), "transaction_time_ms": event.get("T"),
+            "event_time_ms": event_time, "transaction_time_ms": transaction_time,
             "update_id": update_id, "sampled_at": datetime.now(timezone.utc).isoformat(),
             "best_bid": bid_rows[0][0], "best_ask": ask_rows[0][0], "mid_price": mid,
-            "spread_bps": (ask_rows[0][0] - bid_rows[0][0]) / mid * 10000,
+            "spread_bps": spread_bps,
             "bid_notional": bid_notional, "ask_notional": ask_notional,
-            "depth_imbalance": (bid_notional - ask_notional) / total if total else 0.0,
+            "depth_imbalance": depth_imbalance,
             "bids": bid_rows, "asks": ask_rows,
         }
 
     def status(self) -> dict[str, Any]:
+        jobs = list(self.states.values())
+        connected = sum(1 for job in jobs if job.get("connected"))
+        task_count = len(self.tasks)
+        if task_count == 0:
+            status = "IDLE"
+        elif not jobs:
+            status = "STARTING"
+        elif connected == len(jobs):
+            status = "RUNNING"
+        elif any(job.get("last_error") for job in jobs):
+            status = "DEGRADED"
+        else:
+            status = "CONNECTING"
         return {
-            "enabled": True, "job_count": len(self.states),
-            "jobs": list(self.states.values()),
+            "status": status,
+            "enabled": True,
+            "job_count": task_count,
+            "active_task_count": sum(1 for task in self.tasks if not task.done()),
+            "connected_job_count": connected,
+            "disconnected_job_count": max(0, len(jobs) - connected),
+            "jobs": jobs,
             "stored_sample_count": self.store.count(),
-            "warning": "Depth samples are locally captured after sequence synchronization; collection begins only after deployment and is not backfilled.",
+            "warning": "Depth samples are locally captured after sequence synchronization; collection begins after deployment and is not backfilled.",
         }

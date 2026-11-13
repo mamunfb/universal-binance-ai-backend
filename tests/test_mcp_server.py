@@ -33,7 +33,7 @@ def _load_server(monkeypatch, client_name="chatgpt", base_url="https://api.examp
     return _execute_server_module()
 
 
-def test_mcp_registers_only_read_only_tool_surface(monkeypatch):
+def test_mcp_uses_client_scoped_server_identity(monkeypatch):
     server = _load_server(monkeypatch)
     assert server.CLIENT_NAME == "chatgpt"
     assert server.mcp.name == "Personal Crypto Intelligence (chatgpt)"
@@ -413,3 +413,64 @@ def test_market_evidence_mcp_tool_calls_fixed_read_only_route(monkeypatch):
     result = server.get_market_evidence_snapshot("btcusdt")
     assert result["status"] == "COMPLETED"
     assert calls == [("/api/v1/analysis/market-evidence/BTCUSDT", None)]
+
+
+def test_mcp_tool_post_side_effect_is_explicitly_allowlisted():
+    """Only the documented snapshot-save tool may issue a POST request."""
+    import ast
+
+    source = SERVER_PATH.read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    post_calls = []
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        decorators = node.decorator_list
+        if not any(
+            isinstance(item, ast.Call)
+            and isinstance(item.func, ast.Attribute)
+            and isinstance(item.func.value, ast.Name)
+            and item.func.value.id == "mcp"
+            and item.func.attr == "tool"
+            for item in decorators
+        ):
+            continue
+        for call in ast.walk(node):
+            if isinstance(call, ast.Call) and isinstance(call.func, ast.Name) and call.func.id == "_post":
+                route = call.args[0].value if call.args and isinstance(call.args[0], ast.Constant) else None
+                post_calls.append((node.name, route))
+
+    assert post_calls == [
+        ("save_market_confluence_snapshot", "/api/v1/history/market-confluence/snapshots")
+    ]
+
+
+def test_save_market_confluence_snapshot_posts_only_validated_snapshot_payload(monkeypatch):
+    server = _load_server(monkeypatch)
+    captured = {}
+
+    def fake_post(path, payload):
+        captured["path"] = path
+        captured["payload"] = payload
+        return {"status": "COMPLETED"}
+
+    monkeypatch.setattr(server, "_post", fake_post)
+    result = server.save_market_confluence_snapshot(
+        "USD_M", "btcusdt", "1h", 1700000000000,
+        "BULLISH", "ALIGNED", 35000.5, 1700000000000,
+        '{"source":"test","evidence_count":2}',
+    )
+
+    assert result == {"status": "COMPLETED"}
+    assert captured == {
+        "path": "/api/v1/history/market-confluence/snapshots",
+        "payload": {
+            "market": "USD_M",
+            "symbol": "BTCUSDT",
+            "interval": "1h",
+            "analyzed_at_ms": 1700000000000,
+            "confluence": {"bias": "BULLISH", "alignment": "ALIGNED"},
+            "reference": {"price": 35000.5, "close_time_ms": 1700000000000},
+            "evidence": {"source": "test", "evidence_count": 2},
+        },
+    }

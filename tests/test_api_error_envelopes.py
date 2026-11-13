@@ -1,6 +1,10 @@
+import asyncio
+import json
+from fastapi import Request
+from fastapi.responses import Response
 from fastapi.testclient import TestClient
 
-from app.main import app
+from app.main import app, request_tracking_middleware
 from app.config import settings
 
 
@@ -63,9 +67,16 @@ def test_unauthorized_early_response_includes_security_headers(monkeypatch):
     monkeypatch.setattr(settings, "app_env", "development")
     monkeypatch.setattr(settings, "personal_api_key", "test-owner-key-with-enough-entropy")
     response = client.get("/api/v1/analysis/futures/liquidations/status")
+    body = response.json()
     assert response.status_code == 401
+    assert body["error"]["code"] == "UNAUTHORIZED"
+    assert len(body["request_id"]) == 32
+    assert response.headers["X-Request-ID"] == body["request_id"]
+    assert response.headers["WWW-Authenticate"] == "Bearer"
     assert response.headers["X-Content-Type-Options"] == "nosniff"
     assert response.headers["X-Frame-Options"] == "DENY"
+    assert response.headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
+    assert response.headers["Permissions-Policy"] == "camera=(), microphone=(), geolocation=()"
 
 
 
@@ -99,7 +110,14 @@ def test_production_api_fails_closed_without_strong_key(monkeypatch):
     monkeypatch.setattr(settings, "personal_api_key", "")
     response = client.get("/api/v1/analysis/futures/liquidations/status")
     assert response.status_code == 503
-    assert response.json()["error"]["code"] == "AUTH_NOT_CONFIGURED"
+    body = response.json()
+    assert body["error"]["code"] == "AUTH_NOT_CONFIGURED"
+    assert len(body["request_id"]) == 32
+    assert response.headers["X-Request-ID"] == body["request_id"]
+    assert response.headers["X-Content-Type-Options"] == "nosniff"
+    assert response.headers["X-Frame-Options"] == "DENY"
+    assert response.headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
+    assert response.headers["Permissions-Policy"] == "camera=(), microphone=(), geolocation=()"
 
 
 
@@ -154,6 +172,49 @@ def test_each_private_ai_client_can_use_its_own_key(monkeypatch):
         assert response.json()["status"] == "DISABLED"
 
 
+def test_authenticated_bearer_keys_set_the_expected_request_identity(monkeypatch):
+    client_keys = {
+        name: f"{name}-test-key-" + ("x" * 40)
+        for name in ("chatgpt", "gemini", "manus", "claude", "perplexity")
+    }
+    owner_key = "owner-test-key-" + ("x" * 40)
+    monkeypatch.setattr(settings, "app_env", "development")
+    monkeypatch.setattr(settings, "personal_api_key", owner_key)
+    monkeypatch.setattr(settings, "ai_client_api_keys", json.dumps(client_keys))
+
+    async def check_identity(identity, key):
+        path = "/api/v1/analysis/futures/liquidations/status"
+        scope = {
+            "type": "http",
+            "asgi": {"version": "3.0", "spec_version": "2.3"},
+            "http_version": "1.1",
+            "method": "GET",
+            "scheme": "http",
+            "path": path,
+            "raw_path": path.encode("ascii"),
+            "query_string": b"",
+            "root_path": "",
+            "headers": [(b"authorization", f"Bearer {key}".encode("ascii"))],
+            "client": ("127.0.0.1", 12345),
+            "server": ("testserver", 80),
+        }
+        request = Request(scope)
+
+        async def call_next(_request):
+            return Response("ok")
+
+        response = await request_tracking_middleware(request, call_next)
+        assert response.status_code == 200
+        assert request.state.ai_client == identity
+
+    async def run_checks():
+        await check_identity("owner", owner_key)
+        for name, key in client_keys.items():
+            await check_identity(name, key)
+
+    asyncio.run(run_checks())
+
+
 def test_unknown_ai_client_key_is_rejected(monkeypatch):
     monkeypatch.setattr(settings, "app_env", "development")
     monkeypatch.setattr(settings, "personal_api_key", "")
@@ -167,6 +228,39 @@ def test_unknown_ai_client_key_is_rejected(monkeypatch):
         headers={"Authorization": "Bearer unknown-client-key"},
     )
     assert response.status_code == 401
+
+
+def test_unknown_configured_client_name_cannot_authenticate(monkeypatch):
+    monkeypatch.setattr(settings, "app_env", "development")
+    monkeypatch.setattr(settings, "personal_api_key", "")
+    monkeypatch.setattr(
+        settings,
+        "ai_client_api_keys",
+        '{"unknown":"unknown-client-key-12345678901234567890123456789012"}',
+    )
+    response = client.get(
+        "/api/v1/analysis/futures/liquidations/status",
+        headers={"Authorization": "Bearer unknown-client-key-12345678901234567890123456789012"},
+    )
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "UNAUTHORIZED"
+
+
+def test_duplicate_client_api_keys_are_rejected_as_ambiguous(monkeypatch):
+    shared_key = "shared-client-key-12345678901234567890123456789012"
+    monkeypatch.setattr(settings, "app_env", "development")
+    monkeypatch.setattr(settings, "personal_api_key", "")
+    monkeypatch.setattr(
+        settings,
+        "ai_client_api_keys",
+        json.dumps({"chatgpt": shared_key, "gemini": shared_key}),
+    )
+    response = client.get(
+        "/api/v1/analysis/futures/liquidations/status",
+        headers={"Authorization": f"Bearer {shared_key}"},
+    )
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "UNAUTHORIZED"
 
 
 def test_evm_wallet_route_sanitizes_provider_exception(monkeypatch):
@@ -307,3 +401,254 @@ def test_dashboard_markup_has_no_literal_newline_separator():
     dashboard = Path(__file__).resolve().parents[1] / "dashboard" / "index.html"
     html = dashboard.read_text(encoding="utf-8")
     assert r"</div>\n<div>" not in html
+
+
+def test_production_rejects_weak_client_key_even_with_strong_owner_key(monkeypatch):
+    monkeypatch.setattr(settings, "app_env", "production")
+    monkeypatch.setattr(settings, "personal_api_key", "test-owner-key-with-enough-entropy")
+    monkeypatch.setattr(settings, "ai_client_api_keys", '{"chatgpt":"weak-client-key"}')
+    response = client.get(
+        "/api/v1/analysis/futures/liquidations/status",
+        headers={"Authorization": "Bearer test-owner-key-with-enough-entropy"},
+    )
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "AUTH_NOT_CONFIGURED"
+
+
+def test_production_accepts_complete_strong_client_key_set_without_owner_key(monkeypatch):
+    client_keys = {
+        name: f"{name}-" + ("x" * 40)
+        for name in ("chatgpt", "gemini", "manus", "claude", "perplexity")
+    }
+    monkeypatch.setattr(settings, "app_env", "production")
+    monkeypatch.setattr(settings, "personal_api_key", "")
+    monkeypatch.setattr(settings, "ai_client_api_keys", json.dumps(client_keys))
+    response = client.get(
+        "/api/v1/analysis/futures/liquidations/status",
+        headers={"Authorization": f"Bearer {client_keys['chatgpt']}"},
+    )
+    assert response.status_code == 200
+    assert response.json()["status"] == "DISABLED"
+
+
+def test_production_rejects_weak_owner_key_even_with_strong_client_keys(monkeypatch):
+    client_keys = {
+        name: f"{name}-" + ("x" * 40)
+        for name in ("chatgpt", "gemini", "manus", "claude", "perplexity")
+    }
+    monkeypatch.setattr(settings, "app_env", "production")
+    monkeypatch.setattr(settings, "personal_api_key", "weak-owner-key")
+    monkeypatch.setattr(settings, "ai_client_api_keys", json.dumps(client_keys))
+    response = client.get(
+        "/api/v1/analysis/futures/liquidations/status",
+        headers={"Authorization": "Bearer weak-owner-key"},
+    )
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "AUTH_NOT_CONFIGURED"
+
+
+def test_private_api_rejects_unauthenticated_post_endpoints(monkeypatch):
+    monkeypatch.setattr(settings, "app_env", "development")
+    monkeypatch.setattr(settings, "personal_api_key", "test-owner-key-with-enough-entropy")
+    monkeypatch.setattr(settings, "ai_client_api_keys", "{}")
+    requests = [
+        client.post(
+            "/api/v1/analysis/qualification-gates",
+            json={},
+        ),
+        client.post(
+            "/api/v1/analysis/signal-lifecycle",
+            json={},
+        ),
+        client.post(
+            "/api/v1/analysis/trade-risk-plan",
+            json={},
+        ),
+        client.post(
+            "/api/v1/history/market-confluence/snapshots",
+            json={"status": "COMPLETED"},
+        ),
+        client.post(
+            "/api/v1/history/funding-rates/USD_M/BTCUSDT/collect",
+            params={"limit": 1},
+        ),
+        client.post(
+            "/api/v1/history/open-interest/USD_M/BTCUSDT/collect",
+            params={"limit": 1},
+        ),
+        client.post(
+            "/api/v1/history/derivatives-ratios/USD_M/global_long_short_account/BTCUSDT/collect",
+            params={"limit": 1},
+        ),
+        client.post(
+            "/api/v1/history/klines/SPOT/BTCUSDT/collect",
+            params={"interval": "1h", "limit": 1},
+        ),
+        client.post(
+            "/api/v1/onchain/evm/token/0x1111111111111111111111111111111111111111/index",
+            json={"from_block": 1, "to_block": 2},
+        ),
+    ]
+    assert [response.status_code for response in requests] == [401] * 9
+    assert all(response.json()["error"]["code"] == "UNAUTHORIZED" for response in requests)
+
+
+def test_malformed_client_key_configuration_fails_closed_without_owner_key(monkeypatch):
+    monkeypatch.setattr(settings, "app_env", "development")
+    monkeypatch.setattr(settings, "personal_api_key", "")
+    monkeypatch.setattr(settings, "ai_client_api_keys", '{"chatgpt":')
+    response = client.get("/api/v1/analysis/futures/liquidations/status")
+    body = response.json()
+    assert response.status_code == 503
+    assert body["error"]["code"] == "AUTH_NOT_CONFIGURED"
+    assert len(body["request_id"]) == 32
+    assert response.headers["X-Request-ID"] == body["request_id"]
+    assert response.headers["X-Content-Type-Options"] == "nosniff"
+    assert response.headers["X-Frame-Options"] == "DENY"
+    assert response.headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
+    assert response.headers["Permissions-Policy"] == "camera=(), microphone=(), geolocation=()"
+
+
+def test_owner_and_client_key_collision_is_rejected_as_ambiguous(monkeypatch):
+    shared_key = "shared-owner-client-key-12345678901234567890"
+    monkeypatch.setattr(settings, "app_env", "development")
+    monkeypatch.setattr(settings, "personal_api_key", shared_key)
+    monkeypatch.setattr(
+        settings,
+        "ai_client_api_keys",
+        json.dumps({"chatgpt": shared_key}),
+    )
+    response = client.get(
+        "/api/v1/analysis/futures/liquidations/status",
+        headers={"Authorization": f"Bearer {shared_key}"},
+    )
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "UNAUTHORIZED"
+
+
+
+def test_unauthenticated_live_market_get_is_rejected_before_provider_call(monkeypatch):
+    from app import main
+
+    provider_calls = []
+
+    def unexpected_provider_call():
+        provider_calls.append("called")
+        raise AssertionError("Unauthenticated request must not reach Binance provider")
+
+    monkeypatch.setattr(settings, "app_env", "development")
+    monkeypatch.setattr(settings, "personal_api_key", "test-owner-key-with-enough-entropy")
+    monkeypatch.setattr(settings, "ai_client_api_keys", "")
+    monkeypatch.setattr(main, "get_spot_provider", unexpected_provider_call)
+
+    response = client.get("/api/v1/markets/spot/klines/BTCUSDT")
+
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "UNAUTHORIZED"
+    assert provider_calls == []
+
+
+def test_binance_market_get_routes_do_not_expose_provider_exception_details(monkeypatch):
+    from app import main
+
+    secret = "https://provider.example/api?token=private-provider-secret"
+
+    class BrokenProvider:
+        async def klines(self, *args, **kwargs):
+            raise RuntimeError(secret)
+
+    monkeypatch.setattr(main, "get_spot_provider", lambda: BrokenProvider())
+    monkeypatch.setattr(main, "get_futures_provider", lambda *args: BrokenProvider())
+
+    cases = [
+        (lambda: main.spot_klines("BTCUSDT"), "SPOT_KLINES_UNAVAILABLE"),
+        (lambda: main.usdm_klines("BTCUSDT"), "USDM_KLINES_UNAVAILABLE"),
+        (lambda: main.coinm_klines("BTCUSDT"), "COINM_KLINES_UNAVAILABLE"),
+        (lambda: main.spot_technical_analysis("BTCUSDT"), "SPOT_TECHNICAL_ANALYSIS_UNAVAILABLE"),
+        (lambda: main.spot_price_levels("BTCUSDT"), "SPOT_PRICE_LEVELS_UNAVAILABLE"),
+        (lambda: main.spot_volume_structure("BTCUSDT"), "SPOT_VOLUME_STRUCTURE_UNAVAILABLE"),
+    ]
+
+    for invoke, expected_code in cases:
+        try:
+            asyncio.run(invoke())
+        except Exception as exc:
+            assert getattr(exc, "status_code", None) == 502
+            detail = str(getattr(exc, "detail", ""))
+            assert expected_code in detail
+            assert "private-provider-secret" not in detail
+            assert secret not in detail
+        else:
+            raise AssertionError(f"Expected sanitized HTTP 502 for {expected_code}")
+
+
+def test_evm_rpc_configuration_error_does_not_expose_endpoint_credentials(monkeypatch):
+    from app import main
+
+    secret = "rpc-user:rpc-password@private-rpc.example"
+
+    def invalid_provider(*args, **kwargs):
+        raise ValueError(f"Invalid RPC endpoint https://{secret}/")
+
+    monkeypatch.setattr(settings, "evm_rpc_url", "https://rpc.example")
+    monkeypatch.setattr(main, "EVMRPCProvider", invalid_provider)
+
+    try:
+        main.get_evm_provider()
+    except Exception as exc:
+        assert getattr(exc, "status_code", None) == 503
+        detail = str(getattr(exc, "detail", ""))
+        assert "EVM_RPC_CONFIGURATION_INVALID" in detail
+        assert "rpc-password" not in detail
+        assert secret not in detail
+    else:
+        raise AssertionError("Expected sanitized HTTP 503")
+
+
+def test_cross_chain_token_intelligence_does_not_disclose_rpc_exception(monkeypatch):
+    import asyncio
+    from app import main
+
+    secret = "https://rpc.example/user:password@host/key=private-token"
+
+    async def fake_flows(*args, **kwargs):
+        return {
+            "chains": [{
+                "status": "INCOMPLETE",
+                "chain_id": 1,
+                "contract_address": "0x" + "1" * 40,
+                "coverage": {"complete": False, "gaps": []},
+            }]
+        }
+
+    async def fake_cohorts(*args, **kwargs):
+        return {"chains": []}
+
+    def fail_registry(*args, **kwargs):
+        raise RuntimeError(secret)
+
+    monkeypatch.setattr(
+        main, "parse_chain_token_configs",
+        lambda *_: [{
+            "asset_id": "testasset",
+            "chain_id": 1,
+            "contract_address": "0x" + "1" * 40,
+            "rpc_url": "https://rpc.example/",
+        }],
+    )
+    monkeypatch.setattr(main, "cross_chain_token_flows", fake_flows)
+    monkeypatch.setattr(main, "cross_chain_verified_wallet_flows", fake_cohorts)
+    monkeypatch.setattr(main, "load_wallet_registry", fail_registry)
+
+    result = asyncio.run(
+        main.cross_chain_token_intelligence(
+            "testasset", from_block=1, to_block=2, decimals=18, limit=10,
+            window_blocks=100,
+        )
+    )
+    serialized = json.dumps(result)
+    assert "CHAIN_INTELLIGENCE_UNAVAILABLE" in serialized
+    assert "RuntimeError" in serialized
+    assert secret not in serialized
+    assert "private-token" not in serialized
+    assert "password" not in serialized

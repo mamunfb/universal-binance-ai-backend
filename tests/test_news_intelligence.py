@@ -55,8 +55,8 @@ async def test_collect_news_marks_items_unverified_and_reports_coverage():
     # Service-level behavior uses the provider interface and retains conservative status.
     class FakeProvider:
         async def collect(self, sources):
-            return {"items": fetched["items"], "successful_sources": 1,
-                    "failed_sources": 0, "failures": []}
+            return {"items": [dict(item, published_at=None) for item in fetched["items"]],
+                    "successful_sources": 1, "failed_sources": 0, "failures": []}
 
     result = await collect_news_intelligence(
         FakeProvider(), [{"name": "Example", "url": "https://example.test/rss"}], ["BTC"]
@@ -70,3 +70,43 @@ async def test_no_sources_is_blocked_not_empty_success():
     result = await collect_news_intelligence(RSSNewsProvider(), [], ["BTC"])
     assert result["status"] == "BLOCKED"
     assert result["returned_count"] == 0
+
+async def test_rss_provider_failure_does_not_disclose_upstream_url_or_credentials():
+    secret_url = "https://rpc-user:rpc-password@feeds.example.test/rss?token=feed-secret"
+
+    def fail_with_url(request):
+        raise httpx.ConnectError(
+            f"connection failed for {secret_url}; request={request.url}",
+            request=request,
+        )
+
+    transport = httpx.MockTransport(fail_with_url)
+    async with httpx.AsyncClient(transport=transport) as client:
+        fetched = await RSSNewsProvider().collect(
+            [{"name": "PrivateFeed", "url": secret_url}], client=client
+        )
+
+    assert fetched["failed_sources"] == 1
+    assert fetched["failures"] == [{
+        "source": "PrivateFeed",
+        "error": "FEED_FETCH_FAILED",
+        "error_type": "ConnectError",
+    }]
+    serialized = str(fetched["failures"])
+    for secret in ("rpc-user", "rpc-password", "feed-secret", secret_url):
+        assert secret not in serialized
+
+def test_parse_feed_redacts_credentials_query_and_fragment_from_source_url():
+    private_source_url = (
+        "https://feed-user:feed-password@feeds.example.test/rss"
+        "?api_key=feed-token#private-fragment"
+    )
+    items = parse_feed(RSS, "PrivateFeed", private_source_url)
+
+    assert items[0]["source_url"] == "https://feeds.example.test/rss"
+    serialized = str(items[0])
+    for secret in (
+        "feed-user", "feed-password", "feed-token",
+        "api_key", "private-fragment", private_source_url,
+    ):
+        assert secret not in serialized

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import sqlite3
+from decimal import Decimal, InvalidOperation
 import psycopg
 from psycopg.rows import dict_row
 from datetime import datetime, timezone
@@ -50,6 +51,8 @@ class HistoricalKlineStore:
 
     @staticmethod
     def _finite(value: Any, field: str) -> float:
+        if isinstance(value, bool):
+            raise ValueError(f"Invalid candle {field}")
         try:
             number = float(value)
         except (TypeError, ValueError, OverflowError) as exc:
@@ -58,18 +61,27 @@ class HistoricalKlineStore:
             raise ValueError(f"Invalid candle {field}")
         return number
 
+    @staticmethod
+    def _integer(value: Any, field: str) -> int:
+        if isinstance(value, bool):
+            raise ValueError(f"Invalid candle {field}")
+        try:
+            number = Decimal(str(value))
+        except (InvalidOperation, TypeError, ValueError) as exc:
+            raise ValueError(f"Invalid candle {field}") from exc
+        if not number.is_finite() or number != number.to_integral_value():
+            raise ValueError(f"Invalid candle {field}")
+        if number < -(2**63) or number > (2**63 - 1):
+            raise ValueError(f"Invalid candle {field}; outside signed 64-bit storage range")
+        return int(number)
+
     @classmethod
     def _normalize(cls, row: Any) -> tuple[Any, ...]:
         if not isinstance(row, (list, tuple)) or len(row) < 11:
             raise ValueError("Malformed Binance kline row; refusing to store partial history")
-        try:
-            if any(isinstance(row[index], bool) for index in (0, 6, 8)):
-                raise ValueError
-            open_time = int(row[0])
-            close_time = int(row[6])
-            trade_count = int(row[8])
-        except (TypeError, ValueError, OverflowError) as exc:
-            raise ValueError("Invalid candle timestamps or trade count") from exc
+        open_time = cls._integer(row[0], "open time")
+        close_time = cls._integer(row[6], "close time")
+        trade_count = cls._integer(row[8], "trade count")
         open_price, high, low, close, volume, quote_volume, taker_base, taker_quote = (
             cls._finite(row[index], field)
             for index, field in (
@@ -95,12 +107,16 @@ class HistoricalKlineStore:
         self, market: str, symbol: str, interval: str, rows: list[Any],
         source: str = "Binance public REST API",
     ) -> dict[str, Any]:
+        if not isinstance(market, str) or market.upper() not in {"SPOT", "USD_M", "COIN_M"}:
+            raise ValueError("market must be SPOT, USD_M, or COIN_M")
+        if not isinstance(symbol, str) or not symbol.strip():
+            raise ValueError("symbol must be a non-empty string")
+        if not isinstance(interval, str) or not interval.strip():
+            raise ValueError("interval must be a non-empty string")
+        if not isinstance(source, str) or not source.strip():
+            raise ValueError("source must be a non-empty string")
         market = market.upper()
         symbol = symbol.upper()
-        if market not in {"SPOT", "USD_M", "COIN_M"}:
-            raise ValueError("market must be SPOT, USD_M, or COIN_M")
-        if not symbol.strip() or not interval.strip():
-            raise ValueError("symbol and interval must not be empty")
         if not isinstance(rows, list) or not 1 <= len(rows) <= 1500:
             raise ValueError("rows must contain between 1 and 1500 candles")
         normalized = [self._normalize(row) for row in rows]
@@ -173,10 +189,10 @@ class HistoricalKlineStore:
 
     def latest_open_time(self, market: str, symbol: str, interval: str) -> int | None:
         """Return the newest locally stored candle open time for one series."""
-        if market.upper() not in {"SPOT", "USD_M", "COIN_M"}:
+        if not isinstance(market, str) or market.upper() not in {"SPOT", "USD_M", "COIN_M"}:
             raise ValueError("market must be SPOT, USD_M, or COIN_M")
-        if not symbol.strip() or not interval.strip():
-            raise ValueError("symbol and interval must not be empty")
+        if not isinstance(symbol, str) or not isinstance(interval, str) or not symbol.strip() or not interval.strip():
+            raise ValueError("symbol and interval must be non-empty strings")
         if self.database_url:
             with self._connect_postgres() as connection:
                 row = connection.execute(
@@ -200,16 +216,21 @@ class HistoricalKlineStore:
         start_time_ms: int | None = None, end_time_ms: int | None = None,
         limit: int = 1000,
     ) -> dict[str, Any]:
-        if market.upper() not in {"SPOT", "USD_M", "COIN_M"}:
+        if not isinstance(market, str) or market.upper() not in {"SPOT", "USD_M", "COIN_M"}:
             raise ValueError("market must be SPOT, USD_M, or COIN_M")
-        if not symbol.strip() or not interval.strip():
-            raise ValueError("symbol and interval must not be empty")
+        if not isinstance(symbol, str) or not isinstance(interval, str) or not symbol.strip() or not interval.strip():
+            raise ValueError("symbol and interval must be non-empty strings")
+        limit = self._integer(limit, "history limit")
         if not 1 <= limit <= 5000:
             raise ValueError("limit must be between 1 and 5000")
-        if start_time_ms is not None and start_time_ms < 0:
-            raise ValueError("start_time_ms must be non-negative")
-        if end_time_ms is not None and end_time_ms < 0:
-            raise ValueError("end_time_ms must be non-negative")
+        if start_time_ms is not None:
+            start_time_ms = self._integer(start_time_ms, "history start time")
+            if start_time_ms < 0:
+                raise ValueError("start_time_ms must be non-negative")
+        if end_time_ms is not None:
+            end_time_ms = self._integer(end_time_ms, "history end time")
+            if end_time_ms < 0:
+                raise ValueError("end_time_ms must be non-negative")
         if start_time_ms is not None and end_time_ms is not None and end_time_ms < start_time_ms:
             raise ValueError("end_time_ms must be >= start_time_ms")
         clauses = ["market=?", "symbol=?", "interval=?"]
