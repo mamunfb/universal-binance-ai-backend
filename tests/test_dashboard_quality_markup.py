@@ -201,7 +201,7 @@ def test_dashboard_sanitizer_does_not_allow_scriptable_elements_or_event_attribu
 
 def test_dashboard_requires_https_for_remote_api_urls():
     html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
-    assert "const parsed=new URL(raw)" in html
+    assert "parsed=new URL(raw)" in html
     assert "parsed.protocol!=='https:'&&!loopback" in html
     assert "host==='localhost'||host==='127.0.0.1'||host==='[::1]'" in html
     assert "authority.includes('@')||parsed.username||parsed.password||parsed.search||parsed.hash||raw.includes('?')||raw.includes('#')" in html
@@ -232,7 +232,7 @@ def test_dashboard_backend_url_policy_executes_in_javascript_runtime():
           const window = { location: { origin: "https://dashboard.example" } };
           const context = { document, window, URL, fetch: async () => { throw new Error("unexpected fetch"); } };
           vm.runInNewContext(match[1] + "\nglobalThis.__apiForTest = api;", context);
-          const base = elements.get("base");
+          const base = document.getElementById("base");
           const api = context.__apiForTest;
           const accepted = [
             ["", "https://dashboard.example"],
