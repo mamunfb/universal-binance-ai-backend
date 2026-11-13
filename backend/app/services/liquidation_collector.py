@@ -4,6 +4,7 @@ import logging
 import math
 import sqlite3
 import psycopg
+from app.services.collector_leases import assert_current_collector_lease
 from psycopg.rows import dict_row
 from datetime import datetime, timezone
 from pathlib import Path
@@ -108,6 +109,7 @@ class LiquidationStore:
     def insert(self, event: dict[str, Any]) -> None:
         if self.database_url:
             with self._connect_postgres() as connection:
+                assert_current_collector_lease(connection, "liquidation:all")
                 connection.execute("""
                     INSERT INTO public.liquidation_events (
                         event_time_ms, trade_time_ms, symbol, pair_symbol, market_type, side,
