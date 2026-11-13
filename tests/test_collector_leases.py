@@ -37,6 +37,7 @@ def test_collector_lease_store_allows_only_one_concurrent_owner():
         winner_generation = generations[winner_index]
         assert winner_generation == 1
         assert store.renew(collector_name, winner, winner_generation, 30) is True
+        assert store.acquire(collector_name, winner, 30) == winner_generation
         assert store.renew(collector_name, loser, winner_generation, 30) is False
         assert store.release(collector_name, loser, winner_generation) is False
         assert store.release(collector_name, winner, winner_generation) is True
