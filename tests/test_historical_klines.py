@@ -99,3 +99,30 @@ def test_store_accepts_integer_string_fields(tmp_path, index, value):
     store = HistoricalKlineStore(str(tmp_path / "history.sqlite3"))
     result = store.save_klines("SPOT", "BTCUSDT", "1m", [row])
     assert result["stored_count"] == 1
+
+
+@pytest.mark.parametrize("kwargs", [
+    {"start_time_ms": 10.5},
+    {"start_time_ms": "10.5"},
+    {"end_time_ms": 20.5},
+    {"end_time_ms": "20.5"},
+    {"limit": 1.5},
+    {"limit": "1.5"},
+    {"start_time_ms": True},
+    {"end_time_ms": False},
+    {"limit": True},
+])
+def test_history_rejects_non_integer_query_values(tmp_path, kwargs):
+    store = HistoricalKlineStore(str(tmp_path / "history.sqlite3"))
+    with pytest.raises(ValueError):
+        store.history("SPOT", "BTCUSDT", "1m", **kwargs)
+
+
+def test_history_accepts_integer_string_query_values(tmp_path):
+    store = HistoricalKlineStore(str(tmp_path / "history.sqlite3"))
+    store.save_klines("SPOT", "BTCUSDT", "1m", [candle()])
+    result = store.history(
+        "SPOT", "BTCUSDT", "1m",
+        start_time_ms="1700000000000", end_time_ms="1700000000000", limit="10",
+    )
+    assert result["returned_count"] == 1
