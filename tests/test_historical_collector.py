@@ -93,3 +93,23 @@ def test_collector_records_job_failure_and_continues(tmp_path):
     assert result["results"][0]["status"] == "FAILED"
     assert result["results"][0]["error_type"] == "RuntimeError"
     assert "provider secret" not in str(result)
+
+def test_historical_collector_status_reports_stopped_and_degraded(tmp_path):
+    collector = HistoricalKlineCollector(
+        store=HistoricalKlineStore(str(tmp_path / "status.sqlite3")),
+        spot_provider_factory=lambda: None,
+        futures_provider_factory=lambda _market: None,
+        jobs_json="[]",
+    )
+    assert collector.status()["status"] == "STOPPED"
+    assert collector.status()["task_active"] is False
+
+    class ActiveTask:
+        def done(self):
+            return False
+
+    collector._task = ActiveTask()
+    collector._last_error = "RuntimeError"
+    status = collector.status()
+    assert status["status"] == "DEGRADED"
+    assert status["task_active"] is True
