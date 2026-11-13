@@ -400,15 +400,21 @@ class OrderBookStreamCollector:
         bid_notional = sum(p * q for p, q in bid_rows)
         ask_notional = sum(p * q for p, q in ask_rows)
         total = bid_notional + ask_notional
-        mid = (bid_rows[0][0] + ask_rows[0][0]) / 2
+        mid = bid_rows[0][0] / 2 + ask_rows[0][0] / 2
+        spread_bps = (ask_rows[0][0] - bid_rows[0][0]) / mid * 10000
+        depth_imbalance = (bid_notional - ask_notional) / total if total else 0.0
+        derived = (bid_notional, ask_notional, total, mid, spread_bps, depth_imbalance)
+        if not all(math.isfinite(value) for value in derived) or total <= 0 or mid <= 0:
+            # Skip pathological finite inputs whose derived notionals overflow IEEE-754.
+            return None
         return {
             "market": market, "symbol": symbol,
             "event_time_ms": event.get("E"), "transaction_time_ms": event.get("T"),
             "update_id": update_id, "sampled_at": datetime.now(timezone.utc).isoformat(),
             "best_bid": bid_rows[0][0], "best_ask": ask_rows[0][0], "mid_price": mid,
-            "spread_bps": (ask_rows[0][0] - bid_rows[0][0]) / mid * 10000,
+            "spread_bps": spread_bps,
             "bid_notional": bid_notional, "ask_notional": ask_notional,
-            "depth_imbalance": (bid_notional - ask_notional) / total if total else 0.0,
+            "depth_imbalance": depth_imbalance,
             "bids": bid_rows, "asks": ask_rows,
         }
 
