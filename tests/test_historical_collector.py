@@ -111,6 +111,7 @@ def test_historical_collector_status_reports_stopped_and_degraded(tmp_path):
     collector._task = ActiveTask()
     collector._last_error = "RuntimeError"
     collector._last_cycle_degraded = True
+    collector._cycles = 1
     status = collector.status()
     assert status["status"] == "DEGRADED"
     assert status["task_active"] is True
