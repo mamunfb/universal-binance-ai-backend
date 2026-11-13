@@ -573,6 +573,8 @@ def test_dashboard_performance_percent_formatter_rejects_non_numeric_api_values(
         line for line in html.splitlines() if "$('performance').onclick" in line
     )
     assert "const pct=v=>typeof v!=='number'||!Number.isFinite(v)?'—':(v*100).toFixed(1)+'%';" in performance_handler
+    assert "pct(q.f1_score)" in performance_handler
+    assert "(q.f1_score*100).toFixed(1)" not in performance_handler
     assert "const pct=v=>v==null||v===undefined?'—':(v*100).toFixed(1)+'%';" not in performance_handler
     for expression in (
         "escapeHtml(h.sample_size)",
