@@ -135,10 +135,18 @@ class HistoricalKlineCollector:
                             "cursor_open_time_ms": latest,
                         })
                         continue
-                    saved = await asyncio.to_thread(
+                    write_task = asyncio.create_task(asyncio.to_thread(
                         self.store.save_klines, market, symbol, interval, rows,
                         "Binance public REST API (scheduled collector)",
-                    )
+                    ))
+                    try:
+                        # Cancelling an await on to_thread() does not stop its worker
+                        # thread. Shield the transaction and wait for it to finish
+                        # before propagating shutdown cancellation.
+                        saved = await asyncio.shield(write_task)
+                    except asyncio.CancelledError:
+                        await asyncio.gather(write_task, return_exceptions=True)
+                        raise
                     results.append({
                         **job, "status": "COMPLETED", "received_count": len(rows),
                         "first_open_time_ms": saved["first_open_time_ms"],
