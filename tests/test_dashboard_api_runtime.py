@@ -37,8 +37,12 @@ def test_dashboard_api_url_validation_and_request_runtime():
               window: { location: { origin: "https://dashboard.example" } },
               URL, URLSearchParams, Headers, fetch
             };
-            vm.runInNewContext(match[1] + "\nglobalThis.__callForTest = call;", context);
+            vm.runInNewContext(match[1] + "\nglobalThis.__callForTest = call; globalThis.__statusClassForTest = statusClass;", context);
             const call = context.__callForTest;
+            const statusClass = context.__statusClassForTest;
+            assert.equal(statusClass("HEALTHY"), "status-good");
+            assert.equal(statusClass("constructor"), "status-muted");
+            assert.equal(statusClass("toString"), "status-muted");
             const base = document.getElementById("base");
             const key = document.getElementById("key");
 
