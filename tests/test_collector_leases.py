@@ -327,7 +327,7 @@ def test_expired_lease_is_rejected_even_when_transaction_started_before_expiry()
     try:
         # NOW() is fixed at transaction start. Start this transaction while the
         # lease is valid, then expire the lease from another connection.
-        transaction_started_at = connection.execute("SELECT NOW()").fetchone()[0]
+        transaction_started_at = connection.execute("SELECT NOW() AS transaction_started_at").fetchone()["transaction_started_at"]
         with store._connect() as expiry_connection:
             expiry_connection.execute(
                 """
