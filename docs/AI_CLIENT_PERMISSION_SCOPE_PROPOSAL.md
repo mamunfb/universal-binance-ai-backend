@@ -130,3 +130,32 @@ Do not implement a lease until the database connection mode is confirmed to supp
 The status audit found that order-book and aggregate-trade endpoints previously returned a top-level `RUNNING` label even when no jobs were configured or all stream jobs were disconnected. Their service status now reports `IDLE` when there are no tasks, `STARTING` before per-job state is initialized, `RUNNING` only when all configured jobs report connected, and `DEGRADED` when at least one job has a recorded connection error. Responses also expose configured task count, active task count, connected job count, and disconnected job count. The historical-kline collector now reports `STOPPED`, `RUNNING`, or `DEGRADED` based on task liveness and its latest error/result state.
 
 These are process-local observations, not a distributed worker health signal. They do not prove another replica's state, and they do not yet normalize every collector into a shared cross-service status enum. Regression tests cover idle/degraded stream status and stopped/degraded historical status. CI must pass before considering this change verified.
+
+
+### Representative GET routes with upstream cost (static handler review)
+
+The following examples are confirmed directly in the current `backend/app/main.py` handlers. They are HTTP GET operations, but they are not necessarily cheap or local database reads:
+
+| Route family / examples | Observed upstream work | Authorization / operations implication |
+|---|---|---|
+| `GET /api/v1/research/preflight` | Concurrent `exchangeInfo` probes to Spot, USDⓈ-M and COIN-M Binance providers | One caller can trigger multiple provider requests; consider a dedicated upstream-read budget. |
+| `GET /api/v1/markets/spot/scan`, `.../futures/usdm/scan`, `.../coinm/scan`, `.../scan-all` | Market-universe scans; combined routes fan out across multiple market families | Potentially higher request volume than a single-symbol read; apply bounded concurrency and caller rate limits. |
+| `GET /api/v1/markets/futures/{market}/open-interest/{symbol}`, `.../open-interest-history/{symbol}`, `.../premium-index/{symbol}`, `.../funding-info` | Binance Futures public REST requests | Upstream request and quota use despite GET semantics. |
+| `GET /api/v1/markets/spot/klines/{symbol}`, `/api/v1/markets/futures/{market}/.../klines/{symbol}`, `/api/v1/analysis/spot/technical/{symbol}` | Binance kline requests; analysis routes then compute indicators | Provider latency/quota plus CPU work. |
+| `GET /api/v1/news/intelligence`, `/api/v1/news/catalysts` | Reads configured RSS feed sources; catalysts calls the news-intelligence handler | External feed traffic and possible multi-source fan-out. |
+| `GET /api/v1/onchain/evm/*` and `/api/v1/onchain/evm/cross-chain/*` | Configured EVM JSON-RPC providers; some cross-chain routes iterate configured providers | Third-party RPC quota/cost and potentially many calls; should not be treated as a local read. |
+| `GET /api/v1/analysis/market-evidence/{symbol}` | Concurrently composes multi-timeframe, spot/futures basis, derivatives, Spot klines and news catalyst work | Composite fan-out endpoint; a single request can invoke several upstream providers. |
+
+This list is representative, not a complete endpoint-by-endpoint call-graph inventory. The route implementation and transitive helper/provider methods must be reviewed before assigning precise request weights. It does not establish actual provider billing, rate-limit consumption, or live request counts.
+
+### Suggested future policy split (not approved or enforced)
+
+Keep data access and upstream consumption distinct in the policy design:
+
+- `market:read`: local stored history, status and quality records that do not call a live provider.
+- `upstream:read`: bounded public Binance, RSS and EVM RPC retrieval.
+- `upstream:scan`: broader market-universe scans or composite fan-out endpoints, subject to stricter per-client rate/concurrency budgets.
+- `analysis:compute`: stateless calculations from caller-supplied values, without upstream fetches or persistence.
+- Existing proposed write scopes remain separate for snapshot persistence, history collection and EVM indexing.
+
+These labels are a design suggestion only. Do not change runtime access or client assignments until the owner explicitly approves the scope model, endpoint mapping, rate limits and owner-key behavior. GET does not mean side-effect-free: even without local writes, outbound requests can consume quota and disclose request metadata to configured providers.
