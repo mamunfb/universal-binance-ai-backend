@@ -138,3 +138,18 @@ def test_latest_open_time_rejects_invalid_query_types(tmp_path, market, symbol, 
     store = HistoricalKlineStore(str(tmp_path / "history.sqlite3"))
     with pytest.raises(ValueError):
         store.latest_open_time(market, symbol, interval)
+
+
+@pytest.mark.parametrize("market,symbol,interval,source", [
+    (None, "BTCUSDT", "1m", "test"),
+    (1, "BTCUSDT", "1m", "test"),
+    ("SPOT", None, "1m", "test"),
+    ("SPOT", "BTCUSDT", None, "test"),
+    ("SPOT", "BTCUSDT", "1m", None),
+    ("SPOT", "BTCUSDT", "1m", ""),
+])
+def test_save_klines_rejects_invalid_metadata_types(tmp_path, market, symbol, interval, source):
+    store = HistoricalKlineStore(str(tmp_path / "history.sqlite3"))
+    with pytest.raises(ValueError):
+        store.save_klines(market, symbol, interval, [candle()], source=source)
+    assert store.history("SPOT", "BTCUSDT", "1m")["returned_count"] == 0
