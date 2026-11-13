@@ -308,3 +308,45 @@ def test_stale_lease_generation_cannot_write_aggregate_trade():
                 "DELETE FROM public.collector_leases WHERE collector_name=%s",
                 (collector_name,),
             )
+
+
+def test_expired_lease_is_rejected_even_when_transaction_started_before_expiry():
+    database_url = os.getenv("TEST_DATABASE_URL")
+    if not database_url:
+        pytest.skip("TEST_DATABASE_URL is not configured")
+
+    store = CollectorLeaseStore(database_url)
+    collector_name = f"test-clock-fence-{uuid.uuid4().hex}"
+    owner = f"owner-{uuid.uuid4().hex}"
+    generation = store.acquire(collector_name, owner, 30)
+    assert generation is not None
+    context_token = ACTIVE_COLLECTOR_LEASE.set(
+        CollectorLeaseContext(collector_name, owner, generation)
+    )
+    connection = store._connect()
+    try:
+        # NOW() is fixed at transaction start. Start this transaction while the
+        # lease is valid, then expire the lease from another connection.
+        transaction_started_at = connection.execute("SELECT NOW()").fetchone()[0]
+        with store._connect() as expiry_connection:
+            expiry_connection.execute(
+                """
+                UPDATE public.collector_leases
+                SET lease_expires_at = clock_timestamp() - INTERVAL '1 second'
+                WHERE collector_name = %s
+                """,
+                (collector_name,),
+            )
+
+        with pytest.raises(CollectorLeaseLostError):
+            assert_current_collector_lease(connection, collector_name)
+        assert transaction_started_at is not None
+    finally:
+        connection.rollback()
+        connection.close()
+        ACTIVE_COLLECTOR_LEASE.reset(context_token)
+        with store._connect() as cleanup_connection:
+            cleanup_connection.execute(
+                "DELETE FROM public.collector_leases WHERE collector_name=%s",
+                (collector_name,),
+            )
