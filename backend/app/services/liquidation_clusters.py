@@ -145,7 +145,7 @@ class LiquidationClusterAnalysis:
                 "Clusters describe observed forced-order snapshots only; they are not predictions of future liquidation levels.",
                 "Side mapping is an order-side interpretation and is labelled candidate, not verified account-position attribution.",
                 "Approximate notional is based on reported cumulative filled quantity and average price; it is not independently reconciled.",
-                "The collector must be enabled and running, and its SQLite history starts only after collection begins.",
+                "The collector must be enabled and running; locally stored history begins only after collection starts.",
                 "When coverage.truncated_at_limit is true, older matching events were not examined.",
             ],
         }
