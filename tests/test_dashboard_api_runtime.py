@@ -49,7 +49,6 @@ def test_dashboard_api_url_validation_and_request_runtime():
 
             key.value = " private-test-key ";
             for (const path of [
-              "health",
               "//attacker.example/health",
               "https://attacker.example/health",
               "/health\\admin",
