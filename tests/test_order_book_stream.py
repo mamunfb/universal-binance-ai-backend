@@ -74,3 +74,52 @@ def test_sample_calculates_spread_and_depth(tmp_path):
     assert row["best_ask"] == 101.0
     assert row["spread_bps"] > 0
     assert row["depth_imbalance"] < 0  # Ask-side price-weighted notional exceeds bid-side notional.
+
+
+
+def test_order_book_collector_validates_lease_ttl_before_start(tmp_path):
+    store = OrderBookHistoryStore(str(tmp_path / "book.sqlite3"))
+    with pytest.raises(ValueError, match="ttl_seconds"):
+        OrderBookStreamCollector(
+            store, lambda: None, lambda market: None,
+            lease_database_url="postgresql://example/db",
+            lease_ttl_seconds=2,
+        )
+
+
+def test_order_book_job_waits_for_stable_market_symbol_lease(tmp_path, monkeypatch):
+    import asyncio
+    from app.services import order_book_stream
+
+    captured = {}
+
+    class FakeLeaseManager:
+        def __init__(self, database_url, lease_name, ttl_seconds):
+            captured.update(database_url=database_url, lease_name=lease_name, ttl_seconds=ttl_seconds)
+
+        def acquire(self):
+            captured["acquired"] = True
+            return None
+
+    monkeypatch.setattr(order_book_stream, "PostgresCollectorLease", FakeLeaseManager)
+    collector = OrderBookStreamCollector(
+        OrderBookHistoryStore(str(tmp_path / "book.sqlite3")),
+        lambda: None, lambda market: None,
+        jobs_json=json.dumps([{"market": "USD_M", "symbol": "BTCUSDT"}]),
+        lease_database_url="postgresql://example/db",
+        lease_ttl_seconds=45,
+    )
+
+    async def run_and_stop():
+        task = asyncio.create_task(collector._run_job(collector._jobs()[0]))
+        await asyncio.sleep(0)
+        collector._stop.set()
+        await task
+
+    asyncio.run(run_and_stop())
+    assert captured == {
+        "database_url": "postgresql://example/db",
+        "lease_name": "order-book:USD_M:BTCUSDT",
+        "ttl_seconds": 45,
+        "acquired": True,
+    }
