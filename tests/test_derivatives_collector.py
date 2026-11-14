@@ -316,3 +316,20 @@ async def test_runtime_derivatives_collector_stops_on_fenced_write_rejection(mon
     assert len(funding.saved_leases) == 1
     assert coordinator.released == 0
     assert collector.status()["status"] == "LEASE_LOST"
+
+
+
+@pytest.mark.asyncio
+async def test_run_once_requires_lease_when_postgres_lease_mode_is_configured(monkeypatch):
+    import app.services.derivatives_collector as module
+
+    coordinator = FakeLeaseCoordinator("postgresql://localhost/test", "derivatives")
+    monkeypatch.setattr(module, "PostgresCollectorLease", lambda *args, **kwargs: coordinator)
+    collector = DerivativesHistoryCollector(
+        LeaseAwareFundingStore(), LeaseAwareOpenInterestStore(),
+        lambda market: FakeProvider(),
+        '[{"type":"FUNDING_RATE","symbol":"BTCUSDT"}]',
+        lease_database_url="postgresql://localhost/test",
+    )
+    with pytest.raises(CollectorLeaseLostError, match="currently owned"):
+        await collector.run_once()
