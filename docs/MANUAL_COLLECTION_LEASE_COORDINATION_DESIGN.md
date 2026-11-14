@@ -14,7 +14,8 @@ This design covers operator-triggered HTTP collection endpoints that write marke
 - `FundingRateStore.save` and `OpenInterestStore.save` accept optional leases and fence PostgreSQL writes in the same transaction.
 
 - `DerivativesRatioStore.save` currently has no lease parameter or same-transaction fencing check; its manual collection endpoint writes directly.
-- `main.py` initializes `EVMTransferStore` with `settings.database_url`, so the service uses PostgreSQL when configured and SQLite otherwise. `save_chunk` now accepts an optional lease and validates it with `lock_if_owned` in the same transaction as transfer inserts and range-coverage writes. The indexer does not yet acquire or pass a lease; runtime coordination remains outstanding.
+- `main.py` initializes `EVMTransferStore` with `settings.database_url`, so the service uses PostgreSQL when configured and SQLite otherwise. `save_chunk` accepts an optional lease and validates it with `lock_if_owned` in the same transaction as transfer inserts and range-coverage writes.
+- The EVM indexer now acquires a per-chain/per-contract lease (`evm-transfer-indexer:{chain_id}:{contract}`) in PostgreSQL mode, renews it after each RPC chunk and before the protected write, passes it into `save_chunk`, and releases it in `finally`. Acquisition cancellation attempts to release a lease acquired during shutdown. SQLite mode remains single-process and does not use a distributed lease.
 
 ## Implemented first step: shared global lease for manual klines
 
@@ -93,7 +94,7 @@ Mocked endpoint coverage is added. A PostgreSQL two-session fencing test and suc
 | Scheduled open interest | Yes | Yes | Fenced |
 | Manual open interest | Yes, optional | Yes (shared derivatives lease) | Implemented; CI/integration pending |
 | Manual derivatives ratios | Yes, optional | Yes (per-series lease) | Implemented; CI/integration pending |
-| EVM transfer chunk indexing | Yes, optional | No | Store fencing added; indexer lease lifecycle still required |
+| EVM transfer chunk indexing | Yes | Yes (per-chain/per-contract lease) | Implemented; CI and PostgreSQL concurrency verification pending |
 | Aggregate trade stream | Yes | Yes | Fenced |
 | Order-book stream | Yes | Yes | Fenced |
 | Liquidation stream | Yes | Yes | Fenced |
@@ -103,4 +104,4 @@ Mocked endpoint coverage is added. A PostgreSQL two-session fencing test and suc
 - Collector enablement flags remain disabled.
 - No Render, Cloudflare, or production configuration changes.
 - No PR merge or deployment.
-- Do not claim multi-instance readiness until the manual endpoints, EVM transfer storage architecture, and PostgreSQL concurrency tests are complete.
+- Do not claim multi-instance readiness until the manual endpoints, EVM transfer indexer, and PostgreSQL concurrency tests are verified by passing CI and database-backed tests.
