@@ -23,6 +23,22 @@ from websockets.asyncio.client import connect
 logger = logging.getLogger(__name__)
 
 
+async def _wait_for_worker_task(task: asyncio.Task) -> tuple[Any, BaseException | None, bool]:
+    """Drain a worker task despite repeated cancellation of its waiter."""
+    interrupted = False
+    while not task.done():
+        try:
+            await asyncio.shield(task)
+        except asyncio.CancelledError:
+            interrupted = True
+        except BaseException:
+            break
+    try:
+        return task.result(), None, interrupted
+    except BaseException as exc:
+        return None, exc, interrupted
+
+
 def aggregate_trade_stream_url(market: str, symbol: str) -> str:
     market = market.upper()
     stream = f"{quote(symbol.lower(), safe='')}@aggTrade"
@@ -270,10 +286,18 @@ class AggregateTradeCollector:
         self, row: dict[str, Any], lease_holder: dict[str, CollectorLease | None],
         lease_lost: asyncio.Event, state: dict[str, Any],
     ) -> None:
+        worker = asyncio.create_task(asyncio.to_thread(
+            self.store.insert, row, lease_holder["lease"],
+        ))
         try:
-            await asyncio.to_thread(
-                self.store.insert, row, lease_holder["lease"],
-            )
+            await asyncio.shield(worker)
+        except asyncio.CancelledError:
+            _, worker_error, _ = await _wait_for_worker_task(worker)
+            if isinstance(worker_error, CollectorLeaseLostError):
+                lease_lost.set()
+                state["lease_state"] = "LOST"
+                state["last_error"] = "CollectorLeaseLostError"
+            raise
         except CollectorLeaseLostError:
             lease_lost.set()
             state["lease_state"] = "LOST"
@@ -463,20 +487,22 @@ class AggregateTradeCollector:
             if stream is not None and not stream.done():
                 stream.cancel()
             if stream is not None:
-                await asyncio.gather(stream, return_exceptions=True)
+                await _wait_for_worker_task(stream)
             if heartbeat is not None:
                 if not heartbeat.done():
                     heartbeat.cancel()
-                await asyncio.gather(heartbeat, return_exceptions=True)
+                await _wait_for_worker_task(heartbeat)
             lease = lease_holder["lease"]
             if manager is not None and lease is not None and not lease_lost.is_set():
-                try:
-                    released = await asyncio.shield(asyncio.to_thread(manager.release, lease))
-                    state["lease_state"] = "RELEASED" if released else "RELEASE_FAILED"
-                except Exception as exc:
+                release_task = asyncio.create_task(asyncio.to_thread(manager.release, lease))
+                _, release_error, _ = await _wait_for_worker_task(release_task)
+                if release_error is not None:
                     state["lease_state"] = "RELEASE_FAILED"
-                    state["last_error"] = type(exc).__name__
-                    logger.exception("Failed to release aggregate-trade lease for %s", key)
+                    state["last_error"] = type(release_error).__name__
+                    logger.error("Failed to release aggregate-trade lease for %s", key)
+                else:
+                    released = release_task.result()
+                    state["lease_state"] = "RELEASED" if released else "RELEASE_FAILED"
 
     def status(self) -> dict[str, Any]:
         return {
