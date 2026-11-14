@@ -2217,6 +2217,50 @@ async def historical_collector_status() -> dict:
     return historical_collector.status()
 
 
+async def _acquire_manual_derivatives_lease():
+    """Acquire the scheduled derivatives collector's shared PostgreSQL lease."""
+    database_url = settings.database_url.strip()
+    if not database_url:
+        return None, None
+    try:
+        manager = PostgresCollectorLease(
+            database_url,
+            "derivatives-history-collector",
+            ttl_seconds=settings.derivatives_collector_lease_ttl_seconds,
+        )
+        acquire_task = asyncio.create_task(asyncio.to_thread(manager.acquire))
+        try:
+            lease = await asyncio.shield(acquire_task)
+        except asyncio.CancelledError:
+            try:
+                acquired_during_shutdown = await acquire_task
+                if acquired_during_shutdown is not None:
+                    await asyncio.shield(asyncio.to_thread(
+                        manager.release, acquired_during_shutdown
+                    ))
+            finally:
+                raise
+        return manager, lease
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "status": "UNAVAILABLE",
+                "error": "DERIVATIVES_COLLECTION_LEASE_UNAVAILABLE",
+                "error_type": type(exc).__name__,
+            },
+        ) from exc
+
+
+async def _release_manual_derivatives_lease(manager, lease) -> None:
+    if manager is None or lease is None:
+        return
+    try:
+        await asyncio.shield(asyncio.to_thread(manager.release, lease))
+    except Exception:
+        logger.exception("Failed to release manual derivatives collection lease")
+
+
 @app.post("/api/v1/history/funding-rates/USD_M/{symbol}/collect", tags=["history"])
 async def collect_historical_funding_rates(
     symbol: str,
@@ -2229,6 +2273,12 @@ async def collect_historical_funding_rates(
         raise HTTPException(status_code=422, detail="symbol must not be empty")
     if start_time_ms is not None and end_time_ms is not None and end_time_ms < start_time_ms:
         raise HTTPException(status_code=422, detail="end_time_ms must be >= start_time_ms")
+    manager, lease = await _acquire_manual_derivatives_lease()
+    if manager is not None and lease is None:
+        raise HTTPException(
+            status_code=409,
+            detail={"status": "CONFLICT", "error": "DERIVATIVES_COLLECTION_LEASE_HELD"},
+        )
     try:
         rows = await get_futures_provider("USD_M").funding_rate(
             normalized, limit=limit, start_time_ms=start_time_ms, end_time_ms=end_time_ms
@@ -2238,16 +2288,29 @@ async def collect_historical_funding_rates(
                 "status": "NO_NEW_DATA", "market": "USD_M", "symbol": normalized,
                 "received_count": 0, "warning": "The exchange returned no funding events; no history was stored.",
             }
+        if manager is not None:
+            renewed = await asyncio.to_thread(manager.renew, lease)
+            if renewed is None:
+                raise CollectorLeaseLostError("Derivatives collection lease was lost before funding write")
+            lease = renewed
         return await asyncio.to_thread(
-            funding_rate_store.save, "USD_M", normalized, rows
+            funding_rate_store.save, "USD_M", normalized, rows,
+            "Binance USD-M public REST API (manual collection)", lease=lease,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except CollectorLeaseLostError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={"status": "CONFLICT", "error": "DERIVATIVES_COLLECTION_LEASE_LOST"},
+        ) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail={
             "status": "FAILED", "error": "FUNDING_RATE_COLLECTION_UNAVAILABLE",
             "error_type": type(exc).__name__,
         }) from exc
+    finally:
+        await _release_manual_derivatives_lease(manager, lease)
 
 
 @app.get("/api/v1/history/funding-rates/USD_M/{symbol}", tags=["history"])
@@ -2287,6 +2350,12 @@ async def collect_historical_open_interest(
         raise HTTPException(status_code=422, detail="symbol must not be empty")
     if start_time_ms is not None and end_time_ms is not None and end_time_ms < start_time_ms:
         raise HTTPException(status_code=422, detail="end_time_ms must be >= start_time_ms")
+    manager, lease = await _acquire_manual_derivatives_lease()
+    if manager is not None and lease is None:
+        raise HTTPException(
+            status_code=409,
+            detail={"status": "CONFLICT", "error": "DERIVATIVES_COLLECTION_LEASE_HELD"},
+        )
     try:
         rows = await get_futures_provider("USD_M").open_interest_history(
             normalized, period=period, limit=limit,
@@ -2298,16 +2367,29 @@ async def collect_historical_open_interest(
                 "period": period, "received_count": 0,
                 "warning": "The exchange returned no open-interest records; no history was stored.",
             }
+        if manager is not None:
+            renewed = await asyncio.to_thread(manager.renew, lease)
+            if renewed is None:
+                raise CollectorLeaseLostError("Derivatives collection lease was lost before open-interest write")
+            lease = renewed
         return await asyncio.to_thread(
-            open_interest_store.save, "USD_M", normalized, period, rows
+            open_interest_store.save, "USD_M", normalized, period, rows,
+            "Binance USD-M public REST API (manual collection)", lease=lease,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except CollectorLeaseLostError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={"status": "CONFLICT", "error": "DERIVATIVES_COLLECTION_LEASE_LOST"},
+        ) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail={
             "status": "FAILED", "error": "OPEN_INTEREST_COLLECTION_UNAVAILABLE",
             "error_type": type(exc).__name__,
         }) from exc
+    finally:
+        await _release_manual_derivatives_lease(manager, lease)
 
 
 @app.get("/api/v1/analysis/derivatives/combined/{symbol}", tags=["analysis"])
