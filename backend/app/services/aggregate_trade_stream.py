@@ -15,6 +15,7 @@ from app.services.collector_lease import (
     CollectorLease,
     CollectorLeaseLostError,
     PostgresCollectorLease,
+    require_lease_database_url,
 )
 from urllib.parse import quote
 
@@ -235,6 +236,11 @@ class AggregateTradeCollector:
         self.store = store
         self.jobs_json = jobs_json
         self.lease_database_url = lease_database_url.strip()
+        require_lease_database_url(
+            getattr(store, "database_url", "") or "",
+            self.lease_database_url,
+            "Aggregate-trade collector",
+        )
         self.lease_ttl_seconds = lease_ttl_seconds
         if self.lease_database_url:
             PostgresCollectorLease(
