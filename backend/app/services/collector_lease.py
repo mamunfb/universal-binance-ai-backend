@@ -134,9 +134,13 @@ class PostgresCollectorLease:
                  WHERE lease_name = %s
                    AND owner_id = %s
                    AND fencing_token = %s
+                   AND lease_expires_at = %s
                 RETURNING lease_name
                 """,
-                (lease.lease_name, lease.owner_id, lease.fencing_token),
+                (
+                    lease.lease_name, lease.owner_id, lease.fencing_token,
+                    lease.lease_expires_at,
+                ),
             ).fetchone()
         return row is not None
 
