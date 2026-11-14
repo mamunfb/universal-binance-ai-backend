@@ -82,6 +82,14 @@ def test_store_persists_and_filters_events(tmp_path):
     assert store.recent("ETHUSDT", 10) == []
 
 
+def test_liquidation_store_rejects_lease_with_sqlite_storage(tmp_path):
+    store = LiquidationStore(str(tmp_path / "events.sqlite3"))
+    event = normalize_force_order(sample_message())
+    assert event is not None
+    with pytest.raises(ValueError, match="PostgreSQL"):
+        store.insert(event, lease=object())
+
+
 def test_store_deduplicates_exact_repeated_payloads(tmp_path):
     store = LiquidationStore(str(tmp_path / "events.sqlite3"))
     event = normalize_force_order(sample_message())
