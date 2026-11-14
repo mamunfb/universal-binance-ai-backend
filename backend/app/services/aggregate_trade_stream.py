@@ -317,8 +317,8 @@ class AggregateTradeCollector:
                     aggregate_trade_stream_url(market, symbol),
                     ping_interval=20, ping_timeout=20, close_timeout=10,
                 ) as socket:
+                    connection_started_at = asyncio.get_running_loop().time()
                     state.update(connected=True, last_error=None)
-                    delay = 1
                     async for raw in socket:
                         if lease_lost.is_set():
                             return
@@ -342,6 +342,10 @@ class AggregateTradeCollector:
             except Exception as exc:
                 if lease_lost.is_set():
                     return
+                if "connection_started_at" in locals() and (
+                    asyncio.get_running_loop().time() - connection_started_at >= 30
+                ):
+                    delay = 1
                 state.update(
                     connected=False, last_error=type(exc).__name__,
                     reconnect_count=state["reconnect_count"] + 1,
@@ -357,8 +361,12 @@ class AggregateTradeCollector:
                 delay = min(delay * 2, 60)
             else:
                 # A clean WebSocket close ends async iteration without raising.
-                # Treat it as a disconnect too, otherwise the loop reconnects
-                # immediately and can spin if the server repeatedly closes cleanly.
+                # Preserve backoff for short-lived connections; reset it only
+                # after a connection has remained healthy for at least 30s.
+                if "connection_started_at" in locals() and (
+                    asyncio.get_running_loop().time() - connection_started_at >= 30
+                ):
+                    delay = 1
                 if not lease_lost.is_set():
                     state.update(
                         connected=False, last_error="WebSocketClosed",
