@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     historical_collector_jobs: str = "[]"
     historical_collector_poll_seconds: int = 30
     historical_collector_initial_limit: int = 500
+    historical_collector_lease_ttl_seconds: int = 30
     news_rss_feeds: str = ""
     news_primary_source_domains: str = ""
     news_independent_source_domains: str = ""
