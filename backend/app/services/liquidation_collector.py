@@ -258,12 +258,24 @@ class LiquidationCollector:
                 self.connected = False
 
     def status(self) -> dict[str, Any]:
+        storage_status = "AVAILABLE"
+        storage_error = None
+        try:
+            stored_event_count = self.store.count()
+        except Exception as exc:
+            # Keep the stream health endpoint useful during a database outage.
+            # Do not expose driver messages or connection details in API status.
+            stored_event_count = None
+            storage_status = "UNAVAILABLE"
+            storage_error = type(exc).__name__
         return {
             "collector_enabled": True,
             "connected": self.connected,
             "stream": STREAM_URL,
             "received_since_process_start": self.received_count,
-            "stored_event_count": self.store.count(),
+            "stored_event_count": stored_event_count,
+            "storage_status": storage_status,
+            "storage_error": storage_error,
             "reconnect_count": self.reconnect_count,
             "last_message_at": self.last_message_at,
             "last_error": self.last_error,

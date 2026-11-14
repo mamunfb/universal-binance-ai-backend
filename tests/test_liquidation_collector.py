@@ -143,3 +143,19 @@ def test_collector_status_and_logs_expose_only_exception_class(tmp_path, monkeyp
     assert "sensitive provider detail" not in str(status)
     assert "RuntimeError" in caplog.text
     assert "sensitive provider detail" not in caplog.text
+
+
+
+def test_collector_status_remains_available_when_storage_count_fails():
+    class UnavailableStore:
+        def count(self):
+            raise RuntimeError("sensitive database connection detail")
+
+    collector = LiquidationCollector(UnavailableStore())
+    status = collector.status()
+
+    assert status["collector_enabled"] is True
+    assert status["stored_event_count"] is None
+    assert status["storage_status"] == "UNAVAILABLE"
+    assert status["storage_error"] == "RuntimeError"
+    assert "sensitive database connection detail" not in str(status)
