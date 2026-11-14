@@ -5,6 +5,7 @@ import json
 from datetime import datetime, timezone
 from typing import Any, Callable
 
+from app.services.collector_lease import CollectorLease, PostgresCollectorLease
 from app.services.historical_klines import HistoricalKlineStore
 
 _INTERVALS = {
@@ -53,6 +54,9 @@ class HistoricalKlineCollector:
         jobs_json: str = "[]",
         poll_seconds: int = 30,
         initial_limit: int = 500,
+        lease_database_url: str = "",
+        lease_name: str = "historical-kline-collector",
+        lease_ttl_seconds: int = 30,
     ) -> None:
         self.store = store
         self.spot_provider_factory = spot_provider_factory
@@ -64,6 +68,18 @@ class HistoricalKlineCollector:
             raise ValueError("initial_limit must be between 1 and 1500")
         self.poll_seconds = poll_seconds
         self.initial_limit = initial_limit
+        self._lease_coordinator = (
+            PostgresCollectorLease(
+                lease_database_url,
+                lease_name,
+                ttl_seconds=lease_ttl_seconds,
+            )
+            if lease_database_url.strip()
+            else None
+        )
+        self._lease: CollectorLease | None = None
+        self._lease_lost: asyncio.Event | None = None
+        self._lease_state = "NOT_REQUIRED" if self._lease_coordinator is None else "WAITING"
         self._task: asyncio.Task | None = None
         self._running = False
         self._last_cycle_at: str | None = None
@@ -90,14 +106,96 @@ class HistoricalKlineCollector:
         self._running = False
 
     async def _run_loop(self) -> None:
+        if self._lease_coordinator is None:
+            while True:
+                try:
+                    await self.run_once()
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:
+                    self._last_error = type(exc).__name__
+                await asyncio.sleep(self.poll_seconds)
+
         while True:
             try:
-                await self.run_once()
+                lease = await asyncio.to_thread(self._lease_coordinator.acquire)
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                self._lease_state = "ACQUIRE_FAILED"
+                self._last_error = type(exc).__name__
+                await asyncio.sleep(self.poll_seconds)
+                continue
+            if lease is None:
+                self._lease_state = "HELD_BY_OTHER"
+                await asyncio.sleep(self.poll_seconds)
+                continue
+
+            self._lease = lease
+            self._lease_lost = asyncio.Event()
+            self._lease_state = "OWNED"
+            renew_task = asyncio.create_task(self._renew_lease_loop())
+            try:
+                while not self._lease_lost.is_set():
+                    await self.run_once()
+                    if self._lease_lost.is_set():
+                        break
+                    try:
+                        await asyncio.wait_for(
+                            self._lease_lost.wait(), timeout=self.poll_seconds
+                        )
+                    except asyncio.TimeoutError:
+                        pass
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
                 self._last_error = type(exc).__name__
-            await asyncio.sleep(self.poll_seconds)
+            finally:
+                renew_task.cancel()
+                try:
+                    await renew_task
+                except asyncio.CancelledError:
+                    pass
+                owned_lease = self._lease
+                lease_was_lost = self._lease_lost.is_set()
+                self._lease = None
+                self._lease_lost = None
+                if lease_was_lost:
+                    self._lease_state = "LOST"
+                elif owned_lease is not None:
+                    try:
+                        released = await asyncio.to_thread(
+                            self._lease_coordinator.release, owned_lease
+                        )
+                        self._lease_state = "RELEASED" if released else "LOST"
+                    except Exception as exc:
+                        self._lease_state = "RELEASE_FAILED"
+                        self._last_error = type(exc).__name__
+            if self._lease_state in {"LOST", "RELEASE_FAILED"}:
+                await asyncio.sleep(self.poll_seconds)
+
+    async def _renew_lease_loop(self) -> None:
+        assert self._lease_coordinator is not None
+        assert self._lease_lost is not None
+        interval = max(1.0, self._lease_coordinator.ttl_seconds / 3)
+        while not self._lease_lost.is_set():
+            await asyncio.sleep(interval)
+            lease = self._lease
+            if lease is None:
+                self._lease_lost.set()
+                return
+            try:
+                renewed = await asyncio.to_thread(
+                    self._lease_coordinator.renew, lease
+                )
+            except Exception as exc:
+                self._last_error = type(exc).__name__
+                renewed = None
+            if renewed is None:
+                self._lease_state = "LOST"
+                self._lease_lost.set()
+                return
+            self._lease = renewed
 
     async def run_once(self) -> dict[str, Any]:
         self._running = True
@@ -135,9 +233,12 @@ class HistoricalKlineCollector:
                             "cursor_open_time_ms": latest,
                         })
                         continue
+                    if self._lease_lost is not None and self._lease_lost.is_set():
+                        break
                     saved = await asyncio.to_thread(
                         self.store.save_klines, market, symbol, interval, rows,
                         "Binance public REST API (scheduled collector)",
+                        lease=self._lease,
                     )
                     results.append({
                         **job, "status": "COMPLETED", "received_count": len(rows),
@@ -179,6 +280,10 @@ class HistoricalKlineCollector:
             "cycles": self._cycles,
             "successful_jobs": self._successes,
             "failed_jobs": self._failures,
+            "lease_state": self._lease_state,
+            "lease_fencing_token": (
+                self._lease.fencing_token if self._lease is not None else None
+            ),
             "last_cycle_at": self._last_cycle_at,
             "last_success_at": self._last_success_at,
             "last_error_type": self._last_error,
