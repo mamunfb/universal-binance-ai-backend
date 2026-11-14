@@ -14,6 +14,7 @@ from app.services.collector_lease import (
     CollectorLease,
     CollectorLeaseLostError,
     PostgresCollectorLease,
+    require_lease_database_url,
 )
 
 from websockets.asyncio.client import connect
@@ -234,6 +235,11 @@ class LiquidationCollector:
         lease_name: str = "liquidation-stream-collector",
         lease_ttl_seconds: int = 30,
     ) -> None:
+        require_lease_database_url(
+            getattr(store, "database_url", "") or "",
+            lease_database_url,
+            "Liquidation collector",
+        )
         self.store = store
         self._lease_coordinator = (
             PostgresCollectorLease(
