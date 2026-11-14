@@ -119,6 +119,8 @@ async def lifespan(_: FastAPI):
                 sample_interval_seconds=settings.order_book_sample_interval_seconds,
                 snapshot_limit=settings.order_book_snapshot_limit,
                 stored_levels=settings.order_book_stored_levels,
+                lease_database_url=settings.database_url,
+                lease_ttl_seconds=settings.order_book_collector_lease_ttl_seconds,
             )
             order_book_collector.start()
         if settings.aggregate_trade_collector_enabled:
