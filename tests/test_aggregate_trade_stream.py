@@ -167,6 +167,54 @@ def test_aggregate_trade_collector_acquires_stable_lease_and_releases_on_stop(mo
     assert len(runtime_manager.released) == 1
 
 
+def test_aggregate_trade_collector_releases_lease_acquired_during_shutdown(monkeypatch, tmp_path):
+    import asyncio
+    import threading
+    from types import SimpleNamespace
+    from app.services import aggregate_trade_stream as module
+    from app.services.aggregate_trade_stream import AggregateTradeCollector
+
+    acquire_started = threading.Event()
+    allow_acquire = threading.Event()
+    released = []
+
+    class FakeLeaseManager:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def acquire(self):
+            acquire_started.set()
+            assert allow_acquire.wait(timeout=2)
+            return SimpleNamespace(fencing_token=23)
+
+        def renew(self, lease):
+            return lease
+
+        def release(self, lease):
+            released.append(lease)
+            return True
+
+    monkeypatch.setattr(module, "PostgresCollectorLease", FakeLeaseManager)
+    collector = AggregateTradeCollector(
+        AggregateTradeStore(str(tmp_path / "trades.sqlite3")),
+        jobs_json='[{"market":"SPOT","symbol":"BTCUSDT"}]',
+        lease_database_url="postgresql://example/db",
+    )
+
+    async def scenario():
+        collector.start()
+        assert await asyncio.to_thread(acquire_started.wait, 2)
+        stopping = asyncio.create_task(collector.stop())
+        await asyncio.sleep(0)
+        allow_acquire.set()
+        await asyncio.wait_for(stopping, timeout=2)
+
+    asyncio.run(scenario())
+    assert len(released) == 1
+    assert released[0].fencing_token == 23
+    assert collector.tasks == []
+
+
 def test_aggregate_trade_collector_waits_when_another_owner_holds_lease(monkeypatch, tmp_path):
     import asyncio
     from app.services import aggregate_trade_stream as module
