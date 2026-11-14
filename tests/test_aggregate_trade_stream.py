@@ -351,3 +351,62 @@ def test_aggregate_trade_collector_stops_when_lease_renewal_is_lost(monkeypatch,
         if manager.lease_name == "aggregate-trade:SPOT:BTCUSDT"
     )
     assert runtime_manager.released == []
+
+
+def test_aggregate_trade_stream backs_off_after_clean_websocket_close(monkeypatch, tmp_path):
+    import asyncio
+    from types import SimpleNamespace
+    from app.services import aggregate_trade_stream as module
+    from app.services.aggregate_trade_stream import AggregateTradeCollector
+
+    iteration_finished = asyncio.Event()
+    connect_calls = []
+
+    class EmptySocket:
+        def __aiter__(self):
+            async def iterate():
+                iteration_finished.set()
+                if False:
+                    yield ""
+            return iterate()
+
+    class SocketContext:
+        async def __aenter__(self):
+            return EmptySocket()
+
+        async def __aexit__(self, *_args):
+            return False
+
+    def fake_connect(*_args, **_kwargs):
+        connect_calls.append(True)
+        return SocketContext()
+
+    monkeypatch.setattr(module, "connect", fake_connect)
+    collector = AggregateTradeCollector(
+        AggregateTradeStore(str(tmp_path / "trades.sqlite3"))
+    )
+    state = {
+        "market": "SPOT", "symbol": "BTCUSDT", "connected": False,
+        "received_count": 0, "reconnect_count": 0, "last_trade_at": None,
+        "last_error": None, "lease_state": "NOT_REQUIRED",
+    }
+    lease_lost = asyncio.Event()
+    lease_holder = {"lease": None}
+
+    async def scenario():
+        task = asyncio.create_task(
+            collector._run_stream("SPOT", "BTCUSDT", state, lease_holder, lease_lost)
+        )
+        await asyncio.wait_for(iteration_finished.wait(), timeout=2)
+        for _ in range(100):
+            if state["reconnect_count"] == 1:
+                break
+            await asyncio.sleep(0.01)
+        assert state["reconnect_count"] == 1
+        assert state["last_error"] == "WebSocketClosed"
+        assert state["connected"] is False
+        assert len(connect_calls) == 1
+        lease_lost.set()
+        await asyncio.wait_for(task, timeout=2)
+
+    asyncio.run(scenario())
