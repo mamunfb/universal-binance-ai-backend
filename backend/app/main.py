@@ -1504,7 +1504,7 @@ async def aggregate_trade_collector_status() -> dict:
         return {
             "status": "DISABLED", "enabled": False,
             "stored_trade_count": aggregate_trade_store.count(),
-            "message": "Set AGGREGATE_TRADE_COLLECTOR_ENABLED=true and configure AGG_TRADE_COLLECTOR_JOBS.",
+            "message": "Set AGGREGATE_TRADE_COLLECTOR_ENABLED=true and configure AGGREGATE_TRADE_COLLECTOR_JOBS.",
         }
     if aggregate_trade_collector is None:
         return {"status": "STARTING", "enabled": True}
