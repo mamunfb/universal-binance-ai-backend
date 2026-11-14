@@ -2133,10 +2133,10 @@ async def spot_volume_structure(
 async def liquidation_collector_status() -> dict:
     if not settings.liquidation_collector_enabled:
         return {
+            **liquidation_collector.status(),
             "status": "DISABLED",
             "collector_enabled": False,
             "message": "Set LIQUIDATION_COLLECTOR_ENABLED=true and run a persistent service to collect live events.",
-            "stored_event_count": liquidation_store.count(),
         }
     return liquidation_collector.status()
 
