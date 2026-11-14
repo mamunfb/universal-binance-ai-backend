@@ -277,7 +277,7 @@ class LiquidationCollector:
                     self.last_error = type(release_error).__name__
                 else:
                     self._lease_state = "RELEASED" if released else "RELEASE_FAILED"
-        if self._lease_state != "LOST":
+        if self._lease_state not in {"LOST", "RELEASE_FAILED", "ACQUIRE_FAILED"}:
             self._lease_state = "STOPPED" if self._lease_coordinator else "NOT_REQUIRED"
 
     async def _run_stream(self) -> None:
