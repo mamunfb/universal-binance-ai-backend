@@ -142,6 +142,10 @@ async def lifespan(_: FastAPI):
                 jobs_json=settings.historical_collector_jobs,
                 poll_seconds=settings.historical_collector_poll_seconds,
                 initial_limit=settings.historical_collector_initial_limit,
+                lease_database_url=(
+                    settings.historical_kline_database_url or settings.database_url
+                ),
+                lease_ttl_seconds=settings.historical_collector_lease_ttl_seconds,
             )
             historical_collector.start()
         yield
