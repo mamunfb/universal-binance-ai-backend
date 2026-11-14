@@ -5,7 +5,7 @@ import psycopg
 import pytest
 
 from app.providers.evm_rpc import TRANSFER_TOPIC
-from app.services.collector_lease import PostgresCollectorLease
+from app.services.collector_lease import CollectorLeaseLostError, PostgresCollectorLease
 from app.services.derivatives_ratio_store import DerivativesRatioStore
 from app.services.evm_transfer_store import EVMTransferStore
 
@@ -49,6 +49,16 @@ def test_postgres_derivatives_ratio_write_is_fenced_by_lease():
         history = store.history("GLOBAL_LONG_SHORT", symbol, "1h")
         assert history["returned_count"] == 1
         assert history["records"][0]["long_short_ratio"] == 1.2
+        manager.release(lease)
+        with pytest.raises(CollectorLeaseLostError):
+            store.save(
+                "GLOBAL_LONG_SHORT", symbol, "1h",
+                [{
+                    "symbol": symbol, "timestamp": timestamp + 3_600_000,
+                    "longShortRatio": "1.3", "longAccount": "0.56", "shortAccount": "0.44",
+                }],
+                lease=lease,
+            )
     finally:
         manager.release(lease)
         with psycopg.connect(DATABASE_URL) as connection:
@@ -89,6 +99,10 @@ def test_postgres_evm_chunk_and_coverage_are_written_under_same_lease():
         assert len(coverage) == 1
         assert coverage[0]["from_block"] == 100
         assert coverage[0]["to_block"] == 110
+        manager.release(lease)
+        with pytest.raises(CollectorLeaseLostError):
+            store.save_chunk(1, contract, 111, 111, [], lease=lease)
+        assert len(store.coverage(1, contract)) == 1
     finally:
         manager.release(lease)
         with psycopg.connect(DATABASE_URL) as connection:
