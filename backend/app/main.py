@@ -2417,6 +2417,41 @@ async def collect_derivatives_ratio_history(
     normalized = symbol.strip().upper()
     if not normalized:
         raise HTTPException(status_code=422, detail="symbol must not be empty")
+    lease_name = f"derivatives-ratio:{ratio_type}:{normalized}:{period}"
+    manager = None
+    lease = None
+    if settings.database_url.strip():
+        try:
+            manager = PostgresCollectorLease(
+                settings.database_url,
+                lease_name,
+                ttl_seconds=settings.derivatives_collector_lease_ttl_seconds,
+            )
+            acquire_task = asyncio.create_task(asyncio.to_thread(manager.acquire))
+            try:
+                lease = await asyncio.shield(acquire_task)
+            except asyncio.CancelledError:
+                try:
+                    acquired_during_shutdown = await acquire_task
+                    if acquired_during_shutdown is not None:
+                        await asyncio.shield(asyncio.to_thread(
+                            manager.release, acquired_during_shutdown
+                        ))
+                finally:
+                    raise
+            if lease is None:
+                raise HTTPException(
+                    status_code=409,
+                    detail={"status": "CONFLICT", "error": "DERIVATIVES_RATIO_COLLECTION_LEASE_HELD"},
+                )
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(
+                status_code=503,
+                detail={"status": "UNAVAILABLE", "error": "DERIVATIVES_RATIO_COLLECTION_LEASE_UNAVAILABLE",
+                        "error_type": type(exc).__name__},
+            ) from exc
     try:
         provider = get_futures_provider("USD_M")
         if ratio_type == "GLOBAL_LONG_SHORT":
@@ -2428,16 +2463,33 @@ async def collect_derivatives_ratio_history(
                 "status": "NO_NEW_DATA", "market": "USD_M", "ratio_type": ratio_type,
                 "symbol": normalized, "period": period, "received_count": 0,
             }
+        if manager is not None:
+            renewed = await asyncio.to_thread(manager.renew, lease)
+            if renewed is None:
+                raise CollectorLeaseLostError("Derivatives-ratio lease was lost before write")
+            lease = renewed
         return await asyncio.to_thread(
-            derivatives_ratio_store.save, ratio_type, normalized, period, rows
+            derivatives_ratio_store.save, ratio_type, normalized, period, rows,
+            "Binance USD-M Futures public REST API (manual collection)", lease=lease,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except CollectorLeaseLostError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={"status": "CONFLICT", "error": "DERIVATIVES_RATIO_COLLECTION_LEASE_LOST"},
+        ) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail={
             "status": "FAILED", "error": "DERIVATIVES_RATIO_COLLECTION_UNAVAILABLE",
             "error_type": type(exc).__name__,
         }) from exc
+    finally:
+        if manager is not None and lease is not None:
+            try:
+                await asyncio.shield(asyncio.to_thread(manager.release, lease))
+            except Exception:
+                logger.exception("Failed to release manual derivatives-ratio collection lease")
 
 
 @app.get("/api/v1/history/derivatives-ratios/USD_M/{ratio_type}/{symbol}", tags=["history"])
