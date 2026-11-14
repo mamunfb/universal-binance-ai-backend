@@ -2,7 +2,7 @@
 
 ## Audit status
 
-This document records the current collector deployment boundary. Migration 011 and the PostgreSQL lease primitive are groundwork only. They do not enable collectors, change deployment settings, or claim distributed ownership is fully integrated.
+This document records the current collector deployment boundary. Migration 011 and the PostgreSQL lease primitive are groundwork; the historical-kline collector now uses the lease lifecycle and fenced writes when backed by PostgreSQL. The other collector families are not yet lease-coordinated. No deployment settings or collector flags are enabled by this work.
 
 ### Current execution model
 
@@ -14,7 +14,7 @@ The FastAPI lifespan starts enabled collectors inside each backend process:
 - Historical-kline polling
 - Derivatives funding/open-interest polling
 
-These collectors use process-local asyncio tasks. Until every collector's data writes are fenced, two backend instances with the same collector flags can still run duplicate upstream subscriptions or polling jobs. Shared PostgreSQL persistence does not provide single-owner execution.
+These collectors use process-local asyncio tasks. The historical-kline polling task now acquires a named PostgreSQL lease before starting, renews it while running, passes its fencing token to each PostgreSQL candle write, and exits permanently for that process if renewal is lost. The other collector families still lack this protection. Shared PostgreSQL persistence does not provide single-owner execution by itself.
 
 ### Verified persistence and duplicate handling
 
@@ -31,7 +31,7 @@ These constraints protect persistence from some duplicate writes; they do not pr
 
 The liquidation fingerprint is exact-payload deduplication, not an exchange-native event identifier. It cannot prove that semantically identical events with different payload representations will collapse into one row. Binance USD-M force-order messages are snapshots, not a complete liquidation tape; persistence deduplication cannot recover events the upstream stream does not publish.
 
-## PostgreSQL lease primitive (implemented, not wired into collectors)
+## PostgreSQL lease primitive and historical-kline integration (partial)
 
 Migration 011 adds public.collector_leases with a monotonic fencing token per named lease. PostgresCollectorLease provides:
 
@@ -40,19 +40,20 @@ Migration 011 adds public.collector_leases with a monotonic fencing token per na
 - Release by expiring the row rather than deleting it, preserving token history.
 - lock_if_owned(connection, lease), which uses SELECT ... FOR SHARE and must run in the same PostgreSQL transaction as the protected data write. A takeover update cannot advance the token while that transaction holds the row lock.
 
-The primitive alone does not fence existing collector writes. As a first persistence-layer step, `HistoricalKlineStore.save_klines` now accepts an optional lease and, when supplied for PostgreSQL storage, validates it with `lock_if_owned` on the same transaction/connection as the candle upsert. A stale lease raises `CollectorLeaseLostError` before any candle is written; SQLite storage rejects a supplied lease. The existing `HistoricalKlineCollector` does not yet acquire, renew, or pass a lease, so this protection is not active in its runtime path. A future integration must wire lease acquisition/heartbeat/task shutdown and update every remaining collector persistence path. Network calls must remain outside protected write transactions.
+`HistoricalKlineStore.save_klines` accepts an optional lease and validates it with `lock_if_owned` on the same transaction/connection as the candle upsert. A stale lease raises `CollectorLeaseLostError` before any candle is written; SQLite storage rejects a supplied lease. When a PostgreSQL historical-kline database URL is configured, `HistoricalKlineCollector` now acquires the stable `historical-kline-collector` lease before polling, renews it at roughly one-third of the configured TTL, passes the current lease to each candle write, and releases it during orderly shutdown. If acquisition is unavailable, it does not collect. If renewal is lost, it stops and does not automatically reacquire in that process. The default TTL is 30 seconds and can be changed with `HISTORICAL_COLLECTOR_LEASE_TTL_SECONDS`. When only SQLite is configured, no distributed lease is used and the collector remains single-process-only. Network calls remain outside protected write transactions.
+
+This integration covers only scheduled historical-kline collection. The manual HTTP kline collection endpoint and the other collector families are not lease-fenced by this change; do not treat this as full multi-instance readiness.
 
 The PostgreSQL integration tests cover simultaneous acquisition by two independent owners, expired-lease takeover and token increment, stale-owner renewal/release/write-guard rejection, renewal, monotonic token preservation across release, and a two-session check that an active fenced write transaction blocks an expired lease takeover until commit. These tests use TEST_DATABASE_URL; a skipped local run is not evidence of PostgreSQL verification.
 
 ## Required integration before multi-instance collector operation
 
-1. Define explicit lease scopes (one global owner or deterministic per-job partitions) and stable owner identity per process.
-2. Add heartbeat/renewal with a bounded failure-detection interval; stop all associated tasks immediately on renewal loss.
-3. Pass the lease token to every collector store write and call lock_if_owned in the same transaction as that write.
-4. Ensure all writes in a batch are protected; do not check a lease in one connection and write in another.
-5. Add two-connection tests for simultaneous acquisition, expiry takeover, stale-owner writes, renewal loss, and shutdown failure.
-6. Expose owner identity, lease state, token, last renewal, and failure reason without exposing secrets.
-7. Verify graceful shutdown stops streams and polling before releasing leases.
+1. Extend equivalent lease acquisition, heartbeat, loss handling, and shutdown to derivatives, order-book, aggregate-trade, and liquidation collectors.
+2. Fence every remaining collector persistence path by calling `lock_if_owned` in the same transaction as its write; cover all batch writes.
+3. Decide whether manual collection endpoints need a separate lease or should remain explicitly operator-triggered and single-request.
+4. Add two-connection tests for every collector's stale-owner write path and shutdown behavior.
+5. Expose owner identity, lease state, token, last renewal, and failure reason without exposing secrets.
+6. Verify graceful shutdown stops streams and polling before releasing leases.
 
 ## Operational restriction until integration is complete
 
