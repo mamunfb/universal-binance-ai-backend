@@ -125,7 +125,7 @@ def test_postgres_evm_chunk_and_coverage_are_written_under_same_lease():
 def test_postgres_aggregate_trade_write_is_fenced_by_lease():
     suffix = uuid4().hex[:10].upper()
     symbol = f"TEST{suffix}"
-    lease_name = f"test-aggregate-trade:SPOT:{symbol}"
+    lease_name = f"aggregate-trade:SPOT:{symbol}"
     manager = PostgresCollectorLease(DATABASE_URL, lease_name, ttl_seconds=30)
     lease = manager.acquire()
     assert lease is not None
