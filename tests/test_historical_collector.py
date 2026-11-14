@@ -284,3 +284,44 @@ def test_status_describes_manual_and_scheduled_kline_lease_coverage():
     assert "scheduled and manual historical-kline collection" in warning
     assert "other collector families" in warning
 
+
+
+def test_runtime_historical_collector_cancels_inflight_provider_and_releases_lease(monkeypatch):
+    import app.services.historical_collector as module
+
+    started = asyncio.Event()
+    cancelled = asyncio.Event()
+
+    class BlockingProvider(FakeProvider):
+        async def klines(self, *args, **kwargs):
+            started.set()
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                cancelled.set()
+                raise
+
+    coordinator = FakeLeaseCoordinator("postgresql://localhost/test", "historical")
+    monkeypatch.setattr(module, "PostgresCollectorLease", lambda *args, **kwargs: coordinator)
+    store = LeaseAwareStore()
+    provider = BlockingProvider([])
+    collector = HistoricalKlineCollector(
+        store=store,
+        spot_provider_factory=lambda: provider,
+        futures_provider_factory=lambda _market: provider,
+        jobs_json='[{"market":"SPOT","symbol":"BTCUSDT","interval":"1m"}]',
+        poll_seconds=10,
+        lease_database_url="postgresql://localhost/test",
+    )
+
+    async def exercise():
+        collector.start()
+        await asyncio.wait_for(started.wait(), timeout=1)
+        await asyncio.wait_for(collector.stop(), timeout=1)
+
+    asyncio.run(exercise())
+
+    assert cancelled.is_set()
+    assert coordinator.acquired == 1
+    assert coordinator.released == 1
+    assert collector.status()["lease_state"] == "RELEASED"
