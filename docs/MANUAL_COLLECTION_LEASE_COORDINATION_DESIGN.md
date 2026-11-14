@@ -73,6 +73,19 @@ Implemented in commit `ce312c3`, with endpoint tests in `2295832`:
 
 Mocked endpoint coverage is added. A PostgreSQL two-session fencing test and successful CI are still required.
 
+## Implemented fourth step: EVM transfer indexer lease lifecycle
+
+Implemented in the EVM store/indexer changes and migration `012_manual_history_and_evm_transfer.sql`:
+
+- PostgreSQL-backed EVM transfer chunk writes call `lock_if_owned` in the same transaction as transfer rows and indexed-range coverage.
+- The indexer acquires `evm-transfer-indexer:{chain_id}:{contract}` before scanning, renews after each RPC chunk and immediately before persistence, and passes the lease to `save_chunk`.
+- Lease acquisition cancellation attempts to release a lease acquired during shutdown; the indexer releases its lease in `finally`.
+- A competing indexer receives HTTP 409. SQLite mode remains single-process and does not use a distributed lease.
+- Added unit coverage for acquisition/renewal/pass-through/release, held-lease rejection, SQLite lease rejection, and API conflict mapping.
+- Added PostgreSQL integration tests for ratio and EVM writes, including stale-lease rejection. These tests run only when `TEST_DATABASE_URL` is configured and the migration workflow has applied the schema.
+
+The CI job currently reports failure, but GitHub's job-step and log endpoints are returning no step details / 404. These tests and migrations must not be considered verified until a passing workflow run is available.
+
 ## Required regression tests
 
 - Scheduled collector owns the lease: manual endpoint returns 409, provider is not called, and no store write occurs.
