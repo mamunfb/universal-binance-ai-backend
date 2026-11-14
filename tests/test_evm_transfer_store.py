@@ -527,3 +527,71 @@ async def test_evm_indexer_waits_for_inflight_renewal_after_repeated_cancellatio
 
     assert saved == []
     assert released == [renewed_lease]
+
+
+@pytest.mark.asyncio
+async def test_evm_indexer_reaps_lease_acquired_during_repeated_cancellation(monkeypatch):
+    import threading
+    from types import SimpleNamespace
+    import app.services.evm_transfer_store as evm_module
+
+    acquire_started = threading.Event()
+    finish_acquire = threading.Event()
+    lease = SimpleNamespace(fencing_token=7)
+    released = []
+    rpc_calls = []
+
+    class BlockingLeaseManager:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def acquire(self):
+            acquire_started.set()
+            if not finish_acquire.wait(timeout=3):
+                raise TimeoutError("test acquisition was not released")
+            return lease
+
+        def release(self, current):
+            released.append(current)
+            return True
+
+    class FakeProvider:
+        async def chain_id(self):
+            return 1
+
+        async def block_number(self):
+            rpc_calls.append("block_number")
+            return 100
+
+        async def token_transfer_logs(self, contract, start, end, max_block_span):
+            rpc_calls.append("logs")
+            return []
+
+    class FakeStore:
+        database_url = "postgresql://example/test"
+
+        def save_chunk(self, *args, lease=None):
+            raise AssertionError("cancelled acquisition must not write")
+
+        def coverage(self, *args):
+            return []
+
+    monkeypatch.setattr(evm_module, "PostgresCollectorLease", BlockingLeaseManager)
+    task = asyncio.create_task(index_erc20_transfer_history(
+        FakeProvider(), FakeStore(), CONTRACT, 10, 10, 1, 10, 45
+    ))
+    assert await asyncio.to_thread(acquire_started.wait, 2)
+
+    task.cancel()
+    await asyncio.sleep(0.05)
+    task.cancel()
+    await asyncio.sleep(0.05)
+    assert not task.done()
+    assert released == []
+
+    finish_acquire.set()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert released == [lease]
+    assert rpc_calls == []
