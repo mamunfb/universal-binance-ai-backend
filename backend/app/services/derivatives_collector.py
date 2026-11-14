@@ -14,6 +14,21 @@ from app.services.funding_rates import FundingRateStore
 from app.services.open_interest import OPEN_INTEREST_PERIODS, OpenInterestStore
 
 
+async def _wait_for_worker_task(task: asyncio.Task) -> tuple[Any, BaseException | None]:
+    """Drain blocking workers even when cancellation is requested repeatedly."""
+    while not task.done():
+        try:
+            await asyncio.shield(task)
+        except asyncio.CancelledError:
+            continue
+        except BaseException:
+            break
+    try:
+        return task.result(), None
+    except BaseException as exc:
+        return None, exc
+
+
 def parse_derivatives_jobs(raw: str) -> list[dict[str, str]]:
     try:
         value = json.loads(raw)
@@ -137,8 +152,21 @@ class DerivativesHistoryCollector:
                 self._lease_state = "LOST"
                 self._lease_lost.set()
                 return
+            renew_worker = asyncio.create_task(
+                asyncio.to_thread(self._lease_coordinator.renew, lease)
+            )
             try:
-                renewed = await asyncio.to_thread(self._lease_coordinator.renew, lease)
+                renewed = await asyncio.shield(renew_worker)
+            except asyncio.CancelledError:
+                renewed_during_shutdown, renew_error = await _wait_for_worker_task(renew_worker)
+                if renew_error is not None:
+                    self._status["last_lease_error_type"] = type(renew_error).__name__
+                elif renewed_during_shutdown is not None:
+                    self._lease = renewed_during_shutdown
+                else:
+                    self._lease_state = "LOST"
+                    self._lease_lost.set()
+                raise
             except Exception as exc:
                 self._status["last_lease_error_type"] = type(exc).__name__
                 renewed = None
@@ -162,8 +190,23 @@ class DerivativesHistoryCollector:
             return
 
         while not self._stop_event.is_set():
+            acquire_worker = asyncio.create_task(
+                asyncio.to_thread(self._lease_coordinator.acquire)
+            )
             try:
-                lease = await asyncio.to_thread(self._lease_coordinator.acquire)
+                lease = await asyncio.shield(acquire_worker)
+            except asyncio.CancelledError:
+                acquired_during_shutdown, acquire_error = await _wait_for_worker_task(acquire_worker)
+                if acquire_error is not None:
+                    self._status["last_lease_error_type"] = type(acquire_error).__name__
+                elif acquired_during_shutdown is not None:
+                    release_worker = asyncio.create_task(
+                        asyncio.to_thread(self._lease_coordinator.release, acquired_during_shutdown)
+                    )
+                    _, release_error = await _wait_for_worker_task(release_worker)
+                    if release_error is not None:
+                        self._status["last_lease_error_type"] = type(release_error).__name__
+                raise
             except Exception as exc:
                 self._lease_state = "ACQUIRE_FAILED"
                 self._status["last_lease_error_type"] = type(exc).__name__
@@ -171,7 +214,13 @@ class DerivativesHistoryCollector:
                 continue
             if self._stop_event.is_set():
                 if lease is not None:
-                    await asyncio.to_thread(self._lease_coordinator.release, lease)
+                    release_worker = asyncio.create_task(
+                        asyncio.to_thread(self._lease_coordinator.release, lease)
+                    )
+                    _, release_error = await _wait_for_worker_task(release_worker)
+                    if release_error is not None:
+                        self._lease_state = "RELEASE_FAILED"
+                        self._status["last_lease_error_type"] = type(release_error).__name__
                 break
             if lease is None:
                 self._lease_state = "HELD_BY_OTHER"
@@ -194,7 +243,9 @@ class DerivativesHistoryCollector:
                 self._status["status"] = "DEGRADED"
             finally:
                 renew_task.cancel()
-                await asyncio.gather(renew_task, return_exceptions=True)
+                _, renew_task_error = await _wait_for_worker_task(renew_task)
+                if renew_task_error is not None and not isinstance(renew_task_error, asyncio.CancelledError):
+                    self._status["last_lease_error_type"] = type(renew_task_error).__name__
                 owned_lease = self._lease
                 lost = self._lease_lost.is_set()
                 self._lease = None
@@ -204,10 +255,15 @@ class DerivativesHistoryCollector:
                     self._status["status"] = "LEASE_LOST"
                 elif owned_lease is not None:
                     try:
-                        released = await asyncio.to_thread(
-                            self._lease_coordinator.release, owned_lease
+                        release_worker = asyncio.create_task(
+                            asyncio.to_thread(self._lease_coordinator.release, owned_lease)
                         )
-                        self._lease_state = "RELEASED" if released else "RELEASE_FAILED"
+                        released, release_error = await _wait_for_worker_task(release_worker)
+                        if release_error is not None:
+                            self._lease_state = "RELEASE_FAILED"
+                            self._status["last_lease_error_type"] = type(release_error).__name__
+                        else:
+                            self._lease_state = "RELEASED" if released else "RELEASE_FAILED"
                     except Exception as exc:
                         self._lease_state = "RELEASE_FAILED"
                         self._status["last_lease_error_type"] = type(exc).__name__
@@ -274,11 +330,22 @@ class DerivativesHistoryCollector:
                 return {"status": "NO_NEW_DATA", **job, "received_count": 0}
             if self._lease_lost is not None and self._lease_lost.is_set():
                 raise CollectorLeaseLostError("Derivatives collector lease was lost before funding write")
-            return await asyncio.to_thread(
-                self.funding_store.save, "USD_M", symbol, rows,
-                source="Binance USD-M public REST API (scheduled collector)",
-                lease=self._lease,
+            save_worker = asyncio.create_task(
+                asyncio.to_thread(
+                    self.funding_store.save, "USD_M", symbol, rows,
+                    source="Binance USD-M public REST API (scheduled collector)",
+                    lease=self._lease,
+                )
             )
+            try:
+                return await asyncio.shield(save_worker)
+            except asyncio.CancelledError:
+                _, save_error = await _wait_for_worker_task(save_worker)
+                if isinstance(save_error, CollectorLeaseLostError):
+                    self._lease_state = "LOST"
+                    if self._lease_lost is not None:
+                        self._lease_lost.set()
+                raise
         period = job["period"]
         history = await asyncio.to_thread(self.open_interest_store.history, "USD_M", symbol, period, limit=1)
         latest = history["records"][-1]["timestamp_ms"] if history["records"] else None
@@ -289,11 +356,22 @@ class DerivativesHistoryCollector:
             return {"status": "NO_NEW_DATA", **job, "received_count": 0}
         if self._lease_lost is not None and self._lease_lost.is_set():
             raise CollectorLeaseLostError("Derivatives collector lease was lost before open-interest write")
-        return await asyncio.to_thread(
-            self.open_interest_store.save, "USD_M", symbol, period, rows,
-            source="Binance USD-M public REST API (scheduled collector)",
-            lease=self._lease,
+        save_worker = asyncio.create_task(
+            asyncio.to_thread(
+                self.open_interest_store.save, "USD_M", symbol, period, rows,
+                source="Binance USD-M public REST API (scheduled collector)",
+                lease=self._lease,
+            )
         )
+        try:
+            return await asyncio.shield(save_worker)
+        except asyncio.CancelledError:
+            _, save_error = await _wait_for_worker_task(save_worker)
+            if isinstance(save_error, CollectorLeaseLostError):
+                self._lease_state = "LOST"
+                if self._lease_lost is not None:
+                    self._lease_lost.set()
+            raise
 
     def status(self) -> dict[str, Any]:
         return {
