@@ -104,3 +104,37 @@ def test_collector_validates_polling_and_limits(tmp_path):
     oi = OpenInterestStore(str(tmp_path / "oi.sqlite3"))
     with pytest.raises(ValueError, match="poll_seconds"):
         DerivativesHistoryCollector(funding, oi, lambda _: FakeProvider(), "[]", poll_seconds=1)
+
+
+@pytest.mark.asyncio
+async def test_collector_runs_store_reads_and_writes_off_event_loop(tmp_path, monkeypatch):
+    import threading
+
+    loop_thread = threading.get_ident()
+    observed = []
+    funding = FundingRateStore(str(tmp_path / "funding.sqlite3"))
+    oi = OpenInterestStore(str(tmp_path / "oi.sqlite3"))
+
+    for store in (funding, oi):
+        for method_name in ("history", "save"):
+            original = getattr(store, method_name)
+
+            def wrapped(*args, _original=original, _name=method_name, **kwargs):
+                observed.append((_name, threading.get_ident()))
+                return _original(*args, **kwargs)
+
+            monkeypatch.setattr(store, method_name, wrapped)
+
+    collector = DerivativesHistoryCollector(
+        funding, oi, lambda market: FakeProvider(),
+        '[{"type":"FUNDING_RATE","symbol":"BTCUSDT"},'
+        '{"type":"OPEN_INTEREST","symbol":"BTCUSDT","period":"1h"}]',
+        poll_seconds=30,
+    )
+
+    result = await collector.run_once()
+
+    assert result["successful_jobs"] == 2
+    assert {name for name, _ in observed} == {"history", "save"}
+    assert len(observed) == 4
+    assert all(thread_id != loop_thread for _, thread_id in observed)
