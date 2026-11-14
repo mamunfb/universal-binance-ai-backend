@@ -80,3 +80,189 @@ def test_aggregate_trade_normalization_trims_symbol_and_rejects_empty_symbol():
 
     payload["s"] = "   "
     assert normalize_aggregate_trade(payload, "SPOT") is None
+
+
+def test_aggregate_trade_collector_validates_lease_ttl(tmp_path):
+    import pytest
+    from app.services.aggregate_trade_stream import AggregateTradeCollector
+
+    with pytest.raises(ValueError, match="ttl_seconds"):
+        AggregateTradeCollector(
+            AggregateTradeStore(str(tmp_path / "trades.sqlite3")),
+            lease_database_url="postgresql://example/db",
+            lease_ttl_seconds=2,
+        )
+
+
+def test_aggregate_trade_collector_acquires_stable_lease_and_releases_on_stop(monkeypatch, tmp_path):
+    import asyncio
+    from types import SimpleNamespace
+    from app.services import aggregate_trade_stream as module
+    from app.services.aggregate_trade_stream import AggregateTradeCollector
+
+    class FakeLeaseManager:
+        def __init__(self, database_url, lease_name, ttl_seconds):
+            self.lease_name = lease_name
+            self.ttl_seconds = ttl_seconds
+            self.released = []
+            captured.update(database_url=database_url, lease_name=lease_name, ttl_seconds=ttl_seconds)
+
+        def acquire(self):
+            return SimpleNamespace(fencing_token=17)
+
+        def renew(self, lease):
+            return lease
+
+        def release(self, lease):
+            self.released.append(lease)
+            return True
+
+    captured = {}
+    monkeypatch.setattr(module, "PostgresCollectorLease", FakeLeaseManager)
+    collector = AggregateTradeCollector(
+        AggregateTradeStore(str(tmp_path / "trades.sqlite3")),
+        jobs_json='[{"market":"USD_M","symbol":"BTCUSDT"}]',
+        lease_database_url="postgresql://example/db",
+        lease_ttl_seconds=45,
+    )
+    started = asyncio.Event()
+
+    async def fake_stream(_market, _symbol, _state, _holder, _lost):
+        started.set()
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(collector, "_run_stream", fake_stream)
+
+    async def scenario():
+        collector.start()
+        await asyncio.wait_for(started.wait(), timeout=2)
+        state = collector.status()["jobs"][0]
+        assert state["lease_state"] == "ACTIVE"
+        assert state["lease_name"] == "aggregate-trade:USD_M:BTCUSDT"
+        assert state["fencing_token"] == 17
+        await collector.stop()
+
+    asyncio.run(scenario())
+    assert captured == {
+        "database_url": "postgresql://example/db",
+        "lease_name": "aggregate-trade:USD_M:BTCUSDT",
+        "ttl_seconds": 45,
+    }
+    assert len(collector.tasks) == 0
+
+
+def test_aggregate_trade_collector_waits_when_another_owner_holds_lease(monkeypatch, tmp_path):
+    import asyncio
+    from app.services import aggregate_trade_stream as module
+    from app.services.aggregate_trade_stream import AggregateTradeCollector
+
+    class FakeLeaseManager:
+        lease_name = "aggregate-trade:SPOT:BTCUSDT"
+        ttl_seconds = 30
+
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def acquire(self):
+            return None
+
+    monkeypatch.setattr(module, "PostgresCollectorLease", FakeLeaseManager)
+    collector = AggregateTradeCollector(
+        AggregateTradeStore(str(tmp_path / "trades.sqlite3")),
+        jobs_json='[{"market":"SPOT","symbol":"BTCUSDT"}]',
+        lease_database_url="postgresql://example/db",
+    )
+
+    async def scenario():
+        collector.start()
+        for _ in range(100):
+            if collector.status()["jobs"] and collector.status()["jobs"][0]["lease_state"] == "HELD_BY_OTHER":
+                break
+            await asyncio.sleep(0.01)
+        assert collector.status()["jobs"][0]["lease_state"] == "HELD_BY_OTHER"
+        assert collector.status()["jobs"][0]["connected"] is False
+        await collector.stop()
+
+    asyncio.run(scenario())
+
+
+def test_aggregate_trade_fenced_write_loss_is_terminal(monkeypatch, tmp_path):
+    import asyncio
+    from types import SimpleNamespace
+    import pytest
+    from app.services.collector_lease import CollectorLeaseLostError
+    from app.services.aggregate_trade_stream import AggregateTradeCollector
+
+    class FailingStore:
+        def insert(self, _row, lease=None):
+            raise CollectorLeaseLostError("stale owner")
+
+        def count(self):
+            return 0
+
+    collector = AggregateTradeCollector(FailingStore())
+    state = {"lease_state": "ACTIVE", "last_error": None}
+    lost = asyncio.Event()
+    holder = {"lease": SimpleNamespace(fencing_token=4)}
+    row = normalize_aggregate_trade(sample_trade(), "SPOT")
+
+    async def scenario():
+        with pytest.raises(CollectorLeaseLostError):
+            await collector._persist_trade(row, holder, lost, state)
+
+    asyncio.run(scenario())
+    assert lost.is_set()
+    assert state["lease_state"] == "LOST"
+    assert state["last_error"] == "CollectorLeaseLostError"
+
+
+def test_aggregate_trade_collector_stops_when_lease_renewal_is_lost(monkeypatch, tmp_path):
+    import asyncio
+    from types import SimpleNamespace
+    from app.services import aggregate_trade_stream as module
+    from app.services.aggregate_trade_stream import AggregateTradeCollector
+
+    class FakeLeaseManager:
+        lease_name = "aggregate-trade:SPOT:BTCUSDT"
+        ttl_seconds = 5
+
+        def __init__(self, *_args, **_kwargs):
+            self.released = []
+
+        def acquire(self):
+            return SimpleNamespace(fencing_token=8)
+
+        def renew(self, _lease):
+            return None
+
+        def release(self, lease):
+            self.released.append(lease)
+            return True
+
+    monkeypatch.setattr(module, "PostgresCollectorLease", FakeLeaseManager)
+    collector = AggregateTradeCollector(
+        AggregateTradeStore(str(tmp_path / "trades.sqlite3")),
+        jobs_json='[{"market":"SPOT","symbol":"BTCUSDT"}]',
+        lease_database_url="postgresql://example/db",
+        lease_ttl_seconds=5,
+    )
+    stream_started = asyncio.Event()
+
+    async def fake_stream(_market, _symbol, _state, _holder, _lost):
+        stream_started.set()
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(collector, "_run_stream", fake_stream)
+
+    async def scenario():
+        collector.start()
+        await asyncio.wait_for(stream_started.wait(), timeout=2)
+        for _ in range(200):
+            state = collector.status()["jobs"][0]
+            if state["lease_state"] == "LOST":
+                break
+            await asyncio.sleep(0.01)
+        assert collector.status()["jobs"][0]["lease_state"] == "LOST"
+        await collector.stop()
+
+    asyncio.run(scenario())
