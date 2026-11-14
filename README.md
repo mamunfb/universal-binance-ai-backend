@@ -155,7 +155,7 @@ An opt-in sequence-aware Binance diff-depth collector can maintain local Spot, U
 
 ## Liquidity behavior and aggregate trade flow
 
-Optional aggregate trade streams can be stored locally and compared with sampled order-book depth to report taker-flow imbalance, liquidity-withdrawal candidates and absorption candidates. Configure `AGGREGATE_TRADE_COLLECTOR_ENABLED` and `AGG_TRADE_COLLECTOR_JOBS` alongside the order-book collector. API: `GET /api/v1/analysis/liquidity-behavior/{market}/{symbol}`. This is heuristic research, not proof of spoofing or manipulation. See [Liquidity Behavior Intelligence](docs/LIQUIDITY_BEHAVIOR_INTELLIGENCE.md).
+Optional aggregate trade streams can be stored locally and compared with sampled order-book depth to report taker-flow imbalance, liquidity-withdrawal candidates and absorption candidates. Configure `AGGREGATE_TRADE_COLLECTOR_ENABLED` and `AGGREGATE_TRADE_COLLECTOR_JOBS` alongside the order-book collector. API: `GET /api/v1/analysis/liquidity-behavior/{market}/{symbol}`. This is heuristic research, not proof of spoofing or manipulation. See [Liquidity Behavior Intelligence](docs/LIQUIDITY_BEHAVIOR_INTELLIGENCE.md).
 
 
 ## Aggregate trade order flow intelligence
