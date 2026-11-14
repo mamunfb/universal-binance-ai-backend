@@ -355,6 +355,24 @@ class AggregateTradeCollector:
                 except asyncio.TimeoutError:
                     pass
                 delay = min(delay * 2, 60)
+            else:
+                # A clean WebSocket close ends async iteration without raising.
+                # Treat it as a disconnect too, otherwise the loop reconnects
+                # immediately and can spin if the server repeatedly closes cleanly.
+                if not lease_lost.is_set():
+                    state.update(
+                        connected=False, last_error="WebSocketClosed",
+                        reconnect_count=state["reconnect_count"] + 1,
+                    )
+                    logger.warning(
+                        "Agg-trade stream %s:%s closed; reconnecting after %ss",
+                        market, symbol, delay,
+                    )
+                    try:
+                        await asyncio.wait_for(lease_lost.wait(), timeout=delay)
+                    except asyncio.TimeoutError:
+                        pass
+                    delay = min(delay * 2, 60)
             finally:
                 state["connected"] = False
 
