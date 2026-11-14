@@ -233,11 +233,12 @@ async def request_tracking_middleware(request: Request, call_next):
             client_keys = None
 
         production = settings.app_env.lower() in {"production", "prod"}
+        allowed_client_names = {"chatgpt", "gemini", "manus", "claude", "perplexity"}
         has_valid_client_keys = (
             isinstance(client_keys, dict)
             and all(
                 isinstance(client_keys.get(name), str) and len(client_keys[name]) >= 32
-                for name in ("chatgpt", "gemini", "manus", "claude", "perplexity")
+                for name in allowed_client_names
             )
         )
         has_valid_owner_key = isinstance(configured_key, str) and len(configured_key) >= 32
@@ -260,6 +261,8 @@ async def request_tracking_middleware(request: Request, call_next):
             if scheme.lower() == "bearer" and supplied_key:
                 if isinstance(client_keys, dict):
                     for client_name, client_key in client_keys.items():
+                        if client_name not in allowed_client_names or len(client_key) < 32:
+                            continue
                         if hmac.compare_digest(
                             supplied_key.encode("utf-8"), client_key.encode("utf-8")
                         ):
