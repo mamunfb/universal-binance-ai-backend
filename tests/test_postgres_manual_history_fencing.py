@@ -8,6 +8,9 @@ from app.providers.evm_rpc import TRANSFER_TOPIC
 from app.services.aggregate_trade_stream import AggregateTradeStore
 from app.services.collector_lease import CollectorLeaseLostError, PostgresCollectorLease
 from app.services.derivatives_ratio_store import DerivativesRatioStore
+from app.services.funding_rates import FundingRateStore
+from app.services.historical_klines import HistoricalKlineStore
+from app.services.open_interest import OpenInterestStore
 from app.services.evm_transfer_store import EVMTransferStore
 
 
@@ -257,4 +260,103 @@ def test_postgres_release_rejects_stale_lease_snapshot_after_renewal():
             connection.execute(
                 "DELETE FROM public.collector_leases WHERE lease_name=%s",
                 (lease_name,),
+            )
+
+
+def test_postgres_funding_rate_write_rejects_released_lease():
+    suffix = uuid4().hex[:10].upper()
+    symbol = f"TEST{suffix}"
+    lease_name = f"test-funding-fence:{suffix}"
+    manager = PostgresCollectorLease(DATABASE_URL, lease_name, ttl_seconds=30)
+    lease = manager.acquire()
+    assert lease is not None
+    store = FundingRateStore("unused.sqlite3", DATABASE_URL)
+    row = {"symbol": symbol, "fundingTime": 1_800_000_000_000, "fundingRate": "0.001", "markPrice": "100"}
+    try:
+        result = store.save("USD_M", symbol, [row], lease=lease)
+        assert result["storage"] == "POSTGRESQL"
+        assert store.history("USD_M", symbol)["returned_count"] == 1
+        assert manager.release(lease) is True
+        stale = {**row, "fundingTime": row["fundingTime"] + 28_800_000}
+        with pytest.raises(CollectorLeaseLostError):
+            store.save("USD_M", symbol, [stale], lease=lease)
+        assert store.history("USD_M", symbol)["returned_count"] == 1
+    finally:
+        manager.release(lease)
+        with psycopg.connect(DATABASE_URL) as connection:
+            connection.execute(
+                "DELETE FROM public.historical_funding_rates WHERE market=%s AND symbol=%s",
+                ("USD_M", symbol),
+            )
+            connection.execute(
+                "DELETE FROM public.collector_leases WHERE lease_name=%s", (lease_name,)
+            )
+
+
+def test_postgres_open_interest_write_rejects_released_lease():
+    suffix = uuid4().hex[:10].upper()
+    symbol = f"TEST{suffix}"
+    lease_name = f"test-open-interest-fence:{suffix}"
+    manager = PostgresCollectorLease(DATABASE_URL, lease_name, ttl_seconds=30)
+    lease = manager.acquire()
+    assert lease is not None
+    store = OpenInterestStore("unused.sqlite3", DATABASE_URL)
+    row = {
+        "symbol": symbol, "timestamp": 1_800_000_000_000,
+        "sumOpenInterest": "12.5", "sumOpenInterestValue": "1250",
+    }
+    try:
+        result = store.save("USD_M", symbol, "1h", [row], lease=lease)
+        assert result["storage"] == "POSTGRESQL"
+        assert store.history("USD_M", symbol, "1h")["returned_count"] == 1
+        assert manager.release(lease) is True
+        stale = {**row, "timestamp": row["timestamp"] + 3_600_000}
+        with pytest.raises(CollectorLeaseLostError):
+            store.save("USD_M", symbol, "1h", [stale], lease=lease)
+        assert store.history("USD_M", symbol, "1h")["returned_count"] == 1
+    finally:
+        manager.release(lease)
+        with psycopg.connect(DATABASE_URL) as connection:
+            connection.execute(
+                "DELETE FROM public.historical_open_interest WHERE market=%s AND symbol=%s",
+                ("USD_M", symbol),
+            )
+            connection.execute(
+                "DELETE FROM public.collector_leases WHERE lease_name=%s", (lease_name,)
+            )
+
+
+def test_postgres_historical_kline_write_rejects_released_lease():
+    suffix = uuid4().hex[:10].upper()
+    symbol = f"TEST{suffix}"
+    lease_name = f"test-historical-kline-fence:{suffix}"
+    manager = PostgresCollectorLease(DATABASE_URL, lease_name, ttl_seconds=30)
+    lease = manager.acquire()
+    assert lease is not None
+    store = HistoricalKlineStore("unused.sqlite3", DATABASE_URL)
+    open_time = 1_800_000_000_000
+    row = [
+        open_time, "100", "105", "99", "102", "10",
+        open_time + 59_999, "1020", 5, "4", "408", "0",
+    ]
+    try:
+        result = store.save_klines("SPOT", symbol, "1m", [row], lease=lease)
+        assert result["storage"] == "POSTGRESQL"
+        assert store.history("SPOT", symbol, "1m")["returned_count"] == 1
+        assert manager.release(lease) is True
+        stale = list(row)
+        stale[0] += 60_000
+        stale[6] += 60_000
+        with pytest.raises(CollectorLeaseLostError):
+            store.save_klines("SPOT", symbol, "1m", [stale], lease=lease)
+        assert store.history("SPOT", symbol, "1m")["returned_count"] == 1
+    finally:
+        manager.release(lease)
+        with psycopg.connect(DATABASE_URL) as connection:
+            connection.execute(
+                "DELETE FROM public.historical_klines WHERE market=%s AND symbol=%s AND interval=%s",
+                ("SPOT", symbol, "1m"),
+            )
+            connection.execute(
+                "DELETE FROM public.collector_leases WHERE lease_name=%s", (lease_name,)
             )
