@@ -122,26 +122,27 @@ class DerivativesHistoryCollector:
         provider = self.provider_factory("USD_M")
         symbol = job["symbol"]
         if job["type"] == "FUNDING_RATE":
-            history = self.funding_store.history("USD_M", symbol, limit=1)
+            history = await asyncio.to_thread(self.funding_store.history, "USD_M", symbol, limit=1)
             latest = history["events"][-1]["funding_time_ms"] if history["events"] else None
             rows = await provider.funding_rate(
                 symbol, limit=self.funding_limit, start_time_ms=latest,
             )
             if not rows:
                 return {"status": "NO_NEW_DATA", **job, "received_count": 0}
-            return self.funding_store.save(
-                "USD_M", symbol, rows, source="Binance USD-M public REST API (scheduled collector)"
+            return await asyncio.to_thread(
+                self.funding_store.save, "USD_M", symbol, rows,
+                source="Binance USD-M public REST API (scheduled collector)",
             )
         period = job["period"]
-        history = self.open_interest_store.history("USD_M", symbol, period, limit=1)
+        history = await asyncio.to_thread(self.open_interest_store.history, "USD_M", symbol, period, limit=1)
         latest = history["records"][-1]["timestamp_ms"] if history["records"] else None
         rows = await provider.open_interest_history(
             symbol, period=period, limit=self.open_interest_limit, start_time_ms=latest,
         )
         if not rows:
             return {"status": "NO_NEW_DATA", **job, "received_count": 0}
-        return self.open_interest_store.save(
-            "USD_M", symbol, period, rows,
+        return await asyncio.to_thread(
+            self.open_interest_store.save, "USD_M", symbol, period, rows,
             source="Binance USD-M public REST API (scheduled collector)",
         )
 
