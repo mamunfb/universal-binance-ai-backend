@@ -468,7 +468,18 @@ async def index_erc20_transfer_history(
             f"evm-transfer-indexer:{chain_id}:{contract.lower()}",
             ttl_seconds=lease_ttl_seconds,
         )
-        lease = await asyncio.to_thread(lease_manager.acquire)
+        acquire_task = asyncio.create_task(asyncio.to_thread(lease_manager.acquire))
+        try:
+            lease = await asyncio.shield(acquire_task)
+        except asyncio.CancelledError:
+            try:
+                acquired_during_shutdown = await acquire_task
+                if acquired_during_shutdown is not None:
+                    await asyncio.shield(asyncio.to_thread(
+                        lease_manager.release, acquired_during_shutdown
+                    ))
+            finally:
+                raise
         if lease is None:
             raise CollectorLeaseLostError("Another EVM transfer indexer currently owns this chain/contract lease")
     next_block = from_block
