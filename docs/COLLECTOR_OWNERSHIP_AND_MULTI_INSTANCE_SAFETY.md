@@ -42,7 +42,7 @@ Migration 011 adds public.collector_leases with a monotonic fencing token per na
 
 The primitive alone does not fence existing collector writes. A future integration must update every collector persistence path to validate and lock its lease in the same transaction as the insert/upsert. Network calls must remain outside that transaction. A stale process must stop its stream/polling task when renewal fails, and must never write again with an expired token.
 
-The PostgreSQL integration tests cover simultaneous acquisition by two independent owners, expired-lease takeover and token increment, stale-owner renewal/release/write-guard rejection, renewal, and monotonic token preservation across release. These tests use TEST_DATABASE_URL; a skipped local run is not evidence of PostgreSQL verification.
+The PostgreSQL integration tests cover simultaneous acquisition by two independent owners, expired-lease takeover and token increment, stale-owner renewal/release/write-guard rejection, renewal, monotonic token preservation across release, and a two-session check that an active fenced write transaction blocks an expired lease takeover until commit. These tests use TEST_DATABASE_URL; a skipped local run is not evidence of PostgreSQL verification.
 
 ## Required integration before multi-instance collector operation
 
