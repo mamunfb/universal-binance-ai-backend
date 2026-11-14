@@ -17,12 +17,14 @@ class Settings(BaseSettings):
     http_timeout_seconds: float = 15.0
     liquidation_collector_enabled: bool = False
     liquidation_database_path: str = "data/liquidations.sqlite3"
+    liquidation_collector_lease_ttl_seconds: int = 30
     order_book_collector_enabled: bool = False
     order_book_collector_jobs: str = "[]"
     order_book_database_path: str = "data/order_book_history.sqlite3"
     order_book_sample_interval_seconds: float = 1.0
     order_book_snapshot_limit: int = 1000
     order_book_stored_levels: int = 20
+    order_book_collector_lease_ttl_seconds: int = 30
     aggregate_trade_collector_enabled: bool = False
     aggregate_trade_collector_jobs: str = "[]"
     aggregate_trade_database_path: str = "data/aggregate_trades.sqlite3"

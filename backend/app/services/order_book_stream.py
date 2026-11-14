@@ -190,6 +190,7 @@ class OrderBookStreamCollector:
         futures_provider_factory: Callable[[str], Any],
         jobs_json: str = "[]", sample_interval_seconds: float = 1.0,
         snapshot_limit: int = 1000, stored_levels: int = 20,
+        lease_database_url: str = "", lease_ttl_seconds: int = 30,
     ) -> None:
         self.store = store
         self.spot_provider_factory = spot_provider_factory
@@ -204,6 +205,10 @@ class OrderBookStreamCollector:
         if not 1 <= stored_levels <= snapshot_limit:
             raise ValueError("stored_levels must be between 1 and snapshot_limit")
         self.stored_levels = stored_levels
+        self.lease_database_url = lease_database_url.strip()
+        self.lease_ttl_seconds = lease_ttl_seconds
+        if self.lease_database_url:
+            PostgresCollectorLease(self.lease_database_url, "order-book:validation", ttl_seconds=lease_ttl_seconds)
         self.tasks: list[asyncio.Task] = []
         self.states: dict[str, dict[str, Any]] = {}
         self._stop = asyncio.Event()
@@ -264,76 +269,163 @@ class OrderBookStreamCollector:
     async def _run_job(self, job: dict[str, str]) -> None:
         market, symbol = job["market"], job["symbol"]
         key = f"{market}:{symbol}"
+        lease_name = f"order-book:{key}"
         state = self.states.setdefault(key, {
             "market": market, "symbol": symbol, "connected": False,
             "synchronized": False, "stored_count": 0, "reconnect_count": 0,
             "last_event_at": None, "last_error": None,
+            "lease_state": "NOT_REQUIRED" if not self.lease_database_url else "WAITING",
+            "lease_name": lease_name if self.lease_database_url else None,
+            "fencing_token": None,
         })
-        delay = 1
-        while not self._stop.is_set():
+        lease_manager = (
+            PostgresCollectorLease(self.lease_database_url, lease_name, ttl_seconds=self.lease_ttl_seconds)
+            if self.lease_database_url else None
+        )
+        lease: CollectorLease | None = None
+        lease_lost = asyncio.Event()
+        heartbeat: asyncio.Task | None = None
+
+        async def acquire_safely() -> CollectorLease | None:
+            worker = asyncio.create_task(asyncio.to_thread(lease_manager.acquire))
             try:
-                url = depth_stream_url(market, symbol)
-                async with connect(url, ping_interval=20, ping_timeout=20, close_timeout=10) as socket:
-                    state.update(connected=True, synchronized=False, last_error=None)
-                    queue: asyncio.Queue = asyncio.Queue(maxsize=20000)
-                    reader = asyncio.create_task(self._reader(socket, queue))
-                    try:
-                        snapshot = await self._provider(market).order_book(symbol, self.snapshot_limit)
-                        last_id = int(snapshot["lastUpdateId"])
-                        bids = {float(p): float(q) for p, q in snapshot["bids"] if float(q) > 0}
-                        asks = {float(p): float(q) for p, q in snapshot["asks"] if float(q) > 0}
-                        first_event = True
-                        # Discard stale buffered updates, then bridge the snapshot update ID.
-                        while not queue.empty():
-                            event = queue.get_nowait()
-                            if event is None:
-                                raise RuntimeError("DEPTH_STREAM_CLOSED_DURING_SYNC")
-                            if int(event.get("u", 0)) <= last_id:
-                                continue
-                            self._validate_sequence(market, event, last_id, first_event)
-                            self._apply(event, bids, asks)
-                            self._trim_book(bids, asks)
-                            last_id = int(event["u"])
-                            first_event = False
-                        state["synchronized"] = not first_event
-                        delay = 1
-                        last_sample = 0.0
-                        import time
-                        while not self._stop.is_set():
-                            event = await queue.get()
-                            if event is None:
-                                raise RuntimeError("DEPTH_STREAM_CLOSED")
-                            final_id = int(event.get("u", 0))
-                            if final_id <= last_id:
-                                continue
-                            self._validate_sequence(market, event, last_id, first_event)
-                            self._apply(event, bids, asks)
-                            self._trim_book(bids, asks)
-                            last_id = final_id
-                            first_event = False
-                            state["synchronized"] = True
-                            state["last_event_at"] = datetime.now(timezone.utc).isoformat()
-                            now = time.monotonic()
-                            if now - last_sample >= self.sample_interval_seconds:
-                                row = self._sample(market, symbol, event, last_id, bids, asks)
-                                if row is not None:
-                                    await asyncio.to_thread(self.store.insert, row)
-                                    state["stored_count"] += 1
-                                    last_sample = now
-                    finally:
-                        reader.cancel()
-                        await asyncio.gather(reader, return_exceptions=True)
+                return await asyncio.shield(worker)
             except asyncio.CancelledError:
+                acquired = await worker
+                if acquired is not None:
+                    await asyncio.shield(asyncio.to_thread(lease_manager.release, acquired))
                 raise
-            except Exception as exc:
-                state.update(connected=False, synchronized=False,
-                             last_error=type(exc).__name__, reconnect_count=state["reconnect_count"] + 1)
-                logger.warning("Order-book stream %s reconnecting after %s", key, type(exc).__name__)
-                await asyncio.sleep(delay)
-                delay = min(delay * 2, 60)
-            finally:
-                state["connected"] = False
-                state["synchronized"] = False
+
+        async def renew_lease() -> None:
+            nonlocal lease
+            interval = max(1.0, self.lease_ttl_seconds / 3)
+            while not self._stop.is_set():
+                try:
+                    await asyncio.wait_for(self._stop.wait(), timeout=interval)
+                    return
+                except asyncio.TimeoutError:
+                    pass
+                try:
+                    renewed = await asyncio.to_thread(lease_manager.renew, lease)
+                except Exception as exc:
+                    renewed = None
+                    state["last_error"] = type(exc).__name__
+                if renewed is None:
+                    lease_lost.set()
+                    state["lease_state"] = "LOST"
+                    state["last_error"] = state.get("last_error") or "CollectorLeaseLostError"
+                    logger.error("Order-book lease lost for %s; stopping permanently", key)
+                    return
+                lease = renewed
+                state["fencing_token"] = renewed.fencing_token
+
+        try:
+            if lease_manager is not None:
+                while not self._stop.is_set() and lease is None:
+                    lease = await acquire_safely()
+                    if lease is None:
+                        state["lease_state"] = "HELD_BY_OTHER"
+                        try:
+                            await asyncio.wait_for(self._stop.wait(), timeout=1.0)
+                        except asyncio.TimeoutError:
+                            pass
+                if self._stop.is_set():
+                    return
+                state.update(lease_state="ACTIVE", fencing_token=lease.fencing_token)
+                heartbeat = asyncio.create_task(renew_lease(), name=f"order-book-lease-{key}")
+
+            delay = 1
+            while not self._stop.is_set() and not lease_lost.is_set():
+                try:
+                    async with connect(depth_stream_url(market, symbol), ping_interval=20, ping_timeout=20, close_timeout=10) as socket:
+                        state.update(connected=True, synchronized=False, last_error=None)
+                        queue: asyncio.Queue = asyncio.Queue(maxsize=20000)
+                        reader = asyncio.create_task(self._reader(socket, queue))
+                        try:
+                            snapshot = await self._provider(market).order_book(symbol, self.snapshot_limit)
+                            if lease_lost.is_set():
+                                return
+                            last_id = int(snapshot["lastUpdateId"])
+                            bids = {float(p): float(q) for p, q in snapshot["bids"] if float(q) > 0}
+                            asks = {float(p): float(q) for p, q in snapshot["asks"] if float(q) > 0}
+                            first_event = True
+                            while not queue.empty():
+                                if lease_lost.is_set():
+                                    return
+                                event = queue.get_nowait()
+                                if event is None:
+                                    raise RuntimeError("DEPTH_STREAM_CLOSED_DURING_SYNC")
+                                if int(event.get("u", 0)) <= last_id:
+                                    continue
+                                self._validate_sequence(market, event, last_id, first_event)
+                                self._apply(event, bids, asks)
+                                self._trim_book(bids, asks)
+                                last_id = int(event["u"])
+                                first_event = False
+                            state["synchronized"] = not first_event
+                            delay = 1
+                            last_sample = 0.0
+                            import time
+                            while not self._stop.is_set() and not lease_lost.is_set():
+                                try:
+                                    event = await asyncio.wait_for(queue.get(), timeout=1.0)
+                                except asyncio.TimeoutError:
+                                    continue
+                                if event is None:
+                                    raise RuntimeError("DEPTH_STREAM_CLOSED")
+                                final_id = int(event.get("u", 0))
+                                if final_id <= last_id:
+                                    continue
+                                self._validate_sequence(market, event, last_id, first_event)
+                                self._apply(event, bids, asks)
+                                self._trim_book(bids, asks)
+                                last_id = final_id
+                                first_event = False
+                                state["synchronized"] = True
+                                state["last_event_at"] = datetime.now(timezone.utc).isoformat()
+                                now = time.monotonic()
+                                if now - last_sample >= self.sample_interval_seconds:
+                                    row = self._sample(market, symbol, event, last_id, bids, asks)
+                                    if row is not None:
+                                        await asyncio.to_thread(self.store.insert, row, lease)
+                                        state["stored_count"] += 1
+                                        last_sample = now
+                        finally:
+                            reader.cancel()
+                            await asyncio.gather(reader, return_exceptions=True)
+                except asyncio.CancelledError:
+                    raise
+                except CollectorLeaseLostError:
+                    lease_lost.set()
+                    state.update(lease_state="LOST", last_error="CollectorLeaseLostError")
+                    logger.error("Order-book write fenced for %s; stopping permanently", key)
+                    return
+                except Exception as exc:
+                    if lease_lost.is_set():
+                        return
+                    state.update(connected=False, synchronized=False,
+                                 last_error=type(exc).__name__, reconnect_count=state["reconnect_count"] + 1)
+                    logger.warning("Order-book stream %s reconnecting after %s", key, type(exc).__name__)
+                    try:
+                        await asyncio.wait_for(lease_lost.wait(), timeout=delay)
+                    except asyncio.TimeoutError:
+                        pass
+                    delay = min(delay * 2, 60)
+                finally:
+                    state["connected"] = False
+                    state["synchronized"] = False
+        finally:
+            if heartbeat is not None:
+                heartbeat.cancel()
+                await asyncio.gather(heartbeat, return_exceptions=True)
+            if lease is not None and not lease_lost.is_set():
+                try:
+                    await asyncio.shield(asyncio.to_thread(lease_manager.release, lease))
+                    state["lease_state"] = "RELEASED"
+                except Exception as exc:
+                    state["lease_state"] = "RELEASE_FAILED"
+                    state["last_error"] = type(exc).__name__
+                    logger.exception("Failed to release order-book lease for %s", key)
 
     @staticmethod
     def _validate_sequence(market: str, event: dict[str, Any], last_id: int, first_event: bool) -> None:
