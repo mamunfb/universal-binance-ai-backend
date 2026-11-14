@@ -25,12 +25,17 @@ function api(){
   if(!raw)throw Error('Backend Base URL required');
   let parsed;
   try{parsed=new URL(raw)}catch(_){throw Error('Backend Base URL must be a valid absolute URL')}
+  const authorityMatch=raw.match(/^[a-zA-Z][a-zA-Z\\d+.-]*:\\/\\/([^/?#]*)(.*)$/);
+  const authority=authorityMatch?.[1]??'';
+  const rawSuffix=authorityMatch?.[2]??'';
+  const hasUserInfo=authority.includes('@');
+  const hasNonRootPath=rawSuffix!==''&&rawSuffix!=='/'&&!rawSuffix.startsWith('?')&&!rawSuffix.startsWith('#');
   const hostname=parsed.hostname.toLowerCase();
   const isLocal=['localhost','127.0.0.1','[::1]','::1'].includes(hostname);
   if(parsed.protocol!=='https:'&&!(parsed.protocol==='http:'&&isLocal)){
     throw Error('Backend Base URL must use HTTPS; HTTP is allowed only for localhost development')
   }
-  if(parsed.username||parsed.password||parsed.search||parsed.hash||parsed.pathname!=='/'){
+  if(hasUserInfo||parsed.username||parsed.password||parsed.search||parsed.hash||hasNonRootPath||parsed.pathname!=='/'){
     throw Error('Backend Base URL must contain only an origin (no credentials, path, query, or fragment)')
   }
   return parsed.origin;
