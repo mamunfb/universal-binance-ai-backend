@@ -371,6 +371,7 @@ class AggregateTradeCollector:
         lease_holder: dict[str, CollectorLease | None] = {"lease": None}
         lease_lost = asyncio.Event()
         heartbeat: asyncio.Task | None = None
+        stream: asyncio.Task | None = None
         try:
             if manager is not None:
                 while lease_holder["lease"] is None:
@@ -421,6 +422,10 @@ class AggregateTradeCollector:
                 if lease_lost.is_set():
                     state["lease_state"] = "LOST"
         finally:
+            if stream is not None and not stream.done():
+                stream.cancel()
+            if stream is not None:
+                await asyncio.gather(stream, return_exceptions=True)
             if heartbeat is not None:
                 if not heartbeat.done():
                     heartbeat.cancel()
