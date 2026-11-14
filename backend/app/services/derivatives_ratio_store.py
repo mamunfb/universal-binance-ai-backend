@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from app.services.open_interest import OPEN_INTEREST_PERIODS
+from app.services.collector_lease import CollectorLease, CollectorLeaseLostError, PostgresCollectorLease
 
 
 RATIO_TYPES = {"GLOBAL_LONG_SHORT", "TAKER_BUY_SELL"}
@@ -90,6 +91,7 @@ class DerivativesRatioStore:
     def save(
         self, ratio_type: str, symbol: str, period: str, rows: list[Any],
         source: str = "Binance USD-M Futures public REST API",
+        lease: CollectorLease | None = None,
     ) -> dict[str, Any]:
         ratio_type = ratio_type.upper()
         symbol = symbol.upper().strip()
@@ -116,8 +118,14 @@ class DerivativesRatioStore:
              json.dumps(payload, sort_keys=True, allow_nan=False), source, now)
             for timestamp, payload in normalized
         ]
+        if lease is not None and not self.database_url:
+            raise ValueError("Collector leases require PostgreSQL-backed derivatives-ratio storage")
         if self.database_url:
             with self._connect_postgres() as connection:
+                if lease is not None and not PostgresCollectorLease.lock_if_owned(connection, lease):
+                    raise CollectorLeaseLostError(
+                        "Derivatives-ratio write rejected because the collector lease is no longer owned"
+                    )
                 connection.cursor().executemany("""
                     INSERT INTO public.derivatives_ratio_history (
                         market, ratio_type, symbol, period, timestamp_ms,
