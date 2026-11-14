@@ -5,7 +5,11 @@ import json
 from datetime import datetime, timezone
 from typing import Any, Callable
 
-from app.services.collector_lease import CollectorLease, PostgresCollectorLease
+from app.services.collector_lease import (
+    CollectorLease,
+    CollectorLeaseLostError,
+    PostgresCollectorLease,
+)
 from app.services.historical_klines import HistoricalKlineStore
 
 _INTERVALS = {
@@ -219,6 +223,8 @@ class HistoricalKlineCollector:
         results: list[dict[str, Any]] = []
         try:
             for job in self.jobs:
+                if self._lease_lost is not None and self._lease_lost.is_set():
+                    break
                 market, symbol, interval = job["market"], job["symbol"], job["interval"]
                 try:
                     latest = await asyncio.to_thread(
@@ -265,6 +271,16 @@ class HistoricalKlineCollector:
                     self._last_success_at = datetime.now(timezone.utc).isoformat()
                 except asyncio.CancelledError:
                     raise
+                except CollectorLeaseLostError as exc:
+                    self._lease_state = "LOST"
+                    if self._lease_lost is not None:
+                        self._lease_lost.set()
+                    self._last_error = type(exc).__name__
+                    self._failures += 1
+                    results.append({
+                        **job, "status": "FAILED", "error_type": type(exc).__name__,
+                    })
+                    break
                 except Exception as exc:
                     self._failures += 1
                     self._last_error = type(exc).__name__
@@ -273,7 +289,12 @@ class HistoricalKlineCollector:
                     })
             self._last_results = results
             failed = any(item["status"] == "FAILED" for item in results)
-            status = "INCOMPLETE" if failed else ("IDLE" if not self.jobs else "COMPLETED")
+            status = (
+                "LEASE_LOST" if self._lease_lost is not None and self._lease_lost.is_set()
+                else "INCOMPLETE" if failed
+                else "IDLE" if not self.jobs
+                else "COMPLETED"
+            )
             return {
                 "status": status,
                 "cycle": self._cycles,
