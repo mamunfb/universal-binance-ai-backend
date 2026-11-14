@@ -4,6 +4,7 @@ The CI workflow supplies TEST_DATABASE_URL and applies all SQL migrations first.
 """
 from __future__ import annotations
 
+import json
 import os
 import time
 import uuid
@@ -16,6 +17,9 @@ from app.services.collector_lease import CollectorLeaseLostError, PostgresCollec
 from app.services.funding_rates import FundingRateStore
 from app.services.historical_klines import HistoricalKlineStore
 from app.services.open_interest import OpenInterestStore
+from app.services.order_book_stream import OrderBookHistoryStore
+from app.services.aggregate_trade_stream import AggregateTradeStore
+from app.services.liquidation_collector import LiquidationStore, normalize_force_order
 
 
 requires_postgres = pytest.mark.skipif(
@@ -254,5 +258,131 @@ def test_open_interest_store_rejects_stale_lease_and_accepts_current_owner():
         with psycopg.connect(os.environ["TEST_DATABASE_URL"]) as connection:
             connection.execute(
                 "DELETE FROM public.historical_open_interest WHERE symbol = %s", (symbol,)
+            )
+            connection.execute("DELETE FROM public.collector_leases WHERE lease_name = %s", (name,))
+
+
+
+@requires_postgres
+def test_order_book_store_rejects_stale_lease_and_accepts_current_owner():
+    name = f"lease-test-{uuid.uuid4().hex}"
+    symbol = f"BOOK{uuid.uuid4().hex[:8].upper()}"
+    first, second = _lease(name), _lease(name)
+    store = OrderBookHistoryStore(":unused:", database_url=os.environ["TEST_DATABASE_URL"])
+
+    def sample(update_id):
+        return {
+            "market": "SPOT", "symbol": symbol, "event_time_ms": 1_700_000_000_000,
+            "transaction_time_ms": 1_700_000_000_000, "update_id": update_id,
+            "sampled_at": "2026-11-14T00:00:00+00:00", "best_bid": 100.0,
+            "best_ask": 101.0, "mid_price": 100.5, "spread_bps": 99.5,
+            "bid_notional": 100.0, "ask_notional": 101.0,
+            "depth_imbalance": -0.004975, "bids": [[100.0, 1.0]],
+            "asks": [[101.0, 1.0]],
+        }
+
+    try:
+        old_lease = first.acquire()
+        assert old_lease is not None
+        store.insert(sample(100), lease=old_lease)
+        with psycopg.connect(os.environ["TEST_DATABASE_URL"]) as connection:
+            connection.execute(
+                "UPDATE public.collector_leases SET lease_expires_at = clock_timestamp() - INTERVAL '1 second' WHERE lease_name = %s",
+                (name,),
+            )
+        current_lease = second.acquire()
+        assert current_lease is not None
+        with pytest.raises(CollectorLeaseLostError):
+            store.insert(sample(101), lease=old_lease)
+        store.insert(sample(102), lease=current_lease)
+        assert store.count("SPOT", symbol) == 2
+    finally:
+        with psycopg.connect(os.environ["TEST_DATABASE_URL"]) as connection:
+            connection.execute(
+                "DELETE FROM public.order_book_samples WHERE market='SPOT' AND symbol=%s",
+                (symbol,),
+            )
+            connection.execute("DELETE FROM public.collector_leases WHERE lease_name = %s", (name,))
+
+
+@requires_postgres
+def test_aggregate_trade_store_rejects_stale_lease_and_accepts_current_owner():
+    name = f"lease-test-{uuid.uuid4().hex}"
+    symbol = f"AGG{uuid.uuid4().hex[:8].upper()}"
+    first, second = _lease(name), _lease(name)
+    store = AggregateTradeStore(":unused:", database_url=os.environ["TEST_DATABASE_URL"])
+
+    def trade(trade_id):
+        return {
+            "market": "SPOT", "symbol": symbol, "trade_id": trade_id,
+            "event_time_ms": 1_700_000_000_000, "trade_time_ms": 1_700_000_000_000,
+            "price": 100.0, "quantity": 1.0, "notional": 100.0,
+            "buyer_is_maker": False, "aggressor_side": "BUY",
+            "raw_json": json.dumps({"a": trade_id, "s": symbol}),
+        }
+
+    try:
+        old_lease = first.acquire()
+        assert old_lease is not None
+        store.insert(trade(100), lease=old_lease)
+        with psycopg.connect(os.environ["TEST_DATABASE_URL"]) as connection:
+            connection.execute(
+                "UPDATE public.collector_leases SET lease_expires_at = clock_timestamp() - INTERVAL '1 second' WHERE lease_name = %s",
+                (name,),
+            )
+        current_lease = second.acquire()
+        assert current_lease is not None
+        with pytest.raises(CollectorLeaseLostError):
+            store.insert(trade(101), lease=old_lease)
+        store.insert(trade(102), lease=current_lease)
+        assert store.count("SPOT", symbol) == 2
+    finally:
+        with psycopg.connect(os.environ["TEST_DATABASE_URL"]) as connection:
+            connection.execute(
+                "DELETE FROM public.aggregate_trades WHERE market='SPOT' AND symbol=%s",
+                (symbol,),
+            )
+            connection.execute("DELETE FROM public.collector_leases WHERE lease_name = %s", (name,))
+
+
+@requires_postgres
+def test_liquidation_store_rejects_stale_lease_and_accepts_current_owner():
+    name = f"lease-test-{uuid.uuid4().hex}"
+    symbol = f"LIQ{uuid.uuid4().hex[:8].upper()}"
+    first, second = _lease(name), _lease(name)
+    store = LiquidationStore(":unused:", database_url=os.environ["TEST_DATABASE_URL"])
+
+    def event(event_time):
+        message = {
+            "e": "forceOrder", "E": event_time, "st": 1,
+            "o": {
+                "s": symbol, "ps": symbol, "S": "SELL", "o": "LIMIT",
+                "q": "0.02", "p": "50000", "ap": "49900", "X": "FILLED",
+                "l": "0.02", "z": "0.02", "T": event_time - 23,
+            },
+        }
+        normalized = normalize_force_order(message)
+        assert normalized is not None
+        return normalized
+
+    try:
+        old_lease = first.acquire()
+        assert old_lease is not None
+        store.insert(event(1_700_000_000_000), lease=old_lease)
+        with psycopg.connect(os.environ["TEST_DATABASE_URL"]) as connection:
+            connection.execute(
+                "UPDATE public.collector_leases SET lease_expires_at = clock_timestamp() - INTERVAL '1 second' WHERE lease_name = %s",
+                (name,),
+            )
+        current_lease = second.acquire()
+        assert current_lease is not None
+        with pytest.raises(CollectorLeaseLostError):
+            store.insert(event(1_700_000_000_100), lease=old_lease)
+        store.insert(event(1_700_000_000_200), lease=current_lease)
+        assert len(store.recent(symbol, 10)) == 2
+    finally:
+        with psycopg.connect(os.environ["TEST_DATABASE_URL"]) as connection:
+            connection.execute(
+                "DELETE FROM public.liquidation_events WHERE symbol = %s", (symbol,)
             )
             connection.execute("DELETE FROM public.collector_leases WHERE lease_name = %s", (name,))
