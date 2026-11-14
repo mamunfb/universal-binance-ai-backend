@@ -21,7 +21,7 @@ ORDER_BOOK_COLLECTOR_ENABLED=true
 ORDER_BOOK_COLLECTOR_JOBS=[{"market":"USD_M","symbol":"BTCUSDT"}]
 
 AGGREGATE_TRADE_COLLECTOR_ENABLED=true
-AGG_TRADE_COLLECTOR_JOBS=[{"market":"USD_M","symbol":"BTCUSDT"}]
+AGGREGATE_TRADE_COLLECTOR_JOBS=[{"market":"USD_M","symbol":"BTCUSDT"}]
 # Optional SQLite fallback path; DATABASE_URL selects PostgreSQL/Neon when configured.
 AGGREGATE_TRADE_DATABASE_PATH=data/aggregate_trades.sqlite3
 ```
