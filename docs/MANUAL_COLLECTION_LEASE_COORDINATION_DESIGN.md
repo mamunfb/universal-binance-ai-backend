@@ -13,7 +13,7 @@ This design covers operator-triggered HTTP collection endpoints that write marke
 - `DerivativesHistoryCollector` uses one stable `derivatives-history-collector` lease and passes it to the funding-rate and open-interest store writes.
 - `FundingRateStore.save` and `OpenInterestStore.save` accept optional leases and fence PostgreSQL writes in the same transaction.
 
-- `DerivativesRatioStore.save` currently has no lease parameter or same-transaction fencing check; its manual collection endpoint writes directly.
+- `DerivativesRatioStore.save` accepts an optional lease and validates ownership with `lock_if_owned` in the same PostgreSQL transaction as its upsert; the manual ratio endpoint acquires a dedicated per-series lease.
 - `main.py` initializes `EVMTransferStore` with `settings.database_url`, so the service uses PostgreSQL when configured and SQLite otherwise. `save_chunk` accepts an optional lease and validates it with `lock_if_owned` in the same transaction as transfer inserts and range-coverage writes.
 - The EVM indexer now acquires a per-chain/per-contract lease (`evm-transfer-indexer:{chain_id}:{contract}`) in PostgreSQL mode, renews it after each RPC chunk and before the protected write, passes it into `save_chunk`, and releases it in `finally`. Acquisition cancellation attempts to release a lease acquired during shutdown. SQLite mode remains single-process and does not use a distributed lease. Migration `012_manual_history_and_evm_transfer.sql` creates the PostgreSQL derivatives-ratio, EVM transfer, and EVM range-coverage tables. A `TEST_DATABASE_URL` integration test now exercises both fenced stores against the migrated PostgreSQL schema.
 
@@ -88,9 +88,9 @@ The CI job currently reports failure, but GitHub's job-step and log endpoints ar
 
 ## Manual endpoint cancellation and blocking-worker lifecycle
 
-The manual historical-kline, funding-rate, open-interest, and derivatives-ratio endpoints now route blocking PostgreSQL lease acquisition, renewal, protected writes, and release through a shared thread-worker drain helper. If a request is cancelled while a database worker is active, the endpoint waits for the thread to finish before propagating cancellation. Acquisition cleanup attempts to release any lease acquired during shutdown; renewal completion updates the local lease snapshot before cleanup; and protected writes are drained before the `finally` release path proceeds. Regression tests cover repeated cancellation during a blocking worker, cancellation during derivatives lease acquisition with lease reaping, and cancellation during lease release.
+The manual historical-kline, funding-rate, open-interest, and derivatives-ratio endpoints now route blocking PostgreSQL lease acquisition, renewal, protected writes, and release through a shared thread-worker drain helper. If a request is cancelled while a database worker is active, the endpoint waits for the thread to finish before propagating cancellation. Acquisition cleanup attempts to release any lease acquired during shutdown; renewal completion updates the local lease snapshot before cleanup; and protected writes are drained before the `finally` release path proceeds. Five regression tests cover repeated cancellation during a blocking worker, derivatives lease acquisition with lease reaping, lease release, latest-lease release after a cancelled renewal, and draining a kline write before releasing the renewed lease.
 
-These changes are not yet test-verified. The latest GitHub Actions run fails before runner assignment (`runner_id=0`, empty runner name, and no job steps), and the job log endpoint returns `BlobNotFound`. Do not treat these tests or the full workflow as passing until a runner executes the test suite successfully.
+These changes are not yet test-verified. The latest GitHub Actions run #1644 (head `43d31322a4df1e3bd7202f94383ec946843fec97`) fails before runner assignment (`runner_id=0`, empty runner name, and no job steps); the job log endpoint returns `BlobNotFound`. Do not treat these tests or the full workflow as passing until a runner executes the test suite successfully.
 
 ## Required regression tests
 
