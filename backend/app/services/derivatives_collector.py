@@ -97,7 +97,6 @@ class DerivativesHistoryCollector:
     async def stop(self) -> None:
         self._stop_event.set()
         task = self._task
-        self._task = None
         if task is not None:
             if not task.done():
                 task.cancel()
@@ -105,6 +104,9 @@ class DerivativesHistoryCollector:
                 await task
             except asyncio.CancelledError:
                 pass
+            finally:
+                if self._task is task:
+                    self._task = None
         if self._lease_state != "LOST":
             self._status["status"] = "STOPPED"
 
