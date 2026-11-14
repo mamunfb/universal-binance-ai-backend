@@ -53,6 +53,13 @@ def test_aggregate_trade_stream_urls():
     assert "wss://dstream.binance.com/ws/btcusd_perp@aggTrade" == aggregate_trade_stream_url("COIN_M", "BTCUSD_PERP")
 
 
+def test_aggregate_trade_normalization_rejects_fractional_integer_fields():
+    for field in ("a", "E", "T"):
+        payload = sample_trade()
+        payload[field] = 1.5
+        assert normalize_aggregate_trade(payload, "SPOT") is None
+
+
 def test_aggregate_trade_normalization_rejects_invalid_database_values():
     invalid_cases = [
         ("SPOT", {"a": -1}),
