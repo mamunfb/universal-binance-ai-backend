@@ -159,3 +159,65 @@ def test_collector_status_remains_available_when_storage_count_fails():
     assert status["storage_status"] == "UNAVAILABLE"
     assert status["storage_error"] == "RuntimeError"
     assert "sensitive database connection detail" not in str(status)
+
+
+
+def test_collector_retries_storage_without_reconnecting_and_redacts_error(monkeypatch):
+    class FlakyStore:
+        def __init__(self):
+            self.attempts = 0
+
+        def insert(self, _event):
+            self.attempts += 1
+            if self.attempts <= 2:
+                raise RuntimeError("sensitive database connection detail")
+
+        def count(self):
+            return 1
+
+    delays = []
+
+    async def record_sleep(delay):
+        delays.append(delay)
+
+    monkeypatch.setattr(liquidation_module.asyncio, "sleep", record_sleep)
+    store = FlakyStore()
+    collector = LiquidationCollector(store)
+    event = normalize_force_order(sample_message())
+
+    asyncio.run(collector._persist_event(event))
+
+    assert store.attempts == 3
+    assert delays == [1, 2]
+    assert collector.storage_error is None
+    assert collector.storage_retry_count == 2
+    status = collector.status()
+    assert status["storage_status"] == "AVAILABLE"
+    assert status["storage_error"] is None
+    assert status["storage_retry_count"] == 2
+    assert "sensitive database connection detail" not in str(status)
+
+
+def test_collector_storage_status_reports_degraded_after_write_failure(monkeypatch):
+    class BrokenStore:
+        def insert(self, _event):
+            raise RuntimeError("sensitive database connection detail")
+
+        def count(self):
+            return 0
+
+    async def stop_after_first_retry(_delay):
+        raise asyncio.CancelledError
+
+    monkeypatch.setattr(liquidation_module.asyncio, "sleep", stop_after_first_retry)
+    collector = LiquidationCollector(BrokenStore())
+    event = normalize_force_order(sample_message())
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(collector._persist_event(event))
+
+    status = collector.status()
+    assert status["storage_status"] == "DEGRADED"
+    assert status["storage_error"] == "RuntimeError"
+    assert status["storage_retry_count"] == 1
+    assert "sensitive database connection detail" not in str(status)
