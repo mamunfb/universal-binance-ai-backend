@@ -73,3 +73,6 @@ This is a code-level implementation claim only. The new regression tests have no
 - Do not assume Neon shared storage prevents duplicate subscriptions or upstream polling.
 - Do not introduce retention deletion until archive, restore, and integrity verification are complete.
 - Do not treat the platform as multi-instance-ready. Historical-kline, derivatives-history, liquidation, order-book, aggregate-trade, manual derivatives-ratio, and EVM transfer indexer paths now have PostgreSQL lease fencing. CI diagnosis and successful PostgreSQL concurrency verification remain outstanding. Migrations 011/012 and the lease class are not authorization to enable multi-instance collectors.
+
+
+Collector constructors now fail fast when a PostgreSQL-backed store is supplied without a lease database URL. This applies to aggregate-trade, order-book, liquidation, derivatives-history, and historical-kline collectors. It prevents a misconfigured PostgreSQL collector from entering a reconnect/poll loop that can never persist because the store correctly rejects writes without a lease. SQLite/local mode remains available without a lease and remains single-process-only. Regression coverage is in `tests/test_collector_lease_configuration.py`; execution is pending a CI runner with accessible job logs.
