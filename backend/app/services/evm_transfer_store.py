@@ -450,6 +450,7 @@ async def index_erc20_transfer_history(
     to_block: int,
     chunk_size: int,
     max_total_blocks: int,
+    lease_ttl_seconds: int = 30,
 ) -> dict[str, Any]:
     if from_block < 0 or to_block < from_block:
         raise ValueError("Invalid block range")
@@ -459,23 +460,42 @@ async def index_erc20_transfer_history(
     if total_blocks > max_total_blocks:
         raise ValueError(f"Requested history exceeds maximum of {max_total_blocks} blocks")
     chain_id = await provider.chain_id()
-    latest_block = await provider.block_number()
-    if to_block > latest_block:
-        raise ValueError(f"to_block {to_block} is ahead of latest block {latest_block}")
+    lease_manager = None
+    lease = None
+    if store.database_url:
+        lease_manager = PostgresCollectorLease(
+            store.database_url,
+            f"evm-transfer-indexer:{chain_id}:{contract.lower()}",
+            ttl_seconds=lease_ttl_seconds,
+        )
+        lease = await asyncio.to_thread(lease_manager.acquire)
+        if lease is None:
+            raise CollectorLeaseLostError("Another EVM transfer indexer currently owns this chain/contract lease")
     next_block = from_block
     indexed_logs = 0
     completed_chunks = 0
     try:
+        latest_block = await provider.block_number()
+        if to_block > latest_block:
+            raise ValueError(f"to_block {to_block} is ahead of latest block {latest_block}")
         while next_block <= to_block:
             chunk_end = min(next_block + chunk_size - 1, to_block)
             logs = await provider.token_transfer_logs(
                 contract, next_block, chunk_end, max_block_span=chunk_size
             )
+            if lease_manager is not None:
+                renewed = await asyncio.to_thread(lease_manager.renew, lease)
+                if renewed is None:
+                    raise CollectorLeaseLostError("EVM transfer indexer lease was lost before chunk write")
+                lease = renewed
             indexed_logs += await asyncio.to_thread(
-                store.save_chunk, chain_id, contract, next_block, chunk_end, logs
+                store.save_chunk, chain_id, contract, next_block, chunk_end, logs,
+                lease=lease,
             )
             completed_chunks += 1
             next_block = chunk_end + 1
+    except CollectorLeaseLostError:
+        raise
     except Exception as exc:
         return {
             "status": "PARTIAL" if completed_chunks else "FAILED",
@@ -487,6 +507,13 @@ async def index_erc20_transfer_history(
             "error": f"{type(exc).__name__}: {str(exc)[:300]}",
             "coverage_note": "Only fully successful chunks are recorded. Retry from next_block_to_retry; writes are idempotent.",
         }
+    finally:
+        if lease_manager is not None and lease is not None:
+            try:
+                await asyncio.shield(asyncio.to_thread(lease_manager.release, lease))
+            except Exception:
+                # A lease expires automatically; do not hide the indexing result.
+                pass
     return {
         "status": "COMPLETED", "chain_id": chain_id, "contract_address": contract.lower(),
         "requested_range": {"from": from_block, "to": to_block},
