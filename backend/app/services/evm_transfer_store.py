@@ -130,6 +130,8 @@ class EVMTransferStore:
                 raise ValueError("RPC Transfer log falls outside the requested range or has a negative amount")
             rows.append((chain_id, contract.lower(), tx_hash.lower(), log_index, block_number,
                          sender, recipient, str(raw_value), bool(log.get("removed")), now))
+        if self.database_url and lease is None:
+            raise ValueError("PostgreSQL EVM transfer writes require an active collector lease")
         if lease is not None and not self.database_url:
             raise ValueError("Collector leases require PostgreSQL-backed EVM transfer storage")
         with self._connect() as connection:
