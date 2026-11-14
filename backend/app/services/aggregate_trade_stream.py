@@ -364,7 +364,7 @@ class AggregateTradeCollector:
                 # A clean WebSocket close ends async iteration without raising.
                 # Preserve backoff for short-lived connections; reset it only
                 # after a connection has remained healthy for at least 30s.
-                if "connection_started_at" in locals() and (
+                if connection_started_at is not None and (
                     asyncio.get_running_loop().time() - connection_started_at >= 30
                 ):
                     delay = 1
