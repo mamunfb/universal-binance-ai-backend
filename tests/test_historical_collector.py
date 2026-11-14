@@ -270,3 +270,17 @@ def test_runtime_collector_stops_when_fenced_write_rejects_lease(monkeypatch):
     assert len(store.saved_leases) == 1
     assert coordinator.released == 0
     assert collector.status()["lease_state"] == "LOST"
+
+def test_status_describes_manual_and_scheduled_kline_lease_coverage():
+    collector = HistoricalKlineCollector(
+        store=object(),
+        spot_provider_factory=lambda: None,
+        futures_provider_factory=lambda _market: None,
+        jobs_json="[]",
+        lease_database_url="postgresql://localhost/test",
+    )
+
+    warning = collector.status()["warning"]
+    assert "scheduled and manual historical-kline collection" in warning
+    assert "other collector families" in warning
+
