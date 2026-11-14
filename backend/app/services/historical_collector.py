@@ -213,6 +213,10 @@ class HistoricalKlineCollector:
             if renewed is None:
                 self._lease_state = "LOST"
                 self._lease_lost.set()
+                # Interrupt any in-flight provider await; the fenced store write
+                # remains the final authority if a worker thread is already running.
+                if self._task is not None and not self._task.done():
+                    self._task.cancel()
                 return
             self._lease = renewed
 
@@ -317,6 +321,10 @@ class HistoricalKlineCollector:
             "successful_jobs": self._successes,
             "failed_jobs": self._failures,
             "lease_state": self._lease_state,
+            "lease_name": (
+                self._lease_coordinator.lease_name
+                if self._lease_coordinator is not None else None
+            ),
             "lease_fencing_token": (
                 self._lease.fencing_token if self._lease is not None else None
             ),
@@ -324,5 +332,11 @@ class HistoricalKlineCollector:
             "last_success_at": self._last_success_at,
             "last_error_type": self._last_error,
             "last_results": self._last_results,
-            "warning": "The collector only runs while this application process is alive. Use persistent storage and one collector process per database.",
+            "warning": (
+                "PostgreSQL lease fencing covers scheduled historical-kline writes only; "
+                "manual collection endpoints and other collector families are not coordinated."
+                if self._lease_coordinator is not None else
+                "The collector only runs while this application process is alive. "
+                "Use persistent storage and one collector process per database."
+            ),
         }
