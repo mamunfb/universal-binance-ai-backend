@@ -132,6 +132,8 @@ async def lifespan(_: FastAPI):
                 poll_seconds=settings.derivatives_collector_poll_seconds,
                 funding_limit=settings.derivatives_collector_funding_limit,
                 open_interest_limit=settings.derivatives_collector_open_interest_limit,
+                lease_database_url=settings.database_url,
+                lease_ttl_seconds=settings.derivatives_collector_lease_ttl_seconds,
             )
             derivatives_collector.start()
         if settings.historical_collector_enabled:

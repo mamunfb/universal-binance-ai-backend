@@ -8,6 +8,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from app.services.collector_lease import (
+    CollectorLease,
+    CollectorLeaseLostError,
+    PostgresCollectorLease,
+)
+
 
 class FundingRateStore:
     """Idempotent local storage for Binance USD-M funding events."""
@@ -71,6 +77,7 @@ class FundingRateStore:
     def save(
         self, market: str, symbol: str, rows: list[Any],
         source: str = "Binance USD-M public REST API",
+        lease: CollectorLease | None = None,
     ) -> dict[str, Any]:
         market = market.upper()
         symbol = symbol.upper().strip()
@@ -90,8 +97,14 @@ class FundingRateStore:
         now = datetime.now(timezone.utc).isoformat()
         values = [(market, symbol, timestamp, rate, mark, source, now)
                   for timestamp, rate, mark in normalized]
+        if lease is not None and not self.database_url:
+            raise ValueError("Collector leases require PostgreSQL-backed funding storage")
         if self.database_url:
             with self._connect_postgres() as connection:
+                if lease is not None and not PostgresCollectorLease.lock_if_owned(connection, lease):
+                    raise CollectorLeaseLostError(
+                        "Funding-rate write rejected because the collector lease is no longer owned"
+                    )
                 connection.cursor().executemany("""
                     INSERT INTO public.historical_funding_rates (
                         market, symbol, funding_time_ms, funding_rate, mark_price, source, collected_at

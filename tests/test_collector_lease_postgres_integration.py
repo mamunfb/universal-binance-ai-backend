@@ -13,7 +13,9 @@ import psycopg
 import pytest
 
 from app.services.collector_lease import CollectorLeaseLostError, PostgresCollectorLease
+from app.services.funding_rates import FundingRateStore
 from app.services.historical_klines import HistoricalKlineStore
+from app.services.open_interest import OpenInterestStore
 
 
 requires_postgres = pytest.mark.skipif(
@@ -179,5 +181,78 @@ def test_historical_kline_store_rejects_stale_lease_and_accepts_current_owner():
             connection.execute(
                 "DELETE FROM public.historical_klines WHERE market = 'SPOT' AND symbol = %s",
                 (symbol,),
+            )
+            connection.execute("DELETE FROM public.collector_leases WHERE lease_name = %s", (name,))
+
+
+
+@requires_postgres
+def test_funding_rate_store_rejects_stale_lease_and_accepts_current_owner():
+    name = f"lease-test-{uuid.uuid4().hex}"
+    symbol = f"FUND{uuid.uuid4().hex[:8].upper()}"
+    first, second = _lease(name), _lease(name)
+    store = FundingRateStore(":unused:", database_url=os.environ["TEST_DATABASE_URL"])
+    event = {
+        "symbol": symbol, "fundingTime": 1_700_000_040_000,
+        "fundingRate": "0.0001", "markPrice": "37000",
+    }
+    try:
+        old_lease = first.acquire()
+        assert old_lease is not None
+        store.save("USD_M", symbol, [event], lease=old_lease)
+        with psycopg.connect(os.environ["TEST_DATABASE_URL"]) as connection:
+            connection.execute(
+                "UPDATE public.collector_leases SET lease_expires_at = clock_timestamp() - INTERVAL '1 second' WHERE lease_name = %s",
+                (name,),
+            )
+        current_lease = second.acquire()
+        assert current_lease is not None
+        stale_event = {**event, "fundingTime": event["fundingTime"] + 8 * 60 * 60 * 1000}
+        with pytest.raises(CollectorLeaseLostError):
+            store.save("USD_M", symbol, [stale_event], lease=old_lease)
+        accepted_event = {**event, "fundingTime": event["fundingTime"] + 16 * 60 * 60 * 1000}
+        result = store.save("USD_M", symbol, [accepted_event], lease=current_lease)
+        assert result["stored_count"] == 1
+        assert store.history("USD_M", symbol)["returned_count"] == 2
+    finally:
+        with psycopg.connect(os.environ["TEST_DATABASE_URL"]) as connection:
+            connection.execute(
+                "DELETE FROM public.historical_funding_rates WHERE symbol = %s", (symbol,)
+            )
+            connection.execute("DELETE FROM public.collector_leases WHERE lease_name = %s", (name,))
+
+
+@requires_postgres
+def test_open_interest_store_rejects_stale_lease_and_accepts_current_owner():
+    name = f"lease-test-{uuid.uuid4().hex}"
+    symbol = f"OPEN{uuid.uuid4().hex[:8].upper()}"
+    first, second = _lease(name), _lease(name)
+    store = OpenInterestStore(":unused:", database_url=os.environ["TEST_DATABASE_URL"])
+    record = {
+        "symbol": symbol, "timestamp": 1_700_000_040_000,
+        "sumOpenInterest": "10", "sumOpenInterestValue": "1000",
+    }
+    try:
+        old_lease = first.acquire()
+        assert old_lease is not None
+        store.save("USD_M", symbol, "1h", [record], lease=old_lease)
+        with psycopg.connect(os.environ["TEST_DATABASE_URL"]) as connection:
+            connection.execute(
+                "UPDATE public.collector_leases SET lease_expires_at = clock_timestamp() - INTERVAL '1 second' WHERE lease_name = %s",
+                (name,),
+            )
+        current_lease = second.acquire()
+        assert current_lease is not None
+        stale_record = {**record, "timestamp": record["timestamp"] + 60 * 60 * 1000}
+        with pytest.raises(CollectorLeaseLostError):
+            store.save("USD_M", symbol, "1h", [stale_record], lease=old_lease)
+        accepted_record = {**record, "timestamp": record["timestamp"] + 2 * 60 * 60 * 1000}
+        result = store.save("USD_M", symbol, "1h", [accepted_record], lease=current_lease)
+        assert result["stored_count"] == 1
+        assert store.history("USD_M", symbol, "1h")["returned_count"] == 2
+    finally:
+        with psycopg.connect(os.environ["TEST_DATABASE_URL"]) as connection:
+            connection.execute(
+                "DELETE FROM public.historical_open_interest WHERE symbol = %s", (symbol,)
             )
             connection.execute("DELETE FROM public.collector_leases WHERE lease_name = %s", (name,))

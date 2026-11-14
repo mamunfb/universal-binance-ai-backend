@@ -32,6 +32,12 @@ def test_open_interest_store_upserts_same_timestamp(tmp_path):
     assert history["records"][0]["sum_open_interest"] == 124.0
 
 
+def test_open_interest_store_rejects_lease_with_sqlite_storage(tmp_path):
+    store = OpenInterestStore(str(tmp_path / "oi.sqlite3"))
+    with pytest.raises(ValueError, match="PostgreSQL"):
+        store.save("USD_M", "BTCUSDT", "1h", [record()], lease=object())
+
+
 def test_open_interest_periods_are_separate_series(tmp_path):
     store = OpenInterestStore(str(tmp_path / "oi.sqlite3"))
     store.save("USD_M", "BTCUSDT", "1h", [record()])

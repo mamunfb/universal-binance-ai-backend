@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     derivatives_collector_poll_seconds: int = 60
     derivatives_collector_funding_limit: int = 1000
     derivatives_collector_open_interest_limit: int = 500
+    derivatives_collector_lease_ttl_seconds: int = 30
     historical_collector_enabled: bool = False
     historical_collector_jobs: str = "[]"
     historical_collector_poll_seconds: int = 30
