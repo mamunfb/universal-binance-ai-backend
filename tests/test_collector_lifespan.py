@@ -50,3 +50,24 @@ async def test_lifespan_stops_started_collectors_when_later_startup_fails(monkey
         "liquidation-stop",
     ]
     assert main.order_book_collector is None
+
+
+@pytest.mark.anyio
+async def test_lifespan_rejects_enabled_aggregate_trade_collector_without_jobs(monkeypatch):
+    monkeypatch.setattr(main.settings, "require_database_url", False)
+    monkeypatch.setattr(main.settings, "liquidation_collector_enabled", False)
+    monkeypatch.setattr(main.settings, "order_book_collector_enabled", False)
+    monkeypatch.setattr(main.settings, "aggregate_trade_collector_enabled", True)
+    monkeypatch.setattr(main.settings, "aggregate_trade_collector_jobs", "[]")
+    monkeypatch.setattr(main.settings, "derivatives_collector_enabled", False)
+    monkeypatch.setattr(main.settings, "historical_collector_enabled", False)
+    monkeypatch.setattr(main, "aggregate_trade_collector", None)
+
+    with pytest.raises(
+        ValueError,
+        match="AGGREGATE_TRADE_COLLECTOR_JOBS must contain at least one job",
+    ):
+        async with main.lifespan(main.app):
+            pytest.fail("lifespan must reject an enabled collector with no jobs")
+
+    assert main.aggregate_trade_collector is None
