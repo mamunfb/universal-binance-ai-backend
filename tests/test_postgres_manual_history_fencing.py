@@ -194,6 +194,7 @@ def test_postgres_lease_share_lock_blocks_expired_lease_takeover():
                         """,
                         (lease_name,),
                     )
+                takeover_connection.rollback()
 
         # Once the protected transaction commits, an expired lease can be
         # taken over, and the fencing token must advance for the new owner.
