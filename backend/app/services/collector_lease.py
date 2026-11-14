@@ -1,8 +1,9 @@
-"""PostgreSQL lease primitives for future multi-instance collector coordination.
+"""PostgreSQL lease primitives for multi-instance collector coordination.
 
-These primitives do not start or guard collectors by themselves. Every collector
-write must call lock_if_owned() and perform its data mutation on the same
-connection/transaction before this module is safe to wire into runtime tasks.
+Collectors and manual history endpoints use these primitives to coordinate
+ownership. Each protected PostgreSQL write must call lock_if_owned() and perform
+the data mutation on the same connection/transaction. The lease does not itself
+start, enable, or schedule a collector.
 """
 from __future__ import annotations
 
