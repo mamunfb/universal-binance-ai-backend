@@ -130,7 +130,7 @@ class DerivativesRatioStore:
                     INSERT INTO public.derivatives_ratio_history (
                         market, ratio_type, symbol, period, timestamp_ms,
                         payload, source, collected_at
-                    ) VALUES (%s, %s, %s, %s, %s, %s::jsonb, %s, %s)
+                    ) VALUES (%s, %s, %s, %s, %s, %s::jsonb, %s, %s::timestamptz)
                     ON CONFLICT(market, ratio_type, symbol, period, timestamp_ms)
                     DO UPDATE SET payload=excluded.payload, source=excluded.source,
                                   collected_at=excluded.collected_at
