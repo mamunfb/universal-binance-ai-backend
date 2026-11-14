@@ -8,6 +8,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from app.services.collector_lease import (
+    CollectorLease,
+    CollectorLeaseLostError,
+    PostgresCollectorLease,
+)
+
 
 OPEN_INTEREST_PERIODS = {"5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "1d"}
 
@@ -77,6 +83,7 @@ class OpenInterestStore:
     def save(
         self, market: str, symbol: str, period: str, rows: list[Any],
         source: str = "Binance USD-M public REST API",
+        lease: CollectorLease | None = None,
     ) -> dict[str, Any]:
         market = market.upper()
         symbol = symbol.upper().strip()
@@ -98,8 +105,14 @@ class OpenInterestStore:
         now = datetime.now(timezone.utc).isoformat()
         values = [(market, symbol, period, timestamp, amount, value, supply, source, now)
                   for timestamp, amount, value, supply in normalized]
+        if lease is not None and not self.database_url:
+            raise ValueError("Collector leases require PostgreSQL-backed open-interest storage")
         if self.database_url:
             with self._connect_postgres() as connection:
+                if lease is not None and not PostgresCollectorLease.lock_if_owned(connection, lease):
+                    raise CollectorLeaseLostError(
+                        "Open-interest write rejected because the collector lease is no longer owned"
+                    )
                 connection.cursor().executemany("""
                     INSERT INTO public.historical_open_interest (
                         market, symbol, period, timestamp_ms, sum_open_interest,
