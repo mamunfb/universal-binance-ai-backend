@@ -523,3 +523,79 @@ def test_aggregate_trade_stream_stops_processing_messages_after_fenced_write_los
     assert state["last_error"] == "CollectorLeaseLostError"
     assert state["received_count"] == 0
     assert state["connected"] is False
+
+
+def test_aggregate_trade_collector_drains_inflight_insert_before_releasing_lease(monkeypatch, tmp_path):
+    import asyncio
+    import json
+    import threading
+    from types import SimpleNamespace
+    from app.services import aggregate_trade_stream as module
+    from app.services.aggregate_trade_stream import AggregateTradeCollector
+
+    insert_started = threading.Event()
+    finish_insert = threading.Event()
+    released = []
+    lease = SimpleNamespace(fencing_token=31)
+
+    class FakeLeaseManager:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def acquire(self):
+            return lease
+
+        def renew(self, current):
+            return current
+
+        def release(self, current):
+            released.append(current)
+            return True
+
+    class BlockingStore:
+        def insert(self, _row, current_lease=None):
+            insert_started.set()
+            if not finish_insert.wait(timeout=3):
+                raise TimeoutError("test insert was not released")
+
+        def count(self):
+            return 0
+
+    class MessageSocket:
+        def __aiter__(self):
+            async def iterate():
+                yield json.dumps(sample_trade())
+                await asyncio.Event().wait()
+            return iterate()
+
+    class SocketContext:
+        async def __aenter__(self):
+            return MessageSocket()
+
+        async def __aexit__(self, *_args):
+            return False
+
+    monkeypatch.setattr(module, "PostgresCollectorLease", FakeLeaseManager)
+    monkeypatch.setattr(module, "connect", lambda *_args, **_kwargs: SocketContext())
+    collector = AggregateTradeCollector(
+        BlockingStore(),
+        jobs_json='[{"market":"SPOT","symbol":"BTCUSDT"}]',
+        lease_database_url="postgresql://example/db",
+    )
+
+    async def scenario():
+        collector.start()
+        assert await asyncio.to_thread(insert_started.wait, 2)
+        task = collector.tasks[0]
+        task.cancel()
+        await asyncio.sleep(0.05)
+        task.cancel()
+        await asyncio.sleep(0.05)
+        assert not task.done()
+        assert released == []
+        finish_insert.set()
+        result = await asyncio.gather(task, return_exceptions=True)
+        assert isinstance(result[0], asyncio.CancelledError)
+
+    asyncio.run(scenario())
+    assert released == [lease]
