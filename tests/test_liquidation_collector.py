@@ -1,6 +1,14 @@
+import asyncio
+import logging
+
 import pytest
 
-from app.services.liquidation_collector import LiquidationStore, normalize_force_order
+import app.services.liquidation_collector as liquidation_module
+from app.services.liquidation_collector import (
+    LiquidationCollector,
+    LiquidationStore,
+    normalize_force_order,
+)
 
 
 def sample_message():
@@ -105,3 +113,33 @@ def test_fingerprint_is_independent_of_json_object_key_order():
 def test_invalid_message_is_ignored():
     assert normalize_force_order({"e": "aggTrade"}) is None
     assert normalize_force_order({"e": "forceOrder", "o": []}) is None
+
+
+def test_collector_status_and_logs_expose_only_exception_class(tmp_path, monkeypatch, caplog):
+    class BrokenConnection:
+        async def __aenter__(self):
+            raise RuntimeError("sensitive provider detail")
+
+        async def __aexit__(self, exc_type, exc, traceback):
+            return False
+
+    def fake_connect(*args, **kwargs):
+        return BrokenConnection()
+
+    async def cancel_retry(_delay):
+        raise asyncio.CancelledError
+
+    store = LiquidationStore(str(tmp_path / "safe-status.sqlite3"))
+    collector = LiquidationCollector(store)
+    monkeypatch.setattr(liquidation_module, "connect", fake_connect)
+    monkeypatch.setattr(liquidation_module.asyncio, "sleep", cancel_retry)
+
+    with caplog.at_level(logging.WARNING, logger=liquidation_module.__name__):
+        with pytest.raises(asyncio.CancelledError):
+            asyncio.run(collector.run())
+
+    status = collector.status()
+    assert status["last_error"] == "RuntimeError"
+    assert "sensitive provider detail" not in str(status)
+    assert "RuntimeError" in caplog.text
+    assert "sensitive provider detail" not in caplog.text
