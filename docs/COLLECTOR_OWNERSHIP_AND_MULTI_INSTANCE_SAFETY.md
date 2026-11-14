@@ -52,6 +52,12 @@ The persistence layer supports optional fencing for `OrderBookHistoryStore.inser
 
 The PostgreSQL integration tests cover simultaneous acquisition by two independent owners, expired-lease takeover and token increment, stale-owner renewal/release/write-guard rejection, renewal, monotonic token preservation across release, and a two-session check that an active fenced write transaction blocks an expired lease takeover until commit. These tests use TEST_DATABASE_URL; a skipped local run is not evidence of PostgreSQL verification.
 
+## Cancellation and blocking-worker shutdown hardening (implementation added; verification pending)
+
+The lease-owning collector paths now explicitly drain blocking asyncio.to_thread() workers before releasing ownership during cancellation. The current branch includes cancellation-safe acquire/renew/release handling and waits for in-flight protected writes to finish in the EVM transfer indexer, aggregate-trade stream, order-book stream, liquidation stream, historical-kline collector, and derivatives-history collector. Renewal results completed during shutdown update the in-memory lease snapshot before cleanup, so release uses the latest known fencing token. Regression tests were added for repeated cancellation during writes and/or renewal in these paths.
+
+This is a code-level implementation claim only. The new regression tests have not been confirmed passing: GitHub Actions runs #1629–#1637 fail before runner assignment (runner_id is zero, runner name is empty, and the job exposes no steps). Job logs are unavailable, so the root cause and test execution result remain unknown. Do not mark this hardening verified until the workflow executes its test steps and passes, and the PostgreSQL concurrency tests complete against TEST_DATABASE_URL.
+
 ## Required integration before multi-instance collector operation
 
 1. Audit every remaining collector persistence path and confirm it calls lock_if_owned in the same transaction as its write; cover all batch writes.
