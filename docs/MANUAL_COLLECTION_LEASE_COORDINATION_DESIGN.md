@@ -15,7 +15,7 @@ This design covers operator-triggered HTTP collection endpoints that write marke
 
 - `DerivativesRatioStore.save` currently has no lease parameter or same-transaction fencing check; its manual collection endpoint writes directly.
 - `main.py` initializes `EVMTransferStore` with `settings.database_url`, so the service uses PostgreSQL when configured and SQLite otherwise. `save_chunk` accepts an optional lease and validates it with `lock_if_owned` in the same transaction as transfer inserts and range-coverage writes.
-- The EVM indexer now acquires a per-chain/per-contract lease (`evm-transfer-indexer:{chain_id}:{contract}`) in PostgreSQL mode, renews it after each RPC chunk and before the protected write, passes it into `save_chunk`, and releases it in `finally`. Acquisition cancellation attempts to release a lease acquired during shutdown. SQLite mode remains single-process and does not use a distributed lease.
+- The EVM indexer now acquires a per-chain/per-contract lease (`evm-transfer-indexer:{chain_id}:{contract}`) in PostgreSQL mode, renews it after each RPC chunk and before the protected write, passes it into `save_chunk`, and releases it in `finally`. Acquisition cancellation attempts to release a lease acquired during shutdown. SQLite mode remains single-process and does not use a distributed lease. Migration `012_manual_history_and_evm_transfer.sql` creates the PostgreSQL derivatives-ratio, EVM transfer, and EVM range-coverage tables. A `TEST_DATABASE_URL` integration test now exercises both fenced stores against the migrated PostgreSQL schema.
 
 ## Implemented first step: shared global lease for manual klines
 
@@ -93,8 +93,8 @@ Mocked endpoint coverage is added. A PostgreSQL two-session fencing test and suc
 | Manual funding rates | Yes, optional | Yes (shared derivatives lease) | Implemented; CI/integration pending |
 | Scheduled open interest | Yes | Yes | Fenced |
 | Manual open interest | Yes, optional | Yes (shared derivatives lease) | Implemented; CI/integration pending |
-| Manual derivatives ratios | Yes, optional | Yes (per-series lease) | Implemented; CI/integration pending |
-| EVM transfer chunk indexing | Yes | Yes (per-chain/per-contract lease) | Implemented; CI and PostgreSQL concurrency verification pending |
+| Manual derivatives ratios | Yes, optional | Yes (per-series lease) | Implemented; PostgreSQL integration test added, CI result pending |
+| EVM transfer chunk indexing | Yes | Yes (per-chain/per-contract lease) | Implemented; PostgreSQL integration test added, CI result pending |
 | Aggregate trade stream | Yes | Yes | Fenced |
 | Order-book stream | Yes | Yes | Fenced |
 | Liquidation stream | Yes | Yes | Fenced |
