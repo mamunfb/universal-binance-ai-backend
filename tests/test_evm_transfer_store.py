@@ -389,3 +389,65 @@ def test_postgres_indexer_rejects_when_contract_lease_is_held(monkeypatch):
         asyncio.run(index_erc20_transfer_history(
             FakeProvider(), FakeStore(), CONTRACT, 10, 10, 1, 10, 30
         ))
+
+
+@pytest.mark.asyncio
+async def test_evm_indexer_waits_for_inflight_chunk_write_before_releasing_lease(monkeypatch):
+    import threading
+    import app.services.evm_transfer_store as evm_module
+
+    started = threading.Event()
+    finish = threading.Event()
+    released = []
+
+    class FakeLeaseManager:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def acquire(self):
+            return object()
+
+        def renew(self, lease):
+            return lease
+
+        def release(self, lease):
+            released.append(lease)
+            return True
+
+    class FakeProvider:
+        async def chain_id(self):
+            return 1
+
+        async def block_number(self):
+            return 100
+
+        async def token_transfer_logs(self, contract, start, end, max_block_span):
+            return []
+
+    class BlockingStore:
+        database_url = "postgresql://example/test"
+
+        def save_chunk(self, *args, lease=None):
+            started.set()
+            if not finish.wait(timeout=2):
+                raise TimeoutError("test write was not released")
+            return 0
+
+        def coverage(self, *args):
+            return []
+
+    monkeypatch.setattr(evm_module, "PostgresCollectorLease", FakeLeaseManager)
+    task = asyncio.create_task(index_erc20_transfer_history(
+        FakeProvider(), BlockingStore(), CONTRACT, 10, 10, 1, 10, 45
+    ))
+    assert await asyncio.to_thread(started.wait, 1)
+
+    task.cancel()
+    await asyncio.sleep(0.05)
+    assert not task.done()
+    assert released == []
+
+    finish.set()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert len(released) == 1
