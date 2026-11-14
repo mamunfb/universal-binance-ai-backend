@@ -43,6 +43,12 @@ def test_funding_store_rejects_invalid_rows(tmp_path, row):
     assert store.history("USD_M", "BTCUSDT")["returned_count"] == 0
 
 
+def test_funding_store_rejects_lease_with_sqlite_storage(tmp_path):
+    store = FundingRateStore(str(tmp_path / "funding.sqlite3"))
+    with pytest.raises(ValueError, match="PostgreSQL"):
+        store.save("USD_M", "BTCUSDT", [event()], lease=object())
+
+
 def test_funding_store_rejects_symbol_mismatch(tmp_path):
     store = FundingRateStore(str(tmp_path / "funding.sqlite3"))
     with pytest.raises(ValueError, match="symbol"):
