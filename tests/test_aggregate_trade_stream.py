@@ -599,3 +599,65 @@ def test_aggregate_trade_collector_drains_inflight_insert_before_releasing_lease
 
     asyncio.run(scenario())
     assert released == [lease]
+
+
+def test_aggregate_trade_collector_releases_latest_lease_after_cancelled_renewal(monkeypatch, tmp_path):
+    import asyncio
+    import threading
+    from types import SimpleNamespace
+    from app.services import aggregate_trade_stream as module
+    from app.services.aggregate_trade_stream import AggregateTradeCollector
+
+    renew_started = threading.Event()
+    finish_renew = threading.Event()
+    initial_lease = SimpleNamespace(fencing_token=41)
+    renewed_lease = SimpleNamespace(fencing_token=42)
+    released = []
+
+    class FakeLeaseManager:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def acquire(self):
+            return initial_lease
+
+        def renew(self, current):
+            assert current is initial_lease
+            renew_started.set()
+            if not finish_renew.wait(timeout=3):
+                raise TimeoutError("test renewal was not released")
+            return renewed_lease
+
+        def release(self, current):
+            released.append(current)
+            return True
+
+    monkeypatch.setattr(module, "PostgresCollectorLease", FakeLeaseManager)
+    collector = AggregateTradeCollector(
+        AggregateTradeStore(str(tmp_path / "trades.sqlite3")),
+        jobs_json='[{"market":"SPOT","symbol":"BTCUSDT"}]',
+        lease_database_url="postgresql://example/db",
+        lease_ttl_seconds=3,
+    )
+
+    async def fake_stream(*_args):
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(collector, "_run_stream", fake_stream)
+
+    async def scenario():
+        collector.start()
+        assert await asyncio.to_thread(renew_started.wait, 2)
+        task = collector.tasks[0]
+        task.cancel()
+        await asyncio.sleep(0.05)
+        task.cancel()
+        await asyncio.sleep(0.05)
+        assert not task.done()
+        assert released == []
+        finish_renew.set()
+        result = await asyncio.gather(task, return_exceptions=True)
+        assert isinstance(result[0], asyncio.CancelledError)
+
+    asyncio.run(scenario())
+    assert released == [renewed_lease]
