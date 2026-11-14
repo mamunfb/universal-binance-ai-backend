@@ -99,20 +99,114 @@ class DerivativesHistoryCollector:
         if self._task is not None:
             await self._task
             self._task = None
-        self._status["status"] = "STOPPED"
+        if self._lease_state != "LOST":
+            self._status["status"] = "STOPPED"
+
+    async def _wait_for_stop_or_lease_loss(self, timeout: float) -> None:
+        waits = [asyncio.create_task(self._stop_event.wait())]
+        if self._lease_lost is not None:
+            waits.append(asyncio.create_task(self._lease_lost.wait()))
+        try:
+            await asyncio.wait(waits, timeout=timeout, return_when=asyncio.FIRST_COMPLETED)
+        finally:
+            for task in waits:
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(*waits, return_exceptions=True)
+
+    async def _renew_lease_loop(self) -> None:
+        assert self._lease_coordinator is not None
+        assert self._lease_lost is not None
+        interval = max(1.0, self._lease_coordinator.ttl_seconds / 3)
+        while not self._lease_lost.is_set() and not self._stop_event.is_set():
+            try:
+                await asyncio.wait_for(self._lease_lost.wait(), timeout=interval)
+                return
+            except asyncio.TimeoutError:
+                pass
+            lease = self._lease
+            if lease is None:
+                self._lease_state = "LOST"
+                self._lease_lost.set()
+                return
+            try:
+                renewed = await asyncio.to_thread(self._lease_coordinator.renew, lease)
+            except Exception as exc:
+                self._status["last_lease_error_type"] = type(exc).__name__
+                renewed = None
+            if renewed is None:
+                self._lease_state = "LOST"
+                self._status["status"] = "LEASE_LOST"
+                self._lease_lost.set()
+                return
+            self._lease = renewed
 
     async def _run_loop(self) -> None:
         self._status["status"] = "RUNNING"
+        if self._lease_coordinator is None:
+            while not self._stop_event.is_set():
+                try:
+                    await self.run_once()
+                except Exception:
+                    self._status["status"] = "DEGRADED"
+                await self._wait_for_stop_or_lease_loss(self.poll_seconds)
+            self._status["status"] = "STOPPED"
+            return
+
         while not self._stop_event.is_set():
             try:
-                await self.run_once()
+                lease = await asyncio.to_thread(self._lease_coordinator.acquire)
+            except Exception as exc:
+                self._lease_state = "ACQUIRE_FAILED"
+                self._status["last_lease_error_type"] = type(exc).__name__
+                await self._wait_for_stop_or_lease_loss(self.poll_seconds)
+                continue
+            if self._stop_event.is_set():
+                if lease is not None:
+                    await asyncio.to_thread(self._lease_coordinator.release, lease)
+                break
+            if lease is None:
+                self._lease_state = "HELD_BY_OTHER"
+                self._status["status"] = "WAITING_FOR_LEASE"
+                await self._wait_for_stop_or_lease_loss(self.poll_seconds)
+                continue
+
+            self._lease = lease
+            self._lease_lost = asyncio.Event()
+            self._lease_state = "OWNED"
+            self._status["status"] = "RUNNING"
+            renew_task = asyncio.create_task(self._renew_lease_loop())
+            try:
+                while not self._stop_event.is_set() and not self._lease_lost.is_set():
+                    await self.run_once()
+                    if self._stop_event.is_set() or self._lease_lost.is_set():
+                        break
+                    await self._wait_for_stop_or_lease_loss(self.poll_seconds)
             except Exception:
                 self._status["status"] = "DEGRADED"
-            try:
-                await asyncio.wait_for(self._stop_event.wait(), timeout=self.poll_seconds)
-            except asyncio.TimeoutError:
-                pass
-        self._status["status"] = "STOPPED"
+            finally:
+                renew_task.cancel()
+                await asyncio.gather(renew_task, return_exceptions=True)
+                owned_lease = self._lease
+                lost = self._lease_lost.is_set()
+                self._lease = None
+                self._lease_lost = None
+                if lost:
+                    self._lease_state = "LOST"
+                    self._status["status"] = "LEASE_LOST"
+                elif owned_lease is not None:
+                    try:
+                        released = await asyncio.to_thread(
+                            self._lease_coordinator.release, owned_lease
+                        )
+                        self._lease_state = "RELEASED" if released else "RELEASE_FAILED"
+                    except Exception as exc:
+                        self._lease_state = "RELEASE_FAILED"
+                        self._status["last_lease_error_type"] = type(exc).__name__
+            if self._lease_state == "LOST":
+                break
+        if self._lease_state != "LOST":
+            self._status["status"] = "STOPPED"
 
     async def run_once(self) -> dict[str, Any]:
         async with self._lock:
