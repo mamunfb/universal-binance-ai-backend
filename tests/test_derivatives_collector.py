@@ -371,3 +371,123 @@ async def test_runtime_derivatives_collector_cancels_inflight_provider_and_relea
     assert coordinator.released == 1
     assert collector.status()["status"] == "STOPPED"
     assert collector.status()["lease_state"] == "RELEASED"
+
+
+@pytest.mark.asyncio
+async def test_derivatives_collector_waits_for_inflight_save_before_releasing_lease(monkeypatch):
+    import threading
+    import app.services.derivatives_collector as module
+
+    save_started = threading.Event()
+    finish_save = threading.Event()
+    released = []
+    lease = SimpleNamespace(fencing_token=111)
+
+    class Coordinator:
+        ttl_seconds = 30
+        lease_name = "derivatives"
+
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def acquire(self):
+            return lease
+
+        def renew(self, current):
+            return current
+
+        def release(self, current):
+            released.append(current)
+            return True
+
+    class BlockingFundingStore(LeaseAwareFundingStore):
+        def save(self, market, symbol, rows, source, lease=None):
+            self.saved_leases.append(lease)
+            save_started.set()
+            if not finish_save.wait(timeout=3):
+                raise TimeoutError("test funding write was not released")
+            return {"status": "COMPLETED", "stored_count": len(rows)}
+
+    monkeypatch.setattr(module, "PostgresCollectorLease", Coordinator)
+    funding = BlockingFundingStore()
+    collector = DerivativesHistoryCollector(
+        funding, LeaseAwareOpenInterestStore(), lambda _market: FakeProvider(),
+        '[{"type":"FUNDING_RATE","symbol":"BTCUSDT"}]',
+        poll_seconds=10, lease_database_url="postgresql://test",
+    )
+
+    collector.start()
+    assert await asyncio.to_thread(save_started.wait, 2)
+    task = collector._task
+    task.cancel()
+    await asyncio.sleep(0.05)
+    task.cancel()
+    await asyncio.sleep(0.05)
+    assert not task.done()
+    assert released == []
+    finish_save.set()
+    result = await asyncio.gather(task, return_exceptions=True)
+    assert isinstance(result[0], asyncio.CancelledError)
+    await collector.stop()
+
+    assert funding.saved_leases == [lease]
+    assert released == [lease]
+    assert collector.status()["lease_state"] == "RELEASED"
+
+
+@pytest.mark.asyncio
+async def test_derivatives_collector_waits_for_renewal_and_releases_latest_lease(monkeypatch):
+    import threading
+    import app.services.derivatives_collector as module
+
+    renew_started = threading.Event()
+    finish_renew = threading.Event()
+    initial_lease = SimpleNamespace(fencing_token=121)
+    renewed_lease = SimpleNamespace(fencing_token=122)
+    released = []
+
+    class Coordinator:
+        ttl_seconds = 3
+        lease_name = "derivatives"
+
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def acquire(self):
+            return initial_lease
+
+        def renew(self, current):
+            assert current is initial_lease
+            renew_started.set()
+            if not finish_renew.wait(timeout=3):
+                raise TimeoutError("test renewal was not released")
+            return renewed_lease
+
+        def release(self, current):
+            released.append(current)
+            return True
+
+    monkeypatch.setattr(module, "PostgresCollectorLease", Coordinator)
+    collector = DerivativesHistoryCollector(
+        LeaseAwareFundingStore(), LeaseAwareOpenInterestStore(),
+        lambda _market: FakeProvider(),
+        '[{"type":"FUNDING_RATE","symbol":"BTCUSDT"}]',
+        poll_seconds=10, lease_database_url="postgresql://test",
+    )
+
+    collector.start()
+    assert await asyncio.to_thread(renew_started.wait, 2)
+    task = collector._task
+    task.cancel()
+    await asyncio.sleep(0.05)
+    task.cancel()
+    await asyncio.sleep(0.05)
+    assert not task.done()
+    assert released == []
+    finish_renew.set()
+    result = await asyncio.gather(task, return_exceptions=True)
+    assert isinstance(result[0], asyncio.CancelledError)
+    await collector.stop()
+
+    assert released == [renewed_lease]
+    assert collector.status()["lease_state"] == "RELEASED"
