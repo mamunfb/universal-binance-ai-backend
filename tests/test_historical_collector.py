@@ -1,6 +1,7 @@
 import asyncio
 import pytest
 
+from app.services.collector_lease import CollectorLeaseLostError
 from app.services.historical_collector import (
     HistoricalKlineCollector,
     parse_collector_jobs,
@@ -223,6 +224,46 @@ def test_runtime_collector_stops_after_lease_renewal_is_lost(monkeypatch):
     asyncio.run(exercise())
     assert coordinator.renewed == 1
     assert provider.calls
+    assert len(store.saved_leases) == 1
+    assert coordinator.released == 0
+    assert collector.status()["lease_state"] == "LOST"
+
+
+
+def test_runtime_collector_stops_when_fenced_write_rejects_lease(monkeypatch):
+    import app.services.historical_collector as module
+
+    coordinator = FakeLeaseCoordinator("postgresql://localhost/test", "historical")
+    monkeypatch.setattr(module, "PostgresCollectorLease", lambda *args, **kwargs: coordinator)
+    store = LeaseAwareStore()
+
+    def reject_stale_write(*args, **kwargs):
+        store.saved_leases.append(kwargs.get("lease"))
+        raise CollectorLeaseLostError("stale lease")
+
+    store.save_klines = reject_stale_write
+    provider = FakeProvider([candle(1_700_000_040_000)])
+    collector = HistoricalKlineCollector(
+        store=store,
+        spot_provider_factory=lambda: provider,
+        futures_provider_factory=lambda _market: provider,
+        jobs_json='[{"market":"SPOT","symbol":"BTCUSDT","interval":"1m"},'
+                  '{"market":"SPOT","symbol":"BTCUSDT","interval":"5m"}]',
+        poll_seconds=10,
+        lease_database_url="postgresql://localhost/test",
+    )
+
+    async def exercise():
+        collector.start()
+        for _ in range(100):
+            if collector.status()["lease_state"] == "LOST":
+                break
+            await asyncio.sleep(0.01)
+        await collector.stop()
+
+    asyncio.run(exercise())
+    assert coordinator.acquired == 1
+    assert len(provider.calls) == 1
     assert len(store.saved_leases) == 1
     assert coordinator.released == 0
     assert collector.status()["lease_state"] == "LOST"
