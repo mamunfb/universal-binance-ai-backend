@@ -100,11 +100,14 @@ def test_aggregate_trade_collector_acquires_stable_lease_and_releases_on_stop(mo
     from app.services import aggregate_trade_stream as module
     from app.services.aggregate_trade_stream import AggregateTradeCollector
 
+    managers = []
+
     class FakeLeaseManager:
         def __init__(self, database_url, lease_name, ttl_seconds):
             self.lease_name = lease_name
             self.ttl_seconds = ttl_seconds
             self.released = []
+            managers.append(self)
             captured.update(database_url=database_url, lease_name=lease_name, ttl_seconds=ttl_seconds)
 
         def acquire(self):
@@ -149,6 +152,8 @@ def test_aggregate_trade_collector_acquires_stable_lease_and_releases_on_stop(mo
         "ttl_seconds": 45,
     }
     assert len(collector.tasks) == 0
+    assert len(managers) == 1
+    assert len(managers[0].released) == 1
 
 
 def test_aggregate_trade_collector_waits_when_another_owner_holds_lease(monkeypatch, tmp_path):
@@ -222,12 +227,15 @@ def test_aggregate_trade_collector_stops_when_lease_renewal_is_lost(monkeypatch,
     from app.services import aggregate_trade_stream as module
     from app.services.aggregate_trade_stream import AggregateTradeCollector
 
+    managers = []
+
     class FakeLeaseManager:
         lease_name = "aggregate-trade:SPOT:BTCUSDT"
         ttl_seconds = 5
 
         def __init__(self, *_args, **_kwargs):
             self.released = []
+            managers.append(self)
 
         def acquire(self):
             return SimpleNamespace(fencing_token=8)
@@ -266,3 +274,5 @@ def test_aggregate_trade_collector_stops_when_lease_renewal_is_lost(monkeypatch,
         await collector.stop()
 
     asyncio.run(scenario())
+    assert len(managers) == 1
+    assert managers[0].released == []
