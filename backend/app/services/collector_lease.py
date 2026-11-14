@@ -28,6 +28,18 @@ class CollectorLease:
     lease_expires_at: datetime
 
 
+def require_lease_database_url(
+    storage_database_url: str,
+    lease_database_url: str,
+    collector_name: str,
+) -> None:
+    """Fail fast when PostgreSQL persistence is configured without lease coordination."""
+    if storage_database_url.strip() and not lease_database_url.strip():
+        raise ValueError(
+            f"{collector_name} with PostgreSQL storage requires lease_database_url"
+        )
+
+
 class PostgresCollectorLease:
     """Acquire, renew, and release a single named lease in PostgreSQL."""
 
