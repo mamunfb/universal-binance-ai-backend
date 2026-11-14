@@ -206,3 +206,16 @@ def test_order_book_waits_for_inflight_insert_before_releasing_lease(monkeypatch
 
     asyncio.run(scenario())
     assert released == [lease]
+
+def test_postgres_order_book_store_requires_lease_before_write():
+    store = OrderBookHistoryStore("unused.sqlite3", "postgresql://example/test")
+    row = {
+        "market": "SPOT", "symbol": "BTCUSDT", "event_time_ms": 1000,
+        "transaction_time_ms": 1000, "update_id": 12,
+        "sampled_at": "2026-01-01T00:00:00+00:00", "best_bid": 99.0,
+        "best_ask": 101.0, "mid_price": 100.0, "spread_bps": 200.0,
+        "bid_notional": 990.0, "ask_notional": 101.0, "depth_imbalance": 0.8,
+        "bids": [[99.0, 10.0]], "asks": [[101.0, 1.0]],
+    }
+    with pytest.raises(ValueError, match="require an active collector lease"):
+        store.insert(row)
