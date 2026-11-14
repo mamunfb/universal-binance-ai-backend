@@ -34,7 +34,8 @@ The notional field is calculated as average price × cumulative filled quantity 
 ## Operational caveats
 
 - The collector records only messages received while it is connected and running.
-- Disconnects create gaps; reconnect count and the last error class (not raw exception text) are exposed in status.
+- Disconnects create gaps; reconnect count and the last transport error class (not raw exception text) are exposed in status.
+- Storage write failures are retried for the current event with exponential delays from 1 to 60 seconds. The stream remains connected while retrying that event, applying backpressure rather than dropping it or repeatedly reconnecting. Status reports `storage_status: DEGRADED`, the exception class only, and the cumulative storage retry count while a write is failing.
 - No historical backfill is provided.
 - The read-only liquidation-cluster analysis groups locally stored snapshots into approximate price buckets; it does not estimate future liquidation levels or repair missing source events. See `GET /api/v1/analysis/futures/liquidation-clusters/{symbol}`.
 - Exact repeated force-order payloads are deduplicated with a SHA-256 fingerprint. PostgreSQL/Neon deployments must apply `migrations/010_liquidation_event_fingerprint.sql` before running this code. The migration adds a nullable column and unique index; it does not delete, rewrite, or retroactively deduplicate existing rows. SQLite adds the nullable column and index non-destructively when the store opens.
