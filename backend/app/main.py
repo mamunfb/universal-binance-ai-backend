@@ -64,6 +64,7 @@ from app.services.multi_timeframe_derivatives import MultiTimeframeDerivativesAn
 from app.services.historical_coverage import HistoricalCoverageEngine
 from app.services.market_data_quality import MarketDataQualityEngine
 from app.services.historical_collector import HistoricalKlineCollector
+from app.services.collector_lease import CollectorLeaseLostError, PostgresCollectorLease
 from app.services.wallet_attribution import load_wallet_registry, annotate_wallet_addresses
 from app.services.cross_chain_wallets import parse_chain_rpc_configs, cross_chain_native_wallet_snapshot
 from app.services.cross_chain_tokens import parse_chain_token_configs, cross_chain_erc20_snapshot
@@ -2494,16 +2495,74 @@ async def collect_historical_klines(
     normalized = symbol.strip().upper()
     if not normalized:
         raise HTTPException(status_code=422, detail="symbol must not be empty")
+    lease_database_url = settings.historical_kline_database_url or settings.database_url
+    lease_manager = None
+    lease = None
+    if lease_database_url.strip():
+        try:
+            lease_manager = PostgresCollectorLease(
+                lease_database_url,
+                "historical-kline-collector",
+                ttl_seconds=settings.historical_collector_lease_ttl_seconds,
+            )
+            acquire_task = asyncio.create_task(asyncio.to_thread(lease_manager.acquire))
+            try:
+                lease = await asyncio.shield(acquire_task)
+            except asyncio.CancelledError:
+                try:
+                    acquired_during_shutdown = await acquire_task
+                    if acquired_during_shutdown is not None:
+                        await asyncio.shield(asyncio.to_thread(
+                            lease_manager.release, acquired_during_shutdown
+                        ))
+                finally:
+                    raise
+            if lease is None:
+                raise HTTPException(
+                    status_code=409,
+                    detail={"status": "CONFLICT", "error": "HISTORICAL_COLLECTION_LEASE_HELD"},
+                )
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(
+                status_code=503,
+                detail={"status": "UNAVAILABLE", "error": "HISTORICAL_COLLECTION_LEASE_UNAVAILABLE",
+                        "error_type": type(exc).__name__},
+            ) from exc
     try:
         provider = get_spot_provider() if market == "SPOT" else get_futures_provider(market)
         rows = await provider.klines(normalized, interval, limit)
         if not rows:
             return {"status": "INCOMPLETE", "market": market, "symbol": normalized, "interval": interval, "received_count": 0, "warning": "The exchange returned no candles; no history was stored."}
-        return await asyncio.to_thread(historical_kline_store.save_klines, market, normalized, interval, rows)
+        if lease_manager is not None:
+            renewed_lease = await asyncio.to_thread(lease_manager.renew, lease)
+            if renewed_lease is None:
+                raise CollectorLeaseLostError(
+                    "Historical collection lease was lost before the manual write"
+                )
+            lease = renewed_lease
+        return await asyncio.to_thread(
+            historical_kline_store.save_klines,
+            market, normalized, interval, rows,
+            "Binance public REST API (manual collection)",
+            lease=lease,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except CollectorLeaseLostError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={"status": "CONFLICT", "error": "HISTORICAL_COLLECTION_LEASE_LOST"},
+        ) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail={"status": "FAILED", "error": "HISTORICAL_KLINE_COLLECTION_UNAVAILABLE", "error_type": type(exc).__name__}) from exc
+    finally:
+        if lease_manager is not None and lease is not None:
+            try:
+                await asyncio.shield(asyncio.to_thread(lease_manager.release, lease))
+            except Exception:
+                logger.exception("Failed to release manual historical-kline collection lease")
 
 
 @app.get("/api/v1/quality/market-data/{market}/{symbol}", tags=["quality"])
