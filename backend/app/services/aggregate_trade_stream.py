@@ -202,9 +202,19 @@ class AggregateTradeStore:
 
 
 class AggregateTradeCollector:
-    def __init__(self, store: AggregateTradeStore, jobs_json: str = "[]") -> None:
+    def __init__(
+        self, store: AggregateTradeStore, jobs_json: str = "[]",
+        lease_database_url: str = "", lease_ttl_seconds: int = 30,
+    ) -> None:
         self.store = store
         self.jobs_json = jobs_json
+        self.lease_database_url = lease_database_url.strip()
+        self.lease_ttl_seconds = lease_ttl_seconds
+        if self.lease_database_url:
+            PostgresCollectorLease(
+                self.lease_database_url, "aggregate-trade:validation",
+                ttl_seconds=lease_ttl_seconds,
+            )
         self.tasks: list[asyncio.Task] = []
         self.states: dict[str, dict[str, Any]] = {}
 
@@ -239,22 +249,61 @@ class AggregateTradeCollector:
         ]
 
     async def stop(self) -> None:
-        for task in self.tasks:
+        tasks, self.tasks = self.tasks, []
+        for task in tasks:
             task.cancel()
-        if self.tasks:
-            await asyncio.gather(*self.tasks, return_exceptions=True)
-        self.tasks = []
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
 
-    async def _run(self, job: dict[str, str]) -> None:
-        market, symbol = job["market"], job["symbol"]
-        key = f"{market}:{symbol}"
-        state = self.states.setdefault(key, {
-            "market": market, "symbol": symbol, "connected": False,
-            "received_count": 0, "reconnect_count": 0, "last_trade_at": None,
-            "last_error": None,
-        })
+    async def _persist_trade(
+        self, row: dict[str, Any], lease_holder: dict[str, CollectorLease | None],
+        lease_lost: asyncio.Event, state: dict[str, Any],
+    ) -> None:
+        try:
+            await asyncio.to_thread(
+                self.store.insert, row, lease_holder["lease"],
+            )
+        except CollectorLeaseLostError:
+            lease_lost.set()
+            state["lease_state"] = "LOST"
+            state["last_error"] = "CollectorLeaseLostError"
+            raise
+
+    async def _renew_lease(
+        self, manager: PostgresCollectorLease,
+        lease_holder: dict[str, CollectorLease | None],
+        lease_lost: asyncio.Event, state: dict[str, Any],
+    ) -> None:
+        interval = max(1.0, self.lease_ttl_seconds / 3)
+        while not lease_lost.is_set():
+            await asyncio.sleep(interval)
+            lease = lease_holder["lease"]
+            if lease is None:
+                renewed = None
+            else:
+                try:
+                    renewed = await asyncio.to_thread(manager.renew, lease)
+                except Exception as exc:
+                    state["last_error"] = type(exc).__name__
+                    renewed = None
+            if renewed is None:
+                lease_lost.set()
+                state["lease_state"] = "LOST"
+                state["last_error"] = state.get("last_error") or "CollectorLeaseLostError"
+                logger.error(
+                    "Aggregate-trade lease lost for %s:%s; stopping permanently",
+                    state["market"], state["symbol"],
+                )
+                return
+            lease_holder["lease"] = renewed
+            state["fencing_token"] = renewed.fencing_token
+
+    async def _run_stream(
+        self, market: str, symbol: str, state: dict[str, Any],
+        lease_holder: dict[str, CollectorLease | None], lease_lost: asyncio.Event,
+    ) -> None:
         delay = 1
-        while True:
+        while not lease_lost.is_set():
             try:
                 async with connect(
                     aggregate_trade_stream_url(market, symbol),
@@ -263,28 +312,136 @@ class AggregateTradeCollector:
                     state.update(connected=True, last_error=None)
                     delay = 1
                     async for raw in socket:
+                        if lease_lost.is_set():
+                            return
                         payload = json.loads(raw)
                         row = normalize_aggregate_trade(payload, market)
                         if row is None or row["symbol"] != symbol:
                             continue
-                        await asyncio.to_thread(self.store.insert, row)
+                        if lease_holder["lease"] is None:
+                            await asyncio.to_thread(self.store.insert, row)
+                        else:
+                            await self._persist_trade(row, lease_holder, lease_lost, state)
                         state["received_count"] += 1
                         state["last_trade_at"] = datetime.now(timezone.utc).isoformat()
             except asyncio.CancelledError:
                 raise
+            except CollectorLeaseLostError:
+                lease_lost.set()
+                state["lease_state"] = "LOST"
+                state["last_error"] = "CollectorLeaseLostError"
+                return
             except Exception as exc:
-                state.update(connected=False, last_error=type(exc).__name__,
-                             reconnect_count=state["reconnect_count"] + 1)
-                logger.warning("Agg-trade stream %s reconnecting after %s", key, type(exc).__name__)
-                await asyncio.sleep(delay)
+                if lease_lost.is_set():
+                    return
+                state.update(
+                    connected=False, last_error=type(exc).__name__,
+                    reconnect_count=state["reconnect_count"] + 1,
+                )
+                logger.warning(
+                    "Agg-trade stream %s:%s reconnecting after %s",
+                    market, symbol, type(exc).__name__,
+                )
+                try:
+                    await asyncio.wait_for(lease_lost.wait(), timeout=delay)
+                except asyncio.TimeoutError:
+                    pass
                 delay = min(delay * 2, 60)
             finally:
                 state["connected"] = False
+
+    async def _run(self, job: dict[str, str]) -> None:
+        market, symbol = job["market"], job["symbol"]
+        key = f"{market}:{symbol}"
+        lease_name = f"aggregate-trade:{key}"
+        state = self.states.setdefault(key, {
+            "market": market, "symbol": symbol, "connected": False,
+            "received_count": 0, "reconnect_count": 0, "last_trade_at": None,
+            "last_error": None,
+            "lease_state": "NOT_REQUIRED" if not self.lease_database_url else "WAITING",
+            "lease_name": lease_name if self.lease_database_url else None,
+            "fencing_token": None,
+        })
+        manager = (
+            PostgresCollectorLease(
+                self.lease_database_url, lease_name,
+                ttl_seconds=self.lease_ttl_seconds,
+            ) if self.lease_database_url else None
+        )
+        lease_holder: dict[str, CollectorLease | None] = {"lease": None}
+        lease_lost = asyncio.Event()
+        heartbeat: asyncio.Task | None = None
+        try:
+            if manager is not None:
+                while lease_holder["lease"] is None:
+                    worker = asyncio.create_task(asyncio.to_thread(manager.acquire))
+                    try:
+                        lease = await asyncio.shield(worker)
+                    except asyncio.CancelledError:
+                        try:
+                            acquired_during_shutdown = await worker
+                            if acquired_during_shutdown is not None:
+                                await asyncio.to_thread(manager.release, acquired_during_shutdown)
+                        except Exception as exc:
+                            state["last_error"] = type(exc).__name__
+                        raise
+                    except Exception as exc:
+                        state["lease_state"] = "ACQUIRE_FAILED"
+                        state["last_error"] = type(exc).__name__
+                        await asyncio.sleep(10)
+                        continue
+                    if lease is None:
+                        state["lease_state"] = "HELD_BY_OTHER"
+                        await asyncio.sleep(1)
+                        continue
+                    lease_holder["lease"] = lease
+                    state.update(lease_state="ACTIVE", fencing_token=lease.fencing_token)
+                heartbeat = asyncio.create_task(
+                    self._renew_lease(manager, lease_holder, lease_lost, state),
+                    name=f"aggregate-trade-lease-{key}",
+                )
+
+            stream = asyncio.create_task(
+                self._run_stream(market, symbol, state, lease_holder, lease_lost),
+                name=f"aggregate-trade-stream-{key}",
+            )
+            if heartbeat is None:
+                await stream
+            else:
+                done, pending = await asyncio.wait(
+                    {stream, heartbeat}, return_when=asyncio.FIRST_COMPLETED,
+                )
+                for task in pending:
+                    task.cancel()
+                await asyncio.gather(*pending, return_exceptions=True)
+                for task in done:
+                    exception = task.exception()
+                    if exception is not None:
+                        raise exception
+                if lease_lost.is_set():
+                    state["lease_state"] = "LOST"
+        finally:
+            if heartbeat is not None:
+                if not heartbeat.done():
+                    heartbeat.cancel()
+                await asyncio.gather(heartbeat, return_exceptions=True)
+            lease = lease_holder["lease"]
+            if manager is not None and lease is not None and not lease_lost.is_set():
+                try:
+                    released = await asyncio.shield(asyncio.to_thread(manager.release, lease))
+                    state["lease_state"] = "RELEASED" if released else "RELEASE_FAILED"
+                except Exception as exc:
+                    state["lease_state"] = "RELEASE_FAILED"
+                    state["last_error"] = type(exc).__name__
+                    logger.exception("Failed to release aggregate-trade lease for %s", key)
 
     def status(self) -> dict[str, Any]:
         return {
             "enabled": True, "job_count": len(self.states),
             "jobs": list(self.states.values()),
             "stored_trade_count": self.store.count(),
-            "warning": "Aggregate trade collection starts on enablement; no earlier trade history is backfilled.",
+            "warning": (
+                "PostgreSQL leases coordinate each configured market/symbol stream; "
+                "SQLite-backed collection remains single-process-only. No earlier trade history is backfilled."
+            ),
         }
