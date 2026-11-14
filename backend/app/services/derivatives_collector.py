@@ -9,6 +9,7 @@ from app.services.collector_lease import (
     CollectorLease,
     CollectorLeaseLostError,
     PostgresCollectorLease,
+    require_lease_database_url,
 )
 from app.services.funding_rates import FundingRateStore
 from app.services.open_interest import OPEN_INTEREST_PERIODS, OpenInterestStore
@@ -78,6 +79,11 @@ class DerivativesHistoryCollector:
             raise ValueError("funding_limit must be between 1 and 1000")
         if not 1 <= open_interest_limit <= 500:
             raise ValueError("open_interest_limit must be between 1 and 500")
+        require_lease_database_url(
+            getattr(funding_store, "database_url", "") or getattr(open_interest_store, "database_url", "") or "",
+            lease_database_url,
+            "Derivatives-history collector",
+        )
         self.funding_store = funding_store
         self.open_interest_store = open_interest_store
         self.provider_factory = provider_factory
