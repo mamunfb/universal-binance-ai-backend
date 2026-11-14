@@ -83,6 +83,13 @@ def test_aggregate_trade_normalization_rejects_invalid_database_values():
         assert normalize_aggregate_trade(payload, market) is None
 
 
+def test_aggregate_trade_normalization_rejects_non_string_symbols():
+    for symbol in (None, 123, [], {}):
+        payload = sample_trade()
+        payload["s"] = symbol
+        assert normalize_aggregate_trade(payload, "SPOT") is None
+
+
 def test_aggregate_trade_normalization_trims_symbol_and_rejects_empty_symbol():
     payload = sample_trade()
     payload["s"] = "  btcusdt  "
