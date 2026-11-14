@@ -291,3 +291,20 @@ def test_evm_indexer_runs_storage_writes_and_coverage_off_event_loop():
     assert result["status"] == "COMPLETED"
     assert len(observed) == 2
     assert all(thread_id != loop_thread for thread_id in observed)
+
+
+def test_postgres_lease_is_rejected_for_sqlite_transfer_store(tmp_path):
+    from datetime import datetime, timedelta, timezone
+    from uuid import uuid4
+    from app.services.collector_lease import CollectorLease
+
+    store = EVMTransferStore(str(tmp_path / "history.sqlite3"))
+    lease = CollectorLease(
+        lease_name="evm-transfer:1:" + CONTRACT,
+        owner_id=uuid4(),
+        fencing_token=1,
+        lease_expires_at=datetime.now(timezone.utc) + timedelta(seconds=30),
+    )
+    with pytest.raises(ValueError, match="require PostgreSQL-backed"):
+        store.save_chunk(1, CONTRACT, 100, 100, [], lease=lease)
+    assert store.coverage(1, CONTRACT) == []
