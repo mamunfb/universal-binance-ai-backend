@@ -14,7 +14,7 @@ This design covers operator-triggered HTTP collection endpoints that write marke
 - `FundingRateStore.save` and `OpenInterestStore.save` accept optional leases and fence PostgreSQL writes in the same transaction.
 
 - `DerivativesRatioStore.save` currently has no lease parameter or same-transaction fencing check; its manual collection endpoint writes directly.
-- `EVMTransferStore.save_chunk` currently has no lease parameter and `main.py` initializes `EVMTransferStore` without a PostgreSQL URL, so this indexing workflow currently uses its local SQLite store even when the API has a PostgreSQL `DATABASE_URL`. It is not a shared-PostgreSQL multi-instance write path today; changing it requires a separate storage migration/design before adding lease fencing.
+- `main.py` initializes `EVMTransferStore` with `settings.database_url`, so the service uses PostgreSQL when configured and SQLite otherwise. `save_chunk` now accepts an optional lease and validates it with `lock_if_owned` in the same transaction as transfer inserts and range-coverage writes. The indexer does not yet acquire or pass a lease; runtime coordination remains outstanding.
 
 ## Implemented first step: shared global lease for manual klines
 
@@ -93,7 +93,7 @@ Mocked endpoint coverage is added. A PostgreSQL two-session fencing test and suc
 | Scheduled open interest | Yes | Yes | Fenced |
 | Manual open interest | Yes, optional | Yes (shared derivatives lease) | Implemented; CI/integration pending |
 | Manual derivatives ratios | Yes, optional | Yes (per-series lease) | Implemented; CI/integration pending |
-| EVM transfer chunk indexing | No; currently SQLite-backed | No | Single-process/local persistence; separate PostgreSQL migration required before distributed lease fencing |
+| EVM transfer chunk indexing | Yes, optional | No | Store fencing added; indexer lease lifecycle still required |
 | Aggregate trade stream | Yes | Yes | Fenced |
 | Order-book stream | Yes | Yes | Fenced |
 | Liquidation stream | Yes | Yes | Fenced |
