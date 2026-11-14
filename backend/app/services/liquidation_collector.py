@@ -10,6 +10,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from app.services.collector_lease import (
+    CollectorLease,
+    CollectorLeaseLostError,
+    PostgresCollectorLease,
+)
+
 from websockets.asyncio.client import connect
 
 logger = logging.getLogger(__name__)
@@ -134,10 +140,16 @@ class LiquidationStore:
     def _connect_postgres(self):
         return psycopg.connect(self.database_url, sslmode=("disable" if "sslmode=disable" in self.database_url else "require"), connect_timeout=15, row_factory=dict_row)
 
-    def insert(self, event: dict[str, Any]) -> None:
+    def insert(self, event: dict[str, Any], lease: CollectorLease | None = None) -> None:
         event_fingerprint = _event_fingerprint(event)
+        if lease is not None and not self.database_url:
+            raise ValueError("Collector leases require PostgreSQL-backed liquidation storage")
         if self.database_url:
             with self._connect_postgres() as connection:
+                if lease is not None and not PostgresCollectorLease.lock_if_owned(connection, lease):
+                    raise CollectorLeaseLostError(
+                        "Liquidation write rejected because the collector lease is no longer owned"
+                    )
                 connection.execute("""
                     INSERT INTO public.liquidation_events (
                         event_time_ms, trade_time_ms, symbol, pair_symbol, market_type, side,

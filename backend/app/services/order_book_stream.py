@@ -9,6 +9,12 @@ from psycopg.rows import dict_row
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
+
+from app.services.collector_lease import (
+    CollectorLease,
+    CollectorLeaseLostError,
+    PostgresCollectorLease,
+)
 from urllib.parse import quote
 
 from websockets.asyncio.client import connect
@@ -65,9 +71,15 @@ class OrderBookHistoryStore:
     def _connect_postgres(self):
         return psycopg.connect(self.database_url, sslmode=("disable" if "sslmode=disable" in self.database_url else "require"), connect_timeout=15, row_factory=dict_row)
 
-    def insert(self, row: dict[str, Any]) -> None:
+    def insert(self, row: dict[str, Any], lease: CollectorLease | None = None) -> None:
+        if lease is not None and not self.database_url:
+            raise ValueError("Collector leases require PostgreSQL-backed order-book storage")
         if self.database_url:
             with self._connect_postgres() as db:
+                if lease is not None and not PostgresCollectorLease.lock_if_owned(db, lease):
+                    raise CollectorLeaseLostError(
+                        "Order-book write rejected because the collector lease is no longer owned"
+                    )
                 db.execute("""
                     INSERT INTO public.order_book_samples (
                         market, symbol, event_time_ms, transaction_time_ms, update_id,

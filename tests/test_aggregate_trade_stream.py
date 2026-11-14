@@ -37,6 +37,16 @@ def test_aggregate_trade_store_is_idempotent_and_filters(tmp_path):
     assert store.recent("USD_M", "BTCUSDT") == []
 
 
+def test_aggregate_trade_store_rejects_lease_with_sqlite_storage(tmp_path):
+    import pytest
+
+    store = AggregateTradeStore(str(tmp_path / "trades.sqlite3"))
+    row = normalize_aggregate_trade(sample_trade(), "SPOT")
+    assert row is not None
+    with pytest.raises(ValueError, match="PostgreSQL"):
+        store.insert(row, lease=object())
+
+
 def test_aggregate_trade_stream_urls():
     assert "wss://stream.binance.com:9443/ws/btcusdt@aggTrade" == aggregate_trade_stream_url("SPOT", "BTCUSDT")
     assert "wss://fstream.binance.com/market/ws/btcusdt@aggTrade" == aggregate_trade_stream_url("USD_M", "BTCUSDT")
