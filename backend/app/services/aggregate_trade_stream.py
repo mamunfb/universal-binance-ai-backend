@@ -312,6 +312,7 @@ class AggregateTradeCollector:
     ) -> None:
         delay = 1
         while not lease_lost.is_set():
+            connection_started_at = None
             try:
                 async with connect(
                     aggregate_trade_stream_url(market, symbol),
@@ -342,7 +343,7 @@ class AggregateTradeCollector:
             except Exception as exc:
                 if lease_lost.is_set():
                     return
-                if "connection_started_at" in locals() and (
+                if connection_started_at is not None and (
                     asyncio.get_running_loop().time() - connection_started_at >= 30
                 ):
                     delay = 1
