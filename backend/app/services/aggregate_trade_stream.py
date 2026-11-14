@@ -42,7 +42,10 @@ def normalize_aggregate_trade(payload: dict[str, Any], market: str) -> dict[str,
         normalized_market = market.upper()
         if normalized_market not in {"SPOT", "USD_M", "COIN_M"}:
             return None
-        symbol = str(payload["s"]).strip().upper()
+        raw_symbol = payload["s"]
+        if not isinstance(raw_symbol, str):
+            return None
+        symbol = raw_symbol.strip().upper()
         if not symbol or len(symbol) > 40:
             return None
         raw_trade_id = payload["a"]
