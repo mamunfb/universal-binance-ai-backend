@@ -80,7 +80,11 @@ class DerivativesHistoryCollector:
         if not 1 <= open_interest_limit <= 500:
             raise ValueError("open_interest_limit must be between 1 and 500")
         require_lease_database_url(
-            getattr(funding_store, "database_url", "") or getattr(open_interest_store, "database_url", "") or "",
+            (
+                getattr(funding_store, "database_url", "")
+                or getattr(open_interest_store, "database_url", "")
+                or ""
+            ),
             lease_database_url,
             "Derivatives-history collector",
         )
