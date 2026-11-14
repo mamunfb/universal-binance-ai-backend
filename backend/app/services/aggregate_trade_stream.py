@@ -257,11 +257,14 @@ class AggregateTradeCollector:
         ]
 
     async def stop(self) -> None:
-        tasks, self.tasks = self.tasks, []
+        tasks = self.tasks
         for task in tasks:
-            task.cancel()
+            if not task.done():
+                task.cancel()
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
+        if self.tasks is tasks:
+            self.tasks = []
 
     async def _persist_trade(
         self, row: dict[str, Any], lease_holder: dict[str, CollectorLease | None],
