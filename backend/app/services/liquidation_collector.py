@@ -210,8 +210,20 @@ class LiquidationStore:
 
 
 class LiquidationCollector:
-    def __init__(self, store: LiquidationStore) -> None:
+    def __init__(
+        self, store: LiquidationStore, lease_database_url: str = "",
+        lease_name: str = "liquidation-stream-collector",
+        lease_ttl_seconds: int = 30,
+    ) -> None:
         self.store = store
+        self._lease_coordinator = (
+            PostgresCollectorLease(
+                lease_database_url, lease_name, ttl_seconds=lease_ttl_seconds
+            ) if lease_database_url.strip() else None
+        )
+        self._lease: CollectorLease | None = None
+        self._lease_lost = asyncio.Event()
+        self._lease_state = "NOT_REQUIRED" if self._lease_coordinator is None else "WAITING"
         self.task: asyncio.Task | None = None
         self.connected = False
         self.last_message_at: str | None = None
@@ -223,26 +235,44 @@ class LiquidationCollector:
 
     def start(self) -> None:
         if self.task is None or self.task.done():
+            self._lease_lost.clear()
             self.task = asyncio.create_task(self.run())
 
     async def stop(self) -> None:
-        if self.task and not self.task.done():
-            self.task.cancel()
+        task = self.task
+        if task and not task.done():
+            task.cancel()
             try:
-                await self.task
+                await task
             except asyncio.CancelledError:
                 pass
         self.connected = False
+        if self._lease is not None and self._lease_coordinator is not None:
+            lease = self._lease
+            self._lease = None
+            if not self._lease_lost.is_set():
+                try:
+                    released = await asyncio.to_thread(
+                        self._lease_coordinator.release, lease
+                    )
+                    self._lease_state = "RELEASED" if released else "RELEASE_FAILED"
+                except Exception as exc:
+                    self._lease_state = "RELEASE_FAILED"
+                    self.last_error = type(exc).__name__
+        if self._lease_state != "LOST":
+            self._lease_state = "STOPPED" if self._lease_coordinator else "NOT_REQUIRED"
 
-    async def run(self) -> None:
+    async def _run_stream(self) -> None:
         delay = 1
-        while True:
+        while not self._lease_lost.is_set():
             try:
                 async with connect(STREAM_URL, ping_interval=20, ping_timeout=20, close_timeout=10) as socket:
                     self.connected = True
                     self.last_error = None
                     delay = 1
                     async for raw in socket:
+                        if self._lease_lost.is_set():
+                            return
                         payload = json.loads(raw)
                         messages = payload if isinstance(payload, list) else [payload]
                         for message in messages:
@@ -254,30 +284,116 @@ class LiquidationCollector:
                             self.last_message_at = datetime.now(timezone.utc).isoformat()
             except asyncio.CancelledError:
                 raise
+            except CollectorLeaseLostError:
+                self._lease_state = "LOST"
+                self._lease_lost.set()
+                raise
             except Exception as exc:
+                if self._lease_lost.is_set():
+                    return
                 self.connected = False
-                # Transport exception messages may contain sensitive connection details.
-                # Keep status and application logs limited to the exception class.
                 error_type = type(exc).__name__
                 self.last_error = error_type
                 self.reconnect_count += 1
                 logger.warning(
                     "Liquidation stream disconnected (%s); retrying in %s seconds",
-                    error_type,
-                    delay,
+                    error_type, delay,
                 )
                 await asyncio.sleep(delay)
                 delay = min(delay * 2, 60)
             finally:
                 self.connected = False
 
+    async def _renew_lease_loop(self) -> None:
+        assert self._lease_coordinator is not None
+        interval = max(1.0, self._lease_coordinator.ttl_seconds / 3)
+        while not self._lease_lost.is_set():
+            await asyncio.sleep(interval)
+            lease = self._lease
+            if lease is None:
+                self._lease_state = "LOST"
+                self._lease_lost.set()
+                return
+            try:
+                renewed = await asyncio.to_thread(self._lease_coordinator.renew, lease)
+            except Exception as exc:
+                self.last_error = type(exc).__name__
+                renewed = None
+            if renewed is None:
+                self._lease_state = "LOST"
+                self._lease_lost.set()
+                return
+            self._lease = renewed
+
+    async def run(self) -> None:
+        if self._lease_coordinator is None:
+            await self._run_stream()
+            return
+        while not self._lease_lost.is_set():
+            try:
+                lease = await asyncio.to_thread(self._lease_coordinator.acquire)
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                self._lease_state = "ACQUIRE_FAILED"
+                self.last_error = type(exc).__name__
+                await asyncio.sleep(10)
+                continue
+            if lease is None:
+                self._lease_state = "HELD_BY_OTHER"
+                await asyncio.sleep(10)
+                continue
+            self._lease = lease
+            self._lease_state = "OWNED"
+            stream_task = asyncio.create_task(self._run_stream())
+            renew_task = asyncio.create_task(self._renew_lease_loop())
+            try:
+                done, pending = await asyncio.wait(
+                    {stream_task, renew_task},
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+                for task in pending:
+                    task.cancel()
+                await asyncio.gather(*pending, return_exceptions=True)
+                for task in done:
+                    exception = task.exception()
+                    if exception is not None:
+                        raise exception
+            except asyncio.CancelledError:
+                stream_task.cancel()
+                renew_task.cancel()
+                await asyncio.gather(stream_task, renew_task, return_exceptions=True)
+                raise
+            except CollectorLeaseLostError:
+                self._lease_state = "LOST"
+                self._lease_lost.set()
+            finally:
+                for task in (stream_task, renew_task):
+                    if not task.done():
+                        task.cancel()
+                await asyncio.gather(stream_task, renew_task, return_exceptions=True)
+            if self._lease_lost.is_set():
+                self._lease_state = "LOST"
+                break
+            # A stream task should only finish on cancellation or lease loss.
+            break
+
     async def _persist_event(self, event: dict[str, Any]) -> None:
-        """Persist one event with bounded-delay retries without reconnecting the stream."""
+        """Persist with bounded retries; lease loss is terminal, not retryable."""
         delay = 1
         while True:
             try:
-                await asyncio.to_thread(self.store.insert, event)
+                if self._lease is None:
+                    await asyncio.to_thread(self.store.insert, event)
+                else:
+                    await asyncio.to_thread(
+                        self.store.insert, event, lease=self._lease
+                    )
             except asyncio.CancelledError:
+                raise
+            except CollectorLeaseLostError:
+                self._lease_state = "LOST"
+                self._lease_lost.set()
                 raise
             except Exception as exc:
                 error_type = type(exc).__name__
@@ -285,8 +401,7 @@ class LiquidationCollector:
                 self.storage_retry_count += 1
                 logger.warning(
                     "Liquidation storage write failed (%s); retrying in %s seconds",
-                    error_type,
-                    delay,
+                    error_type, delay,
                 )
                 await asyncio.sleep(delay)
                 delay = min(delay * 2, 60)
@@ -300,8 +415,6 @@ class LiquidationCollector:
         try:
             stored_event_count = self.store.count()
         except Exception as exc:
-            # Keep the stream health endpoint useful during a database outage.
-            # Do not expose driver messages or connection details in API status.
             stored_event_count = None
             storage_status = "UNAVAILABLE"
             storage_error = type(exc).__name__
@@ -317,5 +430,19 @@ class LiquidationCollector:
             "reconnect_count": self.reconnect_count,
             "last_message_at": self.last_message_at,
             "last_error": self.last_error,
+            "lease_state": self._lease_state,
+            "lease_name": (
+                self._lease_coordinator.lease_name
+                if self._lease_coordinator is not None else None
+            ),
+            "lease_fencing_token": (
+                self._lease.fencing_token if self._lease is not None else None
+            ),
+            "warning": (
+                "PostgreSQL lease fencing coordinates the scheduled liquidation stream only; "
+                "manual collection paths and other collector families are not coordinated."
+                if self._lease_coordinator is not None else
+                "SQLite-backed liquidation collection remains single-process-only."
+            ),
             "status": "CONNECTED" if self.connected else "DISCONNECTED_OR_STARTING",
         }
