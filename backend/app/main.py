@@ -268,8 +268,12 @@ async def request_tracking_middleware(request: Request, call_next):
                         ):
                             matched_client = client_name
                             break
-                if configured_key and hmac.compare_digest(
-                    supplied_key.encode("utf-8"), configured_key.encode("utf-8")
+                if (
+                    isinstance(configured_key, str)
+                    and len(configured_key) >= 32
+                    and hmac.compare_digest(
+                        supplied_key.encode("utf-8"), configured_key.encode("utf-8")
+                    )
                 ):
                     matched_client = "owner"
             if matched_client is None:

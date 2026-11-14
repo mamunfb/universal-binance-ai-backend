@@ -335,3 +335,51 @@ def test_dashboard_markup_has_no_literal_newline_separator():
     dashboard = Path(__file__).resolve().parents[1] / "dashboard" / "index.html"
     html = dashboard.read_text(encoding="utf-8")
     assert r"</div>\n<div>" not in html
+
+
+
+def test_production_rejects_weak_owner_key_even_when_ai_client_keys_are_valid(monkeypatch):
+    monkeypatch.setattr(settings, "app_env", "production")
+    monkeypatch.setattr(settings, "personal_api_key", "weak-owner-key")
+    monkeypatch.setattr(
+        settings,
+        "ai_client_api_keys",
+        '{'
+        '"chatgpt":"chatgpt-test-key-12345678901234567890123456789012",'
+        '"gemini":"gemini-test-key-12345678901234567890123456789012",'
+        '"manus":"manus-test-key-12345678901234567890123456789012",'
+        '"claude":"claude-test-key-12345678901234567890123456789012",'
+        '"perplexity":"perplexity-test-key-12345678901234567890123456789012"'
+        '}',
+    )
+
+    response = client.get(
+        "/api/v1/analysis/futures/liquidations/status",
+        headers={"Authorization": "Bearer weak-owner-key"},
+    )
+
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "UNAUTHORIZED"
+
+
+def test_production_still_accepts_valid_ai_client_key_when_owner_key_is_weak(monkeypatch):
+    monkeypatch.setattr(settings, "app_env", "production")
+    monkeypatch.setattr(settings, "personal_api_key", "weak-owner-key")
+    monkeypatch.setattr(
+        settings,
+        "ai_client_api_keys",
+        '{'
+        '"chatgpt":"chatgpt-test-key-12345678901234567890123456789012",'
+        '"gemini":"gemini-test-key-12345678901234567890123456789012",'
+        '"manus":"manus-test-key-12345678901234567890123456789012",'
+        '"claude":"claude-test-key-12345678901234567890123456789012",'
+        '"perplexity":"perplexity-test-key-12345678901234567890123456789012"'
+        '}',
+    )
+
+    response = client.get(
+        "/api/v1/analysis/futures/liquidations/status",
+        headers={"Authorization": "Bearer chatgpt-test-key-12345678901234567890123456789012"},
+    )
+
+    assert response.status_code == 200
