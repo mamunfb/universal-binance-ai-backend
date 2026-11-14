@@ -123,3 +123,86 @@ def test_order_book_job_waits_for_stable_market_symbol_lease(tmp_path, monkeypat
         "ttl_seconds": 45,
         "acquired": True,
     }
+
+
+def test_order_book_waits_for_inflight_insert_before_releasing_lease(monkeypatch, tmp_path):
+    import asyncio
+    import json
+    import threading
+    from types import SimpleNamespace
+    from app.services import order_book_stream as module
+
+    insert_started = threading.Event()
+    finish_insert = threading.Event()
+    released = []
+    lease = SimpleNamespace(fencing_token=51)
+
+    class FakeLeaseManager:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def acquire(self):
+            return lease
+
+        def renew(self, current):
+            return current
+
+        def release(self, current):
+            released.append(current)
+            return True
+
+    class BlockingStore:
+        def insert(self, _row, current_lease=None):
+            assert current_lease is lease
+            insert_started.set()
+            if not finish_insert.wait(timeout=3):
+                raise TimeoutError("test insert was not released")
+
+    class Provider:
+        async def order_book(self, _symbol, _limit):
+            return {
+                "lastUpdateId": 100,
+                "bids": [["99", "1"]],
+                "asks": [["101", "1"]],
+            }
+
+    class Socket:
+        def __aiter__(self):
+            async def iterate():
+                yield json.dumps({
+                    "U": 101, "u": 101, "E": 1700000000123, "T": 1700000000100,
+                    "b": [["99", "2"]], "a": [["101", "1"]],
+                })
+                await asyncio.Event().wait()
+            return iterate()
+
+    class SocketContext:
+        async def __aenter__(self):
+            return Socket()
+
+        async def __aexit__(self, *_args):
+            return False
+
+    monkeypatch.setattr(module, "PostgresCollectorLease", FakeLeaseManager)
+    monkeypatch.setattr(module, "connect", lambda *_args, **_kwargs: SocketContext())
+    collector = OrderBookStreamCollector(
+        BlockingStore(), lambda: None, lambda _market: Provider(),
+        jobs_json='[{"market":"SPOT","symbol":"BTCUSDT"}]',
+        lease_database_url="postgresql://example/db",
+    )
+
+    async def scenario():
+        task = asyncio.create_task(collector._run_job(collector._jobs()[0]))
+        assert await asyncio.to_thread(insert_started.wait, 2)
+        task.cancel()
+        await asyncio.sleep(0.05)
+        task.cancel()
+        await asyncio.sleep(0.05)
+        assert not task.done()
+        assert released == []
+        finish_insert.set()
+        result = await asyncio.gather(task, return_exceptions=True)
+        assert isinstance(result[0], asyncio.CancelledError)
+
+    asyncio.run(scenario())
+    assert released == [lease]
