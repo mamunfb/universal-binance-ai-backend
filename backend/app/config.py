@@ -94,9 +94,19 @@ def parse_cors_allowed_origins(value: str) -> list[str]:
             raise ValueError("CORS_ALLOWED_ORIGINS must contain exact HTTPS origins without paths or credentials")
         if parsed.scheme == "http" and hostname not in {"localhost", "127.0.0.1", "::1"}:
             raise ValueError("CORS_ALLOWED_ORIGINS permits HTTP only for localhost development origins")
-        canonical_origin = f"{parsed.scheme}://{parsed.netloc}"
-        if origin != canonical_origin:
-            raise ValueError("CORS_ALLOWED_ORIGINS entries must use canonical origin syntax")
+        if any(character.isspace() for character in origin):
+            raise ValueError("CORS_ALLOWED_ORIGINS entries must not contain whitespace")
+        try:
+            normalized_hostname = hostname.encode("idna").decode("ascii").lower()
+        except UnicodeError as exc:
+            raise ValueError("CORS_ALLOWED_ORIGINS contains an invalid hostname") from exc
+        if not normalized_hostname or any(character in normalized_hostname for character in "/\\\\?#@"):
+            raise ValueError("CORS_ALLOWED_ORIGINS contains an invalid hostname")
+        port = parsed.port
+        default_port = 443 if parsed.scheme == "https" else 80
+        host_for_origin = f"[{normalized_hostname}]" if ":" in normalized_hostname else normalized_hostname
+        authority = host_for_origin if port is None or port == default_port else f"{host_for_origin}:{port}"
+        canonical_origin = f"{parsed.scheme}://{authority}"
         if canonical_origin not in origins:
             origins.append(canonical_origin)
     return origins
