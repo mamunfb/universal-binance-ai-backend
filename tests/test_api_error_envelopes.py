@@ -169,6 +169,32 @@ def test_unknown_ai_client_key_is_rejected(monkeypatch):
     assert response.status_code == 401
 
 
+@pytest.mark.parametrize(
+    ("client_keys", "supplied_key"),
+    [
+        ('{"chatgpt":"weak-client-key"}', "weak-client-key"),
+        (
+            '{"unrecognized":"unrecognized-client-key-12345678901234567890"}',
+            "unrecognized-client-key-12345678901234567890",
+        ),
+    ],
+)
+def test_production_owner_key_does_not_enable_weak_or_unknown_client_keys(
+    monkeypatch, client_keys, supplied_key
+):
+    monkeypatch.setattr(settings, "app_env", "production")
+    monkeypatch.setattr(settings, "personal_api_key", "test-owner-key-with-enough-entropy")
+    monkeypatch.setattr(settings, "ai_client_api_keys", client_keys)
+
+    response = client.get(
+        "/api/v1/analysis/futures/liquidations/status",
+        headers={"Authorization": f"Bearer {supplied_key}"},
+    )
+
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "UNAUTHORIZED"
+
+
 def test_evm_wallet_route_sanitizes_provider_exception(monkeypatch):
     import asyncio
     from app import main
