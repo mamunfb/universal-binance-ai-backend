@@ -9,6 +9,7 @@ from app.services.collector_lease import (
     CollectorLease,
     CollectorLeaseLostError,
     PostgresCollectorLease,
+    require_lease_database_url,
 )
 from app.services.historical_klines import HistoricalKlineStore
 
@@ -77,6 +78,11 @@ class HistoricalKlineCollector:
         lease_name: str = "historical-kline-collector",
         lease_ttl_seconds: int = 30,
     ) -> None:
+        require_lease_database_url(
+            getattr(store, "database_url", "") or "",
+            lease_database_url,
+            "Historical-kline collector",
+        )
         self.store = store
         self.spot_provider_factory = spot_provider_factory
         self.futures_provider_factory = futures_provider_factory
