@@ -5,6 +5,7 @@ import uuid
 import pytest
 
 from app.services.evm_transfer_store import EVMTransferStore
+from app.services.collector_lease import PostgresCollectorLease
 from app.providers.evm_rpc import TRANSFER_TOPIC
 
 
@@ -13,9 +14,13 @@ from app.providers.evm_rpc import TRANSFER_TOPIC
     reason="TEST_DATABASE_URL is not configured; PostgreSQL integration test skipped",
 )
 def test_evm_transfer_postgres_round_trip_coverage_and_flows(tmp_path):
-    store = EVMTransferStore(str(tmp_path / "unused.sqlite3"), os.environ["TEST_DATABASE_URL"])
+    database_url = os.environ["TEST_DATABASE_URL"]
+    store = EVMTransferStore(str(tmp_path / "unused.sqlite3"), database_url)
     chain_id = 31337
     contract = "0x" + (uuid.uuid4().hex + uuid.uuid4().hex[:8])
+    lease_name = f"evm-transfer-indexer:{chain_id}:{contract}"
+    lease_manager = PostgresCollectorLease(database_url, lease_name, ttl_seconds=30)
+    lease = None
     tx_hash = "0x" + uuid.uuid4().hex + uuid.uuid4().hex
     sender = "0x" + "1" * 40
     recipient = "0x" + "2" * 40
@@ -27,8 +32,12 @@ def test_evm_transfer_postgres_round_trip_coverage_and_flows(tmp_path):
         "blockNumber": hex(start), "logIndex": "0x0",
     }
     try:
-        assert store.save_chunk(chain_id, contract, start, end, [log]) == 1
-        assert store.save_chunk(chain_id, contract, start, end, [log]) == 1
+        with pytest.raises(ValueError, match="require an active collector lease"):
+            store.save_chunk(chain_id, contract, start, end, [log])
+        lease = lease_manager.acquire()
+        assert lease is not None
+        assert store.save_chunk(chain_id, contract, start, end, [log], lease=lease) == 1
+        assert store.save_chunk(chain_id, contract, start, end, [log], lease=lease) == 1
         rows = store.history(chain_id, contract, start, end)
         assert len(rows) == 1
         assert rows[0]["amount_raw"] == "12345"
@@ -66,6 +75,8 @@ def test_evm_transfer_postgres_round_trip_coverage_and_flows(tmp_path):
         assert label_flows["exchange"]["net_received_raw"] == "-12345"
         assert label_flows["fund"]["net_received_raw"] == "12345"
     finally:
+        if lease is not None:
+            lease_manager.release(lease)
         with store._connect() as connection:
             connection.execute(
                 "DELETE FROM public.evm_transfer_logs WHERE chain_id=? AND contract_address=?",
@@ -74,4 +85,8 @@ def test_evm_transfer_postgres_round_trip_coverage_and_flows(tmp_path):
             connection.execute(
                 "DELETE FROM public.evm_transfer_index_ranges WHERE chain_id=? AND contract_address=?",
                 (chain_id, contract),
+            )
+            connection.execute(
+                "DELETE FROM public.collector_leases WHERE lease_name=?",
+                (lease_name,),
             )
