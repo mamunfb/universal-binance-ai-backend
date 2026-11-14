@@ -42,6 +42,8 @@ def test_parse_cors_allowed_origins_accepts_exact_https_and_localhost_origins():
         "https://dashboard.example?token=secret",
         "https://dashboard.example#fragment",
         "ftp://dashboard.example",
+        "https://dashboard.example:invalid",
+        "https://dashboard.example:65536",
     ],
 )
 def test_parse_cors_allowed_origins_rejects_unsafe_or_non_origin_values(value):
