@@ -15,7 +15,20 @@ This design covers operator-triggered HTTP collection endpoints that write marke
 - `DerivativesRatioStore.save` currently has no lease parameter or same-transaction fencing check; its manual collection endpoint writes directly.
 - `EVMTransferStore.save_chunk` currently has no lease parameter. EVM transfer indexing is a separate workflow and is outside this manual market-history lease change.
 
-## Recommended first implementation: shared global lease
+## Implemented first step: shared global lease for manual klines
+
+Implemented on this branch in commit `049c65c`, with endpoint regression tests in `207bab4`:
+
+- The manual historical-kline endpoint now acquires the same `historical-kline-collector` lease as the scheduled collector.
+- A held lease returns HTTP 409 before the Binance provider is called.
+- The lease is renewed after the provider request and immediately before the store write.
+- The current lease is passed to `HistoricalKlineStore.save_klines`, which performs same-transaction fencing.
+- The lease is released in `finally` after success, empty results, or provider/store errors; acquisition cancellation also attempts to reap a lease acquired during shutdown.
+- Added mocked tests for success/pass-through/release, busy lease/no provider call, and provider failure/release.
+
+This step is not yet PostgreSQL concurrency verified. CI runs #1562, #1563, and #1564 report failure, but GitHub's job-log endpoint currently returns 404 and exposes no step details. Do not infer the failure cause or treat the tests as passing.
+
+## Implemented behavior: shared global lease
 
 Use the exact scheduled collector lease name for the matching manual endpoint:
 
@@ -49,7 +62,7 @@ This intentionally serializes manual requests with the corresponding scheduled c
 | Write path | Store fencing | Runtime passes lease | Assessment |
 |---|---|---|---|
 | Scheduled historical klines | Yes | Yes | Fenced |
-| Manual historical klines | Yes, optional | No | Must coordinate |
+| Manual historical klines | Yes, optional | Yes (shared global lease) | Implemented; CI/log verification pending |
 | Scheduled funding rates | Yes | Yes | Fenced |
 | Manual funding rates | Yes, optional | No | Must coordinate |
 | Scheduled open interest | Yes | Yes | Fenced |
