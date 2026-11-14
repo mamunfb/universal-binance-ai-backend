@@ -86,6 +86,12 @@ Implemented in the EVM store/indexer changes and migration `012_manual_history_a
 
 The CI job currently reports failure, but GitHub's job-step and log endpoints are returning no step details / 404. These tests and migrations must not be considered verified until a passing workflow run is available.
 
+## Manual endpoint cancellation and blocking-worker lifecycle
+
+The manual historical-kline, funding-rate, open-interest, and derivatives-ratio endpoints now route blocking PostgreSQL lease acquisition, renewal, protected writes, and release through a shared thread-worker drain helper. If a request is cancelled while a database worker is active, the endpoint waits for the thread to finish before propagating cancellation. Acquisition cleanup attempts to release any lease acquired during shutdown; renewal completion updates the local lease snapshot before cleanup; and protected writes are drained before the `finally` release path proceeds. Regression tests cover repeated cancellation during a blocking worker, cancellation during derivatives lease acquisition with lease reaping, and cancellation during lease release.
+
+These changes are not yet test-verified. The latest GitHub Actions run fails before runner assignment (`runner_id=0`, empty runner name, and no job steps), and the job log endpoint returns `BlobNotFound`. Do not treat these tests or the full workflow as passing until a runner executes the test suite successfully.
+
 ## Required regression tests
 
 - Scheduled collector owns the lease: manual endpoint returns 409, provider is not called, and no store write occurs.
