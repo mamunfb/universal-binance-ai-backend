@@ -14,7 +14,7 @@ The FastAPI lifespan starts enabled collectors inside each backend process:
 - Historical-kline polling
 - Derivatives funding/open-interest polling
 
-These collectors use process-local asyncio tasks. The historical-kline and derivatives-history polling tasks now acquire separate named PostgreSQL leases before starting, renew them while running, pass fencing tokens to each PostgreSQL history write, and exit permanently for that process if ownership is lost. Order-book, aggregate-trade, and liquidation stream tasks still lack runtime lease coordination, although their storage methods now support fenced PostgreSQL writes. Shared PostgreSQL persistence does not provide single-owner execution by itself.
+These collectors use process-local asyncio tasks. The historical-kline and derivatives-history polling tasks now acquire separate named PostgreSQL leases before starting, renew them while running, pass fencing tokens to each PostgreSQL history write, and exit permanently for that process if ownership is lost. Order-book and aggregate-trade stream tasks still lack runtime lease coordination. The liquidation stream now acquires and renews a PostgreSQL lease before connecting, fences every event insert, stops on ownership loss, and releases its lease during orderly shutdown. Shared PostgreSQL persistence does not provide single-owner execution by itself.
 
 ### Verified persistence and duplicate handling
 
@@ -46,15 +46,15 @@ This integration covers only scheduled historical-kline collection. The manual H
 
 FundingRateStore.save and OpenInterestStore.save also accept optional leases and validate ownership on the same PostgreSQL transaction as their upserts. DerivativesHistoryCollector acquires the stable derivatives-history-collector lease before polling, renews at roughly one-third of the configured TTL, fences both funding-rate and open-interest writes, and does not collect while another live owner holds the lease. A renewal failure or rejected fenced write stops the collector without automatic reacquisition. The default TTL is 30 seconds and is configured with DERIVATIVES_COLLECTOR_LEASE_TTL_SECONDS. SQLite mode remains single-process-only. Direct run_once() calls are rejected when PostgreSQL lease mode is configured but no current lease is held.
 
-This integration covers only scheduled historical-kline and derivatives-history collection. Manual HTTP collection endpoints and order-book, aggregate-trade, and liquidation collectors are not lease-fenced; do not treat this as full multi-instance readiness.
+This integration covers scheduled historical-kline, derivatives-history, and the live liquidation stream. Manual HTTP collection endpoints and order-book and aggregate-trade collectors are not runtime lease-coordinated; do not treat this as full multi-instance readiness.
 
-The persistence layer now also supports optional fencing for `OrderBookHistoryStore.insert`, `AggregateTradeStore.insert`, and `LiquidationStore.insert`: each validates the lease in the same PostgreSQL transaction as its insert. These three stream collectors do not yet acquire or pass leases, so the new store guards are not active in their runtime paths. SQLite-backed inserts reject a supplied lease.
+The persistence layer supports optional fencing for `OrderBookHistoryStore.insert`, `AggregateTradeStore.insert`, and `LiquidationStore.insert`: each validates the lease in the same PostgreSQL transaction as its insert. The liquidation runtime now acquires the stable `liquidation-stream-collector` lease, renews it at roughly one-third of the configured TTL, passes the current lease to every insert, and treats a rejected write or failed renewal as terminal for that process (no automatic reacquisition). The default TTL is 30 seconds and is configured with `LIQUIDATION_COLLECTOR_LEASE_TTL_SECONDS`. If another live owner holds the lease, the stream does not connect. Order-book and aggregate-trade runtime tasks still do not acquire or pass leases. SQLite-backed inserts reject a supplied lease.
 
 The PostgreSQL integration tests cover simultaneous acquisition by two independent owners, expired-lease takeover and token increment, stale-owner renewal/release/write-guard rejection, renewal, monotonic token preservation across release, and a two-session check that an active fenced write transaction blocks an expired lease takeover until commit. These tests use TEST_DATABASE_URL; a skipped local run is not evidence of PostgreSQL verification.
 
 ## Required integration before multi-instance collector operation
 
-1. Extend lease acquisition, heartbeat, loss handling, and shutdown to order-book, aggregate-trade, and liquidation collectors, passing the lease to every insert.
+1. Extend lease acquisition, heartbeat, loss handling, and shutdown to order-book and aggregate-trade collectors, passing the lease to every insert.
 2. Confirm every collector persistence path calls lock_if_owned in the same transaction as its write; cover all batch writes.
 3. Decide whether manual collection endpoints need a separate lease or should remain explicitly operator-triggered and single-request.
 4. Add two-connection tests for every remaining collector's stale-owner write path and shutdown behavior.
