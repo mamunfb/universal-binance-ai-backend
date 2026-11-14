@@ -20,7 +20,21 @@
 <section class="panel"><h2>Raw response</h2><pre id="raw">Waiting…</pre></section>
 <script>
 const $=id=>document.getElementById(id);let latest=null;
-const api=()=> $('base').value.trim().replace(/\/$/,'');
+function api(){
+  const raw=$('base').value.trim();
+  if(!raw)throw Error('Backend Base URL required');
+  let parsed;
+  try{parsed=new URL(raw)}catch(_){throw Error('Backend Base URL must be a valid absolute URL')}
+  const hostname=parsed.hostname.toLowerCase();
+  const isLocal=['localhost','127.0.0.1','[::1]','::1'].includes(hostname);
+  if(parsed.protocol!=='https:'&&!(parsed.protocol==='http:'&&isLocal)){
+    throw Error('Backend Base URL must use HTTPS; HTTP is allowed only for localhost development')
+  }
+  if(parsed.username||parsed.password||parsed.search||parsed.hash||parsed.pathname!=='/'){
+    throw Error('Backend Base URL must contain only an origin (no credentials, path, query, or fragment)')
+  }
+  return parsed.origin;
+}
 // Escape untrusted API values before inserting them into HTML text or attributes.
 const escapeHtml=value=>String(value??'').replace(/[&<>"']/g,char=>({
   '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
