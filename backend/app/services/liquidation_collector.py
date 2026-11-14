@@ -330,9 +330,23 @@ class LiquidationCollector:
             await self._run_stream()
             return
         while not self._lease_lost.is_set():
+            acquire_task = asyncio.create_task(
+                asyncio.to_thread(self._lease_coordinator.acquire)
+            )
             try:
-                lease = await asyncio.to_thread(self._lease_coordinator.acquire)
+                lease = await asyncio.shield(acquire_task)
             except asyncio.CancelledError:
+                # A worker thread cannot be canceled; collect and release any
+                # lease it acquired before propagating shutdown cancellation.
+                try:
+                    acquired_during_shutdown = await acquire_task
+                    if acquired_during_shutdown is not None:
+                        await asyncio.to_thread(
+                            self._lease_coordinator.release,
+                            acquired_during_shutdown,
+                        )
+                except Exception as exc:
+                    self.last_error = type(exc).__name__
                 raise
             except Exception as exc:
                 self._lease_state = "ACQUIRE_FAILED"
