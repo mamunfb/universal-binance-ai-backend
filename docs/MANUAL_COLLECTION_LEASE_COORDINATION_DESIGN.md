@@ -14,7 +14,7 @@ This design covers operator-triggered HTTP collection endpoints that write marke
 - `FundingRateStore.save` and `OpenInterestStore.save` accept optional leases and fence PostgreSQL writes in the same transaction.
 
 - `DerivativesRatioStore.save` currently has no lease parameter or same-transaction fencing check; its manual collection endpoint writes directly.
-- `EVMTransferStore.save_chunk` currently has no lease parameter. EVM transfer indexing is a separate workflow and is outside this manual market-history lease change.
+- `EVMTransferStore.save_chunk` currently has no lease parameter and `main.py` initializes `EVMTransferStore` without a PostgreSQL URL, so this indexing workflow currently uses its local SQLite store even when the API has a PostgreSQL `DATABASE_URL`. It is not a shared-PostgreSQL multi-instance write path today; changing it requires a separate storage migration/design before adding lease fencing.
 
 ## Implemented first step: shared global lease for manual klines
 
@@ -93,7 +93,7 @@ Mocked endpoint coverage is added. A PostgreSQL two-session fencing test and suc
 | Scheduled open interest | Yes | Yes | Fenced |
 | Manual open interest | Yes, optional | Yes (shared derivatives lease) | Implemented; CI/integration pending |
 | Manual derivatives ratios | Yes, optional | Yes (per-series lease) | Implemented; CI/integration pending |
-| EVM transfer chunk indexing | No | No | Separate workflow audit required |
+| EVM transfer chunk indexing | No; currently SQLite-backed | No | Single-process/local persistence; separate PostgreSQL migration required before distributed lease fencing |
 | Aggregate trade stream | Yes | Yes | Fenced |
 | Order-book stream | Yes | Yes | Fenced |
 | Liquidation stream | Yes | Yes | Fenced |
@@ -103,4 +103,4 @@ Mocked endpoint coverage is added. A PostgreSQL two-session fencing test and suc
 - Collector enablement flags remain disabled.
 - No Render, Cloudflare, or production configuration changes.
 - No PR merge or deployment.
-- Do not claim multi-instance readiness until the manual endpoints, derivatives-ratio path, EVM transfer workflow, and PostgreSQL concurrency tests are complete.
+- Do not claim multi-instance readiness until the manual endpoints, EVM transfer storage architecture, and PostgreSQL concurrency tests are complete.
