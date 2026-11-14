@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     http_timeout_seconds: float = 15.0
     liquidation_collector_enabled: bool = False
     liquidation_database_path: str = "data/liquidations.sqlite3"
+    liquidation_collector_lease_ttl_seconds: int = 30
     order_book_collector_enabled: bool = False
     order_book_collector_jobs: str = "[]"
     order_book_database_path: str = "data/order_book_history.sqlite3"
