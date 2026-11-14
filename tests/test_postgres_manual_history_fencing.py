@@ -224,3 +224,37 @@ def test_postgres_lease_share_lock_blocks_expired_lease_takeover():
                 "DELETE FROM public.collector_leases WHERE lease_name=%s",
                 (lease_name,),
             )
+
+
+def test_postgres_release_rejects_stale_lease_snapshot_after_renewal():
+    suffix = uuid4().hex[:12]
+    lease_name = f"test-lease-stale-release:{suffix}"
+    manager = PostgresCollectorLease(DATABASE_URL, lease_name, ttl_seconds=30)
+    lease = manager.acquire()
+    assert lease is not None
+    renewed = None
+    try:
+        renewed = manager.renew(lease)
+        assert renewed is not None
+        assert renewed.fencing_token == lease.fencing_token
+        assert renewed.lease_expires_at > lease.lease_expires_at
+
+        # A delayed cleanup holding the pre-renewal snapshot must not expire
+        # the currently renewed lease owned by this same collector.
+        assert manager.release(lease) is False
+        with psycopg.connect(DATABASE_URL) as connection:
+            assert PostgresCollectorLease.lock_if_owned(connection, renewed)
+
+        assert manager.release(renewed) is True
+        with psycopg.connect(DATABASE_URL) as connection:
+            assert not PostgresCollectorLease.lock_if_owned(connection, renewed)
+    finally:
+        if renewed is not None:
+            manager.release(renewed)
+        else:
+            manager.release(lease)
+        with psycopg.connect(DATABASE_URL) as connection:
+            connection.execute(
+                "DELETE FROM public.collector_leases WHERE lease_name=%s",
+                (lease_name,),
+            )
