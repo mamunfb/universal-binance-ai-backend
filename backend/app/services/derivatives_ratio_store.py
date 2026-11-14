@@ -118,6 +118,8 @@ class DerivativesRatioStore:
              json.dumps(payload, sort_keys=True, allow_nan=False), source, now)
             for timestamp, payload in normalized
         ]
+        if self.database_url and lease is None:
+            raise ValueError("PostgreSQL derivatives-ratio writes require an active collector lease")
         if lease is not None and not self.database_url:
             raise ValueError("Collector leases require PostgreSQL-backed derivatives-ratio storage")
         if self.database_url:
