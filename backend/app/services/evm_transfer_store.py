@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from app.providers.evm_rpc import EVMRPCProvider, TRANSFER_TOPIC
+from app.services.collector_lease import CollectorLease, CollectorLeaseLostError, PostgresCollectorLease
 
 
 class _PostgresConnection:
@@ -83,7 +84,8 @@ class EVMTransferStore:
         return connection
 
     def save_chunk(self, chain_id: int, contract: str, start: int, end: int,
-                   logs: list[dict[str, Any]]) -> int:
+                   logs: list[dict[str, Any]],
+                   lease: CollectorLease | None = None) -> int:
         # Keep direct store calls consistent across SQLite and PostgreSQL.
         if isinstance(chain_id, bool) or not isinstance(chain_id, int) or chain_id <= 0:
             raise ValueError("chain_id must be a positive integer")
@@ -128,7 +130,13 @@ class EVMTransferStore:
                 raise ValueError("RPC Transfer log falls outside the requested range or has a negative amount")
             rows.append((chain_id, contract.lower(), tx_hash.lower(), log_index, block_number,
                          sender, recipient, str(raw_value), bool(log.get("removed")), now))
+        if lease is not None and not self.database_url:
+            raise ValueError("Collector leases require PostgreSQL-backed EVM transfer storage")
         with self._connect() as connection:
+            if lease is not None and not PostgresCollectorLease.lock_if_owned(connection, lease):
+                raise CollectorLeaseLostError(
+                    "EVM transfer chunk write rejected because the collector lease is no longer owned"
+                )
             connection.executemany("""
                 INSERT INTO evm_transfer_logs
                 (chain_id, contract_address, transaction_hash, log_index, block_number,
