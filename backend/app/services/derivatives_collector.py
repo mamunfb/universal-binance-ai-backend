@@ -5,6 +5,11 @@ import json
 from datetime import datetime, timezone
 from typing import Any, Callable
 
+from app.services.collector_lease import (
+    CollectorLease,
+    CollectorLeaseLostError,
+    PostgresCollectorLease,
+)
 from app.services.funding_rates import FundingRateStore
 from app.services.open_interest import OPEN_INTEREST_PERIODS, OpenInterestStore
 
@@ -48,6 +53,9 @@ class DerivativesHistoryCollector:
         provider_factory: Callable[[str], Any], jobs_json: str,
         poll_seconds: int = 60, funding_limit: int = 1000,
         open_interest_limit: int = 500,
+        lease_database_url: str = "",
+        lease_name: str = "derivatives-history-collector",
+        lease_ttl_seconds: int = 30,
     ) -> None:
         if not 10 <= poll_seconds <= 3600:
             raise ValueError("poll_seconds must be between 10 and 3600")
@@ -62,6 +70,16 @@ class DerivativesHistoryCollector:
         self.poll_seconds = poll_seconds
         self.funding_limit = funding_limit
         self.open_interest_limit = open_interest_limit
+        self._lease_coordinator = (
+            PostgresCollectorLease(
+                lease_database_url, lease_name, ttl_seconds=lease_ttl_seconds
+            )
+            if lease_database_url.strip()
+            else None
+        )
+        self._lease: CollectorLease | None = None
+        self._lease_lost: asyncio.Event | None = None
+        self._lease_state = "NOT_REQUIRED" if self._lease_coordinator is None else "WAITING"
         self._task: asyncio.Task | None = None
         self._stop_event = asyncio.Event()
         self._lock = asyncio.Lock()
