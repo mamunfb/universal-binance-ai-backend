@@ -320,7 +320,16 @@ class AggregateTradeCollector:
                 try:
                     renewed = await asyncio.shield(renew_worker)
                 except asyncio.CancelledError:
-                    await _wait_for_worker_task(renew_worker)
+                    renewed_during_shutdown, renew_error, _ = await _wait_for_worker_task(renew_worker)
+                    if renew_error is not None:
+                        state["last_error"] = type(renew_error).__name__
+                    elif renewed_during_shutdown is not None:
+                        lease_holder["lease"] = renewed_during_shutdown
+                        state["fencing_token"] = renewed_during_shutdown.fencing_token
+                    else:
+                        lease_lost.set()
+                        state["lease_state"] = "LOST"
+                        state["last_error"] = "CollectorLeaseLostError"
                     raise
                 except Exception as exc:
                     state["last_error"] = type(exc).__name__
