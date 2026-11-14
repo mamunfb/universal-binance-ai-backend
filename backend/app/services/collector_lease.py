@@ -15,6 +15,10 @@ import psycopg
 from psycopg.rows import dict_row
 
 
+class CollectorLeaseLostError(RuntimeError):
+    """Raised when a collector attempts a write without its current lease."""
+
+
 @dataclass(frozen=True)
 class CollectorLease:
     lease_name: str

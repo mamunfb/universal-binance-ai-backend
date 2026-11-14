@@ -12,7 +12,8 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError
 import psycopg
 import pytest
 
-from app.services.collector_lease import PostgresCollectorLease
+from app.services.collector_lease import CollectorLeaseLostError, PostgresCollectorLease
+from app.services.historical_klines import HistoricalKlineStore
 
 
 requires_postgres = pytest.mark.skipif(
@@ -129,4 +130,54 @@ def test_live_fenced_write_transaction_blocks_expired_lease_takeover():
         assert new_lease.fencing_token == old_lease.fencing_token + 1
     finally:
         with psycopg.connect(os.environ["TEST_DATABASE_URL"]) as connection:
+            connection.execute("DELETE FROM public.collector_leases WHERE lease_name = %s", (name,))
+
+
+
+@requires_postgres
+def test_historical_kline_store_rejects_stale_lease_and_accepts_current_owner():
+    name = f"lease-test-{uuid.uuid4().hex}"
+    symbol = f"LEASE{uuid.uuid4().hex[:8].upper()}"
+    first, second = _lease(name), _lease(name)
+    store = HistoricalKlineStore(":unused:", database_url=os.environ["TEST_DATABASE_URL"])
+    candle = [
+        1_700_000_040_000, "100", "105", "99", "101", "10",
+        1_700_000_099_999, "1000", 25, "4", "400", "0",
+    ]
+    try:
+        old_lease = first.acquire()
+        assert old_lease is not None
+        saved = store.save_klines("SPOT", symbol, "1m", [candle], lease=old_lease)
+        assert saved["stored_count"] == 1
+
+        with psycopg.connect(os.environ["TEST_DATABASE_URL"]) as connection:
+            connection.execute(
+                "UPDATE public.collector_leases SET lease_expires_at = clock_timestamp() - INTERVAL '1 second' WHERE lease_name = %s",
+                (name,),
+            )
+        current_lease = second.acquire()
+        assert current_lease is not None
+        assert current_lease.fencing_token == old_lease.fencing_token + 1
+
+        stale_candle = [*candle]
+        stale_candle[0] += 60_000
+        stale_candle[6] += 60_000
+        with pytest.raises(CollectorLeaseLostError):
+            store.save_klines("SPOT", symbol, "1m", [stale_candle], lease=old_lease)
+
+        accepted_candle = [*candle]
+        accepted_candle[0] += 120_000
+        accepted_candle[6] += 120_000
+        accepted = store.save_klines(
+            "SPOT", symbol, "1m", [accepted_candle], lease=current_lease
+        )
+        assert accepted["stored_count"] == 1
+        history = store.history("SPOT", symbol, "1m")
+        assert history["returned_count"] == 2
+    finally:
+        with psycopg.connect(os.environ["TEST_DATABASE_URL"]) as connection:
+            connection.execute(
+                "DELETE FROM public.historical_klines WHERE market = 'SPOT' AND symbol = %s",
+                (symbol,),
+            )
             connection.execute("DELETE FROM public.collector_leases WHERE lease_name = %s", (name,))
