@@ -1,4 +1,6 @@
 import asyncio
+from types import SimpleNamespace
+
 import pytest
 
 from app.services.collector_lease import CollectorLeaseLostError
@@ -120,7 +122,8 @@ class FakeLeaseCoordinator:
         self.acquired = 0
         self.renewed = 0
         self.released = 0
-        self.lease = object()
+        self.lease_name = lease_name
+        self.lease = SimpleNamespace(fencing_token=1)
         self.lose_on_renew = False
 
     def acquire(self):
