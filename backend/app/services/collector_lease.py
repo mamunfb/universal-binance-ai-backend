@@ -41,7 +41,7 @@ class PostgresCollectorLease:
             raise ValueError("ttl_seconds must be an integer between 5 and 3600")
         self.database_url = database_url.strip()
         self.lease_name = lease_name.strip()
-        self.owner_id = owner_id or uuid4()
+        self.owner_id = owner_id if owner_id is not None else uuid4()
         if not isinstance(self.owner_id, UUID):
             raise ValueError("owner_id must be a UUID")
         self.ttl_seconds = ttl_seconds
