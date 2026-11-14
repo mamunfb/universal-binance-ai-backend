@@ -212,10 +212,24 @@ class DerivativesHistoryCollector:
         async with self._lock:
             results = []
             for job in self.jobs:
+                if self._lease_lost is not None and self._lease_lost.is_set():
+                    break
                 try:
                     result = await self._collect_job(job)
                     results.append(result)
                     self._status["successful_jobs"] += 1
+                except CollectorLeaseLostError as exc:
+                    self._lease_state = "LOST"
+                    self._status["status"] = "LEASE_LOST"
+                    self._status["last_lease_error_type"] = type(exc).__name__
+                    if self._lease_lost is not None:
+                        self._lease_lost.set()
+                    results.append({
+                        "status": "FAILED", **job,
+                        "error_type": type(exc).__name__,
+                    })
+                    self._status["failed_jobs"] += 1
+                    break
                 except Exception as exc:
                     results.append({
                         "status": "FAILED", **job,
@@ -226,7 +240,9 @@ class DerivativesHistoryCollector:
             self._status["last_cycle_at"] = datetime.now(timezone.utc).isoformat()
             self._status["last_results"] = results
             self._status["status"] = (
-                "DEGRADED" if any(x["status"] == "FAILED" for x in results) else "RUNNING"
+                "LEASE_LOST" if self._lease_lost is not None and self._lease_lost.is_set()
+                else "DEGRADED" if any(x["status"] == "FAILED" for x in results)
+                else "RUNNING"
             )
             return self.status()
 
@@ -241,9 +257,12 @@ class DerivativesHistoryCollector:
             )
             if not rows:
                 return {"status": "NO_NEW_DATA", **job, "received_count": 0}
+            if self._lease_lost is not None and self._lease_lost.is_set():
+                raise CollectorLeaseLostError("Derivatives collector lease was lost before funding write")
             return await asyncio.to_thread(
                 self.funding_store.save, "USD_M", symbol, rows,
                 source="Binance USD-M public REST API (scheduled collector)",
+                lease=self._lease,
             )
         period = job["period"]
         history = await asyncio.to_thread(self.open_interest_store.history, "USD_M", symbol, period, limit=1)
@@ -253,10 +272,30 @@ class DerivativesHistoryCollector:
         )
         if not rows:
             return {"status": "NO_NEW_DATA", **job, "received_count": 0}
+        if self._lease_lost is not None and self._lease_lost.is_set():
+            raise CollectorLeaseLostError("Derivatives collector lease was lost before open-interest write")
         return await asyncio.to_thread(
             self.open_interest_store.save, "USD_M", symbol, period, rows,
             source="Binance USD-M public REST API (scheduled collector)",
+            lease=self._lease,
         )
 
     def status(self) -> dict[str, Any]:
-        return {**self._status, "jobs": self.jobs}
+        return {
+            **self._status,
+            "jobs": self.jobs,
+            "lease_state": self._lease_state,
+            "lease_name": (
+                self._lease_coordinator.lease_name
+                if self._lease_coordinator is not None else None
+            ),
+            "lease_fencing_token": (
+                self._lease.fencing_token if self._lease is not None else None
+            ),
+            "warning": (
+                "PostgreSQL lease fencing covers scheduled derivatives history writes only; "
+                "manual collection endpoints and other collector families are not coordinated."
+                if self._lease_coordinator is not None else
+                "SQLite-backed derivatives collection remains single-process-only."
+            ),
+        }
