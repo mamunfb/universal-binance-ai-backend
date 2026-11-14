@@ -199,13 +199,19 @@ class DerivativesHistoryCollector:
                 acquired_during_shutdown, acquire_error = await _wait_for_worker_task(acquire_worker)
                 if acquire_error is not None:
                     self._status["last_lease_error_type"] = type(acquire_error).__name__
+                    self._lease_state = "ACQUIRE_FAILED"
                 elif acquired_during_shutdown is not None:
                     release_worker = asyncio.create_task(
                         asyncio.to_thread(self._lease_coordinator.release, acquired_during_shutdown)
                     )
-                    _, release_error = await _wait_for_worker_task(release_worker)
+                    released, release_error = await _wait_for_worker_task(release_worker)
                     if release_error is not None:
                         self._status["last_lease_error_type"] = type(release_error).__name__
+                        self._lease_state = "RELEASE_FAILED"
+                    else:
+                        self._lease_state = "RELEASED" if released else "RELEASE_FAILED"
+                else:
+                    self._lease_state = "STOPPED"
                 raise
             except Exception as exc:
                 self._lease_state = "ACQUIRE_FAILED"
