@@ -2467,18 +2467,11 @@ async def collect_derivatives_ratio_history(
                 lease_name,
                 ttl_seconds=settings.derivatives_collector_lease_ttl_seconds,
             )
-            acquire_task = asyncio.create_task(asyncio.to_thread(manager.acquire))
-            try:
-                lease = await asyncio.shield(acquire_task)
-            except asyncio.CancelledError:
-                try:
-                    acquired_during_shutdown = await acquire_task
-                    if acquired_during_shutdown is not None:
-                        await asyncio.shield(asyncio.to_thread(
-                            manager.release, acquired_during_shutdown
-                        ))
-                finally:
-                    raise
+            lease, interrupted = await _run_thread_worker(manager.acquire)
+            if interrupted:
+                if lease is not None:
+                    await _run_thread_worker(manager.release, lease)
+                raise asyncio.CancelledError
             if lease is None:
                 raise HTTPException(
                     status_code=409,
@@ -2504,14 +2497,19 @@ async def collect_derivatives_ratio_history(
                 "symbol": normalized, "period": period, "received_count": 0,
             }
         if manager is not None:
-            renewed = await asyncio.to_thread(manager.renew, lease)
+            renewed, interrupted = await _run_thread_worker(manager.renew, lease)
             if renewed is None:
                 raise CollectorLeaseLostError("Derivatives-ratio lease was lost before write")
             lease = renewed
-        return await asyncio.to_thread(
+            if interrupted:
+                raise asyncio.CancelledError
+        saved, interrupted = await _run_thread_worker(
             derivatives_ratio_store.save, ratio_type, normalized, period, rows,
             "Binance USD-M Futures public REST API (manual collection)", lease=lease,
         )
+        if interrupted:
+            raise asyncio.CancelledError
+        return saved
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except CollectorLeaseLostError as exc:
@@ -2527,7 +2525,11 @@ async def collect_derivatives_ratio_history(
     finally:
         if manager is not None and lease is not None:
             try:
-                await asyncio.shield(asyncio.to_thread(manager.release, lease))
+                _, interrupted = await _run_thread_worker(manager.release, lease)
+                if interrupted:
+                    raise asyncio.CancelledError
+            except asyncio.CancelledError:
+                raise
             except Exception:
                 logger.exception("Failed to release manual derivatives-ratio collection lease")
 
@@ -2679,18 +2681,11 @@ async def collect_historical_klines(
                 "historical-kline-collector",
                 ttl_seconds=settings.historical_collector_lease_ttl_seconds,
             )
-            acquire_task = asyncio.create_task(asyncio.to_thread(lease_manager.acquire))
-            try:
-                lease = await asyncio.shield(acquire_task)
-            except asyncio.CancelledError:
-                try:
-                    acquired_during_shutdown = await acquire_task
-                    if acquired_during_shutdown is not None:
-                        await asyncio.shield(asyncio.to_thread(
-                            lease_manager.release, acquired_during_shutdown
-                        ))
-                finally:
-                    raise
+            lease, interrupted = await _run_thread_worker(lease_manager.acquire)
+            if interrupted:
+                if lease is not None:
+                    await _run_thread_worker(lease_manager.release, lease)
+                raise asyncio.CancelledError
             if lease is None:
                 raise HTTPException(
                     status_code=409,
@@ -2710,18 +2705,23 @@ async def collect_historical_klines(
         if not rows:
             return {"status": "INCOMPLETE", "market": market, "symbol": normalized, "interval": interval, "received_count": 0, "warning": "The exchange returned no candles; no history was stored."}
         if lease_manager is not None:
-            renewed_lease = await asyncio.to_thread(lease_manager.renew, lease)
+            renewed_lease, interrupted = await _run_thread_worker(lease_manager.renew, lease)
             if renewed_lease is None:
                 raise CollectorLeaseLostError(
                     "Historical collection lease was lost before the manual write"
                 )
             lease = renewed_lease
-        return await asyncio.to_thread(
+            if interrupted:
+                raise asyncio.CancelledError
+        saved, interrupted = await _run_thread_worker(
             historical_kline_store.save_klines,
             market, normalized, interval, rows,
             "Binance public REST API (manual collection)",
             lease=lease,
         )
+        if interrupted:
+            raise asyncio.CancelledError
+        return saved
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except CollectorLeaseLostError as exc:
@@ -2734,7 +2734,11 @@ async def collect_historical_klines(
     finally:
         if lease_manager is not None and lease is not None:
             try:
-                await asyncio.shield(asyncio.to_thread(lease_manager.release, lease))
+                _, interrupted = await _run_thread_worker(lease_manager.release, lease)
+                if interrupted:
+                    raise asyncio.CancelledError
+            except asyncio.CancelledError:
+                raise
             except Exception:
                 logger.exception("Failed to release manual historical-kline collection lease")
 
