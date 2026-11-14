@@ -72,6 +72,33 @@ from app.services.cross_chain_smart_money import cross_chain_verified_wallet_flo
 
 logger = logging.getLogger(__name__)
 
+
+async def _wait_for_thread_worker(task: asyncio.Task) -> tuple[Any, BaseException | None, bool]:
+    """Drain a blocking thread worker even when cancellation is repeated."""
+    interrupted = False
+    while not task.done():
+        try:
+            await asyncio.shield(task)
+        except asyncio.CancelledError:
+            interrupted = True
+        except BaseException:
+            break
+    try:
+        return task.result(), None, interrupted
+    except BaseException as exc:
+        return None, exc, interrupted
+
+
+async def _run_thread_worker(function, *args, **kwargs) -> tuple[Any, bool]:
+    """Run blocking DB work and report cancellation only after its thread drains."""
+    worker = asyncio.create_task(asyncio.to_thread(function, *args, **kwargs))
+    result, error, interrupted = await _wait_for_thread_worker(worker)
+    if error is not None:
+        if interrupted:
+            raise asyncio.CancelledError from error
+        raise error
+    return result, interrupted
+
 liquidation_store = LiquidationStore(settings.liquidation_database_path, settings.database_url)
 liquidation_collector = LiquidationCollector(
     liquidation_store,
@@ -2234,18 +2261,11 @@ async def _acquire_manual_derivatives_lease():
             "derivatives-history-collector",
             ttl_seconds=settings.derivatives_collector_lease_ttl_seconds,
         )
-        acquire_task = asyncio.create_task(asyncio.to_thread(manager.acquire))
-        try:
-            lease = await asyncio.shield(acquire_task)
-        except asyncio.CancelledError:
-            try:
-                acquired_during_shutdown = await acquire_task
-                if acquired_during_shutdown is not None:
-                    await asyncio.shield(asyncio.to_thread(
-                        manager.release, acquired_during_shutdown
-                    ))
-            finally:
-                raise
+        lease, interrupted = await _run_thread_worker(manager.acquire)
+        if interrupted:
+            if lease is not None:
+                await _run_thread_worker(manager.release, lease)
+            raise asyncio.CancelledError
         return manager, lease
     except Exception as exc:
         raise HTTPException(
@@ -2262,7 +2282,11 @@ async def _release_manual_derivatives_lease(manager, lease) -> None:
     if manager is None or lease is None:
         return
     try:
-        await asyncio.shield(asyncio.to_thread(manager.release, lease))
+        _, interrupted = await _run_thread_worker(manager.release, lease)
+        if interrupted:
+            raise asyncio.CancelledError
+    except asyncio.CancelledError:
+        raise
     except Exception:
         logger.exception("Failed to release manual derivatives collection lease")
 
@@ -2295,14 +2319,19 @@ async def collect_historical_funding_rates(
                 "received_count": 0, "warning": "The exchange returned no funding events; no history was stored.",
             }
         if manager is not None:
-            renewed = await asyncio.to_thread(manager.renew, lease)
+            renewed, interrupted = await _run_thread_worker(manager.renew, lease)
             if renewed is None:
                 raise CollectorLeaseLostError("Derivatives collection lease was lost before funding write")
             lease = renewed
-        return await asyncio.to_thread(
+            if interrupted:
+                raise asyncio.CancelledError
+        saved, interrupted = await _run_thread_worker(
             funding_rate_store.save, "USD_M", normalized, rows,
             "Binance USD-M public REST API (manual collection)", lease=lease,
         )
+        if interrupted:
+            raise asyncio.CancelledError
+        return saved
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except CollectorLeaseLostError as exc:
@@ -2374,14 +2403,19 @@ async def collect_historical_open_interest(
                 "warning": "The exchange returned no open-interest records; no history was stored.",
             }
         if manager is not None:
-            renewed = await asyncio.to_thread(manager.renew, lease)
+            renewed, interrupted = await _run_thread_worker(manager.renew, lease)
             if renewed is None:
                 raise CollectorLeaseLostError("Derivatives collection lease was lost before open-interest write")
             lease = renewed
-        return await asyncio.to_thread(
+            if interrupted:
+                raise asyncio.CancelledError
+        saved, interrupted = await _run_thread_worker(
             open_interest_store.save, "USD_M", normalized, period, rows,
             "Binance USD-M public REST API (manual collection)", lease=lease,
         )
+        if interrupted:
+            raise asyncio.CancelledError
+        return saved
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except CollectorLeaseLostError as exc:
