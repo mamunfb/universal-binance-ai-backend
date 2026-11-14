@@ -22,6 +22,21 @@ from websockets.asyncio.client import connect
 logger = logging.getLogger(__name__)
 
 
+async def _wait_for_worker_task(task: asyncio.Task) -> tuple[Any, BaseException | None]:
+    """Wait for a blocking worker to finish despite repeated cancellation."""
+    while not task.done():
+        try:
+            await asyncio.shield(task)
+        except asyncio.CancelledError:
+            continue
+        except BaseException:
+            break
+    try:
+        return task.result(), None
+    except BaseException as exc:
+        return None, exc
+
+
 def depth_stream_url(market: str, symbol: str) -> str:
     market = market.upper()
     symbol = symbol.lower()
@@ -291,9 +306,16 @@ class OrderBookStreamCollector:
             try:
                 return await asyncio.shield(worker)
             except asyncio.CancelledError:
-                acquired = await worker
-                if acquired is not None:
-                    await asyncio.shield(asyncio.to_thread(lease_manager.release, acquired))
+                acquired, acquire_error = await _wait_for_worker_task(worker)
+                if acquire_error is not None:
+                    state["last_error"] = type(acquire_error).__name__
+                elif acquired is not None:
+                    release_worker = asyncio.create_task(
+                        asyncio.to_thread(lease_manager.release, acquired)
+                    )
+                    _, release_error = await _wait_for_worker_task(release_worker)
+                    if release_error is not None:
+                        state["last_error"] = type(release_error).__name__
                 raise
 
         async def renew_lease() -> None:
@@ -305,8 +327,21 @@ class OrderBookStreamCollector:
                     return
                 except asyncio.TimeoutError:
                     pass
+                renew_worker = asyncio.create_task(asyncio.to_thread(lease_manager.renew, lease))
                 try:
-                    renewed = await asyncio.to_thread(lease_manager.renew, lease)
+                    renewed = await asyncio.shield(renew_worker)
+                except asyncio.CancelledError:
+                    renewed_during_shutdown, renew_error = await _wait_for_worker_task(renew_worker)
+                    if renew_error is not None:
+                        state["last_error"] = type(renew_error).__name__
+                    elif renewed_during_shutdown is not None:
+                        lease = renewed_during_shutdown
+                        state["fencing_token"] = renewed_during_shutdown.fencing_token
+                    else:
+                        lease_lost.set()
+                        state["lease_state"] = "LOST"
+                        state["last_error"] = "CollectorLeaseLostError"
+                    raise
                 except Exception as exc:
                     renewed = None
                     state["last_error"] = type(exc).__name__
@@ -387,7 +422,17 @@ class OrderBookStreamCollector:
                                 if now - last_sample >= self.sample_interval_seconds:
                                     row = self._sample(market, symbol, event, last_id, bids, asks)
                                     if row is not None:
-                                        await asyncio.to_thread(self.store.insert, row, lease)
+                                        insert_worker = asyncio.create_task(
+                                            asyncio.to_thread(self.store.insert, row, lease)
+                                        )
+                                        try:
+                                            await asyncio.shield(insert_worker)
+                                        except asyncio.CancelledError:
+                                            _, insert_error = await _wait_for_worker_task(insert_worker)
+                                            if isinstance(insert_error, CollectorLeaseLostError):
+                                                lease_lost.set()
+                                                state.update(lease_state="LOST", last_error="CollectorLeaseLostError")
+                                            raise
                                         state["stored_count"] += 1
                                         last_sample = now
                         finally:
@@ -417,15 +462,18 @@ class OrderBookStreamCollector:
         finally:
             if heartbeat is not None:
                 heartbeat.cancel()
-                await asyncio.gather(heartbeat, return_exceptions=True)
+                await _wait_for_worker_task(heartbeat)
             if lease is not None and not lease_lost.is_set():
-                try:
-                    await asyncio.shield(asyncio.to_thread(lease_manager.release, lease))
-                    state["lease_state"] = "RELEASED"
-                except Exception as exc:
+                release_worker = asyncio.create_task(
+                    asyncio.to_thread(lease_manager.release, lease)
+                )
+                _, release_error = await _wait_for_worker_task(release_worker)
+                if release_error is not None:
                     state["lease_state"] = "RELEASE_FAILED"
-                    state["last_error"] = type(exc).__name__
-                    logger.exception("Failed to release order-book lease for %s", key)
+                    state["last_error"] = type(release_error).__name__
+                    logger.error("Failed to release order-book lease for %s", key)
+                else:
+                    state["lease_state"] = "RELEASED"
 
     @staticmethod
     def _validate_sequence(market: str, event: dict[str, Any], last_id: int, first_event: bool) -> None:
