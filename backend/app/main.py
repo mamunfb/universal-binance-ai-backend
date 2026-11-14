@@ -127,6 +127,8 @@ async def lifespan(_: FastAPI):
             aggregate_trade_collector = AggregateTradeCollector(
                 store=aggregate_trade_store,
                 jobs_json=settings.aggregate_trade_collector_jobs,
+                lease_database_url=settings.database_url,
+                lease_ttl_seconds=settings.aggregate_trade_collector_lease_ttl_seconds,
             )
             aggregate_trade_collector.start()
         if settings.derivatives_collector_enabled:
