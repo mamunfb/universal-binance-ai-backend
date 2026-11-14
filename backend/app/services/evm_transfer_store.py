@@ -462,7 +462,9 @@ async def index_erc20_transfer_history(
             logs = await provider.token_transfer_logs(
                 contract, next_block, chunk_end, max_block_span=chunk_size
             )
-            indexed_logs += store.save_chunk(chain_id, contract, next_block, chunk_end, logs)
+            indexed_logs += await asyncio.to_thread(
+                store.save_chunk, chain_id, contract, next_block, chunk_end, logs
+            )
             completed_chunks += 1
             next_block = chunk_end + 1
     except Exception as exc:
@@ -482,6 +484,6 @@ async def index_erc20_transfer_history(
         "completed_range": {"from": from_block, "to": to_block},
         "next_block_to_retry": None, "completed_chunks": completed_chunks,
         "stored_log_count_including_replayed_chunks": indexed_logs,
-        "coverage": store.coverage(chain_id, contract),
+        "coverage": await asyncio.to_thread(store.coverage, chain_id, contract),
         "warning": "Coverage applies only to successful indexed ranges for this contract and chain. It does not prove deployment-to-present completeness unless the requested range starts at deployment and all ranges are indexed.",
     }
