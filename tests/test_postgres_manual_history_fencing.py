@@ -125,6 +125,77 @@ def test_postgres_evm_chunk_and_coverage_are_written_under_same_lease():
 
 
 
+
+def test_postgres_evm_write_rejects_previous_owner_after_lease_takeover():
+    suffix = uuid4().hex + uuid4().hex[:8]
+    contract = "0x" + suffix
+    sender = "0x" + "3" * 40
+    recipient = "0x" + "4" * 40
+    lease_name = f"test-evm-takeover:1:{contract}"
+    first_owner = PostgresCollectorLease(DATABASE_URL, lease_name, ttl_seconds=30)
+    second_owner = PostgresCollectorLease(
+        DATABASE_URL, lease_name, owner_id=uuid4(), ttl_seconds=30,
+    )
+    old_lease = first_owner.acquire()
+    assert old_lease is not None
+    new_lease = None
+    store = EVMTransferStore("unused.sqlite3", DATABASE_URL)
+
+    def transfer(block_number, log_index):
+        return {
+            "topics": [TRANSFER_TOPIC, _topic(sender), _topic(recipient)],
+            "data": hex(12345 + log_index),
+            "transactionHash": "0x" + uuid4().hex * 2,
+            "blockNumber": hex(block_number),
+            "logIndex": hex(log_index),
+        }
+
+    try:
+        assert store.save_chunk(
+            1, contract, 100, 100, [transfer(100, 0)], lease=old_lease,
+        ) == 1
+        with psycopg.connect(DATABASE_URL) as connection:
+            connection.execute(
+                """
+                UPDATE public.collector_leases
+                   SET lease_expires_at = clock_timestamp() - INTERVAL '1 second'
+                 WHERE lease_name = %s
+                """,
+                (lease_name,),
+            )
+
+        new_lease = second_owner.acquire()
+        assert new_lease is not None
+        assert new_lease.fencing_token == old_lease.fencing_token + 1
+
+        with pytest.raises(CollectorLeaseLostError):
+            store.save_chunk(
+                1, contract, 101, 101, [transfer(101, 0)], lease=old_lease,
+            )
+        assert len(store.coverage(1, contract)) == 1
+        assert store.save_chunk(
+            1, contract, 101, 101, [transfer(101, 1)], lease=new_lease,
+        ) == 1
+        assert len(store.history(1, contract, 100, 101)) == 2
+        assert len(store.coverage(1, contract)) == 2
+    finally:
+        if new_lease is not None:
+            second_owner.release(new_lease)
+        first_owner.release(old_lease)
+        with psycopg.connect(DATABASE_URL) as connection:
+            connection.execute(
+                "DELETE FROM public.evm_transfer_logs WHERE chain_id=1 AND contract_address=%s",
+                (contract,),
+            )
+            connection.execute(
+                "DELETE FROM public.evm_transfer_index_ranges WHERE chain_id=1 AND contract_address=%s",
+                (contract,),
+            )
+            connection.execute(
+                "DELETE FROM public.collector_leases WHERE lease_name=%s",
+                (lease_name,),
+            )
+
 def test_postgres_aggregate_trade_write_is_fenced_by_lease():
     suffix = uuid4().hex[:10].upper()
     symbol = f"TEST{suffix}"
