@@ -63,7 +63,7 @@ def test_postgres_derivatives_ratio_write_is_fenced_by_lease():
 
 
 def test_postgres_evm_chunk_and_coverage_are_written_under_same_lease():
-    suffix = uuid4().hex[:40]
+    suffix = (uuid4().hex + uuid4().hex[:8])
     contract = "0x" + suffix
     sender = "0x" + "1" * 40
     recipient = "0x" + "2" * 40
