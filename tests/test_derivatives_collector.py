@@ -491,3 +491,55 @@ async def test_derivatives_collector_waits_for_renewal_and_releases_latest_lease
 
     assert released == [renewed_lease]
     assert collector.status()["lease_state"] == "RELEASED"
+
+@pytest.mark.asyncio
+async def test_derivatives_collector_reaps_lease_when_acquisition_is_cancelled(monkeypatch):
+    import threading
+    import app.services.derivatives_collector as module
+
+    acquire_started = threading.Event()
+    finish_acquire = threading.Event()
+    lease = SimpleNamespace(fencing_token=141)
+    released = []
+
+    class BlockingCoordinator:
+        ttl_seconds = 30
+        lease_name = "derivatives-history-collector"
+
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def acquire(self):
+            acquire_started.set()
+            if not finish_acquire.wait(timeout=3):
+                raise TimeoutError("test acquisition was not released")
+            return lease
+
+        def release(self, current):
+            released.append(current)
+            return True
+
+    monkeypatch.setattr(module, "PostgresCollectorLease", BlockingCoordinator)
+    collector = DerivativesHistoryCollector(
+        LeaseAwareFundingStore(), LeaseAwareOpenInterestStore(),
+        lambda _market: FakeProvider(), "[]",
+        poll_seconds=10, lease_database_url="postgresql://test",
+    )
+
+    collector.start()
+    assert await asyncio.to_thread(acquire_started.wait, 2)
+    task = collector._task
+    task.cancel()
+    await asyncio.sleep(0.05)
+    task.cancel()
+    await asyncio.sleep(0.05)
+    assert not task.done()
+    assert released == []
+
+    finish_acquire.set()
+    result = await asyncio.gather(task, return_exceptions=True)
+    assert isinstance(result[0], asyncio.CancelledError)
+    await collector.stop()
+
+    assert released == [lease]
+    assert collector.status()["lease_state"] == "RELEASED"
