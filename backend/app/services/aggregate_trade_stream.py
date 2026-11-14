@@ -316,8 +316,12 @@ class AggregateTradeCollector:
             if lease is None:
                 renewed = None
             else:
+                renew_worker = asyncio.create_task(asyncio.to_thread(manager.renew, lease))
                 try:
-                    renewed = await asyncio.to_thread(manager.renew, lease)
+                    renewed = await asyncio.shield(renew_worker)
+                except asyncio.CancelledError:
+                    await _wait_for_worker_task(renew_worker)
+                    raise
                 except Exception as exc:
                     state["last_error"] = type(exc).__name__
                     renewed = None
@@ -441,12 +445,16 @@ class AggregateTradeCollector:
                     try:
                         lease = await asyncio.shield(worker)
                     except asyncio.CancelledError:
-                        try:
-                            acquired_during_shutdown = await worker
-                            if acquired_during_shutdown is not None:
-                                await asyncio.to_thread(manager.release, acquired_during_shutdown)
-                        except Exception as exc:
-                            state["last_error"] = type(exc).__name__
+                        acquired_during_shutdown, acquire_error, _ = await _wait_for_worker_task(worker)
+                        if acquire_error is not None:
+                            state["last_error"] = type(acquire_error).__name__
+                        elif acquired_during_shutdown is not None:
+                            release_worker = asyncio.create_task(
+                                asyncio.to_thread(manager.release, acquired_during_shutdown)
+                            )
+                            _, release_error, _ = await _wait_for_worker_task(release_worker)
+                            if release_error is not None:
+                                state["last_error"] = type(release_error).__name__
                         raise
                     except Exception as exc:
                         state["lease_state"] = "ACQUIRE_FAILED"
