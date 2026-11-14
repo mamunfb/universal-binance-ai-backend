@@ -90,3 +90,26 @@ def test_empty_cors_configuration_does_not_grant_cross_origin_access():
 
     assert response.status_code == 200
     assert "access-control-allow-origin" not in response.headers
+
+def test_parse_cors_allowed_origins_normalizes_case_and_default_ports():
+    assert parse_cors_allowed_origins(
+        "HTTPS://Dashboard.Example:443,http://LOCALHOST:80,https://research.example:8443"
+    ) == [
+        "https://dashboard.example",
+        "http://localhost",
+        "https://research.example:8443",
+    ]
+
+
+def test_normalized_default_port_origin_passes_browser_preflight():
+    response = _client("https://Dashboard.Example:443").options(
+        "/resource",
+        headers={
+            "Origin": "https://dashboard.example",
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "authorization",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "https://dashboard.example"
