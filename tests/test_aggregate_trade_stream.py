@@ -11,6 +11,11 @@ def sample_trade():
     }
 
 
+def test_aggregate_trade_normalization_rejects_non_object_payloads():
+    for payload in (None, [], "not-an-object", 42):
+        assert normalize_aggregate_trade(payload, "SPOT") is None
+
+
 def test_aggregate_trade_normalization_and_taker_side():
     buy = normalize_aggregate_trade(sample_trade(), "SPOT")
     assert buy is not None
