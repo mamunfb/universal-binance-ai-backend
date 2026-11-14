@@ -8,6 +8,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from app.services.collector_lease import (
+    CollectorLease,
+    CollectorLeaseLostError,
+    PostgresCollectorLease,
+)
+
 
 class HistoricalKlineStore:
     """Idempotent local storage for validated Binance OHLCV candles."""
@@ -94,6 +100,7 @@ class HistoricalKlineStore:
     def save_klines(
         self, market: str, symbol: str, interval: str, rows: list[Any],
         source: str = "Binance public REST API",
+        lease: CollectorLease | None = None,
     ) -> dict[str, Any]:
         market = market.upper()
         symbol = symbol.upper()
@@ -112,8 +119,14 @@ class HistoricalKlineStore:
             (market, symbol, interval, *row, source, now)
             for row in normalized
         ]
+        if lease is not None and not self.database_url:
+            raise ValueError("Collector leases require PostgreSQL-backed historical storage")
         if self.database_url:
             with self._connect_postgres() as connection:
+                if lease is not None and not PostgresCollectorLease.lock_if_owned(connection, lease):
+                    raise CollectorLeaseLostError(
+                        "Historical kline write rejected because the collector lease is no longer owned"
+                    )
                 connection.cursor().executemany("""
                     INSERT INTO public.historical_klines (
                         market, symbol, interval, open_time_ms, open, high, low, close,
