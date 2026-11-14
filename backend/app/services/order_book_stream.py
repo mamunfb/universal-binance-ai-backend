@@ -14,6 +14,7 @@ from app.services.collector_lease import (
     CollectorLease,
     CollectorLeaseLostError,
     PostgresCollectorLease,
+    require_lease_database_url,
 )
 from urllib.parse import quote
 
@@ -223,6 +224,11 @@ class OrderBookStreamCollector:
             raise ValueError("stored_levels must be between 1 and snapshot_limit")
         self.stored_levels = stored_levels
         self.lease_database_url = lease_database_url.strip()
+        require_lease_database_url(
+            getattr(store, "database_url", "") or "",
+            self.lease_database_url,
+            "Order-book collector",
+        )
         self.lease_ttl_seconds = lease_ttl_seconds
         if self.lease_database_url:
             PostgresCollectorLease(self.lease_database_url, "order-book:validation", ttl_seconds=lease_ttl_seconds)
