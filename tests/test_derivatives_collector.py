@@ -1,4 +1,9 @@
+import asyncio
+from types import SimpleNamespace
+
 import pytest
+
+from app.services.collector_lease import CollectorLeaseLostError
 
 from app.services.derivatives_collector import (
     DerivativesHistoryCollector, parse_derivatives_jobs,
@@ -138,3 +143,176 @@ async def test_collector_runs_store_reads_and_writes_off_event_loop(tmp_path, mo
     assert {name for name, _ in observed} == {"history", "save"}
     assert len(observed) == 4
     assert all(thread_id != loop_thread for _, thread_id in observed)
+
+
+
+class LeaseAwareFundingStore:
+    def __init__(self, reject_write=False):
+        self.saved_leases = []
+        self.reject_write = reject_write
+
+    def history(self, market, symbol, limit=1):
+        return {"events": []}
+
+    def save(self, market, symbol, rows, source, lease=None):
+        self.saved_leases.append(lease)
+        if self.reject_write:
+            raise CollectorLeaseLostError("stale derivatives lease")
+        return {"status": "COMPLETED", "stored_count": len(rows)}
+
+
+class LeaseAwareOpenInterestStore:
+    def __init__(self):
+        self.saved_leases = []
+
+    def history(self, market, symbol, period, limit=1):
+        return {"records": []}
+
+    def save(self, market, symbol, period, rows, source, lease=None):
+        self.saved_leases.append(lease)
+        return {"status": "COMPLETED", "stored_count": len(rows)}
+
+
+class FakeLeaseCoordinator:
+    ttl_seconds = 5
+
+    def __init__(self, database_url, lease_name, ttl_seconds=30):
+        self.lease_name = lease_name
+        self.lease = SimpleNamespace(fencing_token=1)
+        self.acquired = 0
+        self.renewed = 0
+        self.released = 0
+        self.lose_on_renew = False
+        self.unavailable = False
+
+    def acquire(self):
+        self.acquired += 1
+        return None if self.unavailable else self.lease
+
+    def renew(self, lease):
+        self.renewed += 1
+        return None if self.lose_on_renew else lease
+
+    def release(self, lease):
+        self.released += 1
+        return True
+
+
+@pytest.mark.asyncio
+async def test_runtime_derivatives_collector_acquires_fences_and_releases_lease(monkeypatch):
+    import app.services.derivatives_collector as module
+
+    coordinator = FakeLeaseCoordinator("postgresql://localhost/test", "derivatives")
+    monkeypatch.setattr(module, "PostgresCollectorLease", lambda *args, **kwargs: coordinator)
+    funding = LeaseAwareFundingStore()
+    oi = LeaseAwareOpenInterestStore()
+    provider = FakeProvider()
+    collector = DerivativesHistoryCollector(
+        funding, oi, lambda market: provider,
+        '[{"type":"FUNDING_RATE","symbol":"BTCUSDT"},'
+        '{"type":"OPEN_INTEREST","symbol":"BTCUSDT","period":"1h"}]',
+        poll_seconds=10,
+        lease_database_url="postgresql://localhost/test",
+    )
+
+    collector.start()
+    for _ in range(100):
+        if funding.saved_leases and oi.saved_leases:
+            break
+        await asyncio.sleep(0.01)
+    await collector.stop()
+
+    assert coordinator.acquired == 1
+    assert funding.saved_leases == [coordinator.lease]
+    assert oi.saved_leases == [coordinator.lease]
+    assert coordinator.released == 1
+    assert collector.status()["lease_state"] == "RELEASED"
+
+
+@pytest.mark.asyncio
+async def test_runtime_derivatives_collector_waits_when_another_owner_holds_lease(monkeypatch):
+    import app.services.derivatives_collector as module
+
+    coordinator = FakeLeaseCoordinator("postgresql://localhost/test", "derivatives")
+    coordinator.unavailable = True
+    monkeypatch.setattr(module, "PostgresCollectorLease", lambda *args, **kwargs: coordinator)
+    funding = LeaseAwareFundingStore()
+    oi = LeaseAwareOpenInterestStore()
+    provider = FakeProvider()
+    collector = DerivativesHistoryCollector(
+        funding, oi, lambda market: provider,
+        '[{"type":"FUNDING_RATE","symbol":"BTCUSDT"}]',
+        poll_seconds=10,
+        lease_database_url="postgresql://localhost/test",
+    )
+
+    collector.start()
+    await asyncio.sleep(0.05)
+    await collector.stop()
+
+    assert provider.funding_calls == []
+    assert funding.saved_leases == []
+    assert collector.status()["lease_state"] == "HELD_BY_OTHER"
+
+
+@pytest.mark.asyncio
+async def test_runtime_derivatives_collector_stops_after_lease_renewal_loss(monkeypatch):
+    import app.services.derivatives_collector as module
+
+    coordinator = FakeLeaseCoordinator("postgresql://localhost/test", "derivatives")
+    coordinator.lose_on_renew = True
+    monkeypatch.setattr(module, "PostgresCollectorLease", lambda *args, **kwargs: coordinator)
+    funding = LeaseAwareFundingStore()
+    oi = LeaseAwareOpenInterestStore()
+    provider = FakeProvider()
+    collector = DerivativesHistoryCollector(
+        funding, oi, lambda market: provider,
+        '[{"type":"FUNDING_RATE","symbol":"BTCUSDT"}]',
+        poll_seconds=10,
+        lease_database_url="postgresql://localhost/test",
+    )
+
+    collector.start()
+    for _ in range(300):
+        if collector.status()["lease_state"] == "LOST":
+            break
+        await asyncio.sleep(0.01)
+    await collector.stop()
+
+    assert coordinator.renewed == 1
+    assert len(provider.funding_calls) == 1
+    assert len(funding.saved_leases) == 1
+    assert coordinator.released == 0
+    assert collector.status()["status"] == "LEASE_LOST"
+
+
+@pytest.mark.asyncio
+async def test_runtime_derivatives_collector_stops_on_fenced_write_rejection(monkeypatch):
+    import app.services.derivatives_collector as module
+
+    coordinator = FakeLeaseCoordinator("postgresql://localhost/test", "derivatives")
+    monkeypatch.setattr(module, "PostgresCollectorLease", lambda *args, **kwargs: coordinator)
+    funding = LeaseAwareFundingStore(reject_write=True)
+    oi = LeaseAwareOpenInterestStore()
+    provider = FakeProvider()
+    collector = DerivativesHistoryCollector(
+        funding, oi, lambda market: provider,
+        '[{"type":"FUNDING_RATE","symbol":"BTCUSDT"},'
+        '{"type":"OPEN_INTEREST","symbol":"BTCUSDT","period":"1h"}]',
+        poll_seconds=10,
+        lease_database_url="postgresql://localhost/test",
+    )
+
+    collector.start()
+    for _ in range(100):
+        if collector.status()["lease_state"] == "LOST":
+            break
+        await asyncio.sleep(0.01)
+    await collector.stop()
+
+    assert coordinator.acquired == 1
+    assert len(provider.funding_calls) == 1
+    assert provider.oi_calls == []
+    assert len(funding.saved_leases) == 1
+    assert coordinator.released == 0
+    assert collector.status()["status"] == "LEASE_LOST"
