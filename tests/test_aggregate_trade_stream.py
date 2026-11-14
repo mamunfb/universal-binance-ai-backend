@@ -152,8 +152,12 @@ def test_aggregate_trade_collector_acquires_stable_lease_and_releases_on_stop(mo
         "ttl_seconds": 45,
     }
     assert len(collector.tasks) == 0
-    assert len(managers) == 1
-    assert len(managers[0].released) == 1
+    assert len(managers) == 2  # constructor validation plus the per-job runtime manager
+    runtime_manager = next(
+        manager for manager in managers
+        if manager.lease_name == "aggregate-trade:USD_M:BTCUSDT"
+    )
+    assert len(runtime_manager.released) == 1
 
 
 def test_aggregate_trade_collector_waits_when_another_owner_holds_lease(monkeypatch, tmp_path):
@@ -274,5 +278,9 @@ def test_aggregate_trade_collector_stops_when_lease_renewal_is_lost(monkeypatch,
         await collector.stop()
 
     asyncio.run(scenario())
-    assert len(managers) == 1
-    assert managers[0].released == []
+    assert len(managers) == 2  # constructor validation plus the per-job runtime manager
+    runtime_manager = next(
+        manager for manager in managers
+        if manager.lease_name == "aggregate-trade:SPOT:BTCUSDT"
+    )
+    assert runtime_manager.released == []
