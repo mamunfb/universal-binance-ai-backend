@@ -5,8 +5,9 @@ The CI workflow supplies TEST_DATABASE_URL and applies all SQL migrations first.
 from __future__ import annotations
 
 import os
+import time
 import uuid
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
 
 import psycopg
 import pytest
@@ -102,3 +103,30 @@ def test_lease_configuration_rejects_invalid_explicit_owner_id():
     for owner_id in ("", 123):
         with pytest.raises(ValueError):
             PostgresCollectorLease(database_url, "valid-name", owner_id=owner_id)
+
+
+@requires_postgres
+def test_live_fenced_write_transaction_blocks_expired_lease_takeover():
+    """A new owner cannot advance the token while an old owner's fenced write is open."""
+    name = f"lease-test-{uuid.uuid4().hex}"
+    first, second = _lease(name, ttl=5), _lease(name, ttl=5)
+    try:
+        old_lease = first.acquire()
+        assert old_lease is not None
+
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            with psycopg.connect(os.environ["TEST_DATABASE_URL"]) as connection:
+                assert PostgresCollectorLease.lock_if_owned(connection, old_lease) is True
+                # Let the lease expire while its validated write transaction retains FOR SHARE.
+                time.sleep(5.1)
+                takeover = pool.submit(second.acquire)
+                with pytest.raises(TimeoutError):
+                    takeover.result(timeout=0.2)
+
+            # Once the fenced transaction commits, the expired lease can be taken over.
+            new_lease = takeover.result(timeout=5)
+        assert new_lease is not None
+        assert new_lease.fencing_token == old_lease.fencing_token + 1
+    finally:
+        with psycopg.connect(os.environ["TEST_DATABASE_URL"]) as connection:
+            connection.execute("DELETE FROM public.collector_leases WHERE lease_name = %s", (name,))
