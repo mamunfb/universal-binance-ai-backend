@@ -98,10 +98,7 @@ def test_lease_configuration_rejects_invalid_values():
 
 
 def test_lease_configuration_rejects_invalid_explicit_owner_id():
-    from uuid import UUID
-
     database_url = os.getenv("TEST_DATABASE_URL", "postgresql://localhost/test")
-    with pytest.raises(ValueError):
-        PostgresCollectorLease(database_url, "valid-name", owner_id="")
-    with pytest.raises(ValueError):
-        PostgresCollectorLease(database_url, "valid-name", owner_id=UUID(int=0))
+    for owner_id in ("", 123):
+        with pytest.raises(ValueError):
+            PostgresCollectorLease(database_url, "valid-name", owner_id=owner_id)
