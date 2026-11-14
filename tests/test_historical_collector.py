@@ -93,3 +93,136 @@ def test_collector_records_job_failure_and_continues(tmp_path):
     assert result["results"][0]["status"] == "FAILED"
     assert result["results"][0]["error_type"] == "RuntimeError"
     assert "provider secret" not in str(result)
+
+
+
+class LeaseAwareStore:
+    def __init__(self):
+        self.saved_leases = []
+
+    def latest_open_time(self, market, symbol, interval):
+        return None
+
+    def save_klines(self, market, symbol, interval, rows, source, lease=None):
+        self.saved_leases.append(lease)
+        return {
+            "first_open_time_ms": rows[0][0],
+            "last_open_time_ms": rows[-1][0],
+            "total_stored_count": len(rows),
+        }
+
+
+class FakeLeaseCoordinator:
+    ttl_seconds = 5
+
+    def __init__(self, database_url, lease_name, ttl_seconds=30):
+        self.acquired = 0
+        self.renewed = 0
+        self.released = 0
+        self.lease = object()
+        self.lose_on_renew = False
+
+    def acquire(self):
+        self.acquired += 1
+        return self.lease
+
+    def renew(self, lease):
+        self.renewed += 1
+        return None if self.lose_on_renew else lease
+
+    def release(self, lease):
+        self.released += 1
+        return True
+
+
+def test_runtime_collector_acquires_passes_and_releases_lease(monkeypatch):
+    import app.services.historical_collector as module
+
+    coordinator = FakeLeaseCoordinator("postgresql://localhost/test", "historical")
+    monkeypatch.setattr(module, "PostgresCollectorLease", lambda *args, **kwargs: coordinator)
+    store = LeaseAwareStore()
+    provider = FakeProvider([candle(1_700_000_040_000)])
+    collector = HistoricalKlineCollector(
+        store=store,
+        spot_provider_factory=lambda: provider,
+        futures_provider_factory=lambda _market: provider,
+        jobs_json='[{"market":"SPOT","symbol":"BTCUSDT","interval":"1m"}]',
+        poll_seconds=10,
+        lease_database_url="postgresql://localhost/test",
+    )
+
+    async def exercise():
+        collector.start()
+        for _ in range(50):
+            if store.saved_leases:
+                break
+            await asyncio.sleep(0.01)
+        await collector.stop()
+
+    asyncio.run(exercise())
+    assert coordinator.acquired == 1
+    assert store.saved_leases == [coordinator.lease]
+    assert coordinator.released == 1
+    assert collector.status()["lease_state"] == "RELEASED"
+
+
+def test_runtime_collector_does_not_collect_when_another_owner_holds_lease(monkeypatch):
+    import app.services.historical_collector as module
+
+    coordinator = FakeLeaseCoordinator("postgresql://localhost/test", "historical")
+    coordinator.acquire = lambda: None
+    monkeypatch.setattr(module, "PostgresCollectorLease", lambda *args, **kwargs: coordinator)
+    store = LeaseAwareStore()
+    provider = FakeProvider([candle(1_700_000_040_000)])
+    collector = HistoricalKlineCollector(
+        store=store,
+        spot_provider_factory=lambda: provider,
+        futures_provider_factory=lambda _market: provider,
+        jobs_json='[{"market":"SPOT","symbol":"BTCUSDT","interval":"1m"}]',
+        poll_seconds=10,
+        lease_database_url="postgresql://localhost/test",
+    )
+
+    async def exercise():
+        collector.start()
+        await asyncio.sleep(0.05)
+        await collector.stop()
+
+    asyncio.run(exercise())
+    assert provider.calls == []
+    assert store.saved_leases == []
+    assert collector.status()["lease_state"] == "HELD_BY_OTHER"
+
+
+def test_runtime_collector_stops_after_lease_renewal_is_lost(monkeypatch):
+    import app.services.historical_collector as module
+
+    coordinator = FakeLeaseCoordinator("postgresql://localhost/test", "historical")
+    coordinator.lose_on_renew = True
+    monkeypatch.setattr(module, "PostgresCollectorLease", lambda *args, **kwargs: coordinator)
+    store = LeaseAwareStore()
+    provider = FakeProvider([candle(1_700_000_040_000)])
+    collector = HistoricalKlineCollector(
+        store=store,
+        spot_provider_factory=lambda: provider,
+        futures_provider_factory=lambda _market: provider,
+        jobs_json='[{"market":"SPOT","symbol":"BTCUSDT","interval":"1m"}]',
+        poll_seconds=10,
+        lease_database_url="postgresql://localhost/test",
+    )
+
+    async def exercise():
+        collector.start()
+        for _ in range(300):
+            if collector.status()["lease_state"] == "LOST":
+                break
+            await asyncio.sleep(0.01)
+        await asyncio.sleep(0.05)
+        await collector.stop()
+
+    asyncio.run(exercise())
+    assert coordinator.renewed == 1
+    assert provider.calls
+    assert len(store.saved_leases) == 1
+    assert coordinator.released == 0
+    assert collector.status()["lease_state"] == "LOST"
