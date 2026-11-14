@@ -229,3 +229,101 @@ def test_collector_storage_status_reports_degraded_after_write_failure(monkeypat
     assert status["storage_error"] == "RuntimeError"
     assert status["storage_retry_count"] == 1
     assert "sensitive database connection detail" not in str(status)
+
+
+def test_liquidation_runtime_lease_acquires_and_releases_on_shutdown(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+
+    class FakeLeaseCoordinator:
+        lease_name = "liquidation-stream-collector"
+        ttl_seconds = 30
+
+        def __init__(self, *_args, **_kwargs):
+            self.released = []
+
+        def acquire(self):
+            return SimpleNamespace(fencing_token=7)
+
+        def renew(self, lease):
+            return lease
+
+        def release(self, lease):
+            self.released.append(lease)
+            return True
+
+    monkeypatch.setattr(liquidation_module, "PostgresCollectorLease", FakeLeaseCoordinator)
+    collector = LiquidationCollector(
+        LiquidationStore(str(tmp_path / "lease.sqlite3")),
+        lease_database_url="postgresql://test",
+    )
+    started = asyncio.Event()
+
+    async def fake_stream():
+        started.set()
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(collector, "_run_stream", fake_stream)
+
+    async def scenario():
+        collector.start()
+        await asyncio.wait_for(started.wait(), timeout=2)
+        assert collector.status()["lease_state"] == "OWNED"
+        assert collector.status()["lease_fencing_token"] == 7
+        await collector.stop()
+
+    asyncio.run(scenario())
+    assert len(collector._lease_coordinator.released) == 1
+
+
+def test_liquidation_runtime_waits_when_another_owner_holds_lease(monkeypatch, tmp_path):
+    class FakeLeaseCoordinator:
+        lease_name = "liquidation-stream-collector"
+        ttl_seconds = 30
+
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def acquire(self):
+            return None
+
+    monkeypatch.setattr(liquidation_module, "PostgresCollectorLease", FakeLeaseCoordinator)
+    collector = LiquidationCollector(
+        LiquidationStore(str(tmp_path / "held.sqlite3")),
+        lease_database_url="postgresql://test",
+    )
+
+    async def scenario():
+        collector.start()
+        for _ in range(20):
+            if collector.status()["lease_state"] == "HELD_BY_OTHER":
+                break
+            await asyncio.sleep(0.01)
+        assert collector.status()["lease_state"] == "HELD_BY_OTHER"
+        assert collector.connected is False
+        await collector.stop()
+
+    asyncio.run(scenario())
+
+
+def test_liquidation_fenced_write_loss_is_terminal_and_not_retried(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+    from app.services.collector_lease import CollectorLeaseLostError
+
+    class FakeStore:
+        def insert(self, _event, lease=None):
+            raise CollectorLeaseLostError("stale owner")
+
+        def count(self):
+            return 0
+
+    collector = LiquidationCollector(FakeStore(), lease_database_url="postgresql://test")
+    collector._lease = SimpleNamespace(fencing_token=9)
+    event = normalize_force_order(sample_message())
+
+    async def scenario():
+        with pytest.raises(CollectorLeaseLostError):
+            await collector._persist_event(event)
+
+    asyncio.run(scenario())
+    assert collector.status()["lease_state"] == "LOST"
+    assert collector.storage_retry_count == 0
