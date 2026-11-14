@@ -100,13 +100,16 @@ class HistoricalKlineCollector:
 
     async def stop(self) -> None:
         task = self._task
-        self._task = None
         if task is not None:
-            task.cancel()
+            if not task.done():
+                task.cancel()
             try:
                 await task
             except asyncio.CancelledError:
                 pass
+            finally:
+                if self._task is task:
+                    self._task = None
         self._running = False
 
     async def _run_loop(self) -> None:
