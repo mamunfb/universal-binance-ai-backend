@@ -70,3 +70,22 @@ def test_aggregate_trade_normalization_trims_symbol_and_rejects_empty_symbol():
 
     payload["s"] = "   "
     assert normalize_aggregate_trade(payload, "SPOT") is None
+
+
+def test_aggregate_trade_collector_rejects_empty_jobs_when_enabled():
+    import pytest
+    from app.services.aggregate_trade_stream import AggregateTradeCollector
+
+    collector = AggregateTradeCollector(store=None, jobs_json="[]")
+    with pytest.raises(ValueError, match="AGGREGATE_TRADE_COLLECTOR_JOBS must contain at least one job"):
+        collector.start()
+
+
+def test_aggregate_trade_collector_accepts_valid_jobs():
+    from app.services.aggregate_trade_stream import AggregateTradeCollector
+
+    collector = AggregateTradeCollector(
+        store=None,
+        jobs_json='[{"market":"usd_m","symbol":"btcusdt"}]',
+    )
+    assert collector._jobs() == [{"market": "USD_M", "symbol": "BTCUSDT"}]
