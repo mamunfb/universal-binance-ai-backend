@@ -42,6 +42,10 @@ def test_real_postgres_liquidation_event_round_trip_and_cleanup(tmp_path):
 
 
 
+@pytest.mark.skipif(
+    not os.getenv("TEST_DATABASE_URL"),
+    reason="TEST_DATABASE_URL is not configured; PostgreSQL integration test skipped",
+)
 def test_real_postgres_concurrent_duplicate_inserts_are_idempotent(tmp_path):
     """Independent PostgreSQL connections must persist one copy of one fingerprint."""
     from concurrent.futures import ThreadPoolExecutor
