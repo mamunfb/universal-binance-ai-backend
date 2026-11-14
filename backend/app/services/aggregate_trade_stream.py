@@ -50,6 +50,11 @@ def normalize_aggregate_trade(payload: dict[str, Any], market: str) -> dict[str,
         raw_trade_time = payload["T"]
         if any(isinstance(value, bool) for value in (raw_trade_id, raw_event_time, raw_trade_time)):
             return None
+        if any(
+            isinstance(value, float) and not value.is_integer()
+            for value in (raw_trade_id, raw_event_time, raw_trade_time)
+        ):
+            return None
         trade_id = int(raw_trade_id)
         event_time_ms = int(raw_event_time)
         trade_time_ms = int(raw_trade_time)
