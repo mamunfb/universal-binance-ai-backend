@@ -60,6 +60,18 @@ Implemented in commit `a4b3ed1`, with regression coverage in `cfdfdff`:
 
 These are mocked endpoint tests only. PostgreSQL concurrency integration and CI success remain outstanding.
 
+## Implemented third step: manual derivatives-ratio endpoint
+
+Implemented in commit `ce312c3`, with endpoint tests in `2295832`:
+
+- The manual ratio endpoint acquires a dedicated per-series lease named `derivatives-ratio:{ratio_type}:{symbol}:{period}`.
+- Competing requests for the same ratio series return HTTP 409 before upstream work; different series can proceed independently.
+- The lease is renewed before persistence and passed to `DerivativesRatioStore.save`.
+- The store validates ownership with `lock_if_owned` in the same PostgreSQL transaction as its upsert; stale writes are rejected.
+- SQLite mode remains unchanged and does not construct a PostgreSQL lease.
+
+Mocked endpoint coverage is added. A PostgreSQL two-session fencing test and successful CI are still required.
+
 ## Required regression tests
 
 - Scheduled collector owns the lease: manual endpoint returns 409, provider is not called, and no store write occurs.
@@ -80,7 +92,7 @@ These are mocked endpoint tests only. PostgreSQL concurrency integration and CI 
 | Manual funding rates | Yes, optional | Yes (shared derivatives lease) | Implemented; CI/integration pending |
 | Scheduled open interest | Yes | Yes | Fenced |
 | Manual open interest | Yes, optional | Yes (shared derivatives lease) | Implemented; CI/integration pending |
-| Manual derivatives ratios | No | No | Separate lease/fencing work required |
+| Manual derivatives ratios | Yes, optional | Yes (per-series lease) | Implemented; CI/integration pending |
 | EVM transfer chunk indexing | No | No | Separate workflow audit required |
 | Aggregate trade stream | Yes | Yes | Fenced |
 | Order-book stream | Yes | Yes | Fenced |
