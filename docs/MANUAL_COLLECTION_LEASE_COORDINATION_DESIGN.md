@@ -47,6 +47,18 @@ For a manual request in PostgreSQL mode:
 
 This intentionally serializes manual requests with the corresponding scheduled collector, even when the requested symbol differs. That is conservative but uses the already-established ownership boundary and avoids a partial migration to per-series leases. A later per-series design would require changing scheduled acquisition and all manual paths together.
 
+## Implemented second step: manual derivatives endpoints
+
+Implemented in commit `a4b3ed1`, with regression coverage in `cfdfdff`:
+
+- Manual funding-rate and open-interest endpoints acquire the exact `derivatives-history-collector` lease used by the scheduled collector.
+- A held lease returns HTTP 409 before calling Binance.
+- After fetching, each endpoint renews ownership and passes the renewed lease into its store write, which performs same-transaction fencing.
+- Both endpoints release the lease in `finally`; empty provider responses also release it.
+- Added tests for manual funding success/lease pass-through/release and open-interest conflict/no-provider-call.
+
+These are mocked endpoint tests only. PostgreSQL concurrency integration and CI success remain outstanding.
+
 ## Required regression tests
 
 - Scheduled collector owns the lease: manual endpoint returns 409, provider is not called, and no store write occurs.
@@ -64,9 +76,9 @@ This intentionally serializes manual requests with the corresponding scheduled c
 | Scheduled historical klines | Yes | Yes | Fenced |
 | Manual historical klines | Yes, optional | Yes (shared global lease) | Implemented; CI/log verification pending |
 | Scheduled funding rates | Yes | Yes | Fenced |
-| Manual funding rates | Yes, optional | No | Must coordinate |
+| Manual funding rates | Yes, optional | Yes (shared derivatives lease) | Implemented; CI/integration pending |
 | Scheduled open interest | Yes | Yes | Fenced |
-| Manual open interest | Yes, optional | No | Must coordinate |
+| Manual open interest | Yes, optional | Yes (shared derivatives lease) | Implemented; CI/integration pending |
 | Manual derivatives ratios | No | No | Separate lease/fencing work required |
 | EVM transfer chunk indexing | No | No | Separate workflow audit required |
 | Aggregate trade stream | Yes | Yes | Fenced |
