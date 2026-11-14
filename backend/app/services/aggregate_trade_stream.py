@@ -200,9 +200,9 @@ class AggregateTradeCollector:
         try:
             raw = json.loads(self.jobs_json)
         except json.JSONDecodeError as exc:
-            raise ValueError("AGG_TRADE_COLLECTOR_JOBS must be valid JSON") from exc
+            raise ValueError("AGGREGATE_TRADE_COLLECTOR_JOBS must be valid JSON") from exc
         if not isinstance(raw, list):
-            raise ValueError("AGG_TRADE_COLLECTOR_JOBS must be a JSON array")
+            raise ValueError("AGGREGATE_TRADE_COLLECTOR_JOBS must be a JSON array")
         jobs, seen = [], set()
         for item in raw:
             if not isinstance(item, dict):
