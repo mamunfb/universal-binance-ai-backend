@@ -409,7 +409,8 @@ class LiquidationCollector:
             except asyncio.CancelledError:
                 stream_task.cancel()
                 renew_task.cancel()
-                await asyncio.gather(stream_task, renew_task, return_exceptions=True)
+                await _wait_for_worker_task(stream_task)
+                await _wait_for_worker_task(renew_task)
                 raise
             except CollectorLeaseLostError:
                 self._lease_state = "LOST"
@@ -418,7 +419,8 @@ class LiquidationCollector:
                 for task in (stream_task, renew_task):
                     if not task.done():
                         task.cancel()
-                await asyncio.gather(stream_task, renew_task, return_exceptions=True)
+                await _wait_for_worker_task(stream_task)
+                await _wait_for_worker_task(renew_task)
             if self._lease_lost.is_set():
                 self._lease_state = "LOST"
                 break
