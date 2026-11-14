@@ -76,6 +76,10 @@ def parse_cors_allowed_origins(value: str) -> list[str]:
             continue
         parsed = urlsplit(origin)
         hostname = parsed.hostname
+        try:
+            parsed.port  # Validate an explicitly supplied port.
+        except ValueError as exc:
+            raise ValueError("CORS_ALLOWED_ORIGINS contains an invalid port") from exc
         if (
             parsed.scheme not in {"https", "http"}
             or not parsed.netloc
