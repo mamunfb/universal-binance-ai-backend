@@ -1469,14 +1469,16 @@ async def coinm_klines(
 @app.get("/api/v1/history/order-book/status", tags=["history"])
 async def order_book_stream_status() -> dict:
     if not settings.order_book_collector_enabled:
+        stored_sample_count = await asyncio.to_thread(order_book_history_store.count)
         return {
             "status": "DISABLED", "enabled": False,
-            "stored_sample_count": order_book_history_store.count(),
+            "stored_sample_count": stored_sample_count,
             "message": "Set ORDER_BOOK_COLLECTOR_ENABLED=true and configure ORDER_BOOK_COLLECTOR_JOBS on a persistent single-process deployment.",
         }
     if order_book_collector is None:
         return {"status": "STARTING", "enabled": True}
-    return {"status": "RUNNING", **order_book_collector.status()}
+    collector_status = await asyncio.to_thread(order_book_collector.status)
+    return {"status": "RUNNING", **collector_status}
 
 
 @app.get("/api/v1/history/order-book/{market}/{symbol}", tags=["history"])
@@ -1501,14 +1503,16 @@ async def stored_order_book_history(
 @app.get("/api/v1/history/aggregate-trades/status", tags=["history"])
 async def aggregate_trade_collector_status() -> dict:
     if not settings.aggregate_trade_collector_enabled:
+        stored_trade_count = await asyncio.to_thread(aggregate_trade_store.count)
         return {
             "status": "DISABLED", "enabled": False,
-            "stored_trade_count": aggregate_trade_store.count(),
+            "stored_trade_count": stored_trade_count,
             "message": "Set AGGREGATE_TRADE_COLLECTOR_ENABLED=true and configure AGG_TRADE_COLLECTOR_JOBS.",
         }
     if aggregate_trade_collector is None:
         return {"status": "STARTING", "enabled": True}
-    return {"status": "RUNNING", **aggregate_trade_collector.status()}
+    collector_status = await asyncio.to_thread(aggregate_trade_collector.status)
+    return {"status": "RUNNING", **collector_status}
 
 
 @app.get("/api/v1/history/aggregate-trades/{market}/{symbol}", tags=["history"])
@@ -2486,6 +2490,18 @@ async def inspect_market_data_quality(
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    aggregate_trade_status = (
+        await asyncio.to_thread(aggregate_trade_collector.status)
+        if aggregate_trade_collector is not None else
+        {"status": "DISABLED", "enabled": False} if not settings.aggregate_trade_collector_enabled else
+        {"status": "STARTING", "enabled": True}
+    )
+    order_book_status = (
+        await asyncio.to_thread(order_book_collector.status)
+        if order_book_collector is not None else
+        {"status": "DISABLED", "enabled": False} if not settings.order_book_collector_enabled else
+        {"status": "STARTING", "enabled": True}
+    )
     report["collectors"] = {
         "historical_klines": (
             historical_collector.status() if historical_collector is not None else
@@ -2497,16 +2513,8 @@ async def inspect_market_data_quality(
             {"status": "DISABLED", "enabled": False} if not settings.derivatives_collector_enabled else
             {"status": "STARTING", "enabled": True}
         ),
-        "aggregate_trades": (
-            aggregate_trade_collector.status() if aggregate_trade_collector is not None else
-            {"status": "DISABLED", "enabled": False} if not settings.aggregate_trade_collector_enabled else
-            {"status": "STARTING", "enabled": True}
-        ),
-        "order_book": (
-            order_book_collector.status() if order_book_collector is not None else
-            {"status": "DISABLED", "enabled": False} if not settings.order_book_collector_enabled else
-            {"status": "STARTING", "enabled": True}
-        ),
+        "aggregate_trades": aggregate_trade_status,
+        "order_book": order_book_status,
     }
     return report
 
