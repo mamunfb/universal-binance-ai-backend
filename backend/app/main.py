@@ -2264,7 +2264,10 @@ async def _acquire_manual_derivatives_lease():
         lease, interrupted = await _run_thread_worker(manager.acquire)
         if interrupted:
             if lease is not None:
-                await _run_thread_worker(manager.release, lease)
+                try:
+                    await _run_thread_worker(manager.release, lease)
+                except Exception:
+                    logger.exception("Failed to reap manual derivatives lease after cancelled acquisition")
             raise asyncio.CancelledError
         return manager, lease
     except Exception as exc:
@@ -2470,7 +2473,10 @@ async def collect_derivatives_ratio_history(
             lease, interrupted = await _run_thread_worker(manager.acquire)
             if interrupted:
                 if lease is not None:
-                    await _run_thread_worker(manager.release, lease)
+                    try:
+                        await _run_thread_worker(manager.release, lease)
+                    except Exception:
+                        logger.exception("Failed to reap manual derivatives-ratio lease after cancelled acquisition")
                 raise asyncio.CancelledError
             if lease is None:
                 raise HTTPException(
@@ -2684,7 +2690,10 @@ async def collect_historical_klines(
             lease, interrupted = await _run_thread_worker(lease_manager.acquire)
             if interrupted:
                 if lease is not None:
-                    await _run_thread_worker(lease_manager.release, lease)
+                    try:
+                        await _run_thread_worker(lease_manager.release, lease)
+                    except Exception:
+                        logger.exception("Failed to reap manual historical-kline lease after cancelled acquisition")
                 raise asyncio.CancelledError
             if lease is None:
                 raise HTTPException(
