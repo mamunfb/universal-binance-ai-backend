@@ -353,7 +353,7 @@ def test_aggregate_trade_collector_stops_when_lease_renewal_is_lost(monkeypatch,
     assert runtime_manager.released == []
 
 
-def test_aggregate_trade_stream backs_off_after_clean_websocket_close(monkeypatch, tmp_path):
+def test_aggregate_trade_stream_backs_off_after_clean_websocket_close(monkeypatch, tmp_path):
     import asyncio
     from types import SimpleNamespace
     from app.services import aggregate_trade_stream as module
