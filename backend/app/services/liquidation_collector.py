@@ -204,6 +204,8 @@ class LiquidationCollector:
         self.connected = False
         self.last_message_at: str | None = None
         self.last_error: str | None = None
+        self.storage_error: str | None = None
+        self.storage_retry_count = 0
         self.reconnect_count = 0
         self.received_count = 0
 
@@ -235,7 +237,7 @@ class LiquidationCollector:
                             event = normalize_force_order(message)
                             if event is None:
                                 continue
-                            await asyncio.to_thread(self.store.insert, event)
+                            await self._persist_event(event)
                             self.received_count += 1
                             self.last_message_at = datetime.now(timezone.utc).isoformat()
             except asyncio.CancelledError:
@@ -257,9 +259,32 @@ class LiquidationCollector:
             finally:
                 self.connected = False
 
+    async def _persist_event(self, event: dict[str, Any]) -> None:
+        """Persist one event with bounded-delay retries without reconnecting the stream."""
+        delay = 1
+        while True:
+            try:
+                await asyncio.to_thread(self.store.insert, event)
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                error_type = type(exc).__name__
+                self.storage_error = error_type
+                self.storage_retry_count += 1
+                logger.warning(
+                    "Liquidation storage write failed (%s); retrying in %s seconds",
+                    error_type,
+                    delay,
+                )
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, 60)
+            else:
+                self.storage_error = None
+                return
+
     def status(self) -> dict[str, Any]:
-        storage_status = "AVAILABLE"
-        storage_error = None
+        storage_status = "DEGRADED" if self.storage_error else "AVAILABLE"
+        storage_error = self.storage_error
         try:
             stored_event_count = self.store.count()
         except Exception as exc:
@@ -276,6 +301,7 @@ class LiquidationCollector:
             "stored_event_count": stored_event_count,
             "storage_status": storage_status,
             "storage_error": storage_error,
+            "storage_retry_count": self.storage_retry_count,
             "reconnect_count": self.reconnect_count,
             "last_message_at": self.last_message_at,
             "last_error": self.last_error,
