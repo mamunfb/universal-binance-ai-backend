@@ -410,3 +410,61 @@ def test_aggregate_trade_stream_backs_off_after_clean_websocket_close(monkeypatc
         await asyncio.wait_for(task, timeout=2)
 
     asyncio.run(scenario())
+
+
+def test_aggregate_trade_stream_increases_backoff_for_repeated_short_clean_closes(monkeypatch, tmp_path):
+    import asyncio
+    from app.services import aggregate_trade_stream as module
+    from app.services.aggregate_trade_stream import AggregateTradeCollector
+
+    connect_calls = []
+    waits = []
+
+    class EmptySocket:
+        def __aiter__(self):
+            async def iterate():
+                if False:
+                    yield ""
+            return iterate()
+
+    class SocketContext:
+        async def __aenter__(self):
+            return EmptySocket()
+
+        async def __aexit__(self, *_args):
+            return False
+
+    def fake_connect(*_args, **_kwargs):
+        connect_calls.append(True)
+        return SocketContext()
+
+    async def fake_wait_for(awaitable, timeout):
+        waits.append(timeout)
+        awaitable.close()
+        if len(waits) == 3:
+            lease_lost.set()
+        raise asyncio.TimeoutError
+
+    monkeypatch.setattr(module, "connect", fake_connect)
+    monkeypatch.setattr(module.asyncio, "wait_for", fake_wait_for)
+    collector = AggregateTradeCollector(
+        AggregateTradeStore(str(tmp_path / "trades.sqlite3"))
+    )
+    state = {
+        "market": "SPOT", "symbol": "BTCUSDT", "connected": False,
+        "received_count": 0, "reconnect_count": 0, "last_trade_at": None,
+        "last_error": None, "lease_state": "NOT_REQUIRED",
+    }
+    lease_lost = asyncio.Event()
+
+    async def scenario():
+        await collector._run_stream(
+            "SPOT", "BTCUSDT", state, {"lease": None}, lease_lost
+        )
+
+    asyncio.run(scenario())
+    assert waits == [1, 2, 4]
+    assert len(connect_calls) == 3
+    assert state["reconnect_count"] == 3
+    assert state["last_error"] == "WebSocketClosed"
+    assert state["connected"] is False
