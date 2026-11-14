@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     aggregate_trade_collector_enabled: bool = False
     aggregate_trade_collector_jobs: str = "[]"
     aggregate_trade_database_path: str = "data/aggregate_trades.sqlite3"
+    aggregate_trade_collector_lease_ttl_seconds: int = 30
     historical_kline_database_path: str = "data/historical_klines.sqlite3"
     historical_kline_database_url: str = ""
     funding_rate_database_path: str = "data/funding_rates.sqlite3"
