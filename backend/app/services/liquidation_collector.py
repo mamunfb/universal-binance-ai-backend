@@ -159,6 +159,8 @@ class LiquidationStore:
 
     def insert(self, event: dict[str, Any], lease: CollectorLease | None = None) -> None:
         event_fingerprint = _event_fingerprint(event)
+        if self.database_url and lease is None:
+            raise ValueError("PostgreSQL liquidation writes require an active collector lease")
         if lease is not None and not self.database_url:
             raise ValueError("Collector leases require PostgreSQL-backed liquidation storage")
         if self.database_url:
