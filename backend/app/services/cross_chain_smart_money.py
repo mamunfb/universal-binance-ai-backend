@@ -42,15 +42,21 @@ async def cross_chain_verified_wallet_flows(
                             if item["verification_status"] == "verified"
                             and item["label"] in SMART_LABELS],
             }
-            coverage = store.range_coverage(chain_id, config["contract_address"],
-                                             from_block, to_block)
-            flows = store.smart_money_activity(
-                chain_id, config["contract_address"], from_block, to_block,
-                decimals, verified_registry, limit,
-            )
-            trend = store.smart_money_accumulation_trend(
-                chain_id, config["contract_address"], from_block, to_block,
-                decimals, verified_registry, window_blocks,
+            coverage, flows, trend = await asyncio.gather(
+                asyncio.to_thread(
+                    store.range_coverage, chain_id, config["contract_address"],
+                    from_block, to_block,
+                ),
+                asyncio.to_thread(
+                    store.smart_money_activity,
+                    chain_id, config["contract_address"], from_block, to_block,
+                    decimals, verified_registry, limit,
+                ),
+                asyncio.to_thread(
+                    store.smart_money_accumulation_trend,
+                    chain_id, config["contract_address"], from_block, to_block,
+                    decimals, verified_registry, window_blocks,
+                ),
             )
             return {
                 "status": "COMPLETED" if coverage["complete"] else "INCOMPLETE",
