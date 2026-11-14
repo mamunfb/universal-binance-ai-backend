@@ -468,3 +468,58 @@ def test_aggregate_trade_stream_increases_backoff_for_repeated_short_clean_close
     assert state["reconnect_count"] == 3
     assert state["last_error"] == "WebSocketClosed"
     assert state["connected"] is False
+
+
+def test_aggregate_trade_stream_stops_processing_messages_after_fenced_write_loss(monkeypatch, tmp_path):
+    import asyncio
+    import json
+    from types import SimpleNamespace
+    from app.services import aggregate_trade_stream as module
+    from app.services.collector_lease import CollectorLeaseLostError
+    from app.services.aggregate_trade_stream import AggregateTradeCollector
+
+    attempts = []
+
+    class FailingStore:
+        def insert(self, row, lease=None):
+            attempts.append(row["trade_id"])
+            raise CollectorLeaseLostError("lease ownership changed")
+
+    class TwoMessageSocket:
+        def __aiter__(self):
+            async def iterate():
+                yield json.dumps(sample_trade())
+                second = sample_trade()
+                second["a"] = 124
+                yield json.dumps(second)
+            return iterate()
+
+    class SocketContext:
+        async def __aenter__(self):
+            return TwoMessageSocket()
+
+        async def __aexit__(self, *_args):
+            return False
+
+    monkeypatch.setattr(module, "connect", lambda *_args, **_kwargs: SocketContext())
+    collector = AggregateTradeCollector(FailingStore())
+    state = {
+        "market": "SPOT", "symbol": "BTCUSDT", "connected": False,
+        "received_count": 0, "reconnect_count": 0, "last_trade_at": None,
+        "last_error": None, "lease_state": "ACTIVE",
+    }
+    lease_lost = asyncio.Event()
+
+    async def scenario():
+        await collector._run_stream(
+            "SPOT", "BTCUSDT", state,
+            {"lease": SimpleNamespace(fencing_token=9)}, lease_lost,
+        )
+
+    asyncio.run(scenario())
+    assert attempts == [123]
+    assert lease_lost.is_set()
+    assert state["lease_state"] == "LOST"
+    assert state["last_error"] == "CollectorLeaseLostError"
+    assert state["received_count"] == 0
+    assert state["connected"] is False
