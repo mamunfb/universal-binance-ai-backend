@@ -105,6 +105,8 @@ class OpenInterestStore:
         now = datetime.now(timezone.utc).isoformat()
         values = [(market, symbol, period, timestamp, amount, value, supply, source, now)
                   for timestamp, amount, value, supply in normalized]
+        if self.database_url and lease is None:
+            raise ValueError("PostgreSQL open-interest writes require an active collector lease")
         if lease is not None and not self.database_url:
             raise ValueError("Collector leases require PostgreSQL-backed open-interest storage")
         if self.database_url:
