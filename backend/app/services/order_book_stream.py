@@ -9,6 +9,12 @@ from psycopg.rows import dict_row
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
+
+from app.services.collector_lease import (
+    CollectorLease,
+    CollectorLeaseLostError,
+    PostgresCollectorLease,
+)
 from urllib.parse import quote
 
 from websockets.asyncio.client import connect
