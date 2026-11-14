@@ -8,10 +8,11 @@ This design covers operator-triggered HTTP collection endpoints that write marke
 
 - `HistoricalKlineCollector` uses the stable PostgreSQL lease name `historical-kline-collector`, renews it, and passes its current lease to `HistoricalKlineStore.save_klines`.
 - `HistoricalKlineStore.save_klines` calls `PostgresCollectorLease.lock_if_owned` in the same PostgreSQL transaction as its upsert when a lease is supplied.
-- `POST /api/v1/history/klines/{market}/{symbol}/collect` currently fetches from Binance and calls `save_klines` without a lease.
+- `POST /api/v1/history/klines/{market}/{symbol}/collect` now acquires and passes the shared `historical-kline-collector` lease before its fenced store write.
+- Manual funding-rate and open-interest collection endpoints now acquire and pass the shared `derivatives-history-collector` lease before their fenced store writes.
 - `DerivativesHistoryCollector` uses one stable `derivatives-history-collector` lease and passes it to the funding-rate and open-interest store writes.
 - `FundingRateStore.save` and `OpenInterestStore.save` accept optional leases and fence PostgreSQL writes in the same transaction.
-- The manual funding-rate and open-interest collection endpoints currently omit a lease.
+
 - `DerivativesRatioStore.save` currently has no lease parameter or same-transaction fencing check; its manual collection endpoint writes directly.
 - `EVMTransferStore.save_chunk` currently has no lease parameter. EVM transfer indexing is a separate workflow and is outside this manual market-history lease change.
 
