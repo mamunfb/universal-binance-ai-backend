@@ -117,10 +117,21 @@ class HistoricalKlineCollector:
                 await asyncio.sleep(self.poll_seconds)
 
         while True:
+            acquire_task = asyncio.create_task(
+                asyncio.to_thread(self._lease_coordinator.acquire)
+            )
             try:
-                lease = await asyncio.to_thread(self._lease_coordinator.acquire)
+                lease = await asyncio.shield(acquire_task)
             except asyncio.CancelledError:
-                raise
+                # Do not orphan a lease if shutdown races with a blocking DB acquire.
+                try:
+                    acquired_during_shutdown = await acquire_task
+                    if acquired_during_shutdown is not None:
+                        await asyncio.to_thread(
+                            self._lease_coordinator.release, acquired_during_shutdown
+                        )
+                finally:
+                    raise
             except Exception as exc:
                 self._lease_state = "ACQUIRE_FAILED"
                 self._last_error = type(exc).__name__
@@ -171,7 +182,11 @@ class HistoricalKlineCollector:
                     except Exception as exc:
                         self._lease_state = "RELEASE_FAILED"
                         self._last_error = type(exc).__name__
-            if self._lease_state in {"LOST", "RELEASE_FAILED"}:
+            if self._lease_state == "LOST":
+                # A failed heartbeat is a terminal safety event for this process.
+                # Do not silently reacquire and restart work after ownership loss.
+                return
+            if self._lease_state == "RELEASE_FAILED":
                 await asyncio.sleep(self.poll_seconds)
 
     async def _renew_lease_loop(self) -> None:
