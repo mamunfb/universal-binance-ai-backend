@@ -5,6 +5,7 @@ import psycopg
 import pytest
 
 from app.providers.evm_rpc import TRANSFER_TOPIC
+from app.services.aggregate_trade_stream import AggregateTradeStore
 from app.services.collector_lease import CollectorLeaseLostError, PostgresCollectorLease
 from app.services.derivatives_ratio_store import DerivativesRatioStore
 from app.services.evm_transfer_store import EVMTransferStore
@@ -113,6 +114,53 @@ def test_postgres_evm_chunk_and_coverage_are_written_under_same_lease():
             connection.execute(
                 "DELETE FROM public.evm_transfer_index_ranges WHERE chain_id=1 AND contract_address=%s",
                 (contract,),
+            )
+            connection.execute(
+                "DELETE FROM public.collector_leases WHERE lease_name=%s",
+                (lease_name,),
+            )
+
+
+
+def test_postgres_aggregate_trade_write_is_fenced_by_lease():
+    suffix = uuid4().hex[:10].upper()
+    symbol = f"TEST{suffix}"
+    lease_name = f"test-aggregate-trade:SPOT:{symbol}"
+    manager = PostgresCollectorLease(DATABASE_URL, lease_name, ttl_seconds=30)
+    lease = manager.acquire()
+    assert lease is not None
+    store = AggregateTradeStore("unused.sqlite3", DATABASE_URL)
+    row = {
+        "market": "SPOT",
+        "symbol": symbol,
+        "trade_id": 1,
+        "event_time_ms": 1_800_000_000_000,
+        "trade_time_ms": 1_800_000_000_000,
+        "price": 100.0,
+        "quantity": 0.25,
+        "notional": 25.0,
+        "buyer_is_maker": False,
+        "aggressor_side": "BUY",
+        "raw_json": '{"e":"aggTrade","s":"' + symbol + '","a":1}',
+    }
+    try:
+        store.insert(row, lease=lease)
+        rows = store.recent("SPOT", symbol, limit=10)
+        assert len(rows) == 1
+        assert rows[0]["trade_id"] == 1
+        assert rows[0]["buyer_is_maker"] is False
+        manager.release(lease)
+        stale_row = {**row, "trade_id": 2, "event_time_ms": row["event_time_ms"] + 1,
+                     "trade_time_ms": row["trade_time_ms"] + 1}
+        with pytest.raises(CollectorLeaseLostError):
+            store.insert(stale_row, lease=lease)
+        assert store.count("SPOT", symbol) == 1
+    finally:
+        manager.release(lease)
+        with psycopg.connect(DATABASE_URL) as connection:
+            connection.execute(
+                "DELETE FROM public.aggregate_trades WHERE market=%s AND symbol=%s",
+                ("SPOT", symbol),
             )
             connection.execute(
                 "DELETE FROM public.collector_leases WHERE lease_name=%s",
