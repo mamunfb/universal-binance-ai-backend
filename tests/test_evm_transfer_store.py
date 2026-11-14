@@ -272,7 +272,7 @@ def test_evm_indexer_runs_storage_writes_and_coverage_off_event_loop():
             return []
 
     class FakeStore:
-        def save_chunk(self, *args):
+        def save_chunk(self, *args, **kwargs):
             observed.append(threading.get_ident())
             return 0
 
@@ -308,3 +308,84 @@ def test_postgres_lease_is_rejected_for_sqlite_transfer_store(tmp_path):
     with pytest.raises(ValueError, match="require PostgreSQL-backed"):
         store.save_chunk(1, CONTRACT, 100, 100, [], lease=lease)
     assert store.coverage(1, CONTRACT) == []
+
+
+def test_postgres_indexer_acquires_renews_passes_and_releases_lease(monkeypatch):
+    from types import SimpleNamespace
+    import app.services.evm_transfer_store as evm_module
+
+    lease = SimpleNamespace(fencing_token=9)
+    captured = {"saved": [], "released": []}
+
+    class FakeLeaseManager:
+        def __init__(self, database_url, lease_name, ttl_seconds):
+            captured["manager"] = (database_url, lease_name, ttl_seconds)
+
+        def acquire(self):
+            return lease
+
+        def renew(self, current):
+            assert current is lease
+            return lease
+
+        def release(self, current):
+            captured["released"].append(current)
+            return True
+
+    class FakeProvider:
+        async def chain_id(self):
+            return 1
+
+        async def block_number(self):
+            return 100
+
+        async def token_transfer_logs(self, contract, start, end, max_block_span):
+            return []
+
+    class FakeStore:
+        database_url = "postgresql://example/test"
+
+        def save_chunk(self, *args, lease=None):
+            captured["saved"].append((args, lease))
+            return 0
+
+        def coverage(self, *args):
+            return []
+
+    monkeypatch.setattr(evm_module, "PostgresCollectorLease", FakeLeaseManager)
+    result = asyncio.run(index_erc20_transfer_history(
+        FakeProvider(), FakeStore(), CONTRACT, 10, 11, 1, 10, 45
+    ))
+
+    assert result["status"] == "COMPLETED"
+    assert captured["manager"] == (
+        "postgresql://example/test", f"evm-transfer-indexer:1:{CONTRACT}", 45
+    )
+    assert len(captured["saved"]) == 2
+    assert all(item[1] is lease for item in captured["saved"])
+    assert captured["released"] == [lease]
+
+
+def test_postgres_indexer_rejects_when_contract_lease_is_held(monkeypatch):
+    import app.services.evm_transfer_store as evm_module
+    from app.services.collector_lease import CollectorLeaseLostError
+
+    class FakeLeaseManager:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def acquire(self):
+            return None
+
+    class FakeProvider:
+        async def chain_id(self):
+            return 1
+
+    class FakeStore:
+        database_url = "postgresql://example/test"
+
+    monkeypatch.setattr(evm_module, "PostgresCollectorLease", FakeLeaseManager)
+    with pytest.raises(CollectorLeaseLostError, match="currently owns"):
+        asyncio.run(index_erc20_transfer_history(
+            FakeProvider(), FakeStore(), CONTRACT, 10, 10, 1, 10, 30
+        ))
