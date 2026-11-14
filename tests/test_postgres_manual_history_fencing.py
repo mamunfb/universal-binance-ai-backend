@@ -166,3 +166,60 @@ def test_postgres_aggregate_trade_write_is_fenced_by_lease():
                 "DELETE FROM public.collector_leases WHERE lease_name=%s",
                 (lease_name,),
             )
+
+
+def test_postgres_lease_share_lock_blocks_expired_lease_takeover():
+    suffix = uuid4().hex[:12]
+    lease_name = f"test-lease-share-lock:{suffix}"
+    owner = PostgresCollectorLease(DATABASE_URL, lease_name, ttl_seconds=30)
+    lease = owner.acquire()
+    assert lease is not None
+    contender = PostgresCollectorLease(
+        DATABASE_URL, lease_name, owner_id=uuid4(), ttl_seconds=30,
+    )
+    replacement = None
+    try:
+        # The protected writer holds FOR SHARE in its transaction. Even an
+        # attempted takeover-style UPDATE must wait for that transaction.
+        with psycopg.connect(DATABASE_URL) as writer_connection:
+            assert PostgresCollectorLease.lock_if_owned(writer_connection, lease)
+            with psycopg.connect(DATABASE_URL) as takeover_connection:
+                takeover_connection.execute("SET LOCAL lock_timeout = '250ms'")
+                with pytest.raises(psycopg.errors.LockNotAvailable):
+                    takeover_connection.execute(
+                        """
+                        UPDATE public.collector_leases
+                           SET lease_expires_at = clock_timestamp() - INTERVAL '1 second'
+                         WHERE lease_name = %s
+                        """,
+                        (lease_name,),
+                    )
+
+        # Once the protected transaction commits, an expired lease can be
+        # taken over, and the fencing token must advance for the new owner.
+        with psycopg.connect(DATABASE_URL) as connection:
+            connection.execute(
+                """
+                UPDATE public.collector_leases
+                   SET lease_expires_at = clock_timestamp() - INTERVAL '1 second'
+                 WHERE lease_name = %s
+                """,
+                (lease_name,),
+            )
+        replacement = contender.acquire()
+        assert replacement is not None
+        assert replacement.owner_id == contender.owner_id
+        assert replacement.fencing_token == lease.fencing_token + 1
+        with psycopg.connect(DATABASE_URL) as stale_writer_connection:
+            assert not PostgresCollectorLease.lock_if_owned(
+                stale_writer_connection, lease
+            )
+    finally:
+        if replacement is not None:
+            contender.release(replacement)
+        owner.release(lease)
+        with psycopg.connect(DATABASE_URL) as connection:
+            connection.execute(
+                "DELETE FROM public.collector_leases WHERE lease_name=%s",
+                (lease_name,),
+            )
