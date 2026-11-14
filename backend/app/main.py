@@ -489,9 +489,15 @@ async def index_evm_token_history(
         return await index_erc20_transfer_history(
             get_evm_provider(), evm_transfer_store, contract, from_block, to_block,
             chunk_size, settings.evm_index_max_total_blocks,
+            settings.evm_transfer_collector_lease_ttl_seconds,
         )
     except (KeyError, TypeError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except CollectorLeaseLostError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={"status": "CONFLICT", "error": "EVM_TRANSFER_INDEXER_LEASE_UNAVAILABLE"},
+        ) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail={"status": "FAILED", "error": "ONCHAIN_PROVIDER_UNAVAILABLE", "error_type": type(exc).__name__}) from exc
 
