@@ -482,12 +482,15 @@ async def get_evm_token_history(
     try:
         provider = get_evm_provider()
         chain_id = await provider.chain_id()
-        rows = evm_transfer_store.history(chain_id, contract, from_block, to_block, limit)
+        rows, indexed_coverage = await asyncio.gather(
+            asyncio.to_thread(evm_transfer_store.history, chain_id, contract, from_block, to_block, limit),
+            asyncio.to_thread(evm_transfer_store.coverage, chain_id, contract),
+        )
         return {
             "status": "COMPLETED", "chain_id": chain_id, "contract_address": contract.lower(),
             "requested_range": {"from": from_block, "to": to_block},
             "returned_count": len(rows), "transfers": rows,
-            "indexed_coverage": evm_transfer_store.coverage(chain_id, contract),
+            "indexed_coverage": indexed_coverage,
             "warning": "Only stored indexed logs are returned. An empty result does not prove there were no transfers unless this range is fully covered.",
         }
     except ValueError as exc:
@@ -561,12 +564,16 @@ async def cross_chain_token_flows(
                         "error": "RPC chain_id does not match configured chain_id",
                     })
                     continue
-                coverage = evm_transfer_store.range_coverage(
-                    actual_chain_id, item["contract_address"], from_block, to_block
-                )
-                flows = evm_transfer_store.address_flow_summary(
-                    actual_chain_id, item["contract_address"], from_block, to_block,
-                    decimals, limit,
+                coverage, flows = await asyncio.gather(
+                    asyncio.to_thread(
+                        evm_transfer_store.range_coverage,
+                        actual_chain_id, item["contract_address"], from_block, to_block,
+                    ),
+                    asyncio.to_thread(
+                        evm_transfer_store.address_flow_summary,
+                        actual_chain_id, item["contract_address"], from_block, to_block,
+                        decimals, limit,
+                    ),
                 )
                 results.append({
                     "status": "COMPLETED" if coverage["complete"] else "INCOMPLETE",
@@ -650,7 +657,8 @@ async def cross_chain_token_intelligence(
                        and item["contract_address"].lower() == key[1]), None)
         try:
             registry = load_wallet_registry(settings.evm_wallet_registry, flow["chain_id"])
-            entity_flows = evm_transfer_store.verified_label_flows(
+            entity_flows = await asyncio.to_thread(
+                evm_transfer_store.verified_label_flows,
                 flow["chain_id"], flow["contract_address"], from_block, to_block,
                 decimals, registry,
             ) if config else {"verified_label_flows": {}, "warning": "No matching chain configuration."}
@@ -990,8 +998,9 @@ async def get_evm_token_history_flows(
     try:
         provider = get_evm_provider()
         chain_id = await provider.chain_id()
-        summary = evm_transfer_store.address_flow_summary(
-            chain_id, contract, from_block, to_block, decimals, limit
+        summary = await asyncio.to_thread(
+            evm_transfer_store.address_flow_summary,
+            chain_id, contract, from_block, to_block, decimals, limit,
         )
         registry = load_wallet_registry(settings.evm_wallet_registry, chain_id)
         for key in ("top_net_receivers", "top_net_senders"):
@@ -1007,7 +1016,7 @@ async def get_evm_token_history_flows(
             "contract_address": contract.lower(),
             "requested_range": {"from": from_block, "to": to_block},
             "address_flows": summary,
-            "indexed_coverage": evm_transfer_store.coverage(chain_id, contract),
+            "indexed_coverage": await asyncio.to_thread(evm_transfer_store.coverage, chain_id, contract),
             "attribution_warning": registry["warning"],
         }
     except ValueError as exc:
@@ -1030,12 +1039,16 @@ async def evm_token_smart_money_activity(
     try:
         chain_id = await get_evm_provider().chain_id()
         registry = load_wallet_registry(settings.evm_wallet_registry, chain_id)
-        coverage = evm_transfer_store.range_coverage(chain_id, contract, from_block, to_block)
-        activity = evm_transfer_store.smart_money_activity(
-            chain_id, contract, from_block, to_block, decimals, registry, limit
-        )
-        trend = evm_transfer_store.smart_money_accumulation_trend(
-            chain_id, contract, from_block, to_block, decimals, registry, window_blocks
+        coverage, activity, trend = await asyncio.gather(
+            asyncio.to_thread(evm_transfer_store.range_coverage, chain_id, contract, from_block, to_block),
+            asyncio.to_thread(
+                evm_transfer_store.smart_money_activity,
+                chain_id, contract, from_block, to_block, decimals, registry, limit,
+            ),
+            asyncio.to_thread(
+                evm_transfer_store.smart_money_accumulation_trend,
+                chain_id, contract, from_block, to_block, decimals, registry, window_blocks,
+            ),
         )
         return {
             "status": "COMPLETED" if coverage["complete"] else "INCOMPLETE",

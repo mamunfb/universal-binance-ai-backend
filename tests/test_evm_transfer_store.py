@@ -254,3 +254,40 @@ def test_smart_money_trend_cancels_transfers_between_cohort_wallets(tmp_path):
     result = store.smart_money_accumulation_trend(1, CONTRACT, 100, 100, 18, registry, 10)
     assert result["windows"] == []
     assert result["window_count_with_activity"] == 0
+
+
+def test_evm_indexer_runs_storage_writes_and_coverage_off_event_loop():
+    import threading
+
+    observed = []
+
+    class FakeProvider:
+        async def chain_id(self):
+            return 1
+
+        async def block_number(self):
+            return 100
+
+        async def token_transfer_logs(self, contract, start, end, max_block_span):
+            return []
+
+    class FakeStore:
+        def save_chunk(self, *args):
+            observed.append(threading.get_ident())
+            return 0
+
+        def coverage(self, *args):
+            observed.append(threading.get_ident())
+            return []
+
+    async def invoke():
+        loop_thread = threading.get_ident()
+        result = await index_erc20_transfer_history(
+            FakeProvider(), FakeStore(), CONTRACT, 10, 10, 1, 10
+        )
+        return loop_thread, result
+
+    loop_thread, result = asyncio.run(invoke())
+    assert result["status"] == "COMPLETED"
+    assert len(observed) == 2
+    assert all(thread_id != loop_thread for thread_id in observed)

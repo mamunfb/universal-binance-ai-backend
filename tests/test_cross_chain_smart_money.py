@@ -127,3 +127,45 @@ def test_cross_chain_smart_money_sanitizes_provider_error(monkeypatch):
     assert result["status"] == "INCOMPLETE"
     assert result["chains"][0]["error"] == "SMART_MONEY_ANALYSIS_UNAVAILABLE"
     assert "secret-token" not in str(result)
+
+
+def test_cross_chain_smart_money_database_queries_run_off_event_loop(monkeypatch):
+    import threading
+
+    observed = []
+
+    class FakeProvider:
+        def __init__(self, url, timeout):
+            pass
+
+        async def chain_id(self):
+            return 1
+
+    class FakeStore:
+        def range_coverage(self, *args):
+            observed.append(threading.get_ident())
+            return {"complete": True, "gaps": []}
+
+        def smart_money_activity(self, *args):
+            observed.append(threading.get_ident())
+            return {"verified_smart_money_wallets_found": 0, "wallets": []}
+
+        def smart_money_accumulation_trend(self, *args):
+            observed.append(threading.get_ident())
+            return {"window_blocks": 100, "windows": []}
+
+    monkeypatch.setattr("app.services.cross_chain_smart_money.EVMRPCProvider", FakeProvider)
+    configs = [{"chain_id": 1, "asset_id": "sample", "contract_address": CONTRACT,
+                "rpc_url": "https://rpc.example", "chain_name": "Ethereum"}]
+
+    async def invoke():
+        loop_thread = threading.get_ident()
+        result = await cross_chain_verified_wallet_flows(
+            configs, "sample", 10, 20, 18, "[]", FakeStore(), window_blocks=100
+        )
+        return loop_thread, result
+
+    loop_thread, result = asyncio.run(invoke())
+    assert result["status"] == "COMPLETED"
+    assert len(observed) == 3
+    assert all(thread_id != loop_thread for thread_id in observed)
