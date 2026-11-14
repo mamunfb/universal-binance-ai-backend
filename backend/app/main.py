@@ -72,7 +72,11 @@ from app.services.cross_chain_smart_money import cross_chain_verified_wallet_flo
 logger = logging.getLogger(__name__)
 
 liquidation_store = LiquidationStore(settings.liquidation_database_path, settings.database_url)
-liquidation_collector = LiquidationCollector(liquidation_store)
+liquidation_collector = LiquidationCollector(
+    liquidation_store,
+    lease_database_url=settings.database_url,
+    lease_ttl_seconds=settings.liquidation_collector_lease_ttl_seconds,
+)
 order_book_history_store = OrderBookHistoryStore(settings.order_book_database_path, settings.database_url)
 order_book_collector: OrderBookStreamCollector | None = None
 aggregate_trade_store = AggregateTradeStore(settings.aggregate_trade_database_path, settings.database_url)
