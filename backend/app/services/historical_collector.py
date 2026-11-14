@@ -221,6 +221,13 @@ class HistoricalKlineCollector:
             self._lease = renewed
 
     async def run_once(self) -> dict[str, Any]:
+        if self._lease_coordinator is not None and (
+            self._lease is None
+            or (self._lease_lost is not None and self._lease_lost.is_set())
+        ):
+            raise CollectorLeaseLostError(
+                "Historical collection requires a currently owned PostgreSQL lease"
+            )
         self._running = True
         self._cycles += 1
         self._last_cycle_at = datetime.now(timezone.utc).isoformat()
