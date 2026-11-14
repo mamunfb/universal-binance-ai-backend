@@ -209,6 +209,13 @@ class DerivativesHistoryCollector:
             self._status["status"] = "STOPPED"
 
     async def run_once(self) -> dict[str, Any]:
+        if self._lease_coordinator is not None and (
+            self._lease is None
+            or (self._lease_lost is not None and self._lease_lost.is_set())
+        ):
+            raise CollectorLeaseLostError(
+                "Derivatives collection requires a currently owned PostgreSQL lease"
+            )
         async with self._lock:
             results = []
             for job in self.jobs:
