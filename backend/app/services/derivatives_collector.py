@@ -122,7 +122,7 @@ class DerivativesHistoryCollector:
             finally:
                 if self._task is task:
                     self._task = None
-        if self._lease_state not in {"LOST", "RELEASE_FAILED", "ACQUIRE_FAILED"}:
+        if self._lease_state != "LOST":
             self._status["status"] = "STOPPED"
 
     async def _wait_for_stop_or_lease_loss(self, timeout: float) -> None:
