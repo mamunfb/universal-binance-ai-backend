@@ -36,7 +36,7 @@ def aggregate_trade_stream_url(market: str, symbol: str) -> str:
 
 
 def normalize_aggregate_trade(payload: dict[str, Any], market: str) -> dict[str, Any] | None:
-    if payload.get("e") != "aggTrade":
+    if not isinstance(payload, dict) or payload.get("e") != "aggTrade":
         return None
     try:
         normalized_market = market.upper()
