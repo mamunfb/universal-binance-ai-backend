@@ -141,7 +141,7 @@ class EVMTransferStore:
                 INSERT INTO evm_transfer_logs
                 (chain_id, contract_address, transaction_hash, log_index, block_number,
                  from_address, to_address, amount_raw, removed, indexed_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?::timestamptz)
                 ON CONFLICT(chain_id, contract_address, transaction_hash, log_index)
                 DO UPDATE SET block_number=excluded.block_number,
                     from_address=excluded.from_address, to_address=excluded.to_address,
@@ -151,7 +151,7 @@ class EVMTransferStore:
             connection.execute("""
                 INSERT INTO evm_transfer_index_ranges
                 (chain_id, contract_address, from_block, to_block, transfer_count, indexed_at)
-                VALUES (?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?::timestamptz)
                 ON CONFLICT(chain_id, contract_address, from_block, to_block)
                 DO UPDATE SET transfer_count=excluded.transfer_count, indexed_at=excluded.indexed_at
             """, (chain_id, contract.lower(), start, end, len(rows), now))
