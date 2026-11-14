@@ -457,3 +457,55 @@ def test_liquidation_waits_for_inflight_renewal_and_releases_latest_lease(monkey
 
     asyncio.run(scenario())
     assert released == [renewed_lease]
+
+def test_liquidation_reaps_lease_when_acquisition_is_cancelled(monkeypatch, tmp_path):
+    import threading
+    from types import SimpleNamespace
+
+    acquire_started = threading.Event()
+    finish_acquire = threading.Event()
+    lease = SimpleNamespace(fencing_token=91)
+    released = []
+
+    class BlockingLeaseCoordinator:
+        lease_name = "liquidation-stream-collector"
+        ttl_seconds = 30
+
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def acquire(self):
+            acquire_started.set()
+            if not finish_acquire.wait(timeout=3):
+                raise TimeoutError("test acquisition was not released")
+            return lease
+
+        def release(self, current):
+            released.append(current)
+            return True
+
+    monkeypatch.setattr(liquidation_module, "PostgresCollectorLease", BlockingLeaseCoordinator)
+    collector = LiquidationCollector(
+        LiquidationStore(str(tmp_path / "acquire-cancel.sqlite3")),
+        lease_database_url="postgresql://test",
+    )
+
+    async def scenario():
+        collector.start()
+        assert await asyncio.to_thread(acquire_started.wait, 2)
+        task = collector.task
+        task.cancel()
+        await asyncio.sleep(0.05)
+        task.cancel()
+        await asyncio.sleep(0.05)
+        assert not task.done()
+        assert released == []
+
+        finish_acquire.set()
+        result = await asyncio.gather(task, return_exceptions=True)
+        assert isinstance(result[0], asyncio.CancelledError)
+        await collector.stop()
+
+    asyncio.run(scenario())
+    assert released == [lease]
+    assert collector.status()["lease_state"] == "STOPPED"
