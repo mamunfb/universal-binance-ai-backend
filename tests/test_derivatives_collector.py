@@ -333,3 +333,41 @@ async def test_run_once_requires_lease_when_postgres_lease_mode_is_configured(mo
     )
     with pytest.raises(CollectorLeaseLostError, match="currently owned"):
         await collector.run_once()
+
+
+@pytest.mark.asyncio
+async def test_runtime_derivatives_collector_cancels_inflight_provider_and_releases_lease(monkeypatch):
+    import app.services.derivatives_collector as module
+
+    started = asyncio.Event()
+    cancelled = asyncio.Event()
+
+    class BlockingProvider(FakeProvider):
+        async def funding_rate(self, *args, **kwargs):
+            started.set()
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                cancelled.set()
+                raise
+
+    coordinator = FakeLeaseCoordinator("postgresql://localhost/test", "derivatives")
+    monkeypatch.setattr(module, "PostgresCollectorLease", lambda *args, **kwargs: coordinator)
+    provider = BlockingProvider()
+    collector = DerivativesHistoryCollector(
+        LeaseAwareFundingStore(), LeaseAwareOpenInterestStore(),
+        lambda market: provider,
+        '[{"type":"FUNDING_RATE","symbol":"BTCUSDT"}]',
+        poll_seconds=10,
+        lease_database_url="postgresql://localhost/test",
+    )
+
+    collector.start()
+    await asyncio.wait_for(started.wait(), timeout=1)
+    await asyncio.wait_for(collector.stop(), timeout=1)
+
+    assert cancelled.is_set()
+    assert coordinator.acquired == 1
+    assert coordinator.released == 1
+    assert collector.status()["status"] == "STOPPED"
+    assert collector.status()["lease_state"] == "RELEASED"
