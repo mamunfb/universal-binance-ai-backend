@@ -130,6 +130,8 @@ class AggregateTradeStore:
         return psycopg.connect(self.database_url, sslmode=("disable" if "sslmode=disable" in self.database_url else "require"), connect_timeout=15, row_factory=dict_row)
 
     def insert(self, row: dict[str, Any], lease: CollectorLease | None = None) -> None:
+        if self.database_url and lease is None:
+            raise ValueError("PostgreSQL aggregate-trade writes require an active collector lease")
         if lease is not None and not self.database_url:
             raise ValueError("Collector leases require PostgreSQL-backed aggregate-trade storage")
         if self.database_url:
