@@ -55,7 +55,7 @@ The PostgreSQL integration tests cover simultaneous acquisition by two independe
 ## Required integration before multi-instance collector operation
 
 1. Audit every remaining collector persistence path and confirm it calls lock_if_owned in the same transaction as its write; cover all batch writes.
-2. Complete the EVM transfer chunk-indexing write-path audit and PostgreSQL concurrency verification. The manual kline, funding-rate, and open-interest endpoints share their scheduled collectors' leases; manual derivatives ratios use per-series leases.
+2. Complete EVM transfer indexer lease acquisition/renewal/release and PostgreSQL concurrency verification. The manual kline, funding-rate, and open-interest endpoints share their scheduled collectors' leases; manual derivatives ratios use per-series leases.
 3. Add two-connection tests for any remaining unfenced write path and shutdown behavior.
 4. Expose owner identity, lease state, token, last renewal, and failure reason without exposing secrets.
 5. Verify graceful shutdown stops streams and polling before releasing leases.
@@ -66,4 +66,4 @@ The PostgreSQL integration tests cover simultaneous acquisition by two independe
 - Do not use multiple Render instances for collector execution.
 - Do not assume Neon shared storage prevents duplicate subscriptions or upstream polling.
 - Do not introduce retention deletion until archive, restore, and integrity verification are complete.
-- Do not treat the platform as multi-instance-ready. Historical-kline, derivatives-history, liquidation, order-book, and aggregate-trade runtime paths have PostgreSQL lease fencing. EVM transfer chunk indexing, CI diagnosis, and PostgreSQL concurrency verification are still outstanding. Migration 011 and the lease class are not authorization to enable multi-instance collectors.
+- Do not treat the platform as multi-instance-ready. Historical-kline, derivatives-history, liquidation, order-book, and aggregate-trade runtime paths have PostgreSQL lease fencing. EVM transfer indexer lease lifecycle, CI diagnosis, and PostgreSQL concurrency verification are still outstanding. Migration 011 and the lease class are not authorization to enable multi-instance collectors.
