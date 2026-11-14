@@ -333,8 +333,8 @@ class HistoricalKlineCollector:
             "last_error_type": self._last_error,
             "last_results": self._last_results,
             "warning": (
-                "PostgreSQL lease fencing covers scheduled historical-kline writes only; "
-                "manual collection endpoints and other collector families are not coordinated."
+                "PostgreSQL lease fencing covers scheduled and manual historical-kline collection; "
+                "other collector families use their own coordination leases."
                 if self._lease_coordinator is not None else
                 "The collector only runs while this application process is alive. "
                 "Use persistent storage and one collector process per database."
