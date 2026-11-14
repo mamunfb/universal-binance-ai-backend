@@ -661,3 +661,11 @@ def test_aggregate_trade_collector_releases_latest_lease_after_cancelled_renewal
 
     asyncio.run(scenario())
     assert released == [renewed_lease]
+
+def test_postgres_aggregate_trade_store_requires_lease_before_write():
+    import pytest
+    store = AggregateTradeStore("unused.sqlite3", "postgresql://example/test")
+    row = normalize_aggregate_trade(sample_trade(), "SPOT")
+    assert row is not None
+    with pytest.raises(ValueError, match="require an active collector lease"):
+        store.insert(row)
