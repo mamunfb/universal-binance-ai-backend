@@ -216,6 +216,11 @@ class AggregateTradeCollector:
                 raise ValueError("Duplicate agg-trade collector job")
             seen.add(key)
             jobs.append({"market": market, "symbol": symbol})
+        if not jobs:
+            raise ValueError(
+                "AGGREGATE_TRADE_COLLECTOR_JOBS must contain at least one job "
+                "when AGGREGATE_TRADE_COLLECTOR_ENABLED=true"
+            )
         return jobs
 
     def start(self) -> None:
