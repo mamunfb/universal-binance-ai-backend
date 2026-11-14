@@ -2131,14 +2131,16 @@ async def spot_volume_structure(
 
 @app.get("/api/v1/analysis/futures/liquidations/status", tags=["analysis"])
 async def liquidation_collector_status() -> dict:
+    # status() performs a synchronous database count; keep it off the event loop.
+    collector_status = await asyncio.to_thread(liquidation_collector.status)
     if not settings.liquidation_collector_enabled:
         return {
-            **liquidation_collector.status(),
+            **collector_status,
             "status": "DISABLED",
             "collector_enabled": False,
             "message": "Set LIQUIDATION_COLLECTOR_ENABLED=true and run a persistent service to collect live events.",
         }
-    return liquidation_collector.status()
+    return collector_status
 
 
 @app.get("/api/v1/analysis/futures/liquidations/recent", tags=["analysis"])
