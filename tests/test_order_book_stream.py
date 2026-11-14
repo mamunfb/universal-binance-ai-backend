@@ -36,6 +36,12 @@ def test_history_store_is_idempotent_and_filters(tmp_path):
     assert store.recent("SPOT", "BTCUSDT", 10) == []
 
 
+def test_order_book_store_rejects_lease_with_sqlite_storage(tmp_path):
+    store = OrderBookHistoryStore(str(tmp_path / "book.sqlite3"))
+    with pytest.raises(ValueError, match="PostgreSQL"):
+        store.insert({"market": "SPOT", "symbol": "BTCUSDT"}, lease=object())
+
+
 def test_collector_job_validation_and_book_delta_application(tmp_path):
     store = OrderBookHistoryStore(str(tmp_path / "book.sqlite3"))
     collector = OrderBookStreamCollector(
