@@ -509,3 +509,10 @@ def test_liquidation_reaps_lease_when_acquisition_is_cancelled(monkeypatch, tmp_
     asyncio.run(scenario())
     assert released == [lease]
     assert collector.status()["lease_state"] == "STOPPED"
+
+def test_postgres_liquidation_store_requires_lease_before_write():
+    store = LiquidationStore("unused.sqlite3", "postgresql://example/test")
+    event = normalize_force_order(sample_message())
+    assert event is not None
+    with pytest.raises(ValueError, match="require an active collector lease"):
+        store.insert(event)
