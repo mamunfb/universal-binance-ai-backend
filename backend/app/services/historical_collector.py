@@ -9,6 +9,7 @@ from app.services.collector_lease import (
     CollectorLease,
     CollectorLeaseLostError,
     PostgresCollectorLease,
+    require_lease_database_url,
 )
 from app.services.historical_klines import HistoricalKlineStore
 
@@ -17,6 +18,21 @@ _INTERVALS = {
     "6h", "8h", "12h", "1d", "3d", "1w", "1M",
 }
 _MARKETS = {"SPOT", "USD_M", "COIN_M"}
+
+
+async def _wait_for_worker_task(task: asyncio.Task) -> tuple[Any, BaseException | None]:
+    """Drain blocking worker tasks despite repeated cancellation requests."""
+    while not task.done():
+        try:
+            await asyncio.shield(task)
+        except asyncio.CancelledError:
+            continue
+        except BaseException:
+            break
+    try:
+        return task.result(), None
+    except BaseException as exc:
+        return None, exc
 
 
 def parse_collector_jobs(raw: str) -> list[dict[str, str]]:
@@ -62,6 +78,11 @@ class HistoricalKlineCollector:
         lease_name: str = "historical-kline-collector",
         lease_ttl_seconds: int = 30,
     ) -> None:
+        require_lease_database_url(
+            getattr(store, "database_url", "") or "",
+            lease_database_url,
+            "Historical-kline collector",
+        )
         self.store = store
         self.spot_provider_factory = spot_provider_factory
         self.futures_provider_factory = futures_provider_factory
@@ -100,13 +121,16 @@ class HistoricalKlineCollector:
 
     async def stop(self) -> None:
         task = self._task
-        self._task = None
         if task is not None:
-            task.cancel()
+            if not task.done():
+                task.cancel()
             try:
                 await task
             except asyncio.CancelledError:
                 pass
+            finally:
+                if self._task is task:
+                    self._task = None
         self._running = False
 
     async def _run_loop(self) -> None:
@@ -127,15 +151,26 @@ class HistoricalKlineCollector:
             try:
                 lease = await asyncio.shield(acquire_task)
             except asyncio.CancelledError:
-                # Do not orphan a lease if shutdown races with a blocking DB acquire.
-                try:
-                    acquired_during_shutdown = await acquire_task
-                    if acquired_during_shutdown is not None:
-                        await asyncio.to_thread(
+                # Drain acquisition, then release any lease obtained during shutdown.
+                acquired_during_shutdown, acquire_error = await _wait_for_worker_task(acquire_task)
+                if acquire_error is not None:
+                    self._last_error = type(acquire_error).__name__
+                    self._lease_state = "ACQUIRE_FAILED"
+                elif acquired_during_shutdown is not None:
+                    release_worker = asyncio.create_task(
+                        asyncio.to_thread(
                             self._lease_coordinator.release, acquired_during_shutdown
                         )
-                finally:
-                    raise
+                    )
+                    released, release_error = await _wait_for_worker_task(release_worker)
+                    if release_error is not None:
+                        self._last_error = type(release_error).__name__
+                        self._lease_state = "RELEASE_FAILED"
+                    else:
+                        self._lease_state = "RELEASED" if released else "RELEASE_FAILED"
+                else:
+                    self._lease_state = "STOPPED"
+                raise
             except Exception as exc:
                 self._lease_state = "ACQUIRE_FAILED"
                 self._last_error = type(exc).__name__
@@ -167,10 +202,9 @@ class HistoricalKlineCollector:
                 self._last_error = type(exc).__name__
             finally:
                 renew_task.cancel()
-                try:
-                    await renew_task
-                except asyncio.CancelledError:
-                    pass
+                _, renew_task_error = await _wait_for_worker_task(renew_task)
+                if renew_task_error is not None and not isinstance(renew_task_error, asyncio.CancelledError):
+                    self._last_error = type(renew_task_error).__name__
                 owned_lease = self._lease
                 lease_was_lost = self._lease_lost.is_set()
                 self._lease = None
@@ -179,10 +213,15 @@ class HistoricalKlineCollector:
                     self._lease_state = "LOST"
                 elif owned_lease is not None:
                     try:
-                        released = await asyncio.to_thread(
-                            self._lease_coordinator.release, owned_lease
+                        release_worker = asyncio.create_task(
+                            asyncio.to_thread(self._lease_coordinator.release, owned_lease)
                         )
-                        self._lease_state = "RELEASED" if released else "LOST"
+                        released, release_error = await _wait_for_worker_task(release_worker)
+                        if release_error is not None:
+                            self._lease_state = "RELEASE_FAILED"
+                            self._last_error = type(release_error).__name__
+                        else:
+                            self._lease_state = "RELEASED" if released else "LOST"
                     except Exception as exc:
                         self._lease_state = "RELEASE_FAILED"
                         self._last_error = type(exc).__name__
@@ -203,10 +242,21 @@ class HistoricalKlineCollector:
             if lease is None:
                 self._lease_lost.set()
                 return
+            renew_worker = asyncio.create_task(
+                asyncio.to_thread(self._lease_coordinator.renew, lease)
+            )
             try:
-                renewed = await asyncio.to_thread(
-                    self._lease_coordinator.renew, lease
-                )
+                renewed = await asyncio.shield(renew_worker)
+            except asyncio.CancelledError:
+                renewed_during_shutdown, renew_error = await _wait_for_worker_task(renew_worker)
+                if renew_error is not None:
+                    self._last_error = type(renew_error).__name__
+                elif renewed_during_shutdown is not None:
+                    self._lease = renewed_during_shutdown
+                else:
+                    self._lease_state = "LOST"
+                    self._lease_lost.set()
+                raise
             except Exception as exc:
                 self._last_error = type(exc).__name__
                 renewed = None
@@ -260,11 +310,22 @@ class HistoricalKlineCollector:
                         continue
                     if self._lease_lost is not None and self._lease_lost.is_set():
                         break
-                    saved = await asyncio.to_thread(
-                        self.store.save_klines, market, symbol, interval, rows,
-                        "Binance public REST API (scheduled collector)",
-                        lease=self._lease,
+                    save_worker = asyncio.create_task(
+                        asyncio.to_thread(
+                            self.store.save_klines, market, symbol, interval, rows,
+                            "Binance public REST API (scheduled collector)",
+                            lease=self._lease,
+                        )
                     )
+                    try:
+                        saved = await asyncio.shield(save_worker)
+                    except asyncio.CancelledError:
+                        _, save_error = await _wait_for_worker_task(save_worker)
+                        if isinstance(save_error, CollectorLeaseLostError):
+                            self._lease_state = "LOST"
+                            if self._lease_lost is not None:
+                                self._lease_lost.set()
+                        raise
                     results.append({
                         **job, "status": "COMPLETED", "received_count": len(rows),
                         "first_open_time_ms": saved["first_open_time_ms"],
@@ -333,8 +394,8 @@ class HistoricalKlineCollector:
             "last_error_type": self._last_error,
             "last_results": self._last_results,
             "warning": (
-                "PostgreSQL lease fencing covers scheduled historical-kline writes only; "
-                "manual collection endpoints and other collector families are not coordinated."
+                "PostgreSQL lease fencing covers scheduled and manual historical-kline collection; "
+                "other collector families use their own coordination leases."
                 if self._lease_coordinator is not None else
                 "The collector only runs while this application process is alive. "
                 "Use persistent storage and one collector process per database."

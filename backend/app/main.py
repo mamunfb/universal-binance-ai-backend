@@ -64,12 +64,40 @@ from app.services.multi_timeframe_derivatives import MultiTimeframeDerivativesAn
 from app.services.historical_coverage import HistoricalCoverageEngine
 from app.services.market_data_quality import MarketDataQualityEngine
 from app.services.historical_collector import HistoricalKlineCollector
+from app.services.collector_lease import CollectorLeaseLostError, PostgresCollectorLease
 from app.services.wallet_attribution import load_wallet_registry, annotate_wallet_addresses
 from app.services.cross_chain_wallets import parse_chain_rpc_configs, cross_chain_native_wallet_snapshot
 from app.services.cross_chain_tokens import parse_chain_token_configs, cross_chain_erc20_snapshot
 from app.services.cross_chain_smart_money import cross_chain_verified_wallet_flows
 
 logger = logging.getLogger(__name__)
+
+
+async def _wait_for_thread_worker(task: asyncio.Task) -> tuple[Any, BaseException | None, bool]:
+    """Drain a blocking thread worker even when cancellation is repeated."""
+    interrupted = False
+    while not task.done():
+        try:
+            await asyncio.shield(task)
+        except asyncio.CancelledError:
+            interrupted = True
+        except BaseException:
+            break
+    try:
+        return task.result(), None, interrupted
+    except BaseException as exc:
+        return None, exc, interrupted
+
+
+async def _run_thread_worker(function, *args, **kwargs) -> tuple[Any, bool]:
+    """Run blocking DB work and report cancellation only after its thread drains."""
+    worker = asyncio.create_task(asyncio.to_thread(function, *args, **kwargs))
+    result, error, interrupted = await _wait_for_thread_worker(worker)
+    if error is not None:
+        if interrupted:
+            raise asyncio.CancelledError from error
+        raise error
+    return result, interrupted
 
 liquidation_store = LiquidationStore(settings.liquidation_database_path, settings.database_url)
 liquidation_collector = LiquidationCollector(
@@ -127,6 +155,8 @@ async def lifespan(_: FastAPI):
             aggregate_trade_collector = AggregateTradeCollector(
                 store=aggregate_trade_store,
                 jobs_json=settings.aggregate_trade_collector_jobs,
+                lease_database_url=settings.database_url,
+                lease_ttl_seconds=settings.aggregate_trade_collector_lease_ttl_seconds,
             )
             aggregate_trade_collector.start()
         if settings.derivatives_collector_enabled:
@@ -486,9 +516,15 @@ async def index_evm_token_history(
         return await index_erc20_transfer_history(
             get_evm_provider(), evm_transfer_store, contract, from_block, to_block,
             chunk_size, settings.evm_index_max_total_blocks,
+            settings.evm_transfer_collector_lease_ttl_seconds,
         )
     except (KeyError, TypeError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except CollectorLeaseLostError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={"status": "CONFLICT", "error": "EVM_TRANSFER_INDEXER_LEASE_UNAVAILABLE"},
+        ) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail={"status": "FAILED", "error": "ONCHAIN_PROVIDER_UNAVAILABLE", "error_type": type(exc).__name__}) from exc
 
@@ -2214,6 +2250,50 @@ async def historical_collector_status() -> dict:
     return historical_collector.status()
 
 
+async def _acquire_manual_derivatives_lease():
+    """Acquire the scheduled derivatives collector's shared PostgreSQL lease."""
+    database_url = settings.database_url.strip()
+    if not database_url:
+        return None, None
+    try:
+        manager = PostgresCollectorLease(
+            database_url,
+            "derivatives-history-collector",
+            ttl_seconds=settings.derivatives_collector_lease_ttl_seconds,
+        )
+        lease, interrupted = await _run_thread_worker(manager.acquire)
+        if interrupted:
+            if lease is not None:
+                try:
+                    await _run_thread_worker(manager.release, lease)
+                except Exception:
+                    logger.exception("Failed to reap manual derivatives lease after cancelled acquisition")
+            raise asyncio.CancelledError
+        return manager, lease
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "status": "UNAVAILABLE",
+                "error": "DERIVATIVES_COLLECTION_LEASE_UNAVAILABLE",
+                "error_type": type(exc).__name__,
+            },
+        ) from exc
+
+
+async def _release_manual_derivatives_lease(manager, lease) -> None:
+    if manager is None or lease is None:
+        return
+    try:
+        _, interrupted = await _run_thread_worker(manager.release, lease)
+        if interrupted:
+            raise asyncio.CancelledError
+    except asyncio.CancelledError:
+        raise
+    except Exception:
+        logger.exception("Failed to release manual derivatives collection lease")
+
+
 @app.post("/api/v1/history/funding-rates/USD_M/{symbol}/collect", tags=["history"])
 async def collect_historical_funding_rates(
     symbol: str,
@@ -2226,6 +2306,12 @@ async def collect_historical_funding_rates(
         raise HTTPException(status_code=422, detail="symbol must not be empty")
     if start_time_ms is not None and end_time_ms is not None and end_time_ms < start_time_ms:
         raise HTTPException(status_code=422, detail="end_time_ms must be >= start_time_ms")
+    manager, lease = await _acquire_manual_derivatives_lease()
+    if manager is not None and lease is None:
+        raise HTTPException(
+            status_code=409,
+            detail={"status": "CONFLICT", "error": "DERIVATIVES_COLLECTION_LEASE_HELD"},
+        )
     try:
         rows = await get_futures_provider("USD_M").funding_rate(
             normalized, limit=limit, start_time_ms=start_time_ms, end_time_ms=end_time_ms
@@ -2235,16 +2321,34 @@ async def collect_historical_funding_rates(
                 "status": "NO_NEW_DATA", "market": "USD_M", "symbol": normalized,
                 "received_count": 0, "warning": "The exchange returned no funding events; no history was stored.",
             }
-        return await asyncio.to_thread(
-            funding_rate_store.save, "USD_M", normalized, rows
+        if manager is not None:
+            renewed, interrupted = await _run_thread_worker(manager.renew, lease)
+            if renewed is None:
+                raise CollectorLeaseLostError("Derivatives collection lease was lost before funding write")
+            lease = renewed
+            if interrupted:
+                raise asyncio.CancelledError
+        saved, interrupted = await _run_thread_worker(
+            funding_rate_store.save, "USD_M", normalized, rows,
+            "Binance USD-M public REST API (manual collection)", lease=lease,
         )
+        if interrupted:
+            raise asyncio.CancelledError
+        return saved
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except CollectorLeaseLostError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={"status": "CONFLICT", "error": "DERIVATIVES_COLLECTION_LEASE_LOST"},
+        ) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail={
             "status": "FAILED", "error": "FUNDING_RATE_COLLECTION_UNAVAILABLE",
             "error_type": type(exc).__name__,
         }) from exc
+    finally:
+        await _release_manual_derivatives_lease(manager, lease)
 
 
 @app.get("/api/v1/history/funding-rates/USD_M/{symbol}", tags=["history"])
@@ -2284,6 +2388,12 @@ async def collect_historical_open_interest(
         raise HTTPException(status_code=422, detail="symbol must not be empty")
     if start_time_ms is not None and end_time_ms is not None and end_time_ms < start_time_ms:
         raise HTTPException(status_code=422, detail="end_time_ms must be >= start_time_ms")
+    manager, lease = await _acquire_manual_derivatives_lease()
+    if manager is not None and lease is None:
+        raise HTTPException(
+            status_code=409,
+            detail={"status": "CONFLICT", "error": "DERIVATIVES_COLLECTION_LEASE_HELD"},
+        )
     try:
         rows = await get_futures_provider("USD_M").open_interest_history(
             normalized, period=period, limit=limit,
@@ -2295,16 +2405,34 @@ async def collect_historical_open_interest(
                 "period": period, "received_count": 0,
                 "warning": "The exchange returned no open-interest records; no history was stored.",
             }
-        return await asyncio.to_thread(
-            open_interest_store.save, "USD_M", normalized, period, rows
+        if manager is not None:
+            renewed, interrupted = await _run_thread_worker(manager.renew, lease)
+            if renewed is None:
+                raise CollectorLeaseLostError("Derivatives collection lease was lost before open-interest write")
+            lease = renewed
+            if interrupted:
+                raise asyncio.CancelledError
+        saved, interrupted = await _run_thread_worker(
+            open_interest_store.save, "USD_M", normalized, period, rows,
+            "Binance USD-M public REST API (manual collection)", lease=lease,
         )
+        if interrupted:
+            raise asyncio.CancelledError
+        return saved
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except CollectorLeaseLostError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={"status": "CONFLICT", "error": "DERIVATIVES_COLLECTION_LEASE_LOST"},
+        ) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail={
             "status": "FAILED", "error": "OPEN_INTEREST_COLLECTION_UNAVAILABLE",
             "error_type": type(exc).__name__,
         }) from exc
+    finally:
+        await _release_manual_derivatives_lease(manager, lease)
 
 
 @app.get("/api/v1/analysis/derivatives/combined/{symbol}", tags=["analysis"])
@@ -2332,6 +2460,37 @@ async def collect_derivatives_ratio_history(
     normalized = symbol.strip().upper()
     if not normalized:
         raise HTTPException(status_code=422, detail="symbol must not be empty")
+    lease_name = f"derivatives-ratio:{ratio_type}:{normalized}:{period}"
+    manager = None
+    lease = None
+    if settings.database_url.strip():
+        try:
+            manager = PostgresCollectorLease(
+                settings.database_url,
+                lease_name,
+                ttl_seconds=settings.derivatives_collector_lease_ttl_seconds,
+            )
+            lease, interrupted = await _run_thread_worker(manager.acquire)
+            if interrupted:
+                if lease is not None:
+                    try:
+                        await _run_thread_worker(manager.release, lease)
+                    except Exception:
+                        logger.exception("Failed to reap manual derivatives-ratio lease after cancelled acquisition")
+                raise asyncio.CancelledError
+            if lease is None:
+                raise HTTPException(
+                    status_code=409,
+                    detail={"status": "CONFLICT", "error": "DERIVATIVES_RATIO_COLLECTION_LEASE_HELD"},
+                )
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(
+                status_code=503,
+                detail={"status": "UNAVAILABLE", "error": "DERIVATIVES_RATIO_COLLECTION_LEASE_UNAVAILABLE",
+                        "error_type": type(exc).__name__},
+            ) from exc
     try:
         provider = get_futures_provider("USD_M")
         if ratio_type == "GLOBAL_LONG_SHORT":
@@ -2343,16 +2502,42 @@ async def collect_derivatives_ratio_history(
                 "status": "NO_NEW_DATA", "market": "USD_M", "ratio_type": ratio_type,
                 "symbol": normalized, "period": period, "received_count": 0,
             }
-        return await asyncio.to_thread(
-            derivatives_ratio_store.save, ratio_type, normalized, period, rows
+        if manager is not None:
+            renewed, interrupted = await _run_thread_worker(manager.renew, lease)
+            if renewed is None:
+                raise CollectorLeaseLostError("Derivatives-ratio lease was lost before write")
+            lease = renewed
+            if interrupted:
+                raise asyncio.CancelledError
+        saved, interrupted = await _run_thread_worker(
+            derivatives_ratio_store.save, ratio_type, normalized, period, rows,
+            "Binance USD-M Futures public REST API (manual collection)", lease=lease,
         )
+        if interrupted:
+            raise asyncio.CancelledError
+        return saved
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except CollectorLeaseLostError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={"status": "CONFLICT", "error": "DERIVATIVES_RATIO_COLLECTION_LEASE_LOST"},
+        ) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail={
             "status": "FAILED", "error": "DERIVATIVES_RATIO_COLLECTION_UNAVAILABLE",
             "error_type": type(exc).__name__,
         }) from exc
+    finally:
+        if manager is not None and lease is not None:
+            try:
+                _, interrupted = await _run_thread_worker(manager.release, lease)
+                if interrupted:
+                    raise asyncio.CancelledError
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.exception("Failed to release manual derivatives-ratio collection lease")
 
 
 @app.get("/api/v1/history/derivatives-ratios/USD_M/{ratio_type}/{symbol}", tags=["history"])
@@ -2492,16 +2677,79 @@ async def collect_historical_klines(
     normalized = symbol.strip().upper()
     if not normalized:
         raise HTTPException(status_code=422, detail="symbol must not be empty")
+    lease_database_url = settings.historical_kline_database_url or settings.database_url
+    lease_manager = None
+    lease = None
+    if lease_database_url.strip():
+        try:
+            lease_manager = PostgresCollectorLease(
+                lease_database_url,
+                "historical-kline-collector",
+                ttl_seconds=settings.historical_collector_lease_ttl_seconds,
+            )
+            lease, interrupted = await _run_thread_worker(lease_manager.acquire)
+            if interrupted:
+                if lease is not None:
+                    try:
+                        await _run_thread_worker(lease_manager.release, lease)
+                    except Exception:
+                        logger.exception("Failed to reap manual historical-kline lease after cancelled acquisition")
+                raise asyncio.CancelledError
+            if lease is None:
+                raise HTTPException(
+                    status_code=409,
+                    detail={"status": "CONFLICT", "error": "HISTORICAL_COLLECTION_LEASE_HELD"},
+                )
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(
+                status_code=503,
+                detail={"status": "UNAVAILABLE", "error": "HISTORICAL_COLLECTION_LEASE_UNAVAILABLE",
+                        "error_type": type(exc).__name__},
+            ) from exc
     try:
         provider = get_spot_provider() if market == "SPOT" else get_futures_provider(market)
         rows = await provider.klines(normalized, interval, limit)
         if not rows:
             return {"status": "INCOMPLETE", "market": market, "symbol": normalized, "interval": interval, "received_count": 0, "warning": "The exchange returned no candles; no history was stored."}
-        return await asyncio.to_thread(historical_kline_store.save_klines, market, normalized, interval, rows)
+        if lease_manager is not None:
+            renewed_lease, interrupted = await _run_thread_worker(lease_manager.renew, lease)
+            if renewed_lease is None:
+                raise CollectorLeaseLostError(
+                    "Historical collection lease was lost before the manual write"
+                )
+            lease = renewed_lease
+            if interrupted:
+                raise asyncio.CancelledError
+        saved, interrupted = await _run_thread_worker(
+            historical_kline_store.save_klines,
+            market, normalized, interval, rows,
+            "Binance public REST API (manual collection)",
+            lease=lease,
+        )
+        if interrupted:
+            raise asyncio.CancelledError
+        return saved
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except CollectorLeaseLostError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={"status": "CONFLICT", "error": "HISTORICAL_COLLECTION_LEASE_LOST"},
+        ) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail={"status": "FAILED", "error": "HISTORICAL_KLINE_COLLECTION_UNAVAILABLE", "error_type": type(exc).__name__}) from exc
+    finally:
+        if lease_manager is not None and lease is not None:
+            try:
+                _, interrupted = await _run_thread_worker(lease_manager.release, lease)
+                if interrupted:
+                    raise asyncio.CancelledError
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.exception("Failed to release manual historical-kline collection lease")
 
 
 @app.get("/api/v1/quality/market-data/{market}/{symbol}", tags=["quality"])

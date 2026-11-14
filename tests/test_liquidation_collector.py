@@ -327,3 +327,192 @@ def test_liquidation_fenced_write_loss_is_terminal_and_not_retried(monkeypatch, 
     asyncio.run(scenario())
     assert collector.status()["lease_state"] == "LOST"
     assert collector.storage_retry_count == 0
+
+
+def test_liquidation_waits_for_inflight_insert_before_releasing_lease(monkeypatch):
+    import threading
+    from types import SimpleNamespace
+
+    insert_started = threading.Event()
+    finish_insert = threading.Event()
+    released = []
+    lease = SimpleNamespace(fencing_token=71)
+
+    class FakeLeaseCoordinator:
+        lease_name = "liquidation-stream-collector"
+        ttl_seconds = 30
+
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def acquire(self):
+            return lease
+
+        def renew(self, current):
+            return current
+
+        def release(self, current):
+            released.append(current)
+            return True
+
+    class BlockingStore:
+        def insert(self, _event, lease=None):
+            assert lease is not None and lease.fencing_token == 71
+            insert_started.set()
+            if not finish_insert.wait(timeout=3):
+                raise TimeoutError("test insert was not released")
+
+        def count(self):
+            return 0
+
+    monkeypatch.setattr(liquidation_module, "PostgresCollectorLease", FakeLeaseCoordinator)
+    collector = LiquidationCollector(
+        BlockingStore(), lease_database_url="postgresql://test"
+    )
+    event = normalize_force_order(sample_message())
+
+    async def fake_stream():
+        await collector._persist_event(event)
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(collector, "_run_stream", fake_stream)
+
+    async def scenario():
+        collector.start()
+        assert await asyncio.to_thread(insert_started.wait, 2)
+        task = collector.task
+        task.cancel()
+        await asyncio.sleep(0.05)
+        task.cancel()
+        await asyncio.sleep(0.05)
+        assert not task.done()
+        assert released == []
+        finish_insert.set()
+        result = await asyncio.gather(task, return_exceptions=True)
+        assert isinstance(result[0], asyncio.CancelledError)
+        await collector.stop()
+
+    asyncio.run(scenario())
+    assert released == [lease]
+    assert collector.status()["lease_state"] == "STOPPED"
+
+
+def test_liquidation_waits_for_inflight_renewal_and_releases_latest_lease(monkeypatch):
+    import threading
+    from types import SimpleNamespace
+
+    renew_started = threading.Event()
+    finish_renew = threading.Event()
+    initial_lease = SimpleNamespace(fencing_token=81)
+    renewed_lease = SimpleNamespace(fencing_token=82)
+    released = []
+
+    class FakeLeaseCoordinator:
+        lease_name = "liquidation-stream-collector"
+        ttl_seconds = 3
+
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def acquire(self):
+            return initial_lease
+
+        def renew(self, current):
+            assert current is initial_lease
+            renew_started.set()
+            if not finish_renew.wait(timeout=3):
+                raise TimeoutError("test renewal was not released")
+            return renewed_lease
+
+        def release(self, current):
+            released.append(current)
+            return True
+
+    monkeypatch.setattr(liquidation_module, "PostgresCollectorLease", FakeLeaseCoordinator)
+    collector = LiquidationCollector(
+        LiquidationStore(":memory:"), lease_database_url="postgresql://test",
+        lease_ttl_seconds=3,
+    )
+
+    async def fake_stream():
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(collector, "_run_stream", fake_stream)
+
+    async def scenario():
+        collector.start()
+        assert await asyncio.to_thread(renew_started.wait, 2)
+        task = collector.task
+        task.cancel()
+        await asyncio.sleep(0.05)
+        task.cancel()
+        await asyncio.sleep(0.05)
+        assert not task.done()
+        assert released == []
+        finish_renew.set()
+        result = await asyncio.gather(task, return_exceptions=True)
+        assert isinstance(result[0], asyncio.CancelledError)
+        assert collector._lease is renewed_lease
+        await collector.stop()
+
+    asyncio.run(scenario())
+    assert released == [renewed_lease]
+
+def test_liquidation_reaps_lease_when_acquisition_is_cancelled(monkeypatch, tmp_path):
+    import threading
+    from types import SimpleNamespace
+
+    acquire_started = threading.Event()
+    finish_acquire = threading.Event()
+    lease = SimpleNamespace(fencing_token=91)
+    released = []
+
+    class BlockingLeaseCoordinator:
+        lease_name = "liquidation-stream-collector"
+        ttl_seconds = 30
+
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def acquire(self):
+            acquire_started.set()
+            if not finish_acquire.wait(timeout=3):
+                raise TimeoutError("test acquisition was not released")
+            return lease
+
+        def release(self, current):
+            released.append(current)
+            return True
+
+    monkeypatch.setattr(liquidation_module, "PostgresCollectorLease", BlockingLeaseCoordinator)
+    collector = LiquidationCollector(
+        LiquidationStore(str(tmp_path / "acquire-cancel.sqlite3")),
+        lease_database_url="postgresql://test",
+    )
+
+    async def scenario():
+        collector.start()
+        assert await asyncio.to_thread(acquire_started.wait, 2)
+        task = collector.task
+        task.cancel()
+        await asyncio.sleep(0.05)
+        task.cancel()
+        await asyncio.sleep(0.05)
+        assert not task.done()
+        assert released == []
+
+        finish_acquire.set()
+        result = await asyncio.gather(task, return_exceptions=True)
+        assert isinstance(result[0], asyncio.CancelledError)
+        await collector.stop()
+
+    asyncio.run(scenario())
+    assert released == [lease]
+    assert collector.status()["lease_state"] == "STOPPED"
+
+def test_postgres_liquidation_store_requires_lease_before_write():
+    store = LiquidationStore("unused.sqlite3", "postgresql://example/test")
+    event = normalize_force_order(sample_message())
+    assert event is not None
+    with pytest.raises(ValueError, match="require an active collector lease"):
+        store.insert(event)

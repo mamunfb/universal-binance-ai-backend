@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     aggregate_trade_collector_enabled: bool = False
     aggregate_trade_collector_jobs: str = "[]"
     aggregate_trade_database_path: str = "data/aggregate_trades.sqlite3"
+    aggregate_trade_collector_lease_ttl_seconds: int = 30
     historical_kline_database_path: str = "data/historical_klines.sqlite3"
     historical_kline_database_url: str = ""
     funding_rate_database_path: str = "data/funding_rates.sqlite3"
@@ -55,6 +56,7 @@ class Settings(BaseSettings):
     evm_exchange_addresses: str = ""
     evm_max_log_block_span: int = 2000
     evm_transfer_database_path: str = "data/evm_transfers.sqlite3"
+    evm_transfer_collector_lease_ttl_seconds: int = 30
     evm_index_max_total_blocks: int = 10000
     evm_wallet_registry: str = "[]"
     evm_chain_rpc_urls: str = "[]"

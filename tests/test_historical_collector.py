@@ -270,3 +270,252 @@ def test_runtime_collector_stops_when_fenced_write_rejects_lease(monkeypatch):
     assert len(store.saved_leases) == 1
     assert coordinator.released == 0
     assert collector.status()["lease_state"] == "LOST"
+
+def test_status_describes_manual_and_scheduled_kline_lease_coverage():
+    collector = HistoricalKlineCollector(
+        store=object(),
+        spot_provider_factory=lambda: None,
+        futures_provider_factory=lambda _market: None,
+        jobs_json="[]",
+        lease_database_url="postgresql://localhost/test",
+    )
+
+    warning = collector.status()["warning"]
+    assert "scheduled and manual historical-kline collection" in warning
+    assert "other collector families" in warning
+
+
+
+def test_runtime_historical_collector_cancels_inflight_provider_and_releases_lease(monkeypatch):
+    import app.services.historical_collector as module
+
+    started = asyncio.Event()
+    cancelled = asyncio.Event()
+
+    class BlockingProvider(FakeProvider):
+        async def klines(self, *args, **kwargs):
+            started.set()
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                cancelled.set()
+                raise
+
+    coordinator = FakeLeaseCoordinator("postgresql://localhost/test", "historical")
+    monkeypatch.setattr(module, "PostgresCollectorLease", lambda *args, **kwargs: coordinator)
+    store = LeaseAwareStore()
+    provider = BlockingProvider([])
+    collector = HistoricalKlineCollector(
+        store=store,
+        spot_provider_factory=lambda: provider,
+        futures_provider_factory=lambda _market: provider,
+        jobs_json='[{"market":"SPOT","symbol":"BTCUSDT","interval":"1m"}]',
+        poll_seconds=10,
+        lease_database_url="postgresql://localhost/test",
+    )
+
+    async def exercise():
+        collector.start()
+        await asyncio.wait_for(started.wait(), timeout=1)
+        await asyncio.wait_for(collector.stop(), timeout=1)
+
+    asyncio.run(exercise())
+
+    assert cancelled.is_set()
+    assert coordinator.acquired == 1
+    assert coordinator.released == 1
+    assert collector.status()["lease_state"] == "RELEASED"
+
+
+def test_historical_collector_waits_for_inflight_batch_write_before_release(monkeypatch):
+    import threading
+    import app.services.historical_collector as module
+
+    save_started = threading.Event()
+    finish_save = threading.Event()
+    released = []
+    lease = SimpleNamespace(fencing_token=91)
+
+    class BlockingStore:
+        def latest_open_time(self, *_args):
+            return None
+
+        def save_klines(self, *args, **kwargs):
+            assert kwargs["lease"] is lease
+            save_started.set()
+            if not finish_save.wait(timeout=3):
+                raise TimeoutError("test batch write was not released")
+            return {
+                "first_open_time_ms": args[3][0][0],
+                "last_open_time_ms": args[3][-1][0],
+                "total_stored_count": len(args[3]),
+            }
+
+    class Coordinator:
+        ttl_seconds = 30
+        lease_name = "historical"
+
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def acquire(self):
+            return lease
+
+        def renew(self, current):
+            return current
+
+        def release(self, current):
+            released.append(current)
+            return True
+
+    monkeypatch.setattr(module, "PostgresCollectorLease", Coordinator)
+    provider = FakeProvider([candle(1_700_000_040_000)])
+    collector = HistoricalKlineCollector(
+        store=BlockingStore(),
+        spot_provider_factory=lambda: provider,
+        futures_provider_factory=lambda _market: provider,
+        jobs_json='[{"market":"SPOT","symbol":"BTCUSDT","interval":"1m"}]',
+        poll_seconds=10,
+        lease_database_url="postgresql://test",
+    )
+
+    async def scenario():
+        collector.start()
+        assert await asyncio.to_thread(save_started.wait, 2)
+        task = collector._task
+        task.cancel()
+        await asyncio.sleep(0.05)
+        task.cancel()
+        await asyncio.sleep(0.05)
+        assert not task.done()
+        assert released == []
+        finish_save.set()
+        result = await asyncio.gather(task, return_exceptions=True)
+        assert isinstance(result[0], asyncio.CancelledError)
+        await collector.stop()
+
+    asyncio.run(scenario())
+    assert released == [lease]
+    assert collector.status()["lease_state"] == "RELEASED"
+
+
+def test_historical_collector_waits_for_renewal_and_releases_latest_lease(monkeypatch):
+    import threading
+    import app.services.historical_collector as module
+
+    renew_started = threading.Event()
+    finish_renew = threading.Event()
+    initial_lease = SimpleNamespace(fencing_token=101)
+    renewed_lease = SimpleNamespace(fencing_token=102)
+    released = []
+
+    class Coordinator:
+        ttl_seconds = 3
+        lease_name = "historical"
+
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def acquire(self):
+            return initial_lease
+
+        def renew(self, current):
+            assert current is initial_lease
+            renew_started.set()
+            if not finish_renew.wait(timeout=3):
+                raise TimeoutError("test renewal was not released")
+            return renewed_lease
+
+        def release(self, current):
+            released.append(current)
+            return True
+
+    class BlockingProvider(FakeProvider):
+        async def klines(self, *args, **kwargs):
+            await asyncio.Event().wait()
+
+    monkeypatch.setattr(module, "PostgresCollectorLease", Coordinator)
+    provider = BlockingProvider([])
+    collector = HistoricalKlineCollector(
+        store=LeaseAwareStore(),
+        spot_provider_factory=lambda: provider,
+        futures_provider_factory=lambda _market: provider,
+        jobs_json='[{"market":"SPOT","symbol":"BTCUSDT","interval":"1m"}]',
+        poll_seconds=10,
+        lease_database_url="postgresql://test",
+    )
+
+    async def scenario():
+        collector.start()
+        assert await asyncio.to_thread(renew_started.wait, 2)
+        task = collector._task
+        task.cancel()
+        await asyncio.sleep(0.05)
+        task.cancel()
+        await asyncio.sleep(0.05)
+        assert not task.done()
+        assert released == []
+        finish_renew.set()
+        result = await asyncio.gather(task, return_exceptions=True)
+        assert isinstance(result[0], asyncio.CancelledError)
+        assert collector._lease is None
+        assert released == [renewed_lease]
+
+    asyncio.run(scenario())
+    assert collector.status()["lease_state"] == "RELEASED"
+
+def test_historical_collector_reaps_lease_when_acquisition_is_cancelled(monkeypatch):
+    import threading
+
+    acquire_started = threading.Event()
+    finish_acquire = threading.Event()
+    lease = SimpleNamespace(fencing_token=131)
+    released = []
+
+    class BlockingCoordinator:
+        ttl_seconds = 30
+        lease_name = "historical-kline-collector"
+
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def acquire(self):
+            acquire_started.set()
+            if not finish_acquire.wait(timeout=3):
+                raise TimeoutError("test acquisition was not released")
+            return lease
+
+        def release(self, current):
+            released.append(current)
+            return True
+
+    monkeypatch.setattr("app.services.historical_collector.PostgresCollectorLease", BlockingCoordinator)
+    provider = FakeProvider([])
+    collector = HistoricalKlineCollector(
+        store=LeaseAwareStore(),
+        spot_provider_factory=lambda: provider,
+        futures_provider_factory=lambda _market: provider,
+        jobs_json="[]",
+        poll_seconds=10,
+        lease_database_url="postgresql://test",
+    )
+
+    async def scenario():
+        collector.start()
+        assert await asyncio.to_thread(acquire_started.wait, 2)
+        task = collector._task
+        task.cancel()
+        await asyncio.sleep(0.05)
+        task.cancel()
+        await asyncio.sleep(0.05)
+        assert not task.done()
+        assert released == []
+
+        finish_acquire.set()
+        result = await asyncio.gather(task, return_exceptions=True)
+        assert isinstance(result[0], asyncio.CancelledError)
+        await collector.stop()
+
+    asyncio.run(scenario())
+    assert released == [lease]
+    assert collector.status()["lease_state"] == "RELEASED"

@@ -97,6 +97,8 @@ class FundingRateStore:
         now = datetime.now(timezone.utc).isoformat()
         values = [(market, symbol, timestamp, rate, mark, source, now)
                   for timestamp, rate, mark in normalized]
+        if self.database_url and lease is None:
+            raise ValueError("PostgreSQL funding writes require an active collector lease")
         if lease is not None and not self.database_url:
             raise ValueError("Collector leases require PostgreSQL-backed funding storage")
         if self.database_url:

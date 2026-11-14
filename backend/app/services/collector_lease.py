@@ -1,8 +1,9 @@
-"""PostgreSQL lease primitives for future multi-instance collector coordination.
+"""PostgreSQL lease primitives for multi-instance collector coordination.
 
-These primitives do not start or guard collectors by themselves. Every collector
-write must call lock_if_owned() and perform its data mutation on the same
-connection/transaction before this module is safe to wire into runtime tasks.
+Collectors and manual history endpoints use these primitives to coordinate
+ownership. Each protected PostgreSQL write must call lock_if_owned() and perform
+the data mutation on the same connection/transaction. The lease does not itself
+start, enable, or schedule a collector.
 """
 from __future__ import annotations
 
@@ -25,6 +26,18 @@ class CollectorLease:
     owner_id: UUID
     fencing_token: int
     lease_expires_at: datetime
+
+
+def require_lease_database_url(
+    storage_database_url: str,
+    lease_database_url: str,
+    collector_name: str,
+) -> None:
+    """Fail fast when PostgreSQL persistence is configured without lease coordination."""
+    if storage_database_url.strip() and not lease_database_url.strip():
+        raise ValueError(
+            f"{collector_name} with PostgreSQL storage requires lease_database_url"
+        )
 
 
 class PostgresCollectorLease:
@@ -134,9 +147,13 @@ class PostgresCollectorLease:
                  WHERE lease_name = %s
                    AND owner_id = %s
                    AND fencing_token = %s
+                   AND lease_expires_at = %s
                 RETURNING lease_name
                 """,
-                (lease.lease_name, lease.owner_id, lease.fencing_token),
+                (
+                    lease.lease_name, lease.owner_id, lease.fencing_token,
+                    lease.lease_expires_at,
+                ),
             ).fetchone()
         return row is not None
 

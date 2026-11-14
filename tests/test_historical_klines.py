@@ -69,3 +69,8 @@ def test_store_rejects_boolean_integer_fields(tmp_path, index):
     with pytest.raises(ValueError):
         store.save_klines("SPOT", "BTCUSDT", "1m", [row])
     assert store.history("SPOT", "BTCUSDT", "1m")["returned_count"] == 0
+
+def test_postgres_historical_kline_store_requires_lease_before_write():
+    store = HistoricalKlineStore("unused.sqlite3", "postgresql://example/test")
+    with pytest.raises(ValueError, match="require an active collector lease"):
+        store.save_klines("SPOT", "BTCUSDT", "1m", [candle()])

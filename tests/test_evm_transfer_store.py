@@ -272,7 +272,7 @@ def test_evm_indexer_runs_storage_writes_and_coverage_off_event_loop():
             return []
 
     class FakeStore:
-        def save_chunk(self, *args):
+        def save_chunk(self, *args, **kwargs):
             observed.append(threading.get_ident())
             return 0
 
@@ -291,3 +291,307 @@ def test_evm_indexer_runs_storage_writes_and_coverage_off_event_loop():
     assert result["status"] == "COMPLETED"
     assert len(observed) == 2
     assert all(thread_id != loop_thread for thread_id in observed)
+
+
+def test_postgres_lease_is_rejected_for_sqlite_transfer_store(tmp_path):
+    from datetime import datetime, timedelta, timezone
+    from uuid import uuid4
+    from app.services.collector_lease import CollectorLease
+
+    store = EVMTransferStore(str(tmp_path / "history.sqlite3"))
+    lease = CollectorLease(
+        lease_name="evm-transfer:1:" + CONTRACT,
+        owner_id=uuid4(),
+        fencing_token=1,
+        lease_expires_at=datetime.now(timezone.utc) + timedelta(seconds=30),
+    )
+    with pytest.raises(ValueError, match="require PostgreSQL-backed"):
+        store.save_chunk(1, CONTRACT, 100, 100, [], lease=lease)
+    assert store.coverage(1, CONTRACT) == []
+
+
+def test_postgres_indexer_acquires_renews_passes_and_releases_lease(monkeypatch):
+    from types import SimpleNamespace
+    import app.services.evm_transfer_store as evm_module
+
+    lease = SimpleNamespace(fencing_token=9)
+    captured = {"saved": [], "released": []}
+
+    class FakeLeaseManager:
+        def __init__(self, database_url, lease_name, ttl_seconds):
+            captured["manager"] = (database_url, lease_name, ttl_seconds)
+
+        def acquire(self):
+            return lease
+
+        def renew(self, current):
+            assert current is lease
+            return lease
+
+        def release(self, current):
+            captured["released"].append(current)
+            return True
+
+    class FakeProvider:
+        async def chain_id(self):
+            return 1
+
+        async def block_number(self):
+            return 100
+
+        async def token_transfer_logs(self, contract, start, end, max_block_span):
+            return []
+
+    class FakeStore:
+        database_url = "postgresql://example/test"
+
+        def save_chunk(self, *args, lease=None):
+            captured["saved"].append((args, lease))
+            return 0
+
+        def coverage(self, *args):
+            return []
+
+    monkeypatch.setattr(evm_module, "PostgresCollectorLease", FakeLeaseManager)
+    result = asyncio.run(index_erc20_transfer_history(
+        FakeProvider(), FakeStore(), CONTRACT, 10, 11, 1, 10, 45
+    ))
+
+    assert result["status"] == "COMPLETED"
+    assert captured["manager"] == (
+        "postgresql://example/test", f"evm-transfer-indexer:1:{CONTRACT}", 45
+    )
+    assert len(captured["saved"]) == 2
+    assert all(item[1] is lease for item in captured["saved"])
+    assert captured["released"] == [lease]
+
+
+def test_postgres_indexer_rejects_when_contract_lease_is_held(monkeypatch):
+    import app.services.evm_transfer_store as evm_module
+    from app.services.collector_lease import CollectorLeaseLostError
+
+    class FakeLeaseManager:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def acquire(self):
+            return None
+
+    class FakeProvider:
+        async def chain_id(self):
+            return 1
+
+    class FakeStore:
+        database_url = "postgresql://example/test"
+
+    monkeypatch.setattr(evm_module, "PostgresCollectorLease", FakeLeaseManager)
+    with pytest.raises(CollectorLeaseLostError, match="currently owns"):
+        asyncio.run(index_erc20_transfer_history(
+            FakeProvider(), FakeStore(), CONTRACT, 10, 10, 1, 10, 30
+        ))
+
+
+@pytest.mark.asyncio
+async def test_evm_indexer_waits_for_inflight_chunk_write_before_releasing_lease(monkeypatch):
+    import threading
+    import app.services.evm_transfer_store as evm_module
+
+    started = threading.Event()
+    finish = threading.Event()
+    released = []
+
+    class FakeLeaseManager:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def acquire(self):
+            return object()
+
+        def renew(self, lease):
+            return lease
+
+        def release(self, lease):
+            released.append(lease)
+            return True
+
+    class FakeProvider:
+        async def chain_id(self):
+            return 1
+
+        async def block_number(self):
+            return 100
+
+        async def token_transfer_logs(self, contract, start, end, max_block_span):
+            return []
+
+    class BlockingStore:
+        database_url = "postgresql://example/test"
+
+        def save_chunk(self, *args, lease=None):
+            started.set()
+            if not finish.wait(timeout=2):
+                raise TimeoutError("test write was not released")
+            return 0
+
+        def coverage(self, *args):
+            return []
+
+    monkeypatch.setattr(evm_module, "PostgresCollectorLease", FakeLeaseManager)
+    task = asyncio.create_task(index_erc20_transfer_history(
+        FakeProvider(), BlockingStore(), CONTRACT, 10, 10, 1, 10, 45
+    ))
+    assert await asyncio.to_thread(started.wait, 1)
+
+    task.cancel()
+    await asyncio.sleep(0.05)
+    task.cancel()
+    await asyncio.sleep(0.05)
+    assert not task.done()
+    assert released == []
+
+    finish.set()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert len(released) == 1
+
+
+
+@pytest.mark.asyncio
+async def test_evm_indexer_waits_for_inflight_renewal_after_repeated_cancellation(monkeypatch):
+    import threading
+    from types import SimpleNamespace
+    import app.services.evm_transfer_store as evm_module
+
+    renewal_started = threading.Event()
+    finish_renewal = threading.Event()
+    initial_lease = SimpleNamespace(fencing_token=1)
+    renewed_lease = SimpleNamespace(fencing_token=2)
+    released = []
+    saved = []
+
+    class FakeLeaseManager:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def acquire(self):
+            return initial_lease
+
+        def renew(self, lease):
+            assert lease is initial_lease
+            renewal_started.set()
+            if not finish_renewal.wait(timeout=2):
+                raise TimeoutError("test renewal was not released")
+            return renewed_lease
+
+        def release(self, lease):
+            released.append(lease)
+            return True
+
+    class FakeProvider:
+        async def chain_id(self):
+            return 1
+
+        async def block_number(self):
+            return 100
+
+        async def token_transfer_logs(self, contract, start, end, max_block_span):
+            return []
+
+    class FakeStore:
+        database_url = "postgresql://example/test"
+
+        def save_chunk(self, *args, lease=None):
+            saved.append(lease)
+            return 0
+
+        def coverage(self, *args):
+            return []
+
+    monkeypatch.setattr(evm_module, "PostgresCollectorLease", FakeLeaseManager)
+    task = asyncio.create_task(index_erc20_transfer_history(
+        FakeProvider(), FakeStore(), CONTRACT, 10, 10, 1, 10, 45
+    ))
+    assert await asyncio.to_thread(renewal_started.wait, 1)
+
+    task.cancel()
+    await asyncio.sleep(0.05)
+    task.cancel()
+    await asyncio.sleep(0.05)
+    assert not task.done()
+    assert released == []
+    assert saved == []
+
+    finish_renewal.set()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert saved == []
+    assert released == [renewed_lease]
+
+
+@pytest.mark.asyncio
+async def test_evm_indexer_reaps_lease_acquired_during_repeated_cancellation(monkeypatch):
+    import threading
+    from types import SimpleNamespace
+    import app.services.evm_transfer_store as evm_module
+
+    acquire_started = threading.Event()
+    finish_acquire = threading.Event()
+    lease = SimpleNamespace(fencing_token=7)
+    released = []
+    rpc_calls = []
+
+    class BlockingLeaseManager:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def acquire(self):
+            acquire_started.set()
+            if not finish_acquire.wait(timeout=3):
+                raise TimeoutError("test acquisition was not released")
+            return lease
+
+        def release(self, current):
+            released.append(current)
+            return True
+
+    class FakeProvider:
+        async def chain_id(self):
+            return 1
+
+        async def block_number(self):
+            rpc_calls.append("block_number")
+            return 100
+
+        async def token_transfer_logs(self, contract, start, end, max_block_span):
+            rpc_calls.append("logs")
+            return []
+
+    class FakeStore:
+        database_url = "postgresql://example/test"
+
+        def save_chunk(self, *args, lease=None):
+            raise AssertionError("cancelled acquisition must not write")
+
+        def coverage(self, *args):
+            return []
+
+    monkeypatch.setattr(evm_module, "PostgresCollectorLease", BlockingLeaseManager)
+    task = asyncio.create_task(index_erc20_transfer_history(
+        FakeProvider(), FakeStore(), CONTRACT, 10, 10, 1, 10, 45
+    ))
+    assert await asyncio.to_thread(acquire_started.wait, 2)
+
+    task.cancel()
+    await asyncio.sleep(0.05)
+    task.cancel()
+    await asyncio.sleep(0.05)
+    assert not task.done()
+    assert released == []
+
+    finish_acquire.set()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert released == [lease]
+    assert rpc_calls == []

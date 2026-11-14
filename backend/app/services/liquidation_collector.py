@@ -14,11 +14,29 @@ from app.services.collector_lease import (
     CollectorLease,
     CollectorLeaseLostError,
     PostgresCollectorLease,
+    require_lease_database_url,
 )
 
 from websockets.asyncio.client import connect
 
 logger = logging.getLogger(__name__)
+
+
+async def _wait_for_worker_task(task: asyncio.Task) -> tuple[Any, BaseException | None]:
+    """Drain a blocking worker even if its owning task is cancelled repeatedly."""
+    while not task.done():
+        try:
+            await asyncio.shield(task)
+        except asyncio.CancelledError:
+            continue
+        except BaseException:
+            break
+    try:
+        return task.result(), None
+    except BaseException as exc:
+        return None, exc
+
+
 STREAM_URL = "wss://fstream.binance.com/market/ws/!forceOrder@arr"
 
 
@@ -142,6 +160,8 @@ class LiquidationStore:
 
     def insert(self, event: dict[str, Any], lease: CollectorLease | None = None) -> None:
         event_fingerprint = _event_fingerprint(event)
+        if self.database_url and lease is None:
+            raise ValueError("PostgreSQL liquidation writes require an active collector lease")
         if lease is not None and not self.database_url:
             raise ValueError("Collector leases require PostgreSQL-backed liquidation storage")
         if self.database_url:
@@ -215,6 +235,11 @@ class LiquidationCollector:
         lease_name: str = "liquidation-stream-collector",
         lease_ttl_seconds: int = 30,
     ) -> None:
+        require_lease_database_url(
+            getattr(store, "database_url", "") or "",
+            lease_database_url,
+            "Liquidation collector",
+        )
         self.store = store
         self._lease_coordinator = (
             PostgresCollectorLease(
@@ -251,15 +276,16 @@ class LiquidationCollector:
             lease = self._lease
             self._lease = None
             if not self._lease_lost.is_set():
-                try:
-                    released = await asyncio.to_thread(
-                        self._lease_coordinator.release, lease
-                    )
-                    self._lease_state = "RELEASED" if released else "RELEASE_FAILED"
-                except Exception as exc:
+                release_worker = asyncio.create_task(
+                    asyncio.to_thread(self._lease_coordinator.release, lease)
+                )
+                released, release_error = await _wait_for_worker_task(release_worker)
+                if release_error is not None:
                     self._lease_state = "RELEASE_FAILED"
-                    self.last_error = type(exc).__name__
-        if self._lease_state != "LOST":
+                    self.last_error = type(release_error).__name__
+                else:
+                    self._lease_state = "RELEASED" if released else "RELEASE_FAILED"
+        if self._lease_state not in {"LOST", "RELEASE_FAILED", "ACQUIRE_FAILED"}:
             self._lease_state = "STOPPED" if self._lease_coordinator else "NOT_REQUIRED"
 
     async def _run_stream(self) -> None:
@@ -314,8 +340,21 @@ class LiquidationCollector:
                 self._lease_state = "LOST"
                 self._lease_lost.set()
                 return
+            renew_worker = asyncio.create_task(
+                asyncio.to_thread(self._lease_coordinator.renew, lease)
+            )
             try:
-                renewed = await asyncio.to_thread(self._lease_coordinator.renew, lease)
+                renewed = await asyncio.shield(renew_worker)
+            except asyncio.CancelledError:
+                renewed_during_shutdown, renew_error = await _wait_for_worker_task(renew_worker)
+                if renew_error is not None:
+                    self.last_error = type(renew_error).__name__
+                elif renewed_during_shutdown is not None:
+                    self._lease = renewed_during_shutdown
+                else:
+                    self._lease_state = "LOST"
+                    self._lease_lost.set()
+                raise
             except Exception as exc:
                 self.last_error = type(exc).__name__
                 renewed = None
@@ -336,17 +375,25 @@ class LiquidationCollector:
             try:
                 lease = await asyncio.shield(acquire_task)
             except asyncio.CancelledError:
-                # A worker thread cannot be canceled; collect and release any
-                # lease it acquired before propagating shutdown cancellation.
-                try:
-                    acquired_during_shutdown = await acquire_task
-                    if acquired_during_shutdown is not None:
-                        await asyncio.to_thread(
-                            self._lease_coordinator.release,
-                            acquired_during_shutdown,
+                # Drain acquisition, then release any lease obtained during shutdown.
+                acquired_during_shutdown, acquire_error = await _wait_for_worker_task(acquire_task)
+                if acquire_error is not None:
+                    self.last_error = type(acquire_error).__name__
+                    self._lease_state = "ACQUIRE_FAILED"
+                elif acquired_during_shutdown is not None:
+                    release_worker = asyncio.create_task(
+                        asyncio.to_thread(
+                            self._lease_coordinator.release, acquired_during_shutdown
                         )
-                except Exception as exc:
-                    self.last_error = type(exc).__name__
+                    )
+                    released, release_error = await _wait_for_worker_task(release_worker)
+                    if release_error is not None:
+                        self.last_error = type(release_error).__name__
+                        self._lease_state = "RELEASE_FAILED"
+                    else:
+                        self._lease_state = "RELEASED" if released else "RELEASE_FAILED"
+                else:
+                    self._lease_state = "STOPPED"
                 raise
             except Exception as exc:
                 self._lease_state = "ACQUIRE_FAILED"
@@ -376,7 +423,8 @@ class LiquidationCollector:
             except asyncio.CancelledError:
                 stream_task.cancel()
                 renew_task.cancel()
-                await asyncio.gather(stream_task, renew_task, return_exceptions=True)
+                await _wait_for_worker_task(stream_task)
+                await _wait_for_worker_task(renew_task)
                 raise
             except CollectorLeaseLostError:
                 self._lease_state = "LOST"
@@ -385,7 +433,8 @@ class LiquidationCollector:
                 for task in (stream_task, renew_task):
                     if not task.done():
                         task.cancel()
-                await asyncio.gather(stream_task, renew_task, return_exceptions=True)
+                await _wait_for_worker_task(stream_task)
+                await _wait_for_worker_task(renew_task)
             if self._lease_lost.is_set():
                 self._lease_state = "LOST"
                 break
@@ -397,12 +446,19 @@ class LiquidationCollector:
         delay = 1
         while True:
             try:
-                if self._lease is None:
-                    await asyncio.to_thread(self.store.insert, event)
-                else:
-                    await asyncio.to_thread(
-                        self.store.insert, event, lease=self._lease
+                insert_worker = asyncio.create_task(
+                    asyncio.to_thread(
+                        self.store.insert, event, **({} if self._lease is None else {"lease": self._lease})
                     )
+                )
+                try:
+                    await asyncio.shield(insert_worker)
+                except asyncio.CancelledError:
+                    _, insert_error = await _wait_for_worker_task(insert_worker)
+                    if isinstance(insert_error, CollectorLeaseLostError):
+                        self._lease_state = "LOST"
+                        self._lease_lost.set()
+                    raise
             except asyncio.CancelledError:
                 raise
             except CollectorLeaseLostError:

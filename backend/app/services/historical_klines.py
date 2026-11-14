@@ -119,6 +119,8 @@ class HistoricalKlineStore:
             (market, symbol, interval, *row, source, now)
             for row in normalized
         ]
+        if self.database_url and lease is None:
+            raise ValueError("PostgreSQL historical writes require an active collector lease")
         if lease is not None and not self.database_url:
             raise ValueError("Collector leases require PostgreSQL-backed historical storage")
         if self.database_url:

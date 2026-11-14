@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from app.providers.evm_rpc import EVMRPCProvider, TRANSFER_TOPIC
+from app.services.collector_lease import CollectorLease, CollectorLeaseLostError, PostgresCollectorLease
 
 
 class _PostgresConnection:
@@ -83,7 +84,8 @@ class EVMTransferStore:
         return connection
 
     def save_chunk(self, chain_id: int, contract: str, start: int, end: int,
-                   logs: list[dict[str, Any]]) -> int:
+                   logs: list[dict[str, Any]],
+                   lease: CollectorLease | None = None) -> int:
         # Keep direct store calls consistent across SQLite and PostgreSQL.
         if isinstance(chain_id, bool) or not isinstance(chain_id, int) or chain_id <= 0:
             raise ValueError("chain_id must be a positive integer")
@@ -128,12 +130,20 @@ class EVMTransferStore:
                 raise ValueError("RPC Transfer log falls outside the requested range or has a negative amount")
             rows.append((chain_id, contract.lower(), tx_hash.lower(), log_index, block_number,
                          sender, recipient, str(raw_value), bool(log.get("removed")), now))
+        if self.database_url and lease is None:
+            raise ValueError("PostgreSQL EVM transfer writes require an active collector lease")
+        if lease is not None and not self.database_url:
+            raise ValueError("Collector leases require PostgreSQL-backed EVM transfer storage")
         with self._connect() as connection:
+            if lease is not None and not PostgresCollectorLease.lock_if_owned(connection, lease):
+                raise CollectorLeaseLostError(
+                    "EVM transfer chunk write rejected because the collector lease is no longer owned"
+                )
             connection.executemany("""
                 INSERT INTO evm_transfer_logs
                 (chain_id, contract_address, transaction_hash, log_index, block_number,
                  from_address, to_address, amount_raw, removed, indexed_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?::timestamptz)
                 ON CONFLICT(chain_id, contract_address, transaction_hash, log_index)
                 DO UPDATE SET block_number=excluded.block_number,
                     from_address=excluded.from_address, to_address=excluded.to_address,
@@ -143,7 +153,7 @@ class EVMTransferStore:
             connection.execute("""
                 INSERT INTO evm_transfer_index_ranges
                 (chain_id, contract_address, from_block, to_block, transfer_count, indexed_at)
-                VALUES (?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?::timestamptz)
                 ON CONFLICT(chain_id, contract_address, from_block, to_block)
                 DO UPDATE SET transfer_count=excluded.transfer_count, indexed_at=excluded.indexed_at
             """, (chain_id, contract.lower(), start, end, len(rows), now))
@@ -434,6 +444,29 @@ class EVMTransferStore:
             return [dict(row) for row in rows]
 
 
+async def _wait_for_worker_task(task: asyncio.Task) -> tuple[Any, BaseException | None, bool]:
+    """Wait until a to_thread worker is truly finished, even after repeated cancellation.
+
+    Cancellation belongs to the awaiting coroutine; it does not stop the worker
+    thread. Return the worker result/error and whether this waiter was cancelled
+    while draining it. The caller decides when to re-raise cancellation.
+    """
+    interrupted = False
+    while not task.done():
+        try:
+            await asyncio.shield(task)
+        except asyncio.CancelledError:
+            interrupted = True
+            continue
+        except BaseException:
+            # The task has completed with an exception; collect it below.
+            break
+    try:
+        return task.result(), None, interrupted
+    except BaseException as exc:
+        return None, exc, interrupted
+
+
 async def index_erc20_transfer_history(
     provider: EVMRPCProvider,
     store: EVMTransferStore,
@@ -442,6 +475,7 @@ async def index_erc20_transfer_history(
     to_block: int,
     chunk_size: int,
     max_total_blocks: int,
+    lease_ttl_seconds: int = 30,
 ) -> dict[str, Any]:
     if from_block < 0 or to_block < from_block:
         raise ValueError("Invalid block range")
@@ -451,23 +485,75 @@ async def index_erc20_transfer_history(
     if total_blocks > max_total_blocks:
         raise ValueError(f"Requested history exceeds maximum of {max_total_blocks} blocks")
     chain_id = await provider.chain_id()
-    latest_block = await provider.block_number()
-    if to_block > latest_block:
-        raise ValueError(f"to_block {to_block} is ahead of latest block {latest_block}")
+    lease_manager = None
+    lease = None
+    if store.database_url:
+        lease_manager = PostgresCollectorLease(
+            store.database_url,
+            f"evm-transfer-indexer:{chain_id}:{contract.lower()}",
+            ttl_seconds=lease_ttl_seconds,
+        )
+        acquire_task = asyncio.create_task(asyncio.to_thread(lease_manager.acquire))
+        try:
+            lease = await asyncio.shield(acquire_task)
+        except asyncio.CancelledError:
+            acquired_during_shutdown, acquire_error, _ = await _wait_for_worker_task(acquire_task)
+            if acquire_error is None and acquired_during_shutdown is not None:
+                release_task = asyncio.create_task(asyncio.to_thread(
+                    lease_manager.release, acquired_during_shutdown
+                ))
+                await _wait_for_worker_task(release_task)
+            raise
+        if lease is None:
+            raise CollectorLeaseLostError("Another EVM transfer indexer currently owns this chain/contract lease")
     next_block = from_block
     indexed_logs = 0
     completed_chunks = 0
+    cancellation_seen = False
     try:
+        latest_block = await provider.block_number()
+        if to_block > latest_block:
+            raise ValueError(f"to_block {to_block} is ahead of latest block {latest_block}")
         while next_block <= to_block:
             chunk_end = min(next_block + chunk_size - 1, to_block)
             logs = await provider.token_transfer_logs(
                 contract, next_block, chunk_end, max_block_span=chunk_size
             )
-            indexed_logs += await asyncio.to_thread(
-                store.save_chunk, chain_id, contract, next_block, chunk_end, logs
-            )
+            if lease_manager is not None:
+                renew_task = asyncio.create_task(
+                    asyncio.to_thread(lease_manager.renew, lease)
+                )
+                try:
+                    renewed = await asyncio.shield(renew_task)
+                except asyncio.CancelledError:
+                    # Drain the worker despite repeated cancellation requests so
+                    # cleanup releases the newest lease snapshot, not a stale one.
+                    renewed, renew_error, _ = await _wait_for_worker_task(renew_task)
+                    if renew_error is None and renewed is not None:
+                        lease = renewed
+                    raise
+                if renewed is None:
+                    raise CollectorLeaseLostError("EVM transfer indexer lease was lost before chunk write")
+                lease = renewed
+            save_task = asyncio.create_task(asyncio.to_thread(
+                store.save_chunk, chain_id, contract, next_block, chunk_end, logs,
+                lease=lease,
+            ))
+            try:
+                saved_count = await asyncio.shield(save_task)
+            except asyncio.CancelledError:
+                # The database transaction runs in a worker thread. Drain it even
+                # if this task receives additional cancel() calls before releasing.
+                await _wait_for_worker_task(save_task)
+                raise
+            indexed_logs += saved_count
             completed_chunks += 1
             next_block = chunk_end + 1
+    except asyncio.CancelledError:
+        cancellation_seen = True
+        raise
+    except CollectorLeaseLostError:
+        raise
     except Exception as exc:
         return {
             "status": "PARTIAL" if completed_chunks else "FAILED",
@@ -479,6 +565,17 @@ async def index_erc20_transfer_history(
             "error": f"{type(exc).__name__}: {str(exc)[:300]}",
             "coverage_note": "Only fully successful chunks are recorded. Retry from next_block_to_retry; writes are idempotent.",
         }
+    finally:
+        if lease_manager is not None and lease is not None:
+            release_task = asyncio.create_task(asyncio.to_thread(lease_manager.release, lease))
+            _, release_error, release_interrupted = await _wait_for_worker_task(release_task)
+            # A cancellation arriving during otherwise-normal cleanup must still
+            # propagate, but only after the release worker has actually finished.
+            if release_interrupted and not cancellation_seen:
+                raise asyncio.CancelledError
+            if release_error is not None:
+                # A lease expires automatically; do not hide the indexing result.
+                pass
     return {
         "status": "COMPLETED", "chain_id": chain_id, "contract_address": contract.lower(),
         "requested_range": {"from": from_block, "to": to_block},

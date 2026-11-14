@@ -80,3 +80,8 @@ def test_funding_store_rejects_boolean_values(tmp_path, row):
     with pytest.raises(ValueError):
         store.save("USD_M", "BTCUSDT", [row])
     assert store.history("USD_M", "BTCUSDT")["returned_count"] == 0
+
+def test_postgres_funding_store_requires_lease_before_write():
+    store = FundingRateStore("unused.sqlite3", "postgresql://example/test")
+    with pytest.raises(ValueError, match="require an active collector lease"):
+        store.save("USD_M", "BTCUSDT", [event()])

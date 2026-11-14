@@ -84,3 +84,8 @@ def test_ratio_store_rejects_boolean_timestamps(tmp_path, timestamp):
     with pytest.raises(ValueError, match="timestamp"):
         store.save("GLOBAL_LONG_SHORT", "BTCUSDT", "1h", [global_row(timestamp)])
     assert store.history("GLOBAL_LONG_SHORT", "BTCUSDT", "1h")["returned_count"] == 0
+
+def test_postgres_ratio_store_requires_lease_before_write():
+    store = DerivativesRatioStore("unused.sqlite3", "postgresql://example/test")
+    with pytest.raises(ValueError, match="require an active collector lease"):
+        store.save("GLOBAL_LONG_SHORT", "BTCUSDT", "1h", [global_row()])
