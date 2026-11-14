@@ -25,7 +25,7 @@ function api(){
   if(!raw)throw Error('Backend Base URL required');
   let parsed;
   try{parsed=new URL(raw)}catch(_){throw Error('Backend Base URL must be a valid absolute URL')}
-  const authorityMatch=raw.match(/^[a-zA-Z][a-zA-Z\\d+.-]*:\\/\\/([^/?#]*)(.*)$/);
+  const authorityMatch=raw.match(/^[a-zA-Z][a-zA-Z\d+.-]*:\/\/([^/?#]*)(.*)$/);
   const authority=authorityMatch?.[1]??'';
   const rawSuffix=authorityMatch?.[2]??'';
   const hasUserInfo=authority.includes('@');
