@@ -495,14 +495,36 @@ async def index_erc20_transfer_history(
                 contract, next_block, chunk_end, max_block_span=chunk_size
             )
             if lease_manager is not None:
-                renewed = await asyncio.to_thread(lease_manager.renew, lease)
+                renew_task = asyncio.create_task(
+                    asyncio.to_thread(lease_manager.renew, lease)
+                )
+                try:
+                    renewed = await asyncio.shield(renew_task)
+                except asyncio.CancelledError:
+                    # The worker thread is not cancelled with its asyncio waiter.
+                    # Reconcile its result so cleanup releases the newest lease snapshot.
+                    try:
+                        renewed = await renew_task
+                        if renewed is not None:
+                            lease = renewed
+                    finally:
+                        raise
                 if renewed is None:
                     raise CollectorLeaseLostError("EVM transfer indexer lease was lost before chunk write")
                 lease = renewed
-            indexed_logs += await asyncio.to_thread(
+            save_task = asyncio.create_task(asyncio.to_thread(
                 store.save_chunk, chain_id, contract, next_block, chunk_end, logs,
                 lease=lease,
-            )
+            ))
+            try:
+                saved_count = await asyncio.shield(save_task)
+            except asyncio.CancelledError:
+                # Wait for the fenced DB transaction to finish before releasing its lease.
+                try:
+                    await save_task
+                finally:
+                    raise
+            indexed_logs += saved_count
             completed_chunks += 1
             next_block = chunk_end + 1
     except CollectorLeaseLostError:
