@@ -78,6 +78,9 @@ class DashboardContractTests(unittest.TestCase):
             "flat price RSI is neutral",
             "Bollinger bands are candle-aligned",
             "Wilder ADX and Stochastic RSI",
+            "ADX reaches 100 on a steady one-directional trend",
+            "Stochastic RSI applies the documented K and D smoothing",
+            "Bollinger population deviation has a reproducible 20-candle reference",
             "insufficient history leaves long-period indicators unavailable",
         ):
             self.assertIn(case, source)
