@@ -18,6 +18,7 @@ on:
     paths:
       - "dashboard/**"
       - "tests/test_dashboard_contract.py"
+      - "tests/test_dashboard_accessibility.py"
       - "tests/test_dashboard_chart.js"
       - "docs/DASHBOARD_IMPLEMENTATION_STATUS.md"
       - ".github/workflows/dashboard-frontend.yml"
