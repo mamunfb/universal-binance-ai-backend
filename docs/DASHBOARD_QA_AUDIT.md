@@ -748,3 +748,14 @@ Added a profiler preflight in commit `8bc9b1e993f327a2159726301a423674c3927208`:
 Run #7's Lighthouse step exited 1 and produced only partial JSON with `FAILED_DOCUMENT_REQUEST`; its CPU/heap step then failed at initial navigation because of the MIME issue. Its artifact is not valid performance evidence. The MIME fix and preflight now need a fresh workflow run; no score or memory/timing result is claimed yet.
 
 No dashboard application UI, backend business logic, database, secrets, `main`, PR merge state, staging or production deployment was changed.
+
+
+## 38. QA harness syntax correction (2026-11-15)
+
+The first commits implementing the MIME/preflight fix contained literal escaped newline sequences in the two Node.js scripts. Run #9 (`43724280699`) therefore failed at JavaScript parsing with `SyntaxError: Invalid or unexpected token` in both the Lighthouse server and profiler setup. This was a QA harness syntax error, not a dashboard application failure.
+
+Corrected the line breaks in:
+- `tests/serve_dashboard_qa.cjs` — commit `405c4e648dbe18ae7a42887beb15511d230854d8`.
+- `tests/dashboard_performance_qa.cjs` — commits `1fdd0effef6d48f10d0b68064d1a171a8fcd336e` and `68b10164b6440960e21370a4a28afb3d3bce28d4` (final profiler correction).
+
+The latest commit should trigger a fresh workflow run. The scripts were re-read from the feature branch after correction. No runtime pass is claimed until the new Actions run executes.
