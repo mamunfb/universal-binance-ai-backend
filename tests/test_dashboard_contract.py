@@ -283,6 +283,16 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn('Number.isSafeInteger(parsed)&&parsed>=0', self.js)
         self.assertNotIn('Number.isFinite(Number(value))', self.js)
 
+    def test_scanner_display_metadata_accepts_only_safe_primitives(self) -> None:
+        self.assertIn('function metadataText(value,fallback="Not supplied")', self.js)
+        self.assertIn('typeof value==="string"&&value.trim()!==""', self.js)
+        self.assertIn('typeof value==="number"&&Number.isFinite(value)', self.js)
+        self.assertIn('return fallback;', self.js)
+        self.assertIn('metadataText(data.status,metadataText(data.scan_status,"Returned"))', self.js)
+        self.assertIn('metadataText(data.source,"Backend response")', self.js)
+        self.assertIn('metadataText(data.generated_at,metadataText(data.timestamp,metadataText(data.updated_at)))', self.js)
+        self.assertIn('"Status: "+metadataText(data.status,metadataText(data.scan_status))', self.js)
+
     def test_scanner_refresh_state_preserves_previous_results_on_failure(self) -> None:
         scan_body = self.js.split("async function scanMarket(market) {", 1)[1].split("function renderScannerMeta", 1)[0]
         self.assertIn('setText("scan-state","Refreshing · previous results retained")', scan_body)
