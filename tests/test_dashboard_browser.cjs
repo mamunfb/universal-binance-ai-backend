@@ -272,3 +272,69 @@ test("changing market cancels an in-flight scan without an uncaught error", asyn
   assert.deepEqual(pageErrors, []);
   await context.close();
 });
+
+test("1000-row scanner response stays paginated, searchable and keyboard-sortable on mobile", async () => {
+  const {context, page, pageErrors} = await newPage(390, 844);
+  await page.route("https://backend.test/health", route => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    headers: {"access-control-allow-origin": "*"},
+    body: JSON.stringify({status: "ok"})
+  }));
+  await page.locator("#mobile-menu").click();
+  await page.locator('.nav-link[data-page="settings"]').click();
+  await page.locator("#backend-url").fill("https://backend.test");
+  await page.locator("#test-connection").click();
+  await page.getByText("Backend health endpoint responded successfully.").waitFor();
+
+  const symbols = Array.from({length: 1000}, (_, index) => ({
+    symbol: "ASSET" + String(index).padStart(4, "0") + "USDT",
+    base_asset: "ASSET" + String(index).padStart(4, "0"),
+    quote_asset: "USDT",
+    last_price: index + 0.25,
+    quote_volume_24h: index * 1000,
+    status: "TRADING"
+  }));
+  await page.route("https://backend.test/api/v1/markets/spot/scan**", route => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    headers: {"access-control-allow-origin": "*"},
+    body: JSON.stringify({symbols, eligible_count: 1000, scanned_count: 1000, failed_count: 0})
+  }));
+
+  await page.locator("#mobile-menu").click();
+  await page.locator('.nav-link[data-page="spot-scanner"]').click();
+  await page.locator("#scan-spot").click();
+  await page.locator("#spot-rows tr").nth(99).waitFor();
+  assert.equal(await page.locator("#spot-rows tr").count(), 100,
+    "the DOM must contain only one 100-row page, not all 1000 rows");
+  assert.match(await page.locator(".table-pager").innerText(), /1000 matching \/ 1000 returned/);
+  assert.match(await page.locator(".table-pager").innerText(), /page 1\/10/);
+
+  const symbolHeader = page.locator("#page-spot-scanner thead th").first();
+  await symbolHeader.focus();
+  await page.keyboard.press("Enter");
+  assert.equal(await symbolHeader.getAttribute("aria-sort"), "descending");
+  assert.equal(await page.locator("#spot-rows tr").first().locator("td").first().innerText(), "ASSET0999USDT");
+
+  await page.locator("#spot-search").fill("ASSET0999");
+  await page.waitForFunction(() => document.querySelector("#spot-rows tr td")?.textContent === "ASSET0999USDT");
+  assert.equal(await page.locator("#spot-rows tr").count(), 1);
+  assert.match(await page.locator(".table-pager").innerText(), /1 matching \/ 1000 returned/);
+
+  await page.locator("#spot-search").fill("");
+  await page.waitForFunction(() => document.querySelector(".table-pager")?.textContent.includes("page 1/10"));
+  await page.getByRole("button", {name: "Next scanner page"}).click();
+  assert.match(await page.locator(".table-pager").innerText(), /page 2\/10/);
+  assert.equal(await page.locator("#spot-rows tr").count(), 100);
+
+  const widths = await page.evaluate(() => ({
+    viewport: document.documentElement.clientWidth,
+    document: document.documentElement.scrollWidth,
+    body: document.body.scrollWidth
+  }));
+  assert.ok(widths.document <= widths.viewport + 1, "mobile document overflow: " + JSON.stringify(widths));
+  assert.ok(widths.body <= widths.viewport + 1, "mobile body overflow: " + JSON.stringify(widths));
+  assert.deepEqual(pageErrors, []);
+  await context.close();
+});
