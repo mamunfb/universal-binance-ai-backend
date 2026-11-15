@@ -1,7 +1,7 @@
 (function(){
 "use strict";
 const ns="http://www.w3.org/2000/svg";
-let activeLoadSequence=0;
+let activeLoadSequence=0,activeLoadController=null;
 const number=v=>{if(typeof v==="number")return Number.isFinite(v)?v:null;if(typeof v!=="string")return null;const text=v.trim();if(!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(text))return null;const parsed=Number(text);return Number.isFinite(parsed)?parsed:null;};
 function parse(rows){
  if(!Array.isArray(rows))return[];
@@ -195,7 +195,7 @@ function render(c){
  const macd=macdComponents(valuesClose);host.append(drawLinePanel("MACD line · EMA12 − EMA26",macd.line,{zero:true}));host.append(drawLinePanel("MACD signal · EMA9 of MACD",macd.signal,{zero:true}));host.append(drawLinePanel("MACD histogram · line − signal",macd.histogram,{zero:true}));
  host.append(drawLinePanel("ATR (14) · Wilder",atrSeries(c)));
 }
-function invalidate(){activeLoadSequence++;}
+function invalidate(){activeLoadSequence++;if(activeLoadController){activeLoadController.abort();activeLoadController=null;}}
 async function load(api,market,symbol,timeframe){
  const tf=timeframe,route=routeFor(market);
  if(!route)throw new Error("Unsupported market type: "+market);
@@ -203,7 +203,9 @@ async function load(api,market,symbol,timeframe){
  if(!supportedTimeframes.includes(tf))throw new Error("Unsupported chart timeframe: "+tf);
  if(typeof symbol!=="string"||!symbol.trim())throw new Error("Enter a valid trading symbol.");
  const interval=intervalFor(tf),requestSequence=++activeLoadSequence;
- let response;try{response=await api(route+encodeURIComponent(symbol)+"?interval="+encodeURIComponent(interval)+"&limit=1000");}catch(error){if(requestSequence!==activeLoadSequence)return{status:"SUPERSEDED",market,symbol,requested_timeframe:tf};throw error;}
+ if(activeLoadController)activeLoadController.abort();
+ const controller=new AbortController();activeLoadController=controller;
+ let response;try{response=await api(route+encodeURIComponent(symbol)+"?interval="+encodeURIComponent(interval)+"&limit=1000",{signal:controller.signal});}catch(error){if(requestSequence!==activeLoadSequence)return{status:"SUPERSEDED",market,symbol,requested_timeframe:tf};throw error;}finally{if(activeLoadController===controller)activeLoadController=null;}
  if(requestSequence!==activeLoadSequence)return{status:"SUPERSEDED",market,symbol,requested_timeframe:tf};
  if(response===null||typeof response!=="object"||Array.isArray(response))throw new Error("Candle endpoint returned an invalid response shape. Expected a JSON object; previous chart was preserved.");
  if(!Array.isArray(response.klines))throw new Error("Candle endpoint did not provide a klines array; previous chart was preserved.");
