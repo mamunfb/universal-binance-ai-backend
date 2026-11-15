@@ -44,7 +44,7 @@
     try { await task(); } catch(error) { toast(error.message,"error"); } finally { el.disabled=false; el.textContent=original; }
   }
   function setMetric(key,value){setText("metric-"+key,formatNumber(value));}
-  function extractCount(data, names) { for(const name of names){ const value=data?.[name]; if(value!==null && value!==undefined && value!=="" && Number.isFinite(Number(value))) return Number(value); } return null; }
+  function extractCount(data, names) { for(const name of names){ const value=data?.[name]; if(value!==null && value!==undefined && value!=="" && !(typeof value==="string"&&value.trim()==="") && typeof value!=="boolean" && Number.isFinite(Number(value)) && Number(value)>=0) return Number(value); } return null; }
   function renderScanSummary(data) {
     state.lastScan=data;
     const eligible=extractCount(data,["eligible_count","eligible_symbols","eligible","total_eligible","total_symbols"]);
