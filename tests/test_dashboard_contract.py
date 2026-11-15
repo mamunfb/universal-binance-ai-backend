@@ -421,3 +421,10 @@ if __name__ == "__main__":
         self.assertIn('distinct.size>1?[label+": "+supplied.map', self.js)
         self.assertIn('"Count alias conflicts: "+(scannerCountAliasConflicts(data,countNames).join("; ")||"None detected")', self.js)
         self.assertIn('extractCount(data,countNames.eligible)', self.js)
+
+    def test_scanner_coverage_identifies_source_and_timestamp_alias_provenance(self) -> None:
+        self.assertIn("function metadataFieldName(data,names)", self.js)
+        self.assertIn('metadataFieldName(data,["source"])', self.js)
+        self.assertIn('metadataFieldName(data,["generated_at","timestamp","updated_at"])', self.js)
+        self.assertIn('"Timestamp field: "+', self.js)
+        self.assertIn('"Source field: "+', self.js)
