@@ -717,3 +717,17 @@ Corrected `.github/workflows/dashboard-performance-qa.yml` in commit `12d20a1e08
 Run #5 (`43723376649`) for the prior mobile-navigation correction was observed in progress at the time of inspection; its final result is not assumed. The workflow change above triggers a new feature-branch push run. That new run must complete and its logs/artifact must be inspected before any benchmark is considered measured.
 
 No Lighthouse score, Core Web Vitals, CPU timing or heap result is claimed from the failed run. No dashboard application, backend, database, secrets, `main`, PR merge state, staging or production deployment was changed.
+
+
+## 36. Lighthouse failure isolation and profiler continuity (2026-11-15)
+
+The follow-up run #6 (`43723605988`, workflow commit `12d20a1e083fb631a9ea352d9ba0745b849faf91`) still failed during the first Lighthouse navigation with `net::ERR_ABORTED` / `FAILED_DOCUMENT_REQUEST`. The workflow now kept the static server in the same step as Lighthouse, so the original cross-step process cleanup issue was not sufficient to explain this second failure. The available log does not yet establish the underlying Chrome navigation cause. The run's artifact (`dashboard-performance-12d20a1e083fb631a9ea352d9ba0745b849faf91`, 16.8 KB) contains partial Lighthouse output only; CPU/heap profiling was skipped.
+
+A second workflow adjustment was committed as `eae6aa7ed4c0da7e36b82b8fe20691bd0a150c87`:
+- Add explicit Chrome flags to disable proxy use and shared-memory pressure for loopback browser runs.
+- Mark Lighthouse as a separately tracked step and allow the CPU/heap profiler to run even if Lighthouse fails.
+- Preserve a failed overall job conclusion when Lighthouse fails, while still attempting profiling and artifact upload.
+
+This is a diagnostic/continuity correction, not a performance pass. The exact Lighthouse failure cause remains **unconfirmed** until the next run's Chrome and server logs are inspected. No benchmark metrics are accepted from either failed run.
+
+No application or backend source, database, secrets, `main`, PR merge state, staging or production deployment was changed.
