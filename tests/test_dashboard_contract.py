@@ -317,6 +317,12 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn("invalidCloseTime[1].closeTime += 1", self.chart_test_js)
         self.assertIn("aggregate3h(invalidCloseTime).length, 0", self.chart_test_js)
 
+    def test_indicator_reference_fixtures_cover_ema_rsi_and_atr(self) -> None:
+        self.assertIn("EMA seeds with the initial SMA", self.chart_test_js)
+        self.assertIn("Wilder RSI and ATR match hand-calculated", self.chart_test_js)
+        self.assertIn("assert.deepEqual(result.slice(2),[2,3,4])", self.chart_test_js)
+        self.assertIn("assert.equal(atr[3],4.5)", self.chart_test_js)
+
     def test_chart_large_dataset_regression_fixtures_are_present(self) -> None:
         self.assertIn('parse handles a large reversed candle batch', self.chart_test_js)
         self.assertIn('Array.from({length:10000}', self.chart_test_js)
