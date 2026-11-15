@@ -600,3 +600,40 @@ The scheduled market-scan workflow was updated to the v7 actions but was not man
 Next verification is to broaden the accessibility and performance regression checks while preserving the verified eight-test baseline.
 
 No merge, production deployment, backend/database mutation, secret change, or `main` branch update was performed.
+
+
+## 31. Large-dataset Chromium stress test and WCAG contrast correction
+
+**Verified feature-branch checkpoint:** `8d10f175d62da6edb2fa53bec4a948d6240eee2c`  
+**Verification date:** 2026-11-15
+
+### New browser coverage
+
+Expanded `tests/test_dashboard_browser.cjs` from 8 to 10 independent Chromium tests:
+- A 1,000-row mocked Spot Scanner response at a 390px mobile viewport.
+- Confirms the rendered table is bounded to 100 rows per page (10 pages for 1,000 results), not 1,000 simultaneous DOM rows.
+- Exercises keyboard sorting (Enter on the Symbol column), debounced search, pagination to page 2, and document/body horizontal-overflow checks.
+- Runs axe-core 4.10.3 against the visible initial dashboard using WCAG 2.1 A/AA tags.
+
+### Defect found and corrected
+
+The first axe-core pass identified a contrast failure in the four metric-card captions: foreground `#71839f` on `#111b2d` measured 4.47:1, just below the 4.5:1 WCAG AA threshold for normal text.
+
+Changed only the `.metric-card small` foreground to `#7486a2` (calculated contrast approximately 4.66:1 against the same card background). The subsequent Chromium axe-core audit reports **zero WCAG 2.1 A/AA violations** for the tested initial dashboard view.
+
+The 1,000-row test also required two harness corrections: scope pager locators to the Spot Scanner (three scanner tables each create a pager), and wait for the debounced filtered-count update before asserting the result count. These were test synchronization/selector defects, not dashboard application defects.
+
+### Verified CI evidence
+
+- Dashboard browser QA Run #31: [run 43721786692](https://github.com/mamunfb/universal-binance-ai-backend/actions/runs/43721786692), job `132835163790`: **10 tests, 10 passed, 0 failed** (14.62 seconds).
+- Backend + Dashboard Run #1793: [run 43721786675](https://github.com/mamunfb/universal-binance-ai-backend/actions/runs/43721786675), job `132835163796`: **634 passed, 2 warnings** (4.99 seconds).
+- Dashboard Frontend Run #37: [run 43721596752](https://github.com/mamunfb/universal-binance-ai-backend/actions/runs/43721596752), job `132834569924`: **119 dashboard contract/accessibility tests passed**; chart fixtures and JavaScript syntax checks succeeded.
+
+### Limits that remain
+
+- The 1,000-row dataset is deterministic mocked browser data. This verifies client-side pagination, search, sorting and mobile layout, not production exchange payload sizes or live API throughput.
+- The axe-core run covers the initial visible dashboard state. It is an automated accessibility scan, not a screen-reader session, manual keyboard review of every route, or complete WCAG conformance certification.
+- No Lighthouse/Core Web Vitals run, CPU throttling, paint/frame timing benchmark, heap snapshot, or long-duration memory profile was performed. The 1,000-row test verifies bounded DOM row count, not measured rendering speed.
+- Live backend/API connectivity and physical-device behavior remain outside this isolated local-server test.
+
+No backend business logic, database, secrets, billing, `main`, PR merge state, staging or production deployment was changed.
