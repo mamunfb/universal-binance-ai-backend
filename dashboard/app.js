@@ -244,7 +244,7 @@
     $("load-technical").addEventListener("click",()=>withButton("load-technical",loadTechnical,"Loading…"));
     $("load-market-evidence").addEventListener("click",()=>withButton("load-market-evidence",loadMarketEvidence,"Loading…"));
     $("load-quality").addEventListener("click",()=>withButton("load-quality",loadQuality,"Checking…"));
-    $("test-connection").addEventListener("click",()=>withButton("test-connection",async()=>{connectSettings();await loadHealth();setText("settings-status","Backend health endpoint responded successfully.");},"Testing…"));
+    $("test-connection").addEventListener("click",()=>withButton("test-connection",async()=>{connectSettings();const result=await loadHealth();if(result?.status==="SUPERSEDED")return result;setText("settings-status","Backend health endpoint responded successfully.");return result;},"Testing…"));
     $("clear-credentials").addEventListener("click",()=>{invalidateScanRequests();invalidateQualityRequest();activeEvidenceSequence++;activeHealthSequence++;window.DashboardCharts.invalidate();state.base="";state.token="";$("backend-url").value="";$("backend-token").value="";setConnection(false,"Not connected");setText("settings-status","Credentials cleared from page memory.");toast("Connection credentials cleared.","success");});
     $("default-market").addEventListener("change",e=>{invalidateScanRequests();$("global-market").value=e.target.value;state.market=e.target.value;invalidateChartView();});
     $("default-timeframe").addEventListener("change",e=>{$("global-timeframe").value=e.target.value;state.timeframe=e.target.value;invalidateChartView();});
