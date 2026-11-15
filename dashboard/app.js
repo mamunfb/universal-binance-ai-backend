@@ -198,12 +198,14 @@
   }
   function scannerCellText(key,value) {
     if(value===null||value===undefined||value==="")return"—";
-    if(typeof value==="number")return Number.isFinite(value)?String(value):"Invalid number";
-    if(typeof value==="string"){
-      if(value.trim()==="")return"—";
-      if(["last_price","quote_volume_24h","price_change_percent_24h"].includes(key)&&!Number.isFinite(Number(value)))return"Invalid number";
-      return value;
+    const numericKey=["last_price","quote_volume_24h","price_change_percent_24h"].includes(key);
+    if(numericKey){
+      if(typeof value!=="number"&&typeof value!=="string")return"Invalid number";
+      if(typeof value==="string"&&value.trim()==="")return"—";
+      return Number.isFinite(Number(value))?String(value):"Invalid number";
     }
+    if(typeof value==="number")return Number.isFinite(value)?String(value):"Invalid number";
+    if(typeof value==="string")return value.trim()===""?"—":value;
     if(typeof value==="boolean")return String(value);
     return"Invalid value";
   }
