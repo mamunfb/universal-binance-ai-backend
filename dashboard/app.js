@@ -66,7 +66,7 @@
     catch(error){setText("health-status","Unavailable");setConnection(false,"Backend unavailable: "+error.message);throw error;}
   }
   async function scanMarket(market) {
-    state.market=market; $("global-market").value=market; document.querySelectorAll(".market-tab").forEach(b=>b.classList.toggle("active",b.dataset.market===market));
+    const marketChanged=state.market!==market; state.market=market; $("global-market").value=market; if(marketChanged) invalidateChartView(); document.querySelectorAll(".market-tab").forEach(b=>b.classList.toggle("active",b.dataset.market===market));
     let path;
     if(market==="SPOT") { const quote=($("spot-quote")?.value||"").trim().toUpperCase(); path="/api/v1/markets/spot/scan"+(quote?"?quote_asset="+encodeURIComponent(quote):""); }
     else if(market==="USD_M") path="/api/v1/markets/futures/usdm/scan";
