@@ -317,6 +317,9 @@ test("1000-row scanner response stays paginated, searchable and keyboard-sortabl
   await page.keyboard.press("Enter");
   assert.equal(await symbolHeader.getAttribute("aria-sort"), "descending");
   assert.equal(await page.locator("#spot-rows tr").first().locator("td").first().innerText(), "ASSET0999USDT");
+  await page.keyboard.press("Space");
+  assert.equal(await symbolHeader.getAttribute("aria-sort"), "ascending");
+  assert.equal(await page.locator("#spot-rows tr").first().locator("td").first().innerText(), "ASSET0000USDT");
 
   await page.locator("#spot-search").fill("ASSET0999");
   await page.waitForFunction(() => document.querySelector("#page-spot-scanner .table-pager")?.textContent.includes("1 matching / 1,000 returned"));
@@ -325,9 +328,19 @@ test("1000-row scanner response stays paginated, searchable and keyboard-sortabl
 
   await page.locator("#spot-search").fill("");
   await page.waitForFunction(() => document.querySelector("#page-spot-scanner .table-pager")?.textContent.includes("page 1/10"));
-  await page.locator("#page-spot-scanner").getByRole("button", {name: "Next scanner page"}).click();
+  const nextPage = page.locator("#page-spot-scanner").getByRole("button", {name: "Next scanner page"});
+  await nextPage.click();
   assert.match(await pager.innerText(), /page 2\/10/);
   assert.equal(await page.locator("#spot-rows tr").count(), 100);
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("aria-label")), "Next scanner page",
+    "keyboard focus should remain on Next after pagination rerenders");
+  await page.keyboard.press("Enter");
+  assert.match(await pager.innerText(), /page 3\/10/);
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("aria-label")), "Next scanner page");
+  await page.locator("#page-spot-scanner").getByRole("button", {name: "Previous scanner page"}).focus();
+  await page.keyboard.press("Space");
+  assert.match(await pager.innerText(), /page 2\/10/);
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("aria-label")), "Previous scanner page");
 
   const widths = await page.evaluate(() => ({
     viewport: document.documentElement.clientWidth,
