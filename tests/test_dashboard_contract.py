@@ -71,6 +71,14 @@ class DashboardContractTests(unittest.TestCase):
         ):
             self.assertIn(case, source)
 
+    def test_chart_discards_superseded_timeframe_responses(self) -> None:
+        self.assertIn("let activeLoadSequence=0", self.chart_js)
+        self.assertIn("const requestSequence=++activeLoadSequence", self.chart_js)
+        self.assertIn('status:"SUPERSEDED"', self.chart_js)
+
+    def test_primary_coin_analysis_action_loads_candles(self) -> None:
+        self.assertIn('$("load-coin-analysis").addEventListener("click",()=>withButton("load-coin-analysis",loadTechnical', self.js)
+
     def test_chart_exposes_separate_indicator_panes(self) -> None:
         for token in (
             'drawLinePanel("RSI (14) · Wilder"',
