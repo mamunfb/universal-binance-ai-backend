@@ -513,3 +513,11 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - The Settings connection-test action now checks the health request result before writing its success message. If the health request was invalidated by a newer health check or by clearing/changing connection settings, it exits without claiming the backend responded successfully.
 - Added a Python static contract assertion that the superseded-result guard precedes the success status update.
 - GitHub source readback is the verification performed; runtime tests and browser QA have not been run.
+
+
+## Health, Quality and Spot quote-filter refresh states
+
+- Health refresh now explicitly indicates that the previous health status is retained while the latest health request is pending; a current failure still reports Unavailable and a bounded connection error.
+- Quality refresh now explicitly says the previous report is retained while the requested symbol and interval are loading. The prior report output is only replaced after a current successful response.
+- Changing the Spot quote filter invalidates any in-flight scanner request and now updates the scanner status as well as coverage text, making clear that previous results remain and a new scan is required.
+- Added static contract assertions for these three lifecycle states. GitHub source readback is the verification performed; runtime tests and browser QA have not been run.
