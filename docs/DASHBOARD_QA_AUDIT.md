@@ -667,3 +667,18 @@ Screen-reader testing, physical mobile-device QA and live backend fault testing 
 ### Change-control confirmation
 
 This checkpoint is documentation-only. No dashboard application code, backend code, workflow, database, secrets, billing settings, `main`, PR merge state, staging service or production service was changed. No merge/rebase or deployment was performed.
+
+
+## 33. Isolated performance QA harness added (2026-11-15)
+
+Added a dedicated, feature-branch-only GitHub Actions workflow and local static-server/profiling harness:
+
+- `.github/workflows/dashboard-performance-qa.yml`: manual dispatch and scoped feature-branch push triggers; read-only repository permissions; Ubuntu 24.04; pinned Playwright 1.56.1 and Lighthouse 12.8.2; 25-minute job timeout; artifact upload on success or failure.
+- `tests/serve_dashboard_qa.cjs`: serves only the checked-out `dashboard/` directory on loopback port 4173, rejects path traversal, and uses no backend credentials or external service.
+- `tests/dashboard_performance_qa.cjs`: runs Chromium at 390×844 with CPU throttle rates 1× and 4×, records initial navigation and up to 12 navigation interaction durations, captures JS heap metrics and DOM node count, and writes V8 heap snapshots plus JSON metadata.
+
+The workflow requests three mobile Lighthouse cold-load JSON reports and preserves raw Lighthouse reports, heap snapshots and browser profile JSON as a 14-day Actions artifact. The isolated dashboard is static and does not connect to a live backend, database, secrets or production.
+
+**Execution status:** harness and workflow files were committed to the feature branch and read back from GitHub. No completed Actions run or uploaded performance artifact has yet been verified in this audit. Therefore Lighthouse scores, Core Web Vitals, heap values and CPU-throttled timings remain **NOT MEASURED / PENDING RUN**. The workflow's successful completion and artifact contents must be checked before publishing any numbers. The current browser harness reports JS heap metrics after interaction/GC and captures snapshots at each CPU rate; it is not a repeated-cycle leak certification or physical-device profile.
+
+No `main` change, merge/rebase, PR merge, staging/production deployment, backend mutation, database change or secret change was made.
