@@ -846,5 +846,13 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn("td.textContent=scannerCellText(key,item?.[key])", rows)
         self.assertNotIn("String(item[key])", rows)
 
+
+    def test_scanner_table_rows_are_batched_in_a_document_fragment(self) -> None:
+        rows = self.js.split("function renderRows(target, rows, columns)", 1)[1].split("function syncAnalysisHeader()", 1)[0]
+        self.assertIn("const rowFragment=document.createDocumentFragment()", rows)
+        self.assertIn("rowFragment.append(tr)", rows)
+        self.assertIn("body.append(rowFragment)", rows)
+        self.assertNotIn("body.append(tr)", rows)
+
 if __name__ == "__main__":
     unittest.main()
