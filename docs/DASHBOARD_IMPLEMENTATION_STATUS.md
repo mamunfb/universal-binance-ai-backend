@@ -981,3 +981,19 @@ Verified feature-branch HEAD: `ff39adc7d9d013215d5e1af3e79e3913a7560f8a`.
 - Dashboard Frontend run ID `43717409892`: **success**, 119 dashboard Python tests plus chart fixtures and JavaScript syntax checks passed.
 - Backend + Dashboard run ID `43717409851`: **success**, **634 passed, 2 warnings**.
 - Browser/mobile viewport, live API fault injection, screen-reader and performance profiling remain pending. No merge, deployment, backend/database change or main-branch update was performed.
+
+
+## Real-browser QA milestone — 2026-11-15
+
+- Added `tests/test_dashboard_browser.cjs` and `.github/workflows/dashboard-browser-qa.yml` to run isolated Chromium browser checks on the feature branch and pull requests.
+- Browser workflow is pinned to Ubuntu 24.04 with Playwright 1.56.1 because the Playwright version does not support the runner's Ubuntu 26.04 image.
+- Chromium run #9, ID `43718964746`, completed successfully: **4 tests passed, 0 failed**.
+- Tested viewport widths: 360, 390, 480, 760, 768, 1100 and 1280 CSS px; no horizontal document/body overflow.
+- Tested mobile sidebar keyboard focus wrapping, Escape close and focus restoration.
+- Tested mocked backend health success, HTTP 503 and malformed JSON error handling; no page-level JavaScript exceptions in these tested paths.
+- The browser run exposed and led to correction of a 768px horizontal overflow. The responsive off-canvas navigation breakpoint and matching JavaScript media queries were moved from 760px to 900px.
+- Updated the mobile navigation focus target to the first keyboard-focusable sidebar item; static and browser keyboard checks pass.
+- Backend + Dashboard run #1751, ID `43718964792`: **634 passed, 2 warnings**.
+- Dashboard Frontend run #31, ID `43718841160`: **119 dashboard tests**, chart fixtures and JavaScript syntax checks passed.
+
+Limits: API fault cases use deterministic route mocks, not the live backend. Screen-reader/assistive-technology testing, physical-device testing, Lighthouse/Core Web Vitals, memory profiling, live API integration and production verification remain pending. No merge, deployment, backend/database change, secret change or main-branch update was performed.
