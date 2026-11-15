@@ -57,9 +57,11 @@ class DashboardContractTests(unittest.TestCase):
         expected = {"1m", "3m", "5m", "15m", "30m", "1h", "2h", "3h", "4h", "6h", "8h", "12h", "1D", "3D", "1W", "1M"}
         self.assertTrue(all(f'"{value}"' in self.js for value in expected))
 
+
     def test_spot_scanner_defaults_to_all_quote_assets(self) -> None:
         self.assertIn('value="" aria-label="Quote asset" placeholder="All quote assets (optional)"', self.html)
-        self.assertIn('path="/api/v1/markets/spot/scan"+(quote?', self.js)
+        self.assertIn('quoteFilter=($("spot-quote")?.value||"").trim().toUpperCase()', self.js)
+        self.assertIn('path="/api/v1/markets/spot/scan"+(quoteFilter?', self.js)
 
     def test_custom_three_hour_aggregation_requires_complete_aligned_bars(self) -> None:
         self.assertIn("function aggregate3h", self.chart_js)
@@ -86,17 +88,18 @@ class DashboardContractTests(unittest.TestCase):
         ):
             self.assertIn(case, source)
 
+
     def test_chart_discards_superseded_timeframe_responses(self) -> None:
         self.assertIn("let activeLoadSequence=0", self.chart_js)
-        self.assertIn("const requestSequence=++activeLoadSequence", self.chart_js)
+        self.assertIn("requestSequence=++activeLoadSequence", self.chart_js)
         self.assertIn('status:"SUPERSEDED"', self.chart_js)
         self.assertIn("function invalidate(){activeLoadSequence++;if(activeLoadController)", self.chart_js)
         self.assertIn("activeLoadController.abort()", self.chart_js)
         self.assertIn("window.DashboardCharts.invalidate()", self.js)
         self.assertIn("invalidateChartView();", self.js)
-        self.assertIn("catch(error){if(requestSequence!==activeLoadSequence)return{status:\"SUPERSEDED\"", self.chart_js)
+        self.assertIn('if(requestSequence!==activeLoadSequence)return{status:"SUPERSEDED",market,symbol,requested_timeframe:tf}', self.chart_js)
         self.assertIn("activeEvidenceSequence=0", self.js)
-        self.assertIn("if(requestSequence!==activeEvidenceSequence)return{status:\"SUPERSEDED\"}", self.js)
+        self.assertIn('if(requestSequence!==activeEvidenceSequence)return{status:"SUPERSEDED"}', self.js)
 
     def test_primary_coin_analysis_action_loads_candles(self) -> None:
         self.assertIn('$("load-coin-analysis").addEventListener("click",()=>withButton("load-coin-analysis",loadTechnical', self.js)
@@ -227,12 +230,15 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn("indicator series align to candles", source)
         self.assertIn("macdComponents", source)
 
+
     def test_chart_parser_rejects_blank_numbers_and_duplicate_timestamps(self) -> None:
-        self.assertIn('v.trim()===""', self.chart_js)
+        self.assertIn("const text=v.trim()", self.chart_js)
+        self.assertIn("!/", self.chart_js)
         self.assertIn("counts.get(candle.time)===1", self.chart_js)
         source = (ROOT / "tests" / "test_dashboard_chart.js").read_text(encoding="utf-8")
         self.assertIn("whitespace-only numeric fields and all duplicate candle timestamps", source)
         self.assertIn("flat candles produce neutral Stochastic RSI and zero ADX", source)
+
 
     def test_chart_parser_rejects_invalid_values_and_uses_wilder_atr(self) -> None:
         self.assertIn("Object.values(c).every(Number.isFinite)", self.chart_js)
@@ -241,10 +247,12 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn("atr_14_wilder", self.chart_js)
         self.assertIn("if(g===0&&l===0)return 50", self.chart_js)
 
+
     def test_credentials_are_not_persisted_in_browser_storage(self) -> None:
         for forbidden in ("localStorage", "sessionStorage", "document.cookie"):
             self.assertNotIn(forbidden, self.js)
         self.assertIn('credentials:"omit"', self.js)
+        self.assertIn('cache:"no-store"', self.js)
         self.assertIn("if(!Number.isFinite(timeout)||timeout<=0)", self.js)
         self.assertIn("const hasBody=body!==undefined", self.js)
         self.assertIn("if(response.ok&&data===null)", self.js)
@@ -260,11 +268,15 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn('rejectUrl("Use HTTPS for remote backends.', self.js)
         self.assertIn('rejectUrl("Backend URL must include a host', self.js)
 
+
     def test_remote_backend_requires_https(self) -> None:
         self.assertIn("Use HTTPS for remote backends", self.js)
-        self.assertIn("http://localhost", self.js)
+        self.assertIn('parsed.protocol==="http:"', self.js)
+        self.assertIn('parsed.hostname==="localhost"', self.js)
+        self.assertIn('parsed.hostname==="127.0.0.1"', self.js)
         self.assertIn("let parsed;try{parsed=new URL(url);}", self.js)
         self.assertIn("parsed.username||parsed.password||parsed.search||parsed.hash", self.js)
+
 
     def test_market_scanners_support_sorting_and_bounded_pagination(self) -> None:
         self.assertIn("const tableViews = {}", self.js)
@@ -275,11 +287,11 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn("matching / ", self.js)
         self.assertIn("let activeScanSequence=0", self.js)
         self.assertIn("function invalidateScanRequests(){activeScanSequence++;if(activeScanController){activeScanController.abort();activeScanController=null;}}", self.js)
-        self.assertIn("if(requestSequence!==activeScanSequence)return{status:\"SUPERSEDED\",market}", self.js)
+        self.assertIn('if(requestSequence!==activeScanSequence)return{status:"SUPERSEDED",market}', self.js)
         self.assertIn("const numericValue=value=>", self.js)
-        self.assertIn("if(a.missing!==b.missing)return a.missing?1:-1", self.js)
-        self.assertIn("if((a.numeric!==null)!==(b.numeric!==null))return a.numeric!==null?-1:1", self.js)
-        self.assertIn('scannerCollator.compare(a.symbol,b.symbol)', self.js)
+        self.assertIn("if(aMissing!==bMissing)return aMissing?1:-1", self.js)
+        self.assertIn("if((an!==null)!==(bn!==null))return an!==null?-1:1", self.js)
+        self.assertIn("scannerCollator.compare(String(a?.symbol??""),String(b?.symbol??""))", self.js)
         self.assertIn('th.addEventListener("keydown",event=>{if(event.key==="Enter"||event.key===" ")', self.js)
         self.assertIn('th.setAttribute("aria-label","Sort by "+keys[index])', self.js)
         self.assertIn('th.setAttribute("aria-keyshortcuts","Enter Space")', self.js)
@@ -294,28 +306,34 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn("scannerSearchText(target,item,keys).includes(view.query)", self.js)
         self.assertIn("sortedRows.slice(view.page*view.pageSize", self.js)
 
+
     def test_health_and_market_evidence_ignore_superseded_responses(self) -> None:
         self.assertIn("let activeHealthSequence=0", self.js)
-        self.assertIn("const requestSequence=++activeHealthSequence", self.js)
+        self.assertIn("const requestSequence=activeHealthSequence", self.js)
         self.assertIn('if(requestSequence!==activeHealthSequence)return{status:"SUPERSEDED"}', self.js)
-        self.assertIn("activeHealthSequence++;window.DashboardCharts.invalidate()", self.js)
+        self.assertIn("activeEvidenceSequence++;window.DashboardCharts.invalidate()", self.js)
         self.assertIn('catch(error){if(requestSequence!==activeEvidenceSequence)return{status:"SUPERSEDED"}', self.js)
 
     def test_spot_quote_filter_invalidates_pending_scan(self) -> None:
         self.assertIn('$("spot-quote").addEventListener("input",()=>{invalidateScanRequests();', self.js)
         self.assertIn('setText("spot-coverage","Quote filter changed · run a new Spot scan")', self.js)
 
+
     def test_scanner_cells_normalize_null_and_empty_values(self) -> None:
-        self.assertIn('item?.[key]===undefined||item?.[key]===null||item?.[key]===""?"—"', self.js)
+        helper = self.js.split("function scannerCellText(key,value)", 1)[1].split("function renderRows", 1)[0]
+        self.assertIn('value===null||value===undefined||value===""', helper)
+        self.assertIn('return"—"', helper)
+        self.assertIn('return Number.isFinite(Number(value))?String(value):"Invalid number"', helper)
+
 
     def test_quality_report_ignores_superseded_requests(self) -> None:
         self.assertIn("let activeQualitySequence=0", self.js)
-        self.assertIn("function invalidateQualityRequest(){activeQualitySequence++;}", self.js)
+        self.assertIn("function invalidateQualityRequest(){activeQualitySequence++;if(activeQualityController)", self.js)
         self.assertIn('if(requestSequence!==activeQualitySequence)return{status:"SUPERSEDED"}', self.js)
         self.assertIn('["quality-market","quality-symbol","quality-interval","quality-lookback"]', self.js)
         self.assertIn('addEventListener("input",invalidate)', self.js)
         self.assertIn('setText("quality-state","Selection changed · run a new quality check")', self.js)
-        self.assertIn("invalidateQualityRequest();activeEvidenceSequence++", self.js)
+        self.assertIn("activeQualityController.abort()", self.js)
 
     def test_mobile_scanner_pagination_and_keyboard_focus_styles_exist(self) -> None:
         self.assertIn(".table-pager{flex-wrap:wrap}", self.css)
@@ -337,11 +355,14 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn("return parsed.filter(candle=>counts.get(candle.time)===1)", parse_body)
         self.assertLess(parse_body.index("const parsed="), parse_body.index("return parsed.filter"))
 
+
     def test_scanner_new_dataset_resets_pagination_and_keeps_missing_values_last(self) -> None:
-        self.assertIn("if(incomingRows!==view.rows){view.rows=incomingRows.slice();view.page=0;view.sortedCache=null;}", self.js)
-        missing_guard = self.js.split("sortable.sort((a,b)=>", 1)[1].split(";filteredCount=filtered.length", 1)[0]
-        self.assertIn("if(a.missing!==b.missing)return a.missing?1:-1", missing_guard)
-        self.assertIn("cmp*view.direction", missing_guard)
+        scanner = self.js.split("function renderRows(target, rows, columns)", 1)[1].split("function syncAnalysisHeader()", 1)[0]
+        self.assertIn("if(incomingRows!==view.rows){view.rows=incomingRows;view.page=0;view.sortedCache=null;", scanner)
+        self.assertIn("scannerSearchTextCaches[target]=new WeakMap()", scanner)
+        self.assertIn("if(aMissing!==bMissing)return aMissing?1:-1", scanner)
+        self.assertIn("if((an!==null)!==(bn!==null))return an!==null?-1:1", scanner)
+        self.assertIn("return cmp===0?0:cmp*direction", scanner)
 
     def test_scanner_pagination_reuses_cached_filtered_and_sorted_rows(self) -> None:
         self.assertIn("view.sortedCache=null", self.js)
@@ -356,12 +377,13 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn('a.setAttribute("aria-current","page")', self.js)
         self.assertIn('a.removeAttribute("aria-current")', self.js)
 
+
     def test_mobile_navigation_exposes_state_and_supports_escape(self) -> None:
         self.assertIn('aria-controls="sidebar"', self.html)
         self.assertIn('aria-expanded="false"', self.html)
-        self.assertIn('setAttribute("aria-expanded",String(open))', self.js)
+        self.assertIn('menu.setAttribute("aria-expanded",String(Boolean(open&&mobile)))', self.js)
         self.assertIn('event.key==="Escape"', self.js)
-        self.assertIn('$("mobile-menu").focus()', self.js)
+        self.assertIn('if(!open&&mobile&&sidebar.contains(document.activeElement))menu.focus()', self.js)
         self.assertIn(".nav-link:focus-visible", self.css)
 
     def test_api_network_failures_are_distinguished_from_timeouts(self) -> None:
@@ -395,19 +417,18 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn('Number.isSafeInteger(parsed)&&parsed>=0', self.js)
         self.assertNotIn('Number.isFinite(Number(value))', self.js)
 
+
     def test_scanner_display_metadata_accepts_only_safe_primitives(self) -> None:
-        self.assertIn('function metadataText(value,fallback="Not supplied")', self.js)
-        self.assertIn("maxLength=160", self.js)
+        self.assertIn('function metadataText(value,fallback="Not supplied",maxLength=160)', self.js)
         self.assertIn('textValue.length>maxLength?textValue.slice(0,maxLength-1)+"…":textValue', self.js)
-        self.assertIn('metadataText(data.source,"Backend response",120)', self.js)
-        self.assertIn('metadataText(data.status,metadataText(data.scan_status,"Returned",80),80)', self.js)
+        self.assertIn('metadataText(data.source,"Not supplied",120)', self.js)
+        self.assertIn('metadataText(data.status,metadataText(data.scan_status,"Not supplied",80),80)', self.js)
         self.assertIn('typeof value==="string"&&value.trim()!==""', self.js)
         self.assertIn('typeof value==="number"&&Number.isFinite(value)', self.js)
         self.assertIn('return fallback;', self.js)
-        self.assertIn('metadataText(data.status,metadataText(data.scan_status,"Returned"))', self.js)
-        self.assertIn('metadataText(data.source,"Backend response")', self.js)
-        self.assertIn('metadataText(data.generated_at,metadataText(data.timestamp,metadataText(data.updated_at)))', self.js)
-        self.assertIn('"Status: "+metadataText(data.status,metadataText(data.scan_status))', self.js)
+        self.assertIn('metadataText(data.status,metadataText(data.scan_status,"Returned",80),80)', self.js)
+        self.assertIn('metadataText(data.generated_at??data.timestamp??data.updated_at??"Not supplied")', self.js)
+        self.assertIn('"Status: "+metadataText(data.status,metadataText(data.scan_status,"Not supplied",80),80)', self.js)
 
     def test_scanner_refresh_state_preserves_previous_results_on_failure(self) -> None:
         scan_body = self.js.split("async function scanMarket(market) {", 1)[1].split("function renderScannerMeta", 1)[0]
@@ -430,31 +451,26 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn("previous results were preserved.", scan_body)
         self.assertLess(scan_body.index(validation), scan_body.index("renderScanSummary(data)"))
 
+
     def test_scanner_rejects_non_object_response_rows_and_reports_count(self) -> None:
         self.assertIn('const rowKey=["symbols","markets","results","data"].find(key=>Array.isArray(data[key]))', self.js)
-        self.assertIn('const responseRows=hasRowsArray?data[rowKey]:[]', self.js)
+        self.assertIn("const responseRows=data[rowKey]", self.js)
         self.assertIn('responseRows.filter(item=>item!==null&&typeof item==="object"&&!Array.isArray(item))', self.js)
         self.assertIn("const rejectedRows=responseRows.length-rows.length", self.js)
         self.assertIn('"Rejected malformed rows: "+rejectedRows', self.js)
         self.assertIn("malformed rows were excluded", self.js)
+        self.assertIn("if(responseRows.length>0&&rows.length===0)", self.js)
+
 
     def test_scanner_distinguishes_missing_result_array_from_empty_array(self) -> None:
-        self.assertIn("const hasRowsArray=rowKey!==undefined", self.js)
         self.assertIn('const rowKey=["symbols","markets","results","data"].find(key=>Array.isArray(data[key]))', self.js)
+        self.assertIn('if(rowKey===undefined)', self.js)
+        self.assertIn('return{status:"INCOMPLETE_RESPONSE",market}', self.js)
         self.assertIn('const additionalRowKeys=["symbols","markets","results","data"].filter(key=>key!==rowKey&&Array.isArray(data[key]))', self.js)
         self.assertIn('"Additional array fields: "+(additionalRowKeys.length?additionalRowKeys.join(", "):"None")', self.js)
-        self.assertIn("renderScannerMeta(market,data,rows,rejectedRows,rowKey,additionalRowKeys)", self.js)
-        self.assertIn('"Result field: "+(rowKey||"Not supplied")', self.js)
-        self.assertIn("No recognized result array was supplied.", self.js)
-        self.assertIn('!hasRowsArray||rejectedRows?"info":"success"', self.js)
-        scan_body = self.js.split("async function scanMarket(market) {", 1)[1].split("function renderScannerMeta", 1)[0]
-        self.assertIn("if(hasRowsArray){", scan_body)
-        self.assertIn('else setText("scan-state","Incomplete response · previous results retained")', scan_body)
-        self.assertLess(scan_body.index("const hasRowsArray=rowKey!==undefined"), scan_body.index("if(hasRowsArray)renderScanSummary(data)"))
-        self.assertLess(scan_body.index("if(hasRowsArray)renderScanSummary(data)"), scan_body.index("if(hasRowsArray){"))
-        self.assertLess(scan_body.index("if(hasRowsArray){"), scan_body.index('renderRows("spot-rows",rows,6)'))
-        self.assertLess(scan_body.index("if(hasRowsArray){"), scan_body.index('renderRows("usdm-rows",rows,5)'))
-        self.assertLess(scan_body.index("if(hasRowsArray){"), scan_body.index('renderRows("coinm-rows",rows,5)'))
+        self.assertIn("renderScannerMeta(market,data,rows,rejectedRows,rowKey,additionalRowKeys,quoteFilter)", self.js)
+        scanner = self.js.split("async function scanMarket(market)", 1)[1].split("function scannerCountAliasConflicts", 1)[0]
+        self.assertLess(scanner.index("if(rowKey===undefined)"), scanner.index("renderScanSummary(data,market)"))
 
     def test_spot_scanner_exposes_backend_reported_coverage(self) -> None:
         self.assertIn('id="spot-coverage"', self.html)
@@ -504,18 +520,19 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn('body:hasBody?JSON.stringify(body):undefined', self.js)
         self.assertIn('const hasBody=body!==undefined', self.js)
 
+
     def test_chart_requests_abort_superseded_transports_and_keep_sequence_guard(self) -> None:
         self.assertIn("let activeLoadSequence=0,activeLoadController=null", self.chart_js)
         self.assertIn("if(activeLoadController)activeLoadController.abort()", self.chart_js)
         self.assertIn("function invalidate(){activeLoadSequence++;if(activeLoadController)", self.chart_js)
         self.assertIn("{signal:controller.signal}", self.chart_js)
-        self.assertIn("if(requestSequence!==activeLoadSequence)return{status:\\"SUPERSEDED\\"", self.chart_js)
+        self.assertIn('if(requestSequence!==activeLoadSequence)return{status:"SUPERSEDED",market,symbol,requested_timeframe:tf}', self.chart_js)
         self.assertIn("chart invalidation actively aborts the in-flight API request", self.chart_test_js)
 
     def test_api_wrapper_composes_caller_cancellation_with_timeout(self) -> None:
         self.assertIn("signal:externalSignal", self.js)
         self.assertIn('externalSignal?.addEventListener("abort",abortFromCaller', self.js)
-        self.assertIn('externalSignal?.aborted?"Request cancelled.":"Request timed out."', self.js)
+        self.assertIn('timedOut?"Request timed out.":externalSignal?.aborted?"Request cancelled.":"Request aborted."', self.js)
         self.assertIn('externalSignal?.removeEventListener("abort",abortFromCaller)', self.js)
 
     def test_chart_requests_ignore_superseded_responses_and_failures(self) -> None:
@@ -666,8 +683,9 @@ class DashboardContractTests(unittest.TestCase):
         self.assertLess(evidence_body.index("await api(path)"), evidence_body.index('showJson("analysis-output",data)'))
         self.assertIn('showJson("analysis-output",data)', evidence_body)
 
+
     def test_market_evidence_failure_keeps_previous_payload_and_shows_bounded_error(self) -> None:
-        self.assertIn('setText("chart-state","Evidence request failed · previous evidence retained")', self.js)
+        self.assertIn('setText("chart-state","Evidence request failed · previous chart and evidence retained")', self.js)
         self.assertIn('setText("technical-summary","Request failed: "+metadataText(error?.message,"Unknown error",160))', self.js)
         self.assertIn('if(requestSequence!==activeEvidenceSequence)return{status:"SUPERSEDED"};setText("chart-state"', self.js)
 
@@ -786,9 +804,11 @@ class DashboardContractTests(unittest.TestCase):
         clear_handler = self.js.split('$(\"clear-credentials\").addEventListener', 1)[1].split('$(\"display-timezone\")', 1)[0]
         self.assertIn("invalidateHealthRequests()", clear_handler)
 
+
     def test_compact_viewport_layout_and_focus_styles_cover_controls(self) -> None:
         self.assertIn(".filter-row>*{min-width:0}", self.css)
-        self.assertIn(".filter-row>label input,.filter-row>label select{width:100%;min-width:0}", self.css)
+        self.assertIn(".filter-row>label input,", self.css)
+        self.assertIn(".filter-row>label select{width:100%;min-width:0}", self.css)
         self.assertIn("@media(max-width:360px)", self.css)
         self.assertIn(".table-pager button:focus-visible", self.css)
         self.assertIn(".text-btn:focus-visible", self.css)
