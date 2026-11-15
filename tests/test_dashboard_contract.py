@@ -101,6 +101,12 @@ class DashboardContractTests(unittest.TestCase):
     def test_primary_coin_analysis_action_loads_candles(self) -> None:
         self.assertIn('$("load-coin-analysis").addEventListener("click",()=>withButton("load-coin-analysis",loadTechnical', self.js)
 
+    def test_wilder_smoothing_uses_overflow_safe_convex_updates(self) -> None:
+        self.assertIn("g=g*((n-1)/n)+Math.max(d,0)/n", self.chart_js)
+        self.assertIn("averageGain=averageGain*((n-1)/n)+gain/n", self.chart_js)
+        self.assertIn("value=value*((n-1)/n)+tr/n", self.chart_js)
+        self.assertIn("Wilder RSI and ATR smoothing remain finite for very large", self.chart_test_js)
+
     def test_atr_breaks_wilder_state_on_structurally_invalid_ohlc(self) -> None:
         atr_body = self.chart_js.split("function atrSeries(", 1)[1].split("\\nfunction macdComponents", 1)[0]
         self.assertIn("cur.high>=Math.max(cur.low,cur.close)", atr_body)
