@@ -632,3 +632,9 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Superseded chart responses remain ignored even if a transport/API implementation does not honor AbortSignal; cancellation is an efficiency improvement, while the sequence check remains the correctness guard.
 - Added a regression test that verifies chart invalidation aborts the supplied signal and returns a superseded result. Tests have not been executed; browser/network cancellation behavior remains unverified at runtime.
 
+## Bounded chart payload processing
+
+- Chart loading now caps source candle processing at the latest 1,000 rows, matching the request's configured `limit=1000`. Oversized backend responses cannot cause unbounded sorting, indicator calculation or chart rendering work in the browser.
+- The chart result reports both `source_rows_received` and `source_rows_processed`, alongside `candle_count` (which may be lower for 3h aggregation or invalid rows), so truncation and aggregation are distinguishable.
+- Added regression coverage using an oversized 1,200-row payload and verifying that only the latest 1,000 source rows are processed. Tests have not been executed; no performance benchmark is claimed.
+
