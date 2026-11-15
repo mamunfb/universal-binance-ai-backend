@@ -425,3 +425,64 @@ test("mobile navigation remains inert and focus-safe across desktop/mobile viewp
   assert.deepEqual(pageErrors, []);
   await context.close();
 });
+
+test("mobile dashboard accessibility is checked with navigation both closed and open", async () => {
+  const {context, page, pageErrors} = await newPage(390, 844);
+  await page.addScriptTag({path: require.resolve("axe-core")});
+  const menu = page.locator("#mobile-menu");
+  const sidebar = page.locator("#sidebar");
+
+  const scan = async state => {
+    const results = await page.evaluate(async () => window.axe.run(document, {
+      runOnly: {type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]}
+    }));
+    const violations = results.violations.map(item => ({
+      id: item.id,
+      impact: item.impact,
+      nodes: item.nodes.map(node => node.target)
+    }));
+    assert.deepEqual(violations, [], "mobile " + state + " accessibility violations: " + JSON.stringify(violations));
+  };
+
+  assert.equal(await sidebar.evaluate(el => el.inert), true);
+  await scan("closed navigation");
+  await menu.click();
+  assert.equal(await sidebar.evaluate(el => el.inert), false);
+  await scan("open navigation");
+  await page.keyboard.press("Escape");
+  assert.equal(await sidebar.evaluate(el => el.inert), true);
+  assert.deepEqual(pageErrors, []);
+  await context.close();
+});
+
+test("backend requests never send browser cookies and use no-store caching", async () => {
+  const {context, page, pageErrors} = await newPage(1280);
+  await page.locator('.nav-link[data-page="settings"]').click();
+  await page.locator("#backend-url").fill("https://backend.test");
+  await context.addCookies([{
+    name: "dashboard-session",
+    value: "must-not-leave-browser",
+    url: "https://backend.test"
+  }]);
+
+  let observedRequest = null;
+  await page.route("https://backend.test/health", async route => {
+    observedRequest = {
+      headers: await route.request().allHeaders(),
+      credentials: route.request().headers()["cookie"] ?? null
+    };
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      headers: {"access-control-allow-origin": "*"},
+      body: JSON.stringify({status: "ok"})
+    });
+  });
+  await page.locator("#test-connection").click();
+  await page.getByText("Backend health endpoint responded successfully.").waitFor();
+  assert.ok(observedRequest, "health request should reach the mocked backend");
+  assert.equal(observedRequest.credentials, null, "browser cookies must not accompany API requests");
+  assert.equal(observedRequest.headers["cache-control"], "no-store");
+  assert.deepEqual(pageErrors, []);
+  await context.close();
+});
