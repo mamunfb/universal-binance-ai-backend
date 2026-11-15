@@ -838,6 +838,7 @@ class DashboardContractTests(unittest.TestCase):
         helper = self.js.split("function scannerCellText(key,value)", 1)[1].split("function renderRows", 1)[0]
         self.assertIn('value===null||value===undefined||value===""', helper)
         self.assertIn('Number.isFinite(Number(value))', helper)
+        self.assertIn('if(typeof value!=="number"&&typeof value!=="string")return"Invalid number"', helper)
         self.assertIn('"Invalid number"', helper)
         self.assertIn('"Invalid value"', helper)
         self.assertIn('["last_price","quote_volume_24h","price_change_percent_24h"]', helper)
