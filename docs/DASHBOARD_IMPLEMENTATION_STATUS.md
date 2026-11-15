@@ -506,3 +506,10 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Health and scanner requests now settle independently. Each endpoint continues to update its own loading/success/failure state and retain its previous data on failure; if one or both fail, the refresh action reports a bounded partial-failure summary after both requests settle.
 - Added a Python static contract assertion for the independent request execution and bounded failure summary.
 - GitHub source readback is the verification performed; runtime tests and browser QA have not been run.
+
+
+## Superseded connection tests cannot report success
+
+- The Settings connection-test action now checks the health request result before writing its success message. If the health request was invalidated by a newer health check or by clearing/changing connection settings, it exits without claiming the backend responded successfully.
+- Added a Python static contract assertion that the superseded-result guard precedes the success status update.
+- GitHub source readback is the verification performed; runtime tests and browser QA have not been run.
