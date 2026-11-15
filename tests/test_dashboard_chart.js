@@ -378,7 +378,7 @@ test("chart rendering handles signed indicator ranges and normalized zero baseli
   try {
     const result = await charts.load(async () => ({klines:rows}), "SPOT", "BTCUSDT", "1h");
     assert.equal(result.candle_count,80);
-    assert.ok(output.textContent.includes("MACD"));
+    assert.ok(output.textContent.includes("macd_12_26"));
   } finally { global.document = originalDocument; }
 });
 
