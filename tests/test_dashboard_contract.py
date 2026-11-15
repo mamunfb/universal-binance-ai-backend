@@ -779,5 +779,21 @@ class DashboardContractTests(unittest.TestCase):
         self.assertLess(evidence.index('if(data===null||typeof data!=="object"||Array.isArray(data))'), evidence.index('chartHost.replaceChildren'))
         self.assertIn('Evidence request failed · previous chart and evidence retained', evidence)
 
+    def test_incomplete_scanner_response_preserves_previous_rows_and_coverage(self) -> None:
+        scanner = self.js.split("async function scanMarket(market)", 1)[1].split("function scannerCountAliasConflicts", 1)[0]
+        incomplete = scanner.split("if(rowKey===undefined)", 1)[1].split("const additionalRowKeys", 1)[0]
+        self.assertIn("previous results and coverage retained", incomplete)
+        self.assertIn('return{status:"INCOMPLETE_RESPONSE",market}', incomplete)
+        self.assertNotIn("renderRows(", incomplete)
+        self.assertNotIn("renderScannerMeta(", incomplete)
+        self.assertLess(scanner.index("if(rowKey===undefined)"), scanner.index("renderScanSummary(data)"))
+
+    def test_scanner_rejects_all_malformed_rows_without_replacing_previous_results(self) -> None:
+        scanner = self.js.split("async function scanMarket(market)", 1)[1].split("function scannerCountAliasConflicts", 1)[0]
+        malformed = scanner.split("if(responseRows.length>0&&rows.length===0)", 1)[1].split("renderScanSummary(data)", 1)[0]
+        self.assertIn("previous results and coverage were preserved", malformed)
+        self.assertLess(scanner.index("if(responseRows.length>0&&rows.length===0)"), scanner.index("renderScanSummary(data)"))
+        self.assertIn('Requested quote filter:', self.js.split("function renderScannerMeta", 1)[1].split("const details=", 1)[1].split("];", 1)[0])
+
 if __name__ == "__main__":
     unittest.main()
