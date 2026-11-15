@@ -18,13 +18,20 @@ function aggregate3h(rows){
  const map=new Map();valid.forEach(c=>{const start=Math.floor(c.time/10800000)*10800000;if(!map.has(start))map.set(start,[]);map.get(start).push(c);});
  return [...map.entries()].sort((a,b)=>a[0]-b[0]).flatMap(([start,a])=>{a.sort((x,y)=>x.time-y.time);if(a.length!==3||a[0].time!==start||a[1].time!==start+3600000||a[2].time!==start+7200000||a.some(x=>x.closeTime!==x.time+3599999))return[];const volume=a.reduce((sum,x)=>sum+x.volume,0);if(!Number.isFinite(volume))return[];return[{time:start,open:a[0].open,high:Math.max(...a.map(x=>x.high)),low:Math.min(...a.map(x=>x.low)),close:a[2].close,volume,closeTime:a[2].closeTime}];});
 }
+function finiteBlend(previous,current,weight){
+ if(!Number.isFinite(previous)||!Number.isFinite(current)||!Number.isFinite(weight)||weight<0||weight>1)return null;
+ const scale=Math.max(Math.abs(previous),Math.abs(current));if(scale===0)return 0;
+ const normalized=previous/scale*(1-weight)+current/scale*weight;
+ if(!Number.isFinite(normalized))return null;
+ return Math.min(1,Math.max(-1,normalized))*scale;
+}
 function finiteMean(values){
  if(!values.length||!values.every(Number.isFinite))return null;
  let mean=values[0];
- for(let i=1;i<values.length;i++){const weight=1/(i+1);mean=mean*(1-weight)+values[i]*weight;}
+ for(let i=1;i<values.length;i++){const weight=1/(i+1);mean=finiteBlend(mean,values[i],weight);if(mean===null)return null;}
  return Number.isFinite(mean)?mean:null;
 }
-function ema(a,n){if(a.length<n||!a.every(Number.isFinite))return null;const k=2/(n+1);let v=finiteMean(a.slice(0,n));if(v===null)return null;for(let i=n;i<a.length;i++){v=a[i]*k+v*(1-k);if(!Number.isFinite(v))return null;}return v;}
+function ema(a,n){if(a.length<n||!a.every(Number.isFinite))return null;const k=2/(n+1);let v=finiteMean(a.slice(0,n));if(v===null)return null;for(let i=n;i<a.length;i++){v=finiteBlend(v,a[i],k);if(v===null)return null;}return v;}
 function sma(a,n){return a.length<n?null:finiteMean(a.slice(-n));}
 function scaledDeviation(values,mean){
  if(!values.length||mean===null||!Number.isFinite(mean))return null;
@@ -70,7 +77,7 @@ function emaSeries(values,n){
   runLength++;
   if(runLength<n)continue;
   if(runLength===n){value=finiteMean(values.slice(i-n+1,i+1));if(value!==null)out[i]=value;continue;}
-  value=values[i]*k+value*(1-k);if(!Number.isFinite(value)){runLength=0;value=null;continue;}out[i]=value;
+  value=finiteBlend(value,values[i],k);if(value===null){runLength=0;continue;}out[i]=value;
  }
  return out;
 }
