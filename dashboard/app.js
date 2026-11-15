@@ -24,7 +24,7 @@
   function navigate(page) {
     const known = PAGE_TITLES[page] ? page : "overview";
     document.querySelectorAll(".page-view").forEach(p=>p.classList.toggle("active",p.id==="page-"+known || (known!=="overview" && !document.getElementById("page-"+known) && p.id==="page-placeholder")));
-    document.querySelectorAll(".nav-link").forEach(a=>a.classList.toggle("active",a.dataset.page===known));
+    document.querySelectorAll(".nav-link").forEach(a=>{const active=a.dataset.page===known;a.classList.toggle("active",active);if(active)a.setAttribute("aria-current","page");else a.removeAttribute("aria-current");});
     const title=PAGE_TITLES[known] || known;
     setText("page-crumb",title);
     if(!document.getElementById("page-"+known)) { setText("placeholder-title",title); setText("placeholder-description", "This research area is included in the approved dashboard scope. Its API capability must be verified before live data is shown."); }
