@@ -675,3 +675,8 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - The default Bollinger window remains a numerically scaled, per-window population-deviation calculation. It is intentionally not replaced with a naïve rolling sum-of-squares algorithm, which can lose precision or overflow on extreme finite inputs. Chart payloads are already capped at 1,000 source rows and the default period is 20, so the current default work is bounded; a more complex rolling algorithm requires a separately validated stable-variance design.
 - Added source-level checks and regression coverage for non-array input, invalid parameters and the fragment-based chart builder. Tests have not been executed.
 
+## Chart test harness alignment
+
+- Updated the oversized-payload chart-rendering test double to provide `document.createDocumentFragment()`, matching the SVG batching API used by the production renderer. Added a static contract assertion so both chart-rendering DOM shims retain fragment support.
+- This closes a test-fixture compatibility gap introduced by the SVG batching refactor; the test suite remains unexecuted under the current work restrictions.
+
