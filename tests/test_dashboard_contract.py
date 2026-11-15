@@ -57,6 +57,27 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn("start+3600000", self.chart_js)
         self.assertIn("start+7200000", self.chart_js)
 
+    def test_chart_fixture_suite_covers_parsing_aggregation_and_indicators(self) -> None:
+        chart_tests = ROOT / "tests" / "test_dashboard_chart.js"
+        self.assertTrue(chart_tests.is_file())
+        source = chart_tests.read_text(encoding="utf-8")
+        for case in (
+            "parse sorts valid OHLCV rows",
+            "3h aggregation combines exactly three",
+            "3h aggregation discards incomplete",
+            "timeframe and market route mapping",
+            "flat price RSI is neutral",
+            "insufficient history leaves long-period indicators unavailable",
+        ):
+            self.assertIn(case, source)
+
+    def test_chart_parser_rejects_invalid_values_and_uses_wilder_atr(self) -> None:
+        self.assertIn("Object.values(c).every(Number.isFinite)", self.chart_js)
+        self.assertIn("c.volume>=0", self.chart_js)
+        self.assertIn("function atrWilder", self.chart_js)
+        self.assertIn("atr_14_wilder", self.chart_js)
+        self.assertIn("if(g===0&&l===0)return 50", self.chart_js)
+
     def test_credentials_are_not_persisted_in_browser_storage(self) -> None:
         for forbidden in ("localStorage", "sessionStorage", "document.cookie"):
             self.assertNotIn(forbidden, self.js)
