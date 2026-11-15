@@ -19,7 +19,6 @@
   const formatNumber = (value) => value===null || value===undefined || value==="" ? "—" : (Number.isFinite(Number(value)) ? new Intl.NumberFormat(undefined,{maximumFractionDigits:2}).format(Number(value)) : "—");
   const json = (value) => JSON.stringify(value,null,2);
   const showJson = (id, value) => { const el=$(id); if(el) el.textContent=json(value); };
-  const safeArray = (obj, keys=[]) => { if(Array.isArray(obj)) return obj; for(const key of keys) if(Array.isArray(obj?.[key])) return obj[key]; return []; };
   const setConnection = (ok, label) => { const dot=$("connection-dot"); dot.className="status-dot "+(ok?"good":"bad"); setText("connection-label",label); $("connection-banner").querySelector(".status-dot").className="status-dot "+(ok?"good":"bad"); $("connection-banner").querySelector("span:nth-child(2)").textContent=label; };
   function navigate(page) {
     const known = PAGE_TITLES[page] ? page : "overview";
@@ -89,17 +88,19 @@
     if(requestSequence!==activeScanSequence)return{status:"SUPERSEDED",market};
     if(data===null||typeof data!=="object"||Array.isArray(data))throw new Error("Scanner endpoint returned an invalid response shape. Expected a JSON object; previous results were preserved.");
     renderScanSummary(data);
-    const responseRows=safeArray(data,["symbols","markets","results","data"]);
+    const rowKey=["symbols","markets","results","data"].find(key=>Array.isArray(data[key]));
+    const hasRowsArray=rowKey!==undefined;
+    const responseRows=hasRowsArray?data[rowKey]:[];
     const rows=responseRows.filter(item=>item!==null&&typeof item==="object"&&!Array.isArray(item));
     const rejectedRows=responseRows.length-rows.length;
     if(market==="SPOT") renderRows("spot-rows",rows,6);
     if(market==="USD_M") renderRows("usdm-rows",rows,5);
     if(market==="COIN_M") renderRows("coinm-rows",rows,5);
-    renderScannerMeta(market,data,rows,rejectedRows);
-    toast(market+" scan response received. Check coverage and failure counts."+(rejectedRows?" "+rejectedRows+" malformed rows were excluded.":""),rejectedRows?"info":"success");
+    renderScannerMeta(market,data,rows,rejectedRows,rowKey);
+    toast(market+" scan response received."+(!hasRowsArray?" No recognized result array was supplied.":rejectedRows?" "+rejectedRows+" malformed rows were excluded.":" Check coverage and failure counts."),!hasRowsArray||rejectedRows?"info":"success");
     return data;
   }
-  function renderScannerMeta(market,data,rows,rejectedRows=0) {
+  function renderScannerMeta(market,data,rows,rejectedRows=0,rowKey=null) {
     const prefix=market==="USD_M"?"usdm":market==="COIN_M"?"coinm":"spot";
     const countNames={
       eligible:["eligible_count","eligible_symbols","eligible","total_eligible","total_symbols"],
@@ -108,6 +109,7 @@
       matched:["matched_count","match_count","qualified_count","candidate_count"]
     };
     const details=[
+      "Result field: "+(rowKey||"Not supplied"),
       "Returned rows: "+rows.length,
       "Rejected malformed rows: "+rejectedRows,
       "Status: "+(data.status||data.scan_status||"Not supplied"),
