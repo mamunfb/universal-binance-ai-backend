@@ -842,10 +842,12 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 
 ## Scanner large-dataset allocation review
 
-- Source inspection found that each search/sort rebuild previously created a filtered row array, a second array of decorated sort records, and a third array of sorted row references. A new scan also copied the incoming row array into the table view.
-- Reworked the Scanner pipeline to retain the already-owned incoming row array, filter into one decorated-entry array, sort that array in place, and keep the sorted entries in the existing cache. Rendering reads the underlying row from each entry. This removes the full-size filtered intermediate array, the full-size mapped sorted-row array, and the extra incoming-row copy.
-- Search still scans the current dataset and selected visible columns for each input update; sorting remains synchronous and comparison-sort based. No debounce, worker, server-side pagination, or backend changes were introduced. Complexity remains O(N × searchable columns) per uncached search and O(M log M) for sorting the M matching rows.
-- Added a source-contract regression method covering single-array filtering/sorting, row-array ownership, and paginated entry rendering; the static contract method count is expected to increase from 104 to 105.
-- This is a source-level allocation reduction hypothesis, not a measured memory or speed result. No heap snapshot, browser profiling, large-dataset benchmark, Python test execution, CI run, merge, or deployment has been performed.
+- Source inspection found that the first single-array refactor retained a decorated object per matching row in the sort cache. Although it removed intermediate arrays, those per-row objects also retained parsed sort values and symbol strings; this was not a sufficiently conservative memory design.
+- Revised the implementation to retain only row references in the filtered/sorted cache. Search pushes matching source-row references into one array, sorting operates directly on that array, and pagination slices only the visible page. The extra incoming-row copy and full-size decorated-object array are avoided.
+- The comparator now reads the selected field and parses numeric strings during comparisons. This reduces retained per-row cache metadata at the cost of repeated comparator work; the CPU/memory trade-off is unmeasured and must be checked with browser benchmarks.
+- Numeric/missing-value ordering remains explicit: missing values stay last and non-numeric values stay after valid numeric values in both directions. Tie-breaking remains symbol-based.
+- Updated the static regression contracts to verify row-reference-only caching and numeric safety. Static contract method count remains 105; tests have not been executed.
+- Search remains O(N × searchable columns) per uncached query and sorting remains O(M log M) for M matching rows. No debounce, worker, server-side pagination, or backend changes were introduced.
+- This is a source-level memory-allocation design improvement, not a measured RAM or speed result. No heap snapshot, browser profiling, large-dataset benchmark, Python test execution, CI run, merge, or deployment has been performed.
 - Frontend-only: backend source and CI workflows remain untouched.
 
