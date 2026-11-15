@@ -106,6 +106,17 @@ test("MACD signal and histogram are derived from the aligned MACD line", () => {
   assert.ok(Number.isFinite(latest.histogram));
 });
 
+
+test("latest RSI and ATR series values match the compact indicator snapshot", () => {
+  const values = Array.from({length:80}, (_,i) => 120 + Math.sin(i/4)*3 + i*0.12);
+  const candles = values.map((close,i) => ({time:i*3600000,open:close-0.15,high:close+1.1,low:close-0.9,close,volume:10,closeTime:i*3600000+3599999}));
+  const snapshot = charts.indicators(candles);
+  const rsi = charts.rsiSeries(values);
+  const atr = charts.atrSeries(candles);
+  assert.ok(Math.abs(rsi.at(-1)-snapshot.rsi_14_wilder)<1e-10);
+  assert.ok(Math.abs(atr.at(-1)-snapshot.atr_14_wilder)<1e-10);
+});
+
 test("insufficient history leaves long-period indicators unavailable", () => {
   const rows = [candle(0, 100), candle(3600000, 101)];
   const result = charts.indicators(rows.map(row => ({time:row[0],open:row[1],high:row[2],low:row[3],close:row[4],volume:row[5],closeTime:row[6]})));
