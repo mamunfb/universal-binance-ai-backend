@@ -248,3 +248,5 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - API request timeout values are validated as positive finite numbers. Request bodies are detected by undefined-ness rather than truthiness, so valid falsy JSON payloads are not silently dropped. Successful empty responses are rejected explicitly instead of leaking null into response renderers.
 - Added static contract assertions for the new API guards, keyboard sorting, accessible pagination and mixed-type deterministic ordering.
 - Changes are committed and readback verification is pending. No runtime test execution or browser accessibility audit has been performed in this environment.
+
+- Accessibility follow-up: sortable headers retain native table-column header semantics rather than being re-role'd as buttons; they remain keyboard-focusable with Enter/Space handling and explicit key-shortcut metadata. Contract assertions enforce this.
