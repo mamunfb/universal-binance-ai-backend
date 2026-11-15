@@ -955,3 +955,44 @@ Run #19 ([workflow 43727872396](https://github.com/mamunfb/universal-binance-ai-
 Updated the test-only `settleScannerDom` helper in commit `0d740892d1463bc1fd125fc25992d4edd782cbde` to keep the current 600 cell wrapper references in `window.__qaHeapKeepAlive` through each snapshot and assert all 600 remain connected. The helper refreshes this reference array after each clear/search cycle, so references to replaced rows are not intentionally retained between cycles. This should produce equivalent wrapper populations in the baseline and final snapshots; the next CI artifact must be inspected to confirm rather than assumed.
 
 Run #19 scanner interaction timings remain valid as observations: 1x render/sort/search/pagination 66/38/170/69 ms, five cycles 2,406 ms; 4x 86/79/171/128 ms, five cycles 3,349 ms. The measured heap deltas (+61,636 / +49,752 bytes) remain provisional until snapshot wrapper counts are verified as comparable. No dashboard application or backend source changed.
+
+
+## 50. Run #20 strong-reference experiment and evidence review (2026-11-15)
+
+Run #20 ([workflow 43728309911](https://github.com/mamunfb/universal-binance-ai-backend/actions/runs/43728309911)) completed successfully on commit `0d740892d1463bc1fd125fc25992d4edd782cbde`. All workflow steps passed, including three Lighthouse mobile audits, CPU-throttled profiling, and artifact upload. The profiler exercised the full 1,000-row mock Spot Scanner fixture and reported no browser page errors.
+
+### Scanner interaction timings
+
+| Measurement | CPU 1x | CPU 4x |
+|---|---:|---:|
+| Scan render | 67 ms | 92 ms |
+| Sort | 38 ms | 80 ms |
+| Search | 170 ms | 179 ms |
+| Pagination | 68 ms | 130 ms |
+| Five repeated interaction cycles | 2,350 ms | 3,127 ms |
+| Browser page errors | 0 | 0 |
+
+### Lighthouse mobile results
+
+Three cold-load samples, 390 × 844 viewport, mobile simulated throttling. Values are read from the uploaded Lighthouse JSON reports.
+
+| Metric | Sample 1 | Sample 2 | Sample 3 | Median |
+|---|---:|---:|---:|---:|
+| Performance score | 97 | 100 | 100 | 100 |
+| FCP | 1,579 ms | 903 ms | 903 ms | 903 ms |
+| LCP | 1,879 ms | 1,653 ms | 1,653 ms | 1,653 ms |
+| Speed Index | 1,579 ms | 903 ms | 903 ms | 903 ms |
+| Total Blocking Time | 176 ms | 0 ms | 0 ms | 0 ms |
+| CLS | 0 | 0.0000238 | 0.0000238 | 0.0000238 |
+
+The first Lighthouse sample is slower than the subsequent two; retain all three samples and do not treat the median as a guarantee.
+
+### Heap snapshot interpretation remains unresolved
+
+The strong-reference experiment in commit `0d740892d1463bc1fd125fc25992d4edd782cbde` was intended to keep 600 cell wrappers alive at both snapshot points. Direct inspection of the resulting artifact still found 24 `HTMLTableCellElement` wrapper objects in each baseline snapshot and 1,224 after-cycle, while the browser profiler's DOM-node metric rose to 3,962 / 3,959. This confirms that the artificial keep-alive approach changed snapshot retention and did not create a comparable baseline/post-cycle heap population.
+
+Consequently, the reported heap deltas (+80,092 bytes at 1x and +81,224 bytes at 4x) are **not valid evidence of application memory growth or leak behavior**. The V8 snapshots are retained for further inspection, but no leak/no-leak conclusion is made. Future memory work should use a dedicated harness that measures stable app-owned objects without pinning transient DOM wrappers, or should omit numerical heap-delta claims and rely on targeted retained-object/retainer analysis.
+
+Artifact: [dashboard-performance-0d740892d1463bc1fd125fc25992d4edd782cbde](https://github.com/mamunfb/universal-binance-ai-backend/actions/runs/43728309911/artifacts/14167611050), artifact ID `14167611050`, 4,872,138 bytes, SHA-256 `f85e30d715df50cf7bb6dff2f39b4bab07dad48dc3b7e5a19c6226e8eaf2a861`.
+
+No dashboard application source, backend logic, database, secrets, `main`, PR merge state, staging, or production deployment was changed by this run or its audit entry.
