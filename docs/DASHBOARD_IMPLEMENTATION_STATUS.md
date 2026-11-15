@@ -219,3 +219,14 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Extended the Python static contract suite to assert the invalidation hook and its app integration.
 - GitHub source writes and subsequent readback are the verification performed. Node and Python tests have **not** been executed; no pass result is claimed. Browser QA and live API testing remain outstanding.
 - Changes remain confined to dashboard frontend source, dashboard tests and this ledger. No backend, migrations, CI workflows, secrets, deployment settings, PR, merge or deployment were changed.
+
+
+## Scanner and analysis concurrency / numerical consistency pass
+
+- Added a request-sequence guard to market scans. Older responses (including late failures) are ignored after a newer scan starts or the selected market changes, preventing stale scanner results from overwriting the current market view.
+- Hardened table sorting so blank strings and booleans are not treated as numeric zero/one values; numeric sorting is used only when both compared values are valid finite numbers.
+- Added a separate market-evidence request sequence. Changing the analysis selection or starting a candle-chart load invalidates pending evidence responses; superseded chart/evidence responses no longer show success as if they were current.
+- Candle API failures from obsolete chart requests are suppressed as superseded rather than surfaced as current-selection errors.
+- Added a numerical fixture comparing the latest RSI and ATR series values against the compact indicator snapshot, plus static contract assertions for scanner/evidence/chart request invalidation and safe sorting.
+- Changes and tests were written to the frontend branch and source readback remains required. Node.js and Python suites have **not** been executed; no test-pass claim is made. Browser QA and live API integration remain outstanding.
+- No backend runtime, migrations, workflows, secrets, database or deployment configuration changed. No PR, merge, CI trigger or deployment was performed.
