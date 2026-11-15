@@ -309,7 +309,7 @@ test("1000-row scanner response stays paginated, searchable and keyboard-sortabl
   assert.equal(await page.locator("#spot-rows tr").count(), 100,
     "the DOM must contain only one 100-row page, not all 1000 rows");
   const pager = page.locator("#page-spot-scanner .table-pager");
-  assert.match(await pager.innerText(), /1000 matching \/ 1000 returned/);
+  assert.match(await pager.innerText(), /1,000 matching \/ 1,000 returned/);
   assert.match(await pager.innerText(), /page 1\/10/);
 
   const symbolHeader = page.locator("#page-spot-scanner thead th").first();
