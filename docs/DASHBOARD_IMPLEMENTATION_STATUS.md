@@ -529,3 +529,10 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Clearing credentials resets health, scanner and quality states so an invalidated request cannot leave a misleading loading label or an old backend status on screen.
 - Changing the scanner market through either market tabs or the default-market setting now replaces an invalidated scan loading state with an explicit instruction to run a new scan.
 - Added static contract coverage for backend reconfiguration, credential clearing and market-selection invalidation. These checks are source-level assertions; runtime tests and browser QA remain outstanding.
+
+
+## Health and Data Quality response-shape validation
+
+- A successful HTTP response is no longer treated as a healthy backend unless `/health` returns a non-null JSON object; arrays and scalar JSON values are rejected and reported as unavailable.
+- Data Quality accepts only a non-null JSON object. A successful HTTP response containing an array or scalar is reported as invalid, and the previously displayed report is preserved.
+- Added static contract tests verifying validation occurs before health state is marked successful or quality output is replaced. Runtime tests and browser QA have not been run.
