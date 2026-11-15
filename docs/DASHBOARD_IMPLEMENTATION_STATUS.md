@@ -473,3 +473,11 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Provenance is determined using the same primitive-only metadata acceptance rule as the displayed value. Invalid or blank higher-priority aliases do not appear as the selected field.
 - Timestamp values are deliberately displayed as supplied (with the existing length bound); the dashboard does not guess whether numeric values represent seconds, milliseconds or another unit, and does not reinterpret timezone-less strings.
 - Added a Python static contract assertion for the selected source and timestamp field labels. GitHub source readback is the verification performed; runtime tests and browser QA have not been run.
+
+## Evidence and quality request error recovery
+
+- A current Market Evidence request failure now changes the chart/evidence status to an explicit failure state and displays a bounded error summary. The previously rendered evidence JSON is not cleared.
+- A current Data Quality request failure now reports that the previous report is retained and appends a bounded error summary. The previous report output is not cleared.
+- Superseded request failures remain ignored and cannot replace the status for a newer selection/request.
+- Health connection error labels are now length-bounded before display. Error strings remain rendered as text, not HTML.
+- Added Python static contract assertions for the evidence, quality and health error paths. GitHub source readback is the verification performed; runtime suites and browser QA have not been run.
