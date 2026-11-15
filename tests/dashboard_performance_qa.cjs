@@ -12,7 +12,12 @@ const {chromium}=require("playwright");
    const errors=[];page.on("pageerror",e=>errors.push(e.message));
    const start=Date.now();await page.goto("http://127.0.0.1:4173",{waitUntil:"networkidle"});const loadMs=Date.now()-start;
    const nav=page.locator("#main-nav .nav-link"),count=await nav.count(),navSamples=[];
-   for(let i=0;i<Math.min(count,12);i++){const t=Date.now();await nav.nth(i).click();await page.waitForTimeout(30);navSamples.push({page:await nav.nth(i).getAttribute("data-page"),duration_ms:Date.now()-t});}
+   for(let i=0;i<Math.min(count,12);i++){
+    const link=nav.nth(i),pageName=await link.getAttribute("data-page");
+    if(await page.locator("#mobile-menu").isVisible())await page.locator("#mobile-menu").click();
+    const t=Date.now();await link.click();await page.waitForFunction(name=>document.querySelector("#page-crumb")?.textContent?.trim()!=="",pageName);await page.waitForTimeout(30);
+    navSamples.push({page:pageName,duration_ms:Date.now()-t,sidebar_closed:!(await page.locator("#sidebar").evaluate(el=>el.classList.contains("open")))});
+   }
    await cdp.send("HeapProfiler.collectGarbage");
    const metrics=await cdp.send("Performance.getMetrics"),metricMap=Object.fromEntries(metrics.metrics.map(x=>[x.name,x.value]));
    const chunks=[];cdp.on("HeapProfiler.addHeapSnapshotChunk",({chunk})=>chunks.push(chunk));
