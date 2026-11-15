@@ -459,3 +459,10 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Market-evidence summaries now use the same safe formatter with a 120-character limit and fall back to a safely formatted status value before the static explanatory message.
 - Raw health, quality and evidence payloads remain available in their existing response/state inspection paths; this change only constrains compact UI labels.
 - Added Python static contract assertions for the three display paths. GitHub source readback is the verification performed; Python/Node runtime suites and browser QA have not been run.
+
+## Scanner count alias conflict diagnostics
+
+- Scanner coverage now checks all recognized aliases within each existing eligible, scanned, failed and matched count group. When two or more valid non-negative safe-integer aliases in the same group disagree, the coverage line reports the field names and supplied values.
+- The established primary-alias precedence and displayed metric values are unchanged; conflicting aliases are not added together, averaged or silently substituted. Invalid count values remain excluded by the existing count validator.
+- This is a diagnostic for inconsistent response metadata, not an assertion that different count groups must satisfy a particular arithmetic relationship.
+- Added a Python static contract assertion for conflict detection and preservation of the existing count extraction path. GitHub source readback is the verification performed; runtime tests and browser QA have not been run.
