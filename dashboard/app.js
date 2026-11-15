@@ -56,6 +56,7 @@
   function setMetric(key,value){setText("metric-"+key,formatNumber(value));}
   function extractCount(data, names) { for(const name of names){ const value=data?.[name]; if(typeof value!=="number" && typeof value!=="string") continue; if(typeof value==="string" && value.trim()==="") continue; const parsed=Number(value); if(Number.isSafeInteger(parsed)&&parsed>=0) return parsed; } return null; }
   function metadataText(value,fallback="Not supplied",maxLength=160) { let textValue=null; if(typeof value==="string"&&value.trim()!=="")textValue=value.trim(); else if(typeof value==="number"&&Number.isFinite(value))textValue=String(value); if(textValue===null)return fallback; return textValue.length>maxLength?textValue.slice(0,maxLength-1)+"…":textValue; }
+  function metadataFieldName(data,names) { return names.find(name=>metadataText(data?.[name],null,160)!==null)||null; }
   function renderScanSummary(data) {
     state.lastScan=data;
     const eligible=extractCount(data,["eligible_count","eligible_symbols","eligible","total_eligible","total_symbols"]);
@@ -133,7 +134,9 @@
       "Failed: "+(extractCount(data,countNames.failed)??"Not supplied"),
       "Matched: "+(extractCount(data,countNames.matched)??"Not supplied"),
       "Count alias conflicts: "+(scannerCountAliasConflicts(data,countNames).join("; ")||"None detected"),
+      "Source field: "+(metadataFieldName(data,["source"])||"Not supplied"),
       "Source: "+metadataText(data.source,"Not supplied",120),
+      "Timestamp field: "+(metadataFieldName(data,["generated_at","timestamp","updated_at"])||"Not supplied"),
       "Timestamp: "+metadataText(data.generated_at,metadataText(data.timestamp,metadataText(data.updated_at,"Not supplied",80),80),80)
     ];
     setText(prefix+"-coverage",details.join(" · "));
