@@ -22,6 +22,11 @@
 | Market evidence | GET `/api/v1/analysis/market-evidence/{symbol}` | Wired | Evidence snapshot includes Spot and USD-M context; do not assume selected-market-only output |
 | Market data quality | GET `/api/v1/quality/market-data/{market}/{symbol}` | Wired | Quality endpoint has a narrower timeframe enum than the dashboard's full timeframe selector |
 
+## Data Reliability UI integration state
+
+- The current SPA exposes the verified market-data-quality route through the shared API client and displays the returned report as JSON text in the Data Reliability panel.
+- Dedicated structured rendering of collector job cycles, Neon/R2 health, archive integrity/restore status, regime/horizon reliability diagnostics and related advanced report sections is not yet implemented as a verified UI contract. Keep these capabilities labelled Planned/Unavailable until their backend schema and UI behavior are integrated and tested; do not infer operational health from the raw report alone.
+
 ## Timeframe handling
 
 The Coin Analysis workspace offers 16 requested timeframes: 1m, 3m, 5m, 15m, 30m, 1h, 2h, 3h, 4h, 6h, 8h, 12h, 1D, 3D, 1W and 1M.
