@@ -564,7 +564,7 @@ No merge, production deployment, backend/database mutation, secret change or `ma
 
 ## 30. Expanded Chromium API-failure and accessibility regression suite
 
-**Browser-test source checkpoint:** `4fd349330c5b00197ddd044b55cdb8c648fed531`  
+**Browser-test source checkpoint:** `f82f0a445ce47ad3e69f2d66b98cb699613c5402`  
 **Verification date:** 2026-11-15
 
 Expanded `tests/test_dashboard_browser.cjs` from four to eight independent Node/Playwright tests. New browser coverage includes:
@@ -581,7 +581,7 @@ Existing browser tests continue to cover the seven viewport widths, mobile keybo
 
 **CI execution evidence:** GitHub Actions browser QA Run #16 (`43719647421`) executed the prior eight-test checkpoint (`5e73bbbbcc88cc92d0335cae848eab446be689dd`). The runner completed tests 1–7 successfully and failed test 8 after a 30-second wait for Playwright's `requestfailed` event timed out. The log reports **7 passed, 1 failed**. This is a browser-test synchronization/assertion failure; the log does not establish a dashboard application regression.
 
-**Harness correction:** the cancellation regression now instruments the browser fetch signal and waits for the actual `AbortSignal` event, rather than relying on Playwright's routed-request `requestfailed` event. It also waits for the mocked route handler to settle before closing the page. This updated source checkpoint is committed, but its CI result is pending; no pass claim is made for the revised test.
+**Harness correction:** the cancellation regression now instruments the browser fetch signal and waits for the actual `AbortSignal` event, rather than relying on Playwright's routed-request `requestfailed` event. It also waits for the mocked route handler to settle before closing the page. The first rerun (Run #18, `43720128657`, source `4fd3493`) still failed because the test attempted to click the overview-only scan button while the Settings page was active. The test now explicitly returns to Overview after verifying backend health before starting the scan. The current source checkpoint is committed; its CI result is pending and no pass claim is made.
 
 The API cases use browser route mocks and a local static dashboard server; they do not exercise a live backend. No production endpoint, credentials, trading action, database, deployment, or main-branch state is touched by these tests.
 
