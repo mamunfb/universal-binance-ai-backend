@@ -317,6 +317,11 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn('"Result field: "+(rowKey||"Not supplied")', self.js)
         self.assertIn("No recognized result array was supplied.", self.js)
         self.assertIn('!hasRowsArray||rejectedRows?"info":"success"', self.js)
+        scan_body = self.js.split("async function scanMarket(market) {", 1)[1].split("function renderScannerMeta", 1)[0]
+        self.assertIn("if(hasRowsArray){", scan_body)
+        self.assertLess(scan_body.index("if(hasRowsArray){"), scan_body.index('renderRows("spot-rows",rows,6)'))
+        self.assertLess(scan_body.index("if(hasRowsArray){"), scan_body.index('renderRows("usdm-rows",rows,5)'))
+        self.assertLess(scan_body.index("if(hasRowsArray){"), scan_body.index('renderRows("coinm-rows",rows,5)'))
 
     def test_spot_scanner_exposes_backend_reported_coverage(self) -> None:
         self.assertIn('id="spot-coverage"', self.html)
