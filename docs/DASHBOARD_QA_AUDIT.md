@@ -277,3 +277,30 @@ All five displayed account budgets are blocked at 100% utilization with a displa
 The latest Run #1705 UI displayed the pre-start failure message: **“The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check your billing settings.”** The Jobs API for Run #1705 independently reports the job as failed with `steps: null` and `logs_url: null`. This is a confirmed account billing / spending restriction, not an executed test failure.
 
 No billing settings, payment methods, spending limits, CI reruns, workflows, application files, PRs, staging, or production were changed. The repository owner must resolve the payment or spending restriction in GitHub billing settings before genuine CI execution can be assessed.
+
+
+## 19. Dashboard source and regression-coverage inventory (2026-11-15)
+
+A further read-only source pass compared the current dashboard files and existing regression tests on the feature branch. The inspected source SHAs remain:
+- `dashboard/app.js`: `dab6a9f61609eae51f68f9517d8b9da4c48a91f3`
+- `dashboard/app.css`: `9b840e191b91464692a4dfdda2d6a3f464ad9cd2`
+- `dashboard/index.html`: `2172461b561fa19e31a46c095d3f8c0f5c95b3e2`
+- `dashboard/chart.js`: `7fabc870e21adf6805c7766b29803cb4d66cd87b`
+- `tests/test_dashboard_contract.py`: `4d53dcb01d688f9278a4a624e56ac9c1314b6cda`
+- `tests/test_dashboard_chart.js`: `16749d250e5426336c88bbe5ebd267e850611491`
+
+**Static inventory findings (not runtime results):**
+- HTML contains 79 unique element IDs; no duplicate IDs were found by source scan.
+- The document references the local `chart.js` and `app.js` scripts; chart script precedes app script.
+- CSS includes responsive breakpoints at 1100px, 760px, 480px and 360px, plus `prefers-reduced-motion`.
+- The Python contract file contains 110 test methods and 507 `self.assert...` occurrences.
+- The Node chart fixture file contains 54 named test cases.
+- Existing tests explicitly cover mobile navigation state/focus, scanner pagination/focus, stale-request cancellation, API timeout vs caller cancellation, malformed scanner values, chart parsing/aggregation, indicator numerical extremes, and the 1,000-source-candle processing bound.
+
+**Additional unverified runtime/performance questions retained for isolated QA:**
+1. The browser API wrapper reads the entire response with `response.text()` before JSON parsing; no response-byte ceiling or streaming parser was found in `app.js`.
+2. Scanner filtering and sorting traverse the full accepted row set before slicing the current 100-row DOM page; no server-side scanner pagination contract was found in the inspected client path.
+3. The inspected chart renderer creates an SVG and several indicator panels; resize-observer-based redraw and explicit chart observer teardown hooks were not found. This is a profiling question, not a confirmed defect.
+4. Page lifecycle cleanup hooks (`pagehide` / `beforeunload`) were not found in the inspected app source; no leak or stuck-request behavior has been demonstrated.
+
+**Disposition:** no application code change is justified from static inspection alone. Do not introduce arbitrary response caps or alter scanner pagination/API contracts without representative payload measurements and backend compatibility tests. The above 110 Python and 54 Node cases remain source-defined only; none is marked passed because the GitHub Actions billing restriction has prevented runner startup. No production, staging, main branch, PR merge, or billing setting was modified.
