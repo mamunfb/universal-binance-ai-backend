@@ -600,3 +600,9 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - The exported 3h aggregation helper now safely returns an empty result for non-array input and filters malformed candle objects before grouping. It validates finite OHLCV fields, safe integer timestamps, positive prices, non-negative volume and consistent OHLC bounds before aggregation.
 - Added regression coverage for non-array input, malformed candle objects, and a valid three-candle hourly group. These tests have not been executed; runtime verification remains outstanding.
 
+## Candle numeric parsing hardening
+
+- Candle row parsing now accepts finite JavaScript numbers and decimal-form numeric strings (including decimal fractions and scientific notation), while rejecting non-decimal coercions such as hexadecimal/binary/octal strings, booleans, blank strings and non-finite values.
+- Added regression coverage for accepted decimal strings, rejected coercions and duplicate open timestamps. Duplicate timestamps continue to invalidate every ambiguous row at that timestamp rather than selecting an arbitrary candle.
+- Tests were added but not executed; no runtime or browser verification is claimed.
+
