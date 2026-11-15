@@ -183,3 +183,11 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - All changes were committed on `feat/institutional-dashboard-design` and are limited to dashboard chart source, dashboard tests and this progress ledger.
 - GitHub source readback is the verification performed so far. Node and Python test suites have **not** been executed in a repository runtime; no test-pass claim is made.
 - No live exchange payload, browser rendering, mobile/accessibility test, CI workflow, PR, merge or deployment was performed.
+
+
+## Dashboard HTML contract expansion
+
+- Extended the HTML parser used by the Python contract suite to record duplicate element IDs, not just the set of IDs.
+- Added a regression assertion that the HTML contains no duplicate IDs and that the chart module is loaded before the application module.
+- This strengthens static structural checks for DOM binding stability and script dependency order; it does not replace browser QA.
+- Test execution remains pending because no repository-local runtime or authorized CI run has been used in this session.
