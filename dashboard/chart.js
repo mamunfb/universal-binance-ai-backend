@@ -1,6 +1,7 @@
 (function(){
 "use strict";
-const ns="http://www.w3.org/2000/svg";\nlet activeLoadSequence=0;
+const ns="http://www.w3.org/2000/svg";
+let activeLoadSequence=0;
 const number=v=>v!==null&&v!==undefined&&v!==""&&typeof v!=="boolean"&&Number.isFinite(Number(v))?Number(v):null;
 function parse(rows){
  if(!Array.isArray(rows))return[];
@@ -91,8 +92,10 @@ function render(c){
  host.append(drawLinePanel("ATR (14) · Wilder",atrSeries(c)));
 }
 async function load(api,market,symbol,timeframe){
+ const requestSequence=++activeLoadSequence;
  const tf=timeframe,interval=intervalFor(tf),route=routeFor(market);if(!route)throw new Error("Unsupported market type: "+market);
  const response=await api(route+encodeURIComponent(symbol)+"?interval="+encodeURIComponent(interval)+"&limit=1000");
+ if(requestSequence!==activeLoadSequence)return{status:"SUPERSEDED",market,symbol,requested_timeframe:tf};
  let candles=parse(response?.klines);if(tf==="3h")candles=aggregate3h(candles);if(!candles.length)throw new Error("Backend returned no valid complete candle rows.");
  const values=indicators(candles);render(candles);
  const result={status:response.status||"RESPONSE_RECEIVED",market,symbol,requested_timeframe:tf,source_interval:interval,aggregation:tf==="3h"?"UTC-aligned groups of exactly three consecutive 1h candles; incomplete groups discarded":"Exchange-native interval",source:response.source||"Configured backend",candle_count:candles.length,latest_candle_time_utc:new Date(candles[candles.length-1].time).toISOString(),indicators:values,warning:"Descriptive frontend calculations only; not a validated trade signal."};
