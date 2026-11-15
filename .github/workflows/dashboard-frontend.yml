@@ -1,6 +1,7 @@
 name: Dashboard frontend checks
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - feat/institutional-dashboard-design
@@ -8,6 +9,7 @@ on:
       - "dashboard/**"
       - "tests/test_dashboard_contract.py"
       - "tests/test_dashboard_chart.js"
+      - "docs/DASHBOARD_IMPLEMENTATION_STATUS.md"
       - ".github/workflows/dashboard-frontend.yml"
   pull_request:
     branches:
