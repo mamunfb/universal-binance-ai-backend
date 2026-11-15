@@ -187,3 +187,27 @@ test("document landmarks and reduced-motion preference are honored", async () =>
   assert.deepEqual(pageErrors, []);
   await context.close();
 });
+
+test("API timeout is reported without an uncaught browser exception", async () => {
+  const {context, page, pageErrors} = await newPage(1280);
+  await page.addInitScript(() => {
+    const originalSetTimeout = window.setTimeout.bind(window);
+    window.setTimeout = (callback, delay, ...args) =>
+      originalSetTimeout(callback, delay === 20000 ? 40 : delay, ...args);
+  });
+  await page.locator('.nav-link[data-page="settings"]').click();
+  await page.route("https://backend.test/health", route =>
+    new Promise(resolve => setTimeout(() => resolve(route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      headers: {"access-control-allow-origin": "*"},
+      body: JSON.stringify({status: "late"})
+    })), 250))
+  );
+  await page.locator("#backend-url").fill("https://backend.test");
+  await page.locator("#test-connection").click();
+  await page.locator(".toast.error").filter({hasText: "Request timed out"}).waitFor();
+  assert.match(await page.locator("#health-status").innerText(), /unavailable/i);
+  assert.deepEqual(pageErrors, []);
+  await context.close();
+});
