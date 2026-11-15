@@ -543,3 +543,11 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Chart loading now rejects successful API payloads unless the top-level response is a non-null JSON object and `klines` is an array. Invalid payloads produce a clear error before the chart renderer can replace the previous chart.
 - Candle parsing now requires safe-integer timestamps within the JavaScript Date range for both open and close times. This prevents out-of-range timestamps from reaching `toISOString()` and breaking an otherwise successful chart render.
 - Added Node regression cases for invalid response shapes, missing `klines`, unsafe integers and out-of-range timestamps. These tests were added but have not been executed in this environment.
+
+
+## Chart selection and concurrent-load safety
+
+- Chart market, timeframe and symbol inputs are now validated before a request sequence is allocated. An invalid selection therefore cannot supersede a valid chart request already in progress.
+- The chart loader accepts only the dashboard-supported timeframe set and requires a non-empty string symbol before constructing the API path.
+- Added regression cases for invalid selections, ensuring they do not issue API calls or invalidate a pending valid request; for a newer failed request superseding an older response; and for malformed candle batches being rejected before render.
+- These are source and test-fixture changes only; Node tests and browser QA have not been executed.
