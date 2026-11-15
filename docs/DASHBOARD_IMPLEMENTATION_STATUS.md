@@ -376,6 +376,6 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 ## Scanner count metadata type hardening
 
 - Source review found that JavaScript numeric coercion could treat non-numeric container values (such as empty arrays or single-element arrays) as numbers when extracting eligible, scanned, failed or matched counts.
-- Count extraction now accepts only finite, non-negative number primitives and non-empty numeric strings. Booleans, arrays, objects, blank strings, negative values, NaN and infinities are rejected as missing metadata.
+- Count extraction now accepts only non-negative safe integers supplied as number primitives or non-empty numeric strings. Fractional values, booleans, arrays, objects, blank strings, negative values, NaN, infinities and integers outside JavaScript's safe-integer range are rejected as missing metadata.
 - Updated the Python static contract to require the primitive-type guard and finite/non-negative check.
 - GitHub source readback is the only verification performed; Python/Node runtime tests and browser QA remain unexecuted.
