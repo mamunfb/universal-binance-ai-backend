@@ -1223,3 +1223,17 @@ Test commit: `bd7ad870a62404b17eecb29da095a2efe5be1ef7` on `feat/institutional-d
 No dashboard application source, backend business logic, database, secrets, `main`, PR metadata, merge state, or deployment configuration was changed. No merge or deployment was performed.
 
 The overlap test's empty-Spot assertion was tightened in follow-up commit `7d9a2b0a0fdb3915b34eeea363b78db53e457072`: it now checks the actual initial placeholder row text rather than assuming the table has zero rows. This is a test expectation correction, not an application change. The test remains pending CI execution.
+
+
+## 64. Data-quality and research-readiness request-race regression coverage (2026-11-15)
+
+Added two Chromium browser regression cases in `tests/test_dashboard_browser.cjs`:
+
+- Data quality: starts a delayed BTCUSDT report, changes the selected symbol to ETHUSDT (which invalidates the active request), then confirms the newer ETHUSDT report remains displayed after the older response path settles.
+- Research readiness: starts a delayed preflight request, starts the phase-readiness request, and confirms the newer readiness result and status are not overwritten by the late preflight response.
+
+Test commit: `7f8dee0863eb7fe82059f2522a99c99fb3ac161d` on `feat/institutional-dashboard-design`.
+
+**Validation status:** committed, but the two new browser cases have not yet been verified by a completed GitHub Actions run or local Chromium execution. They remain pending execution; prior green workflows do not validate these additions. The tests exercise mocked browser/API behavior and do not establish backend endpoint correctness.
+
+Only the browser regression test file and this audit document were changed in this pass. No dashboard application source, backend business logic, database, migrations, secrets, `main`, PR metadata, merge state, or deployment configuration was changed. No merge or deployment was performed. Physical Android/iPhone testing and manual TalkBack/VoiceOver verification remain outstanding.
