@@ -283,6 +283,12 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn('Number.isSafeInteger(parsed)&&parsed>=0', self.js)
         self.assertNotIn('Number.isFinite(Number(value))', self.js)
 
+    def test_scanner_market_is_validated_before_request_state_changes(self) -> None:
+        scan_body = self.js.split("async function scanMarket(market) {", 1)[1].split("function renderScannerMeta", 1)[0]
+        validation = 'if(!["SPOT","USD_M","COIN_M"].includes(market))throw new Error("Unsupported scanner market selection.")'
+        self.assertIn(validation, scan_body)
+        self.assertLess(scan_body.index(validation), scan_body.index("const requestSequence=++activeScanSequence"))
+
     def test_scanner_rejects_invalid_top_level_payload_before_rendering(self) -> None:
         validation = 'if(data===null||typeof data!=="object"||Array.isArray(data))throw new Error("Scanner endpoint returned an invalid response shape.'
         scan_body = self.js.split("async function scanMarket(market) {", 1)[1].split("function renderScannerMeta", 1)[0]
