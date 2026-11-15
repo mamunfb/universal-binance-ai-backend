@@ -890,3 +890,10 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Strengthened the static contract to verify that each new response-row array updates the active row reference, clears the sorted-result cache, and replaces that table's WeakMap search-text cache in the same invalidation branch.
 - This protects against stale cached search/sort results when a later scan returns a new dataset. The scanner currently filters the response into a new row array before rendering; row-object mutation in place is not part of the observed response path.
 - Static test-method count is now 109. This is a source-contract update only; tests and browser behavior have not been executed.
+
+## Branch and CI identity clarification
+
+- Repository PR inventory was checked: no pull request currently has `feat/institutional-dashboard-design` as its head or base branch. Therefore the dashboard branch is not currently covered by a PR-triggered workflow run.
+- The open draft PR #4 is a separate change: its head is `fix/binance-public-market-data-endpoints`, not this dashboard branch. Its validation claims must not be treated as dashboard-branch validation.
+- The latest dashboard commit has no PR-triggered workflow run returned by the commit-workflow lookup, and its combined commit status has no status entries. This means dashboard CI is unverified/not run for the current head, not passing.
+- No PR was created, no workflow was dispatched, and no merge or deployment was performed. This entry corrects branch/PR identity ambiguity; it does not change source code or runtime behavior.
