@@ -188,6 +188,7 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn("function invalidateQualityRequest(){activeQualitySequence++;}", self.js)
         self.assertIn('if(requestSequence!==activeQualitySequence)return{status:"SUPERSEDED"}', self.js)
         self.assertIn('["quality-market","quality-symbol","quality-interval","quality-lookback"]', self.js)
+        self.assertIn('addEventListener("input",invalidate)', self.js)
         self.assertIn('setText("quality-state","Selection changed · run a new quality check")', self.js)
         self.assertIn("invalidateQualityRequest();activeEvidenceSequence++", self.js)
 
