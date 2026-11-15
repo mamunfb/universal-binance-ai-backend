@@ -57,6 +57,11 @@ test("parse handles a large reversed candle batch and removes only duplicated ti
   assert.ok(parsed.every((row,i) => i===0 || row.time>parsed[i-1].time));
 });
 
+test("3h aggregation rejects buckets whose summed volume overflows to Infinity", () => {
+  const rows = [0, 3600000, 7200000].map(time => ({time,open:100,high:102,low:99,close:101,volume:Number.MAX_VALUE,closeTime:time+3599999}));
+  assert.deepEqual(charts.aggregate3h(rows), []);
+});
+
 test("3h aggregation scales across many complete buckets and discards a missing-hour bucket", () => {
   const rows = Array.from({length:3000}, (_,i) => candle(i*3600000, 100+i/100));
   const withGap = rows.filter(row => row[0] < 1500*3600000 || row[0] >= 1501*3600000);
