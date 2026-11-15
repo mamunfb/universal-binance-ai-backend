@@ -308,8 +308,9 @@ test("1000-row scanner response stays paginated, searchable and keyboard-sortabl
   await page.locator("#spot-rows tr").nth(99).waitFor();
   assert.equal(await page.locator("#spot-rows tr").count(), 100,
     "the DOM must contain only one 100-row page, not all 1000 rows");
-  assert.match(await page.locator(".table-pager").innerText(), /1000 matching \/ 1000 returned/);
-  assert.match(await page.locator(".table-pager").innerText(), /page 1\/10/);
+  const pager = page.locator("#page-spot-scanner .table-pager");
+  assert.match(await pager.innerText(), /1000 matching \/ 1000 returned/);
+  assert.match(await pager.innerText(), /page 1\/10/);
 
   const symbolHeader = page.locator("#page-spot-scanner thead th").first();
   await symbolHeader.focus();
@@ -320,12 +321,12 @@ test("1000-row scanner response stays paginated, searchable and keyboard-sortabl
   await page.locator("#spot-search").fill("ASSET0999");
   await page.waitForFunction(() => document.querySelector("#spot-rows tr td")?.textContent === "ASSET0999USDT");
   assert.equal(await page.locator("#spot-rows tr").count(), 1);
-  assert.match(await page.locator(".table-pager").innerText(), /1 matching \/ 1000 returned/);
+  assert.match(await pager.innerText(), /1 matching \/ 1000 returned/);
 
   await page.locator("#spot-search").fill("");
-  await page.waitForFunction(() => document.querySelector(".table-pager")?.textContent.includes("page 1/10"));
-  await page.getByRole("button", {name: "Next scanner page"}).click();
-  assert.match(await page.locator(".table-pager").innerText(), /page 2\/10/);
+  await page.waitForFunction(() => document.querySelector("#page-spot-scanner .table-pager")?.textContent.includes("page 1/10"));
+  await page.locator("#page-spot-scanner").getByRole("button", {name: "Next scanner page"}).click();
+  assert.match(await pager.innerText(), /page 2\/10/);
   assert.equal(await page.locator("#spot-rows tr").count(), 100);
 
   const widths = await page.evaluate(() => ({
