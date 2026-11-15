@@ -139,3 +139,37 @@ test("API HTTP 503 and malformed JSON failures are visible and do not crash the 
   assert.deepEqual(pageErrors, []);
   await context.close();
 });
+
+test("network failure, empty JSON success and invalid health shape are handled safely", async () => {
+  const {context, page, pageErrors} = await newPage(1280);
+  await page.locator('.nav-link[data-page="settings"]').click();
+  await page.locator("#backend-url").fill("https://backend.test");
+
+  await page.route("https://backend.test/health", route => route.abort("failed"));
+  await page.locator("#test-connection").click();
+  await page.locator(".toast.error").filter({hasText: "Network connection failed"}).waitFor();
+  assert.match(await page.locator("#health-status").innerText(), /unavailable/i);
+
+  await page.unrouteAll();
+  await page.route("https://backend.test/health", route => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    headers: {"access-control-allow-origin": "*"},
+    body: ""
+  }));
+  await page.locator("#test-connection").click();
+  await page.locator(".toast.error").filter({hasText: "empty JSON response"}).waitFor();
+
+  await page.unrouteAll();
+  await page.route("https://backend.test/health", route => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    headers: {"access-control-allow-origin": "*"},
+    body: JSON.stringify(["unexpected", "array"])
+  }));
+  await page.locator("#test-connection").click();
+  await page.locator(".toast.error").filter({hasText: "invalid response shape"}).waitFor();
+  assert.match(await page.locator("#health-status").innerText(), /unavailable/i);
+  assert.deepEqual(pageErrors, []);
+  await context.close();
+});
