@@ -36,6 +36,27 @@ test("parse rejects whitespace-only numeric fields and all duplicate candle time
   assert.deepEqual(parsed.map(row => row.time), [3600000]);
 });
 
+
+test("parse handles a large reversed candle batch and removes only duplicated timestamps", () => {
+  const rows = Array.from({length:10000}, (_,i) => candle(i*3600000, 100+i/100));
+  rows.push(candle(5000*3600000, 999));
+  const parsed = charts.parse(rows.reverse());
+  assert.equal(parsed.length, 9999);
+  assert.equal(parsed[0].time, 0);
+  assert.equal(parsed.at(-1).time, 9999*3600000);
+  assert.ok(parsed.every((row,i) => i===0 || row.time>parsed[i-1].time));
+});
+
+test("3h aggregation scales across many complete buckets and discards a missing-hour bucket", () => {
+  const rows = Array.from({length:3000}, (_,i) => candle(i*3600000, 100+i/100));
+  const withGap = rows.filter(row => row[0] < 1500*3600000 || row[0] >= 1501*3600000);
+  const aggregated = charts.aggregate3h(rows.map(row => ({time:row[0],open:row[1],high:row[2],low:row[3],close:row[4],volume:row[5],closeTime:row[6]})));
+  const gapAggregated = charts.aggregate3h(withGap.map(row => ({time:row[0],open:row[1],high:row[2],low:row[3],close:row[4],volume:row[5],closeTime:row[6]})));
+  assert.equal(aggregated.length, 1000);
+  assert.equal(gapAggregated.length, 999);
+  assert.ok(aggregated.every((row,i) => i===0 || row.time>aggregated[i-1].time));
+});
+
 test("3h aggregation combines exactly three UTC-aligned consecutive hourly candles", () => {
   const rows = [candle(0, 101, {open:100, high:103, low:99, volume:2}),
     candle(3600000, 102, {open:101, high:104, low:100, volume:3}),
