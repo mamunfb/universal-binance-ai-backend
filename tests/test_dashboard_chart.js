@@ -104,3 +104,39 @@ test("insufficient history leaves long-period indicators unavailable", () => {
   assert.equal(result.rsi_14_wilder, null);
   assert.equal(result.atr_14_wilder, null);
 });
+
+test("Bollinger bands are candle-aligned and use population standard deviation", () => {
+  const values = Array.from({length:25}, (_,i) => 100 + i);
+  const bands = charts.bollingerSeries(values, 20, 2);
+  assert.equal(bands.upper.length, values.length);
+  assert.equal(bands.middle.slice(0,19).every(v => v === null), true);
+  assert.equal(bands.lower.slice(0,19).every(v => v === null), true);
+  assert.ok(bands.upper[19] > bands.middle[19]);
+  assert.ok(bands.lower[19] < bands.middle[19]);
+  assert.ok(Math.abs((bands.upper[19]+bands.lower[19])/2-bands.middle[19]) < 1e-10);
+});
+
+test("Wilder ADX and Stochastic RSI expose aligned bounded series with warm-up gaps", () => {
+  const candles = Array.from({length:100}, (_,i) => {
+    const close = 100 + i*0.4 + Math.sin(i/3);
+    return {time:i*3600000,open:close-0.1,high:close+1,low:close-1,close,volume:10,closeTime:i*3600000+3599999};
+  });
+  const adx = charts.adxSeries(candles);
+  const stoch = charts.stochRsiSeries(candles.map(x=>x.close));
+  assert.equal(adx.length,candles.length);
+  assert.equal(stoch.k.length,candles.length);
+  assert.equal(stoch.d.length,candles.length);
+  assert.equal(adx.slice(0,28).every(v=>v===null),true);
+  assert.ok(adx.slice(28).every(v=>Number.isFinite(v)&&v>=0&&v<=100));
+  assert.ok(stoch.k.slice(0,30).some(v=>v===null));
+  assert.ok(stoch.k.filter(Number.isFinite).every(v=>v>=0&&v<=100));
+  assert.ok(stoch.d.filter(Number.isFinite).every(v=>v>=0&&v<=100));
+});
+
+test("ADX and Stochastic RSI remain unavailable with insufficient history", () => {
+  const candles = Array.from({length:20}, (_,i) => ({time:i,open:10,high:11,low:9,close:10,volume:1,closeTime:i+1}));
+  assert.equal(charts.adxSeries(candles).every(v=>v===null),true);
+  const stoch = charts.stochRsiSeries(candles.map(x=>x.close));
+  assert.equal(stoch.k.every(v=>v===null),true);
+  assert.equal(stoch.d.every(v=>v===null),true);
+});
