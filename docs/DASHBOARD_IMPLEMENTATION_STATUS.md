@@ -428,3 +428,11 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - The scan status explicitly reports `Incomplete response · previous results retained`; response-level coverage diagnostics still update and the informational notice remains.
 - A response containing an explicit array (including `[]`) remains authoritative and updates the summary and table.
 - Added static contract assertions for this ordering and status behavior. Runtime tests and browser QA remain unexecuted.
+
+
+## Scanner secondary result-array observability
+
+- The scanner keeps the established primary result-array precedence (`symbols`, `markets`, `results`, `data`) and continues to use the first recognized array as the authoritative row set.
+- If the response also contains other recognized array fields, their names are now listed separately in the coverage metadata as `Additional array fields`. This makes alias overlap visible without silently merging potentially duplicated datasets or changing the selected rows.
+- Added static contract assertions for secondary-field discovery, metadata display and argument wiring.
+- GitHub source readback is the verification performed; runtime tests and browser QA remain unexecuted.
