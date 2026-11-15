@@ -833,5 +833,17 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn("renderRows(\"coinm-rows\",rows,5)", scan)
         self.assertNotIn("new Map(", scan)
 
+
+    def test_scanner_cells_render_malformed_market_values_as_explicit_placeholders(self) -> None:
+        helper = self.js.split("function scannerCellText(key,value)", 1)[1].split("function renderRows", 1)[0]
+        self.assertIn('value===null||value===undefined||value===""', helper)
+        self.assertIn('Number.isFinite(Number(value))', helper)
+        self.assertIn('"Invalid number"', helper)
+        self.assertIn('"Invalid value"', helper)
+        self.assertIn('["last_price","quote_volume_24h","price_change_percent_24h"]', helper)
+        rows = self.js.split("function renderRows(target, rows, columns)", 1)[1].split("function syncAnalysisHeader()", 1)[0]
+        self.assertIn("td.textContent=scannerCellText(key,item?.[key])", rows)
+        self.assertNotIn("String(item[key])", rows)
+
 if __name__ == "__main__":
     unittest.main()
