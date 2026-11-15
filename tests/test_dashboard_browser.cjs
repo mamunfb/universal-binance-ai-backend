@@ -338,3 +338,21 @@ test("1000-row scanner response stays paginated, searchable and keyboard-sortabl
   assert.deepEqual(pageErrors, []);
   await context.close();
 });
+
+
+test("visible dashboard UI passes WCAG 2.1 A/AA automated accessibility checks", async () => {
+  const {context, page, pageErrors} = await newPage(1280);
+  await page.addScriptTag({path: require.resolve("axe-core")});
+  const results = await page.evaluate(async () => window.axe.run(document, {
+    runOnly: {type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]}
+  }));
+  const violations = results.violations.map(item => ({
+    id: item.id,
+    impact: item.impact,
+    description: item.description,
+    nodes: item.nodes.map(node => ({target: node.target, summary: node.failureSummary}))
+  }));
+  assert.deepEqual(violations, [], "axe-core WCAG violations: " + JSON.stringify(violations));
+  assert.deepEqual(pageErrors, []);
+  await context.close();
+});
