@@ -656,3 +656,9 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - The next valid segment starts a fresh directional-movement and Wilder ADX warm-up; values are not carried across malformed candle boundaries.
 - Added regression coverage for an internally inconsistent high/close relationship, including the null gap and exact restart warm-up index. Tests have not been executed.
 
+## ATR input structure validation
+
+- ATR true-range sampling now requires both the current and previous candles to have positive finite OHLC values with internally consistent high/low bounds around each close. A malformed candle and the immediately following transition are excluded so a structurally invalid previous candle cannot seed the next true-range observation.
+- Wilder ATR seed collection restarts after the invalid transition and waits for a complete fresh period before publishing values.
+- Added regression coverage for malformed OHLC bounds, the invalid transition, and the exact post-gap warm-up index. Tests have not been executed.
+
