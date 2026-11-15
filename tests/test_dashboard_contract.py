@@ -472,9 +472,18 @@ class DashboardContractTests(unittest.TestCase):
 
 
     def test_scanner_search_resets_page_and_cache_tracks_query(self) -> None:
-        self.assertIn('view.query=e.target.value.trim().toUpperCase();view.page=0;renderRows(target,view.rows,columns)', self.js)
-        self.assertIn('cached.query===view.query', self.js)
-        self.assertIn('view.sortedCache={rows:view.rows,query:view.query', self.js)
+        self.assertIn("view.query=e.target.value.trim().toUpperCase();view.page=0;", self.js)
+        self.assertIn("scannerSearchText(target,item,keys).includes(view.query)", self.js)
+        self.assertIn("cached.query===view.query", self.js)
+        self.assertIn("view.sortedCache={rows:view.rows,query:view.query", self.js)
+
+    def test_scanner_search_text_is_weakly_cached_and_invalidated_with_rows(self) -> None:
+        helper = self.js.split("function scannerSearchText", 1)[1].split("function scannerCellText", 1)[0]
+        self.assertIn("const scannerSearchTextCaches = {}", self.js)
+        self.assertIn("keys.map(key=>String(item?.[key]", helper)
+        self.assertIn("if(!cache.has(item))", helper)
+        self.assertIn("return cache.get(item)", helper)
+        self.assertIn("scannerSearchTextCaches[target]=new WeakMap()", self.js)
 
     def test_api_requests_do_not_send_browser_credentials_or_cache_responses(self) -> None:
         self.assertIn('credentials:"omit"', self.js)
