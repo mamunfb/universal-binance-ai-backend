@@ -91,6 +91,7 @@
     if(data===null||typeof data!=="object"||Array.isArray(data)){setText("scan-state","Invalid response · previous results retained");throw new Error("Scanner endpoint returned an invalid response shape. Expected a JSON object; previous results were preserved.");}
     const rowKey=["symbols","markets","results","data"].find(key=>Array.isArray(data[key]));
     const hasRowsArray=rowKey!==undefined;
+    const additionalRowKeys=["symbols","markets","results","data"].filter(key=>key!==rowKey&&Array.isArray(data[key]));
     if(hasRowsArray)renderScanSummary(data);
     else setText("scan-state","Incomplete response · previous results retained");
     const responseRows=hasRowsArray?data[rowKey]:[];
@@ -101,11 +102,11 @@
       if(market==="USD_M") renderRows("usdm-rows",rows,5);
       if(market==="COIN_M") renderRows("coinm-rows",rows,5);
     }
-    renderScannerMeta(market,data,rows,rejectedRows,rowKey);
+    renderScannerMeta(market,data,rows,rejectedRows,rowKey,additionalRowKeys);
     toast(market+" scan response received."+(!hasRowsArray?" No recognized result array was supplied.":rejectedRows?" "+rejectedRows+" malformed rows were excluded.":" Check coverage and failure counts."),!hasRowsArray||rejectedRows?"info":"success");
     return data;
   }
-  function renderScannerMeta(market,data,rows,rejectedRows=0,rowKey=null) {
+  function renderScannerMeta(market,data,rows,rejectedRows=0,rowKey=null,additionalRowKeys=[]) {
     const prefix=market==="USD_M"?"usdm":market==="COIN_M"?"coinm":"spot";
     const countNames={
       eligible:["eligible_count","eligible_symbols","eligible","total_eligible","total_symbols"],
@@ -115,6 +116,7 @@
     };
     const details=[
       "Result field: "+(rowKey||"Not supplied"),
+      "Additional array fields: "+(additionalRowKeys.length?additionalRowKeys.join(", "):"None"),
       "Returned rows: "+rows.length,
       "Rejected malformed rows: "+rejectedRows,
       "Status: "+(data.status||data.scan_status||"Not supplied"),
