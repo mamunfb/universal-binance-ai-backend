@@ -866,7 +866,7 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Source review found that the compact row-reference cache avoided retained decorated row objects, but numeric strings were reparsed with Number() on every comparator invocation. For numeric sorting this repeated conversion work can occur O(M log M) times for M matching rows.
 - Added a per-sort-pass WeakMap keyed by the original row object. Each row selected sort-key numeric interpretation is computed at most once during that sort pass and reused by later comparisons. The cache is local to the sort operation and does not add persistent per-row metadata to view.sortedCache.
 - The comparator still applies missing/non-numeric ordering and direction rules as before. This is a source-level reduction in repeated numeric parsing, not a measured speedup; WeakMap overhead and actual browser performance remain unbenchmarked.
-- Replaced the obsolete static test that expected a decorated array with assertions for the WeakMap-based row-reference strategy. The dashboard static contract file now contains 107 test methods; the test suite has not been executed.
+- Replaced the obsolete static test that expected a decorated array with assertions for the WeakMap-based row-reference strategy. The dashboard static contract file now contains 108 test methods; the test suite has not been executed.
 - Frontend-only. Backend source, CI workflow, PR state, merge and deployment remain unchanged.
 
 
@@ -875,4 +875,12 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - The filter loop previously converted each searchable field to uppercase again for every new query. Added a per-table WeakMap that stores one normalized searchable-text string per source row, preserving the exact searchable columns and case-insensitive substring behavior.
 - The cache is weakly keyed by original row objects, and is replaced whenever a table receives a new row array or connection-scoped scanner data is cleared. It does not retain rows independently or create a decorated row array. It does retain one derived text string for each row still referenced by the table, so memory cost must be measured against reduced repeated string conversion.
 - Updated the scanner search contract to reflect debounced rendering and added a static contract for cache reuse and invalidation. Tests have not been executed; no large-dataset speed or memory improvement is claimed.
+- Frontend-only. Backend source, CI workflow, PR state, merge and deployment remain unchanged.
+
+
+## Scanner debounce and immediate-action coordination
+
+- A lifecycle review found that a pending debounced search render could still fire after a user triggered an immediate table render, such as sorting, paging, or a newly completed scan. This could cause an unnecessary second filter/sort/render pass.
+- renderRows now cancels and removes that table pending search timer before performing its own render. The debounced callback removes its timer before calling renderRows, so it does not cancel itself. Each table remains independently scheduled.
+- Added a static contract for cancellation ordering and updated the documented static test-method count to 108. The Python test suite has not been executed; browser interaction timing has not been tested.
 - Frontend-only. Backend source, CI workflow, PR state, merge and deployment remain unchanged.
