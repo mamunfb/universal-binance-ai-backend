@@ -330,3 +330,11 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Added a 3,000-hour fixture covering 1,000 complete UTC-aligned 3h buckets, plus a missing-hour case that must discard only the incomplete bucket.
 - Extended the Python static contract suite to require both scale-oriented fixtures and load the Node fixture source explicitly.
 - These are large-input correctness/regression fixtures, not measured performance benchmarks. Node/Python tests have not been executed here; no runtime or speed result is claimed.
+
+
+## 3h aggregation close-time integrity
+
+- Tightened the UTC-aligned 3h aggregation guard: all three source rows must now have the exact hourly close timestamp (`openTime + 3,599,999 ms`) as well as consecutive hourly open timestamps.
+- Added a Node regression case that corrupts one source candle's close timestamp and requires the entire 3h bucket to be discarded.
+- Added a Python static contract assertion for both the production guard and its regression fixture.
+- This closes a malformed-source-row acceptance gap; it does not validate exchange connectivity or replace runtime tests. Node/Python suites remain unexecuted in this session, and no test-pass claim is made.
