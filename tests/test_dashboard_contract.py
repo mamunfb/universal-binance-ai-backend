@@ -268,8 +268,8 @@ class DashboardContractTests(unittest.TestCase):
         self.assertNotIn('localeCompare(String(b?.symbol', self.js)
 
     def test_scanner_numeric_sort_rejects_coercible_non_primitive_values(self) -> None:
-        self.assertIn("if(typeof value===\\\"number\\\")return Number.isFinite(value)?value:null", self.js)
-        self.assertIn("if(typeof value!==\\\"string\\\"||value.trim()===\\\"\\\")return null", self.js)
+        self.assertIn('if(typeof value==="number")return Number.isFinite(value)?value:null', self.js)
+        self.assertIn('if(typeof value!=="string"||value.trim()==="")return null', self.js)
         self.assertIn("const parsed=Number(value);return Number.isFinite(parsed)?parsed:null", self.js)
 
     def test_backend_error_details_are_sanitized_and_bounded(self) -> None:
