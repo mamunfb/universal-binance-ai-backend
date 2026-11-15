@@ -55,6 +55,7 @@
   }
   function setMetric(key,value){setText("metric-"+key,formatNumber(value));}
   function extractCount(data, names) { for(const name of names){ const value=data?.[name]; if(typeof value!=="number" && typeof value!=="string") continue; if(typeof value==="string" && value.trim()==="") continue; const parsed=Number(value); if(Number.isSafeInteger(parsed)&&parsed>=0) return parsed; } return null; }
+  function metadataText(value,fallback="Not supplied") { if(typeof value==="string"&&value.trim()!=="")return value.trim(); if(typeof value==="number"&&Number.isFinite(value))return String(value); return fallback; }
   function renderScanSummary(data) {
     state.lastScan=data;
     const eligible=extractCount(data,["eligible_count","eligible_symbols","eligible","total_eligible","total_symbols"]);
@@ -65,11 +66,11 @@
     const summary=$("scan-summary"); summary.innerHTML="";
     const rows=[
       ["Market",state.market],["Eligible",eligible],["Scanned",scanned],["Matched",extractCount(data,["matched_count","match_count"])],
-      ["Failed",failed],["Status",data.status||data.scan_status||"Returned"],["Source",data.source||"Backend response"],["Updated",data.generated_at||data.timestamp||data.updated_at||"Not supplied"]
+      ["Failed",failed],["Status",metadataText(data.status,metadataText(data.scan_status,"Returned"))],["Source",metadataText(data.source,"Backend response")],["Updated",metadataText(data.generated_at,metadataText(data.timestamp,metadataText(data.updated_at)))]
     ];
     rows.forEach(([label,value])=>{const line=document.createElement("div");line.className="status-list";const row=document.createElement("div");const a=document.createElement("span");a.textContent=label;const b=document.createElement("b");b.textContent=value==null?"Not supplied":String(value);row.append(a,b);line.append(row);summary.append(line);});
-    setText("scan-state",data.status||data.scan_status||"Response received");
-    setText("overview-updated",data.generated_at||data.timestamp||data.updated_at||"Timestamp not supplied");
+    setText("scan-state",metadataText(data.status,metadataText(data.scan_status,"Response received")));
+    setText("overview-updated",metadataText(data.generated_at,metadataText(data.timestamp,metadataText(data.updated_at,"Timestamp not supplied"))));
   }
   async function loadHealth() {
     const requestSequence=++activeHealthSequence;
@@ -119,13 +120,13 @@
       "Additional array fields: "+(additionalRowKeys.length?additionalRowKeys.join(", "):"None"),
       "Returned rows: "+rows.length,
       "Rejected malformed rows: "+rejectedRows,
-      "Status: "+(data.status||data.scan_status||"Not supplied"),
+      "Status: "+metadataText(data.status,metadataText(data.scan_status)),
       "Eligible: "+(extractCount(data,countNames.eligible)??"Not supplied"),
       "Scanned: "+(extractCount(data,countNames.scanned)??"Not supplied"),
       "Failed: "+(extractCount(data,countNames.failed)??"Not supplied"),
       "Matched: "+(extractCount(data,countNames.matched)??"Not supplied"),
-      "Source: "+(data.source||"Not supplied"),
-      "Timestamp: "+(data.generated_at||data.timestamp||data.updated_at||"Not supplied")
+      "Source: "+metadataText(data.source),
+      "Timestamp: "+metadataText(data.generated_at,metadataText(data.timestamp,metadataText(data.updated_at)))
     ];
     setText(prefix+"-coverage",details.join(" · "));
     if(market!=="SPOT") setText(prefix+"-count",rows.length.toLocaleString()+" returned");
