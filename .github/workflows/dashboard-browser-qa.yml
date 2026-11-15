@@ -42,7 +42,7 @@ jobs:
           package-manager-cache: false
 
       - name: Install pinned Playwright
-        run: npm install --no-save --no-package-lock playwright@1.56.1
+        run: npm install --no-save --no-package-lock playwright@1.56.1 axe-core@4.10.3
 
       - name: Install Chromium and system dependencies
         run: npx --no-install playwright install --with-deps chromium
