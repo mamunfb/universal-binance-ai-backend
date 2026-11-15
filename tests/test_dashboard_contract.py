@@ -101,6 +101,13 @@ class DashboardContractTests(unittest.TestCase):
     def test_primary_coin_analysis_action_loads_candles(self) -> None:
         self.assertIn('$("load-coin-analysis").addEventListener("click",()=>withButton("load-coin-analysis",loadTechnical', self.js)
 
+    def test_navigation_cancels_stale_analysis_and_market_evidence_requests(self) -> None:
+        self.assertIn("if(known!==\"coin-analysis\")cancelAnalysisRequests()", self.js)
+        self.assertIn("function cancelAnalysisRequests()", self.js)
+        self.assertIn("activeMarketEvidenceController.abort()", self.js)
+        self.assertIn('api(path,{signal:controller.signal})', self.js)
+        self.assertIn("if(activeMarketEvidenceController){activeMarketEvidenceController.abort();activeMarketEvidenceController=null;}", self.js)
+
     def test_chart_render_test_doubles_support_document_fragments(self) -> None:
         self.assertGreaterEqual(self.chart_test_js.count("createDocumentFragment"), 2)
         self.assertIn("createDocumentFragment:()=>makeElement", self.chart_test_js)
