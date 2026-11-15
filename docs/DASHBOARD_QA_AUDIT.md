@@ -343,3 +343,23 @@ The run lasted approximately three seconds. No runner was assigned and no workfl
 **Interpretation:** the documentation-only commit itself did not cause a code/test failure. Run #1709 was blocked before execution by the GitHub account payment / spending-limit restriction. The repeated UI confirmation across Runs #1708 and #1709 makes the administrative blocker conclusive for these two runs. Actual dashboard/browser/runtime QA and all CI test outcomes remain unverified until GitHub permits runner startup.
 
 No billing, workflow, application source, main branch, PR, staging, or production settings were changed.
+
+
+## 23. Latest feature-branch CI run #1710 inspection (2026-11-15)
+
+A fresh read-only Actions API check found **Backend and dashboard tests Run #1710** (run ID `43706451197`) on feature-branch commit `7c0eed163fcc53ec622c0ecc7657eb7969cf127c`.
+
+The Jobs API reports:
+- Job ID: `132788476726`
+- Job name: `Python tests and dashboard JavaScript validation`
+- Job conclusion: `failure`
+- `steps: null`
+- `logs_url: null`
+
+A separate job-step lookup returned an empty array (`[]`). Thus no executed workflow step or downloadable job log is available in the API evidence for Run #1710. This is consistent with the established pre-run runner/billing restriction, but the exact billing annotation for Run #1710 was not independently captured in this pass. Do not classify it as a Python, Node, dashboard, or application test failure.
+
+For comparison, Run #1709 (run ID `43706390914`, job ID `132788286526`) also returned `steps: null`, `logs_url: null`, and an empty step lookup. Its exact GitHub UI billing annotation is documented in Section 22.
+
+**Current CI gate:** Runs #1708 and #1709 have direct UI confirmation of the account payment/spending-limit block. Run #1710 has API evidence of no steps/logs, but its specific UI annotation remains unverified. The owner must resolve the account-level Actions restriction, then obtain a new run with a non-zero runner ID, populated step records, and retrievable logs before interpreting test outcomes.
+
+No workflow, application source, `main`, PR merge state, staging service, production service, or billing configuration was changed during this inspection.
