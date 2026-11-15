@@ -363,3 +363,11 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Boolean, array and object values are no longer coerced through JavaScript's `Number(...)` conversion (for example, an empty array or a single-element array can otherwise become a numeric value). Such malformed field values now use the text-sort path instead.
 - Added a Python static contract assertion for the primitive-type guard and numeric-string parsing.
 - This is source-level hardening; runtime sort behaviour and browser interaction have not been executed in this session. No runtime test-pass claim is made.
+
+
+## Scanner response row-shape validation
+
+- Scanner response arrays are now filtered to plain object-like records before table rendering; nulls, primitive values and nested arrays are excluded rather than displayed as misleading table rows.
+- The coverage metadata reports the number of malformed rows excluded, and the scan notification calls attention to that count.
+- Added a Python static contract assertion for the filter, rejected-row count and user-visible reporting.
+- This is defensive frontend response handling, not a claim that the backend response schema has been fully validated. GitHub readback is the only verification performed; runtime tests and browser QA remain unexecuted.
