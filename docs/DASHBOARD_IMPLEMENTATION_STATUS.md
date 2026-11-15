@@ -269,3 +269,10 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Scanner table cells normalize null and empty values to the same unavailable marker rather than displaying literal "null" or an empty cell.
 - Mobile scanner pagination now wraps cleanly at narrow widths, provides touch-sized controls, and sortable headers expose a visible keyboard-focus outline.
 - Added static contract assertions for health/evidence/Spot-filter request races, null-cell normalization and responsive pager styles. Source/test/ledger readback verification is pending; no runtime test or browser QA has been performed.
+
+
+## Scanner sorting performance and API error-surface hardening
+
+- Scanner sort now decorates filtered rows once with the selected value, parsed numeric value, missing-value flag and symbol; the comparator no longer reparses values or constructs a locale comparator for every comparison. One reusable numeric-aware `Intl.Collator` handles text and symbol ordering. Missing values remain last in both sort directions and pagination/counts use the sorted result set.
+- Non-success API responses now display only bounded, whitespace-normalized string details (maximum 300 characters) after control-character removal. Structured error payloads fall back to an HTTP-status message instead of dumping arbitrary backend objects into the UI.
+- Added static contract assertions for decorated scanner sorting, collator reuse and bounded/sanitized API error details. The sanitizer expression was read back after correction. Runtime tests and browser performance profiling have not been run.
