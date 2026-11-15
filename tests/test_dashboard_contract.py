@@ -90,7 +90,8 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn("let activeLoadSequence=0", self.chart_js)
         self.assertIn("const requestSequence=++activeLoadSequence", self.chart_js)
         self.assertIn('status:"SUPERSEDED"', self.chart_js)
-        self.assertIn("function invalidate(){activeLoadSequence++;}", self.chart_js)
+        self.assertIn("function invalidate(){activeLoadSequence++;if(activeLoadController)", self.chart_js)
+        self.assertIn("activeLoadController.abort()", self.chart_js)
         self.assertIn("window.DashboardCharts.invalidate()", self.js)
         self.assertIn("invalidateChartView();", self.js)
         self.assertIn("catch(error){if(requestSequence!==activeLoadSequence)return{status:\"SUPERSEDED\"", self.chart_js)
@@ -370,6 +371,20 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn('cache:"no-store"', self.js)
         self.assertIn('body:hasBody?JSON.stringify(body):undefined', self.js)
         self.assertIn('const hasBody=body!==undefined', self.js)
+
+    def test_chart_requests_abort_superseded_transports_and_keep_sequence_guard(self) -> None:
+        self.assertIn("let activeLoadSequence=0,activeLoadController=null", self.chart_js)
+        self.assertIn("if(activeLoadController)activeLoadController.abort()", self.chart_js)
+        self.assertIn("function invalidate(){activeLoadSequence++;if(activeLoadController)", self.chart_js)
+        self.assertIn("{signal:controller.signal}", self.chart_js)
+        self.assertIn("if(requestSequence!==activeLoadSequence)return{status:\\"SUPERSEDED\\"", self.chart_js)
+        self.assertIn("chart invalidation actively aborts the in-flight API request", self.chart_test_js)
+
+    def test_api_wrapper_composes_caller_cancellation_with_timeout(self) -> None:
+        self.assertIn("signal:externalSignal", self.js)
+        self.assertIn("externalSignal?.addEventListener(\\\"abort\\\",abortFromCaller", self.js)
+        self.assertIn('externalSignal?.aborted?"Request cancelled.":"Request timed out."', self.js)
+        self.assertIn("externalSignal?.removeEventListener(\\\"abort\\\",abortFromCaller)", self.js)
 
     def test_chart_requests_ignore_superseded_responses_and_failures(self) -> None:
         self.assertIn('let activeLoadSequence=0', self.chart_js)
