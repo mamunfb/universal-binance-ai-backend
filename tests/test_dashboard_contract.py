@@ -150,6 +150,11 @@ class DashboardContractTests(unittest.TestCase):
 if __name__ == "__main__":
     unittest.main()
 
+    def test_spot_scanner_exposes_backend_reported_coverage(self) -> None:
+        self.assertIn('id="spot-coverage"', self.html)
+        self.assertIn('id="spot-count"', self.html)
+        self.assertIn('setText(prefix+"-coverage",details.join(" · "))', self.js)
+
     def test_usdm_and_coinm_scanners_have_full_result_search_and_coverage(self) -> None:
         for market in ("usdm", "coinm"):
             self.assertIn(f'id="{market}-search"', self.html)
