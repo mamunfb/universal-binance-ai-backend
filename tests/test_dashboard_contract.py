@@ -478,6 +478,10 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn("cached.query===view.query", self.js)
         self.assertIn("view.sortedCache={rows:view.rows,query:view.query", self.js)
 
+    def test_scanner_render_cancels_pending_debounce_before_immediate_render(self) -> None:
+        scanner = self.js.split("function renderRows(target, rows, columns)", 1)[1].split("function syncAnalysisHeader()", 1)[0]
+        self.assertIn("if(scannerSearchTimers[target]!==undefined){window.clearTimeout(scannerSearchTimers[target]);delete scannerSearchTimers[target];}", scanner)
+        self.assertLess(scanner.index("window.clearTimeout(scannerSearchTimers[target])"), scanner.index("const body=$(target)"))
     def test_scanner_search_text_is_weakly_cached_and_invalidated_with_rows(self) -> None:
         helper = self.js.split("function scannerSearchText", 1)[1].split("function scannerCellText", 1)[0]
         self.assertIn("const scannerSearchTextCaches = {}", self.js)
