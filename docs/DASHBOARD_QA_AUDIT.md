@@ -232,3 +232,17 @@ The chart loader separately truncates candle input to the latest 1,000 rows befo
 The latest feature-branch commit at the time of this review was `acdc2bf41ecd7316fe75fa07d69a15da88ba2afc`. Push-triggered **Backend and dashboard tests Run #1702** (run ID `43705633456`) completed with conclusion `failure`; job ID `132785971930` returned `steps: null` and `logs_url: null`. The Actions budget was independently confirmed in Section 14 as zero with usage blocked. Run #1702 therefore supplies no test-execution evidence; do not interpret it as an application test failure.
 
 No application code, workflow, backend contract, deployment configuration, main branch, PR, staging service, or production service was changed in this review.
+
+
+
+## 16. Latest feature-branch runner and evidence recheck (2026-11-15)
+
+The feature-branch ref was read directly from GitHub and resolves to **`0cae08ef7fde3b61b714cca3d7d4e092cd791c18`** (commit message: “Document dashboard test inventory and payload scaling risks”). The push-triggered **Backend and dashboard tests Run #1703** (run ID `43705706619`) is associated with that exact head SHA and completed with conclusion `failure`.
+
+The latest-attempt Jobs API returned job ID `132786195964`, conclusion `failure`, `logs_url: null`, and `steps: null`. A separate job-steps lookup returned an empty array. The job-log download request returned an Azure `BlobNotFound` response, and the run-artifacts lookup returned no artifacts. Thus Run #1703 provides no evidence that checkout, Python/Node setup, syntax checks, chart fixtures, dashboard contract tests, or pytest executed. It must not be reported as an application-test failure or pass.
+
+The branch workflow file `.github/workflows/dashboard-frontend.yml` was also read back. It has a manual `workflow_dispatch` trigger and path-filtered push/PR triggers for dashboard files, dashboard tests, the implementation-status document, and its own workflow file. The latest commit changed only the QA audit report, so it does not satisfy that workflow's listed push paths; no manual dispatch was performed. The general `.github/workflows/tests.yml` does trigger on every push to this feature branch and produced Run #1703.
+
+**Current verified state:** feature branch head is `0cae08e...`; Run #1703 is a workflow/job failure with no executed-step or log evidence; the zero-dollar Actions usage-block state documented in Sections 11 and 14 remains the known administrative blocker. The precise failure annotation for Run #1703 was not available from the job/log endpoints in this pass, so the billing gate is consistent with the failure but is not re-proven as the specific annotation for this individual run.
+
+**Next safe actions:** account owner resolves the Actions budget/usage-block setting; then re-run the existing workflows and verify non-zero runner identity, populated steps, and retrievable logs. After CI execution is restored, run the existing dashboard fixture and contract suites, then proceed to isolated browser/runtime and payload-scale QA. No workflow, application source, deployment configuration, main branch, PR, staging service, production service, or billing setting was changed in this pass.
