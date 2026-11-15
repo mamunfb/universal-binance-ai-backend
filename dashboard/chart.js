@@ -15,15 +15,36 @@ function aggregate3h(rows){
  const map=new Map();rows.forEach(c=>{const start=Math.floor(c.time/10800000)*10800000;if(!map.has(start))map.set(start,[]);map.get(start).push(c);});
  return [...map.entries()].sort((a,b)=>a[0]-b[0]).flatMap(([start,a])=>{a.sort((x,y)=>x.time-y.time);if(a.length!==3||a[0].time!==start||a[1].time!==start+3600000||a[2].time!==start+7200000||a.some(x=>x.closeTime!==x.time+3599999))return[];const volume=a.reduce((sum,x)=>sum+x.volume,0);if(!Number.isFinite(volume))return[];return[{time:start,open:a[0].open,high:Math.max(...a.map(x=>x.high)),low:Math.min(...a.map(x=>x.low)),close:a[2].close,volume,closeTime:a[2].closeTime}];});
 }
-function ema(a,n){if(a.length<n)return null;const k=2/(n+1);let v=a.slice(0,n).reduce((s,x)=>s+x,0)/n;for(let i=n;i<a.length;i++)v=a[i]*k+v*(1-k);return v;}
-function sma(a,n){return a.length<n?null:a.slice(-n).reduce((s,x)=>s+x,0)/n;}
-function rsi(a,n=14){if(a.length<=n)return null;let g=0,l=0;for(let i=1;i<=n;i++){const d=a[i]-a[i-1];g+=Math.max(d,0);l+=Math.max(-d,0);}g/=n;l/=n;for(let i=n+1;i<a.length;i++){const d=a[i]-a[i-1];g=(g*(n-1)+Math.max(d,0))/n;l=(l*(n-1)+Math.max(-d,0))/n;}if(g===0&&l===0)return 50;if(l===0)return 100;if(g===0)return 0;return 100-100/(1+g/l);}
+function finiteMean(values){
+ if(!values.length||!values.every(Number.isFinite))return null;
+ let mean=values[0];
+ for(let i=1;i<values.length;i++){const weight=1/(i+1);mean=mean*(1-weight)+values[i]*weight;}
+ return Number.isFinite(mean)?mean:null;
+}
+function ema(a,n){if(a.length<n||!a.every(Number.isFinite))return null;const k=2/(n+1);let v=finiteMean(a.slice(0,n));if(v===null)return null;for(let i=n;i<a.length;i++){v=a[i]*k+v*(1-k);if(!Number.isFinite(v))return null;}return v;}
+function sma(a,n){return a.length<n?null:finiteMean(a.slice(-n));}
+function scaledDeviation(values,mean){
+ if(!values.length||mean===null||!Number.isFinite(mean))return null;
+ const scale=Math.max(...values.map(Math.abs));if(!Number.isFinite(scale))return null;if(scale===0)return 0;
+ const normalizedMean=mean/scale;
+ const variance=values.reduce((sum,value)=>{const delta=value/scale-normalizedMean;return sum+delta*delta;},0)/values.length;
+ const deviation=scale*Math.sqrt(variance);
+ return Number.isFinite(deviation)?deviation:null;
+}
+function rsi(a,n=14){
+ if(a.length<=n||!a.every(Number.isFinite))return null;
+ const gains=[],losses=[];for(let i=1;i<=n;i++){const d=a[i]-a[i-1];if(!Number.isFinite(d))return null;gains.push(Math.max(d,0));losses.push(Math.max(-d,0));}
+ let g=finiteMean(gains),l=finiteMean(losses);if(g===null||l===null)return null;
+ for(let i=n+1;i<a.length;i++){const d=a[i]-a[i-1];if(!Number.isFinite(d))return null;g=(g*(n-1)+Math.max(d,0))/n;l=(l*(n-1)+Math.max(-d,0))/n;}
+ if(!Number.isFinite(g)||!Number.isFinite(l))return null;
+ if(g===0&&l===0)return 50;if(l===0)return 100;if(g===0)return 0;return 100-100/(1+g/l);
+}
 function atrWilder(c,n=14){
  const tr=c.slice(1).map((x,i)=>Math.max(x.high-x.low,Math.abs(x.high-c[i].close),Math.abs(x.low-c[i].close)));
- if(tr.length<n)return null;
- let value=tr.slice(0,n).reduce((s,x)=>s+x,0)/n;
+ if(tr.length<n||!tr.every(Number.isFinite))return null;
+ let value=finiteMean(tr.slice(0,n));if(value===null)return null;
  for(let i=n;i<tr.length;i++)value=(value*(n-1)+tr[i])/n;
- return value;
+ return Number.isFinite(value)?value:null;
 }
 function macd(a){
  if(a.length<34)return null;
@@ -32,7 +53,7 @@ function macd(a){
 }
 function indicators(c){
  if(!Array.isArray(c)||!c.length)return{candle_count:0,method:"Insufficient candle data"};
- const close=c.map(x=>x.close),last=c[c.length-1],m=sma(close,20),sd=m===null?null:Math.sqrt(close.slice(-20).reduce((s,x)=>s+(x-m)**2,0)/20);
+ const close=c.map(x=>x.close),last=c[c.length-1],m=sma(close,20),sd=m===null?null:scaledDeviation(close.slice(-20),m);
  const maxVolume=Math.max(...c.map(x=>x.volume)),vwap=maxVolume>0?c.reduce((state,x)=>{const weight=x.volume/maxVolume;if(!weight)return state;const price=x.high/3+x.low/3+x.close/3,total=state.weight+weight;return{weight:total,value:state.weight?state.value*(state.weight/total)+price*(weight/total):price};},{weight:0,value:0}).value:null;
  return{last_close:last.close,ema_20:ema(close,20),ema_50:ema(close,50),ema_200:ema(close,200),sma_20:m,rsi_14_wilder:rsi(close),macd_12_26:macd(close),bollinger_20_2:m!==null&&sd!==null?{upper:m+2*sd,middle:m,lower:m-2*sd}:null,atr_14_wilder:atrWilder(c),vwap,candle_count:c.length,method:"Client-side descriptive OHLCV calculations; not a validated trading signal"};
 }
@@ -40,20 +61,23 @@ function intervalFor(tf){return tf==="3h"?"1h":({"1D":"1d","3D":"3d","1W":"1w"}[
 function routeFor(market){return market==="SPOT"?"/api/v1/markets/spot/klines/":market==="USD_M"?"/api/v1/markets/futures/usdm/klines/":market==="COIN_M"?"/api/v1/markets/futures/coinm/klines/":null;}
 function emaSeries(values,n){
  const out=Array(values.length).fill(null);if(values.length<n)return out;
- const k=2/(n+1);let value=values.slice(0,n).reduce((s,x)=>s+x,0)/n;out[n-1]=value;
- for(let i=n;i<values.length;i++){value=values[i]*k+value*(1-k);out[i]=value;}return out;
+ let value=finiteMean(values.slice(0,n));if(value===null)return out;out[n-1]=value;
+ const k=2/(n+1);
+ for(let i=n;i<values.length;i++){if(!Number.isFinite(values[i])){value=null;continue;}if(value===null){out[i]=null;continue;}value=values[i]*k+value*(1-k);if(!Number.isFinite(value)){value=null;continue;}out[i]=value;}return out;
 }
 function rsiSeries(values,n=14){
  const out=Array(values.length).fill(null);if(values.length<=n)return out;
- let gains=0,losses=0;for(let i=1;i<=n;i++){const d=values[i]-values[i-1];gains+=Math.max(d,0);losses+=Math.max(-d,0);}
- gains/=n;losses/=n;out[n]=gains===0&&losses===0?50:losses===0?100:gains===0?0:100-100/(1+gains/losses);
- for(let i=n+1;i<values.length;i++){const d=values[i]-values[i-1];gains=(gains*(n-1)+Math.max(d,0))/n;losses=(losses*(n-1)+Math.max(-d,0))/n;out[i]=gains===0&&losses===0?50:losses===0?100:gains===0?0:100-100/(1+gains/losses);}
+ const gains=[],losses=[];for(let i=1;i<=n;i++){const delta=values[i]-values[i-1];if(!Number.isFinite(delta))return out;gains.push(Math.max(delta,0));losses.push(Math.max(-delta,0));}
+ let averageGain=finiteMean(gains),averageLoss=finiteMean(losses);if(averageGain===null||averageLoss===null)return out;
+ const value=()=>averageGain===0&&averageLoss===0?50:averageLoss===0?100:averageGain===0?0:100-100/(1+averageGain/averageLoss);
+ out[n]=value();
+ for(let i=n+1;i<values.length;i++){const delta=values[i]-values[i-1];if(!Number.isFinite(delta)){averageGain=null;averageLoss=null;continue;}if(averageGain===null||averageLoss===null)continue;averageGain=(averageGain*(n-1)+Math.max(delta,0))/n;averageLoss=(averageLoss*(n-1)+Math.max(-delta,0))/n;if(!Number.isFinite(averageGain)||!Number.isFinite(averageLoss)){averageGain=null;averageLoss=null;continue;}out[i]=value();}
  return out;
 }
 function atrSeries(c,n=14){
  const out=Array(c.length).fill(null),tr=c.slice(1).map((x,i)=>Math.max(x.high-x.low,Math.abs(x.high-c[i].close),Math.abs(x.low-c[i].close)));
- if(tr.length<n)return out;let value=tr.slice(0,n).reduce((s,x)=>s+x,0)/n;out[n]=value;
- for(let i=n+1;i<c.length;i++){value=(value*(n-1)+tr[i-1])/n;out[i]=value;}return out;
+ if(tr.length<n)return out;let value=finiteMean(tr.slice(0,n));if(value===null)return out;out[n]=value;
+ for(let i=n+1;i<c.length;i++){value=(value*(n-1)+tr[i-1])/n;if(!Number.isFinite(value))break;out[i]=value;}return out;
 }
 function macdComponents(values){
  const fast=emaSeries(values,12),slow=emaSeries(values,26);
@@ -67,7 +91,8 @@ function macdComponents(values){
 function macdSeries(values){return macdComponents(values).line;}
 function bollingerSeries(values,n=20,multiplier=2){
  const middle=Array(values.length).fill(null),upper=Array(values.length).fill(null),lower=Array(values.length).fill(null);
- for(let i=n-1;i<values.length;i++){const window=values.slice(i-n+1,i+1),mean=window.reduce((s,x)=>s+x,0)/n,sd=Math.sqrt(window.reduce((s,x)=>s+(x-mean)**2,0)/n);middle[i]=mean;upper[i]=mean+multiplier*sd;lower[i]=mean-multiplier*sd;}
+ if(!Number.isSafeInteger(n)||n<1||!Number.isFinite(multiplier)||multiplier<0)return{upper,middle,lower};
+ for(let i=n-1;i<values.length;i++){const window=values.slice(i-n+1,i+1),mean=finiteMean(window),sd=scaledDeviation(window,mean);if(mean===null||sd===null)continue;const upperValue=mean+multiplier*sd,lowerValue=mean-multiplier*sd;if(!Number.isFinite(upperValue)||!Number.isFinite(lowerValue))continue;middle[i]=mean;upper[i]=upperValue;lower[i]=lowerValue;}
  return{upper,middle,lower};
 }
 function adxSeries(c,n=14){
@@ -100,13 +125,13 @@ function drawLinePanel(title,values,{min=null,max=null,zero=false}={}){
  const valid=values.filter(Number.isFinite);const panel=document.createElement("section");panel.className="indicator-pane";
  const heading=document.createElement("div");heading.className="indicator-pane-heading";const label=document.createElement("strong");label.textContent=title;const latest=document.createElement("span");latest.textContent=valid.length?new Intl.NumberFormat(undefined,{maximumFractionDigits:4}).format(valid[valid.length-1]):"Insufficient history";heading.append(label,latest);panel.append(heading);
  if(!valid.length){const empty=document.createElement("div");empty.className="indicator-pane-empty";empty.textContent="Insufficient candle history for this indicator.";panel.append(empty);return panel;}
- const lo=min===null?Math.min(...valid):min,hi=max===null?Math.max(...valid):max,span=hi-lo||1,w=1000,h=104,pad=8;
+ let lo=min===null?valid[0]:min,hi=max===null?valid[0]:max;if(min===null||max===null){for(const value of valid){if(min===null&&value<lo)lo=value;if(max===null&&value>hi)hi=value;}}const scale=Math.max(Math.abs(lo),Math.abs(hi),1),scaledLo=lo/scale,scaledSpan=hi/scale-scaledLo||1,w=1000,h=104,pad=8;
  const svg=document.createElementNS(ns,"svg");svg.setAttribute("viewBox","0 0 "+w+" "+h);svg.setAttribute("role","img");svg.setAttribute("aria-label",title+" indicator pane");
  const add=(tag,attrs)=>{const e=document.createElementNS(ns,tag);Object.entries(attrs).forEach(([k,v])=>e.setAttribute(k,String(v)));svg.append(e);};
  if(zero&&lo<0&&hi>0){const zy=pad+(hi/span)* (h-pad*2);add("line",{x1:0,y1:zy,x2:w,y2:zy,stroke:"#40516b","stroke-dasharray":"4 4"});}
  let segment=[];const flush=()=>{if(segment.length>1)add("polyline",{points:segment.join(" "),fill:"none",stroke:"#63a7ff","stroke-width":2,"stroke-linejoin":"round","stroke-linecap":"round"});segment=[];};
  const step=w/Math.max(1,values.length-1);
- values.forEach((v,i)=>{if(!Number.isFinite(v)){flush();return;}const x=i*step,y=h-pad-(v-lo)/span*(h-pad*2);segment.push(x+","+y);});flush();
+ values.forEach((v,i)=>{if(!Number.isFinite(v)){flush();return;}const x=i*step,y=h-pad-(v/scale-scaledLo)/scaledSpan*(h-pad*2);if(Number.isFinite(x)&&Number.isFinite(y))segment.push(x+","+y);else flush();});flush();
  panel.append(svg);return panel;
 }
 function render(c){
