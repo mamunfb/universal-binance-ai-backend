@@ -403,6 +403,17 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn('assert.equal(aggregated.length, 1000)', self.chart_test_js)
         self.assertIn('assert.equal(gapAggregated.length, 999)', self.chart_test_js)
 
+    def test_health_endpoint_rejects_non_object_json_responses(self) -> None:
+        health_body = self.js.split("async function loadHealth() {", 1)[1].split("function invalidateScanRequests()", 1)[0]
+        self.assertIn('if(result===null||typeof result!=="object"||Array.isArray(result))throw new Error("Health endpoint returned an invalid response shape.', health_body)
+        self.assertLess(health_body.index("invalid response shape"), health_body.index("state.lastHealth=result"))
+
+    def test_quality_endpoint_rejects_non_object_json_and_preserves_previous_report(self) -> None:
+        quality_body = self.js.split("async function loadQuality() {", 1)[1].split("function connectSettings()", 1)[0]
+        self.assertIn('if(data===null||typeof data!=="object"||Array.isArray(data))', quality_body)
+        self.assertIn('setText("quality-state","Invalid response · previous report retained")', quality_body)
+        self.assertLess(quality_body.index("invalid response shape"), quality_body.index('showJson("quality-output",data)'))
+
     def test_backend_reconfiguration_resets_stale_connection_and_data_statuses(self) -> None:
         connect_body = self.js.split("function connectSettings() {", 1)[1].split("function bind()", 1)[0]
         self.assertIn('setText("health-status","Not checked · test the new connection")', connect_body)
