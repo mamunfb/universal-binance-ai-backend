@@ -240,6 +240,7 @@ test("changing market cancels an in-flight scan without an uncaught error", asyn
   await page.locator("#backend-url").fill("https://backend.test");
   await page.locator("#test-connection").click();
   await page.getByText("Backend health endpoint responded successfully.").waitFor();
+  await page.locator('.nav-link[data-page="overview"]').click();
 
   let scanStarted, routeSettled;
   const started = new Promise(resolve => { scanStarted = resolve; });
