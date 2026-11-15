@@ -2,22 +2,23 @@
 
 **Date:** 2026-11-15  
 **Working branch:** `feat/institutional-dashboard-design`  
-**Audited source commit:** `ff39adc7d9d013215d5e1af3e79e3913a7560f8a`  
+**Latest browser-tested source commit:** `8d10f175d62da6edb2fa53bec4a948d6240eee2c`  
 **Scope:** dashboard CI, responsive layout, keyboard accessibility, JavaScript/API handling, rendering performance.  
 **Change-control boundary:** `main`, PR merge state, and production deployment are intentionally unchanged.
 
 ## Executive status
 
-This is a source and staging audit, not a release-readiness sign-off. The current staging URL serves a different, older dashboard implementation from the feature-branch source. Consequently, the staging browser observations below cannot be used as runtime verification of the feature branch.
+This is a feature-branch source and isolated-browser audit, not a release-readiness sign-off. The current staging URL still serves a different, older dashboard implementation; staging observations below are not runtime verification of the feature branch.
 
 | Area | Current evidence | Status |
 |---|---|---|
-| GitHub Actions runner | Workflow definition read back; no verified job/step log for audited feature-branch commit | **Not verified** |
-| Feature-branch mobile layout | CSS source contains breakpoints at 1100px, 760px, 480px and 360px; no live render of this branch | **Source reviewed; runtime pending** |
-| Feature-branch keyboard navigation | Mobile sidebar focus trap and Escape handling exist in `dashboard/app.js` at audited commit | **Source reviewed; runtime regression pending** |
-| JavaScript/API errors | API wrapper has timeout, caller-abort handling, JSON-shape/error handling, sanitized backend details and network error messaging | **Source reviewed; runtime pending** |
-| Rendering performance | Scanner search text uses per-table WeakMap caching; chart rendering caps displayed candles to the latest 120 | **Source reviewed; profiling pending** |
-| Browser QA on staging | Visual viewport assessment at 360, 390, 768 and 1280 CSS-pixel widths | **Staging-only; not feature branch** |
+| GitHub Actions runner | Browser QA Run #31 and backend Run #1793 completed with retrievable job logs | **Verified** |
+| Feature-branch mobile layout | Chromium tested 360, 390, 480, 760, 768, 1100 and 1280 CSS-pixel widths without horizontal overflow | **Browser PASS** |
+| Feature-branch keyboard navigation | Mobile focus trap, Escape/focus restoration, and keyboard sorting on a 1,000-row scanner fixture | **Browser PASS** |
+| JavaScript/API errors | Mocked health success, HTTP 503, malformed JSON, network failure, empty response, invalid shape, timeout and stale-scan cancellation | **Browser PASS; live API not tested** |
+| Large-dataset rendering | 1,000 mocked rows; 100 DOM rows per page; search and pagination verified | **Browser PASS; no timing/heap benchmark** |
+| Automated accessibility | axe-core 4.10.3, WCAG 2.1 A/AA tags, zero violations on initial visible dashboard | **Automated scan PASS; not full WCAG certification** |
+| Browser QA on staging | Staging still serves a different dashboard implementation | **Staging-only; not feature branch** |
 
 ## 1. CI runner verification
 
