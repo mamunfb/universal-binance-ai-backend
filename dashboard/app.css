@@ -20,3 +20,8 @@
 /* Visible keyboard focus for primary navigation and compact controls. */
 .nav-link:focus-visible,.icon-btn:focus-visible,.primary-btn:focus-visible,.secondary-btn:focus-visible,.market-tab:focus-visible,.timeframe-btn:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
 @media(max-width:480px){.topbar-controls{grid-template-columns:repeat(2,minmax(0,1fr))}.topbar-controls .compact-control{min-width:0}.topbar-controls .icon-btn{min-height:37px}.topbar-controls .primary-btn{width:100%}}
+
+/* Keyboard navigation: clearly identify focused fields and avoid a distracting outline on the programmatically focused page heading. */
+input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.page-view h1:focus{outline:none}
+
