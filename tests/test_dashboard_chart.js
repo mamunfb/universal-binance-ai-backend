@@ -554,3 +554,23 @@ test("chart invalidation actively aborts the in-flight API request and ignores i
   assert.deepEqual(await request,{status:"SUPERSEDED",market:"SPOT",symbol:"BTCUSDT",requested_timeframe:"1h"});
 });
 
+test("chart load bounds oversized backend candle payloads to the latest 1000 source rows", async () => {
+  const makeElement = tag => ({
+    tagName:tag,attributes:{},children:[],style:{},textContent:"",
+    setAttribute(key,value){this.attributes[key]=String(value);},
+    append(...nodes){this.children.push(...nodes);},
+    replaceChildren(...nodes){this.children=[...nodes];}
+  });
+  const nodes = {"chart-placeholder":makeElement("host"),"technical-summary":makeElement("summary"),"analysis-output":makeElement("output"),"chart-state":makeElement("state")};
+  const originalDocument=global.document;
+  global.document={getElementById(id){return nodes[id];},createElement:makeElement,createElementNS(_ns,tag){return makeElement(tag);}};
+  const rows=Array.from({length:1200},(_,i)=>{const close=100+i/10;return [i*3600000,close,close+1,close-1,close,1,i*3600000+3599999];});
+  try {
+    const result=await charts.load(async()=>({klines:rows}),"SPOT","BTCUSDT","1h");
+    assert.equal(result.source_rows_received,1200);
+    assert.equal(result.source_rows_processed,1000);
+    assert.equal(result.candle_count,1000);
+    assert.equal(result.latest_candle_time_utc,new Date(rows.at(-1)[0]).toISOString());
+  } finally {global.document=originalDocument;}
+});
+
