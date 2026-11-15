@@ -30,6 +30,7 @@ class DashboardContractTests(unittest.TestCase):
         cls.html = (DASHBOARD / "index.html").read_text(encoding="utf-8")
         cls.js = (DASHBOARD / "app.js").read_text(encoding="utf-8")
         cls.chart_js = (DASHBOARD / "chart.js").read_text(encoding="utf-8")
+        cls.chart_test_js = (ROOT / "tests" / "test_dashboard_chart.js").read_text(encoding="utf-8")
         cls.css = (DASHBOARD / "app.css").read_text(encoding="utf-8")
         parser = _Ids()
         parser.feed(cls.html)
