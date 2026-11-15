@@ -562,4 +562,13 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 ## VWAP volume-overflow safety
 
 - Replaced direct total-volume and price-volume accumulation with a normalized, incremental weighted mean. This avoids overflowing the raw sum when individual finite candle volumes are very large while retaining volume-weighted typical-price semantics.
-- Added a regression test with two maximum-range finite volumes and distinct typical prices; the expected VWAP is 16. The test was added but not executed.
+- Added a regression test with two maximum-range finite volumes and distinct typical prices; the corrected fixture uses typical prices 12 and 24, so the expected VWAP is 18. The test was added but not executed.
+
+## Indicator-series and chart-rendering extreme-value safety
+
+- Replaced direct arithmetic means in the EMA/SMA, RSI warm-up and ATR warm-up paths with incremental weighted means, avoiding overflow from summing many individually finite values.
+- Bollinger deviation now operates on values normalized by their maximum absolute magnitude. A band is left unavailable (null) if its mathematically derived bound cannot be represented as a finite JavaScript number; the compact indicator snapshot follows the same rule.
+- RSI and ATR series now stop publishing values after an unrepresentable intermediate result rather than exposing Infinity or NaN.
+- Indicator-pane and candlestick-chart vertical coordinate calculations now normalize the value domain before calculating spans, avoiding an infinite max - min span for finite values with opposite signs.
+- Added Node regression fixtures using Number.MAX_VALUE-scale OHLCV values and an unrepresentable Bollinger bound. These tests were added but have not been executed. GitHub source readback is the only verification performed; runtime tests and browser QA remain outstanding.
+
