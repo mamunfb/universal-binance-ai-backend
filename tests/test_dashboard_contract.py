@@ -749,5 +749,26 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn('timedOut?"Request timed out.":externalSignal?.aborted?"Request cancelled.":"Request aborted."', api)
         self.assertIn('finally { window.clearTimeout(timer); externalSignal?.removeEventListener("abort",abortFromCaller); }', api)
 
+    def test_health_requests_are_aborted_when_superseded_or_credentials_change(self) -> None:
+        self.assertIn("let activeHealthController=null", self.js)
+        invalidate = self.js.split("function invalidateHealthRequests()", 1)[1].split("async function loadHealth()", 1)[0]
+        self.assertIn("activeHealthSequence++", invalidate)
+        self.assertIn("activeHealthController.abort()", invalidate)
+        health = self.js.split("async function loadHealth()", 1)[1].split("function invalidateScanRequests()", 1)[0]
+        self.assertIn("api(\"/health\",{signal:controller.signal})", health)
+        self.assertIn("if(activeHealthController===controller)activeHealthController=null", health)
+        connect_body = self.js.split("function connectSettings()", 1)[1].split("function bind()", 1)[0]
+        self.assertIn("invalidateHealthRequests()", connect_body)
+        clear_handler = self.js.split('$(\"clear-credentials\").addEventListener', 1)[1].split('$(\"display-timezone\")', 1)[0]
+        self.assertIn("invalidateHealthRequests()", clear_handler)
+
+    def test_compact_viewport_layout_and_focus_styles_cover_controls(self) -> None:
+        self.assertIn(".filter-row>*{min-width:0}", self.css)
+        self.assertIn(".filter-row>label input,.filter-row>label select{width:100%;min-width:0}", self.css)
+        self.assertIn("@media(max-width:360px)", self.css)
+        self.assertIn(".table-pager button:focus-visible", self.css)
+        self.assertIn(".text-btn:focus-visible", self.css)
+        self.assertIn('role="region" aria-label="Spot market scan results" tabindex="0"', self.html)
+
 if __name__ == "__main__":
     unittest.main()
