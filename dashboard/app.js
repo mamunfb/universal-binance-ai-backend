@@ -68,7 +68,7 @@
   async function scanMarket(market) {
     state.market=market; $("global-market").value=market; document.querySelectorAll(".market-tab").forEach(b=>b.classList.toggle("active",b.dataset.market===market));
     let path;
-    if(market==="SPOT") path="/api/v1/markets/spot/scan?quote_asset="+encodeURIComponent(($("spot-quote")?.value||"USDT").trim().toUpperCase());
+    if(market==="SPOT") { const quote=($("spot-quote")?.value||"").trim().toUpperCase(); path="/api/v1/markets/spot/scan"+(quote?"?quote_asset="+encodeURIComponent(quote):""); }
     else if(market==="USD_M") path="/api/v1/markets/futures/usdm/scan";
     else path="/api/v1/markets/futures/coinm/scan";
     const data=await api(path); renderScanSummary(data);
@@ -81,7 +81,7 @@
   function renderRows(target, rows, columns) {
     const body=$(target); if(!body) return; body.replaceChildren();
     if(!rows.length){const tr=document.createElement("tr"),td=document.createElement("td");td.colSpan=columns;td.className="empty-cell";td.textContent="No market rows were returned. Inspect the raw response and scan status.";tr.append(td);body.append(tr);return;}
-    const keys=columns===6?["symbol","base_asset","quote_asset","price","quote_volume","status"]:["symbol","price","quote_volume","price_change_percent","status"];
+    const keys=columns===6?["symbol","base_asset","quote_asset","last_price","quote_volume_24h","status"]:["symbol","last_price","quote_volume_24h","price_change_percent_24h","status"];
     rows.forEach(item=>{const tr=document.createElement("tr");keys.forEach(key=>{const td=document.createElement("td");td.textContent=item?.[key]===undefined?"—":String(item[key]);tr.append(td);});body.append(tr);});
   }
   function syncAnalysisHeader(){state.symbol=$("global-symbol").value.trim().toUpperCase()||"BTCUSDT";state.market=$("global-market").value;state.timeframe=$("global-timeframe").value;setText("analysis-title",state.symbol+" · "+state.market);setText("analysis-subtitle","Timeframe "+state.timeframe+" · "+state.market+" · Research-only analysis");}
