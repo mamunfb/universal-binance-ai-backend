@@ -996,3 +996,12 @@ Consequently, the reported heap deltas (+80,092 bytes at 1x and +81,224 bytes at
 Artifact: [dashboard-performance-0d740892d1463bc1fd125fc25992d4edd782cbde](https://github.com/mamunfb/universal-binance-ai-backend/actions/runs/43728309911/artifacts/14167611050), artifact ID `14167611050`, 4,872,138 bytes, SHA-256 `f85e30d715df50cf7bb6dff2f39b4bab07dad48dc3b7e5a19c6226e8eaf2a861`.
 
 No dashboard application source, backend logic, database, secrets, `main`, PR merge state, staging, or production deployment was changed by this run or its audit entry.
+
+
+## 51. Heap snapshot retention root cause isolated; refresh keep-alive after pagination (2026-11-15)
+
+Inspected all four V8 heap snapshots from Run #20 (artifact `14167611050`) directly. The baseline snapshots contained 18 `HTMLTableRowElement` and 31 `HTMLTableCellElement` wrapper nodes; the after-cycle snapshots contained 218 row wrappers and 1,231 cell wrappers. This explains why the strong-reference normalization had not worked: `settleScannerDom()` refreshed `window.__qaHeapKeepAlive` immediately after clearing search, but each cycle then sorted and paginated the table, replacing the rows. The global keep-alive array consequently retained the pre-pagination rows while the final DOM contained a different page-1 row set. Five cycles accumulated detached row/cell wrappers through this test-only reference.
+
+Corrected `tests/dashboard_performance_qa.cjs` in commit `4be281754c38d38003705e357a7d55fa917be6a1` to call `settleScannerDom()` again after the Previous-page action returns to page 1 at the end of every repeated cycle. This refreshes the strong references to the final live page rows, replacing references to the rows detached by sort/pagination before the final garbage collection and snapshot.
+
+This is a profiler-harness correction, not evidence of a dashboard application memory leak. Run #20 heap deltas remain invalid for leak interpretation. A new CI artifact must be downloaded and its baseline/after-cycle row and cell wrapper counts compared before any heap conclusion is published.
