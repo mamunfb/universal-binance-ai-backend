@@ -403,6 +403,19 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn('assert.equal(aggregated.length, 1000)', self.chart_test_js)
         self.assertIn('assert.equal(gapAggregated.length, 999)', self.chart_test_js)
 
+    def test_health_refresh_exposes_retained_previous_status(self) -> None:
+        health_body = self.js.split("async function loadHealth() {", 1)[1].split("function invalidateScanRequests()", 1)[0]
+        self.assertIn('setText("health-status","Checking backend health · previous status retained")', health_body)
+        self.assertLess(health_body.index('setText("health-status","Checking backend health · previous status retained")'), health_body.index('await api("/health")'))
+        self.assertIn('setText("health-status","Unavailable")', health_body)
+
+    def test_quality_refresh_and_spot_quote_change_explain_retained_results(self) -> None:
+        quality_body = self.js.split("async function loadQuality() {", 1)[1].split("function connectSettings()", 1)[0]
+        self.assertIn('" · previous report retained"', quality_body)
+        quote_handler = self.js.split('$("spot-quote").addEventListener', 1)[1].split('[["spot-search"', 1)[0]
+        self.assertIn('setText("scan-state","Spot quote filter changed · previous results retained; run a new scan")', quote_handler)
+        self.assertIn("invalidateScanRequests()", quote_handler)
+
     def test_connection_test_does_not_report_success_for_superseded_health(self) -> None:
         handler = self.js.split('$("test-connection").addEventListener', 1)[1].split('$("clear-credentials").addEventListener', 1)[0]
         self.assertIn("const result=await loadHealth()", handler)
