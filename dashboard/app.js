@@ -76,7 +76,7 @@
   async function loadHealth() {
     const requestSequence=++activeHealthSequence;
     setText("health-status","Checking backend health · previous status retained");
-    try { const result=await api("/health"); if(requestSequence!==activeHealthSequence)return{status:"SUPERSEDED"}; state.lastHealth=result; setText("health-status",metadataText(result.status,"Healthy response",80)); setConnection(true,"Backend reachable"); return result; }
+    try { const result=await api("/health"); if(requestSequence!==activeHealthSequence)return{status:"SUPERSEDED"}; if(result===null||typeof result!=="object"||Array.isArray(result))throw new Error("Health endpoint returned an invalid response shape. Expected a JSON object."); state.lastHealth=result; setText("health-status",metadataText(result.status,"Healthy response",80)); setConnection(true,"Backend reachable"); return result; }
     catch(error){if(requestSequence!==activeHealthSequence)return{status:"SUPERSEDED"};setText("health-status","Unavailable");setConnection(false,"Backend unavailable: "+metadataText(error?.message,"Request failed",160));throw error;}
   }
   function invalidateScanRequests(){activeScanSequence++;}
@@ -211,6 +211,7 @@
     setText("quality-state","Loading "+symbol+" · "+interval+" · previous report retained");
     let data;try{data=await api("/api/v1/quality/market-data/"+encodeURIComponent(market)+"/"+encodeURIComponent(symbol)+"?"+q);}catch(error){if(requestSequence!==activeQualitySequence)return{status:"SUPERSEDED"};setText("quality-state","Load failed · previous report retained · "+metadataText(error?.message,"Unknown error",120));throw error;}
     if(requestSequence!==activeQualitySequence)return{status:"SUPERSEDED"};
+    if(data===null||typeof data!=="object"||Array.isArray(data)){setText("quality-state","Invalid response · previous report retained");throw new Error("Data quality endpoint returned an invalid response shape. Expected a JSON object; previous report was preserved.");}
     showJson("quality-output",data);setText("quality-state",metadataText(data.status,"Report received",80));toast("Data quality report loaded.","success");return data;
   }
   function connectSettings() {
