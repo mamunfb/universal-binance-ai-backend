@@ -87,6 +87,7 @@
     else path="/api/v1/markets/futures/coinm/scan";
     let data; try{data=await api(path);}catch(error){if(requestSequence!==activeScanSequence)return{status:"SUPERSEDED",market};throw error;}
     if(requestSequence!==activeScanSequence)return{status:"SUPERSEDED",market};
+    if(data===null||typeof data!=="object"||Array.isArray(data))throw new Error("Scanner endpoint returned an invalid response shape. Expected a JSON object; previous results were preserved.");
     renderScanSummary(data);
     const responseRows=safeArray(data,["symbols","markets","results","data"]);
     const rows=responseRows.filter(item=>item!==null&&typeof item==="object"&&!Array.isArray(item));
