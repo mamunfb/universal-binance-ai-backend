@@ -26,6 +26,7 @@
     if(!open&&mobile&&sidebar.contains(document.activeElement))menu.focus();
     sidebar.classList.toggle("open",Boolean(open&&mobile));
     menu.setAttribute("aria-expanded",String(Boolean(open&&mobile)));
+    menu.setAttribute("aria-label",open&&mobile?"Close navigation":"Open navigation");
     sidebar.inert=mobile&&!open;
     if(open&&mobile)sidebar.querySelector(".nav-link")?.focus();
   }
@@ -262,7 +263,7 @@
     setSidebarOpen(false);
     $("mobile-menu").addEventListener("click",()=>setSidebarOpen(!$("sidebar").classList.contains("open")));
     document.addEventListener("keydown",event=>{if(event.key==="Escape"&&$("sidebar").classList.contains("open"))setSidebarOpen(false);});
-    window.addEventListener("resize",()=>{if(!window.matchMedia("(max-width:760px)").matches)setSidebarOpen(false);});
+    window.addEventListener("resize",()=>setSidebarOpen(false));
     $("open-settings").addEventListener("click",()=>{navigate("settings");history.replaceState(null,"","#settings");});
     $("banner-settings").addEventListener("click",()=>navigate("settings"));
     $("refresh-page").addEventListener("click",()=>{const page=location.hash.slice(1)||"overview";if(page==="overview")withButton("refresh-page",async()=>{const results=await Promise.allSettled([loadHealth(),scanMarket(state.market)]);const failures=results.filter(result=>result.status==="rejected").map(result=>metadataText(result.reason?.message,"Request failed",120));if(failures.length)throw new Error("Overview refresh partially failed: "+failures.join(" · "));},"Refreshing");else if(page==="reliability")withButton("refresh-page",loadQuality,"Refreshing");else if(page==="coin-analysis")withButton("refresh-page",loadTechnical,"Refreshing");else toast("No verified refresh action is mapped for this page yet.");});
