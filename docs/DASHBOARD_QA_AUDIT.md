@@ -860,3 +860,21 @@ Changes were committed on `feat/institutional-dashboard-design`:
 Run #16 ([workflow 43726505493](https://github.com/mamunfb/universal-binance-ai-backend/actions/runs/43726505493)) was observed running against commit `3fd5c762384d91053b531e28f386be00278f1ea7`. At the time of this audit update, Chromium installation was still in progress; no profiler pass or 1,000-row timing/heap result is claimed yet.
 
 Scope remains unchanged: no dashboard application logic, backend, database, secrets, `main`, PR merge state, staging, or production deployment was modified.
+
+
+
+## 44. Run #16 pager selector diagnosis and correction (2026-11-15)
+
+Run #16 ([workflow 43726505493](https://github.com/mamunfb/universal-binance-ai-backend/actions/runs/43726505493), job 132849512315) completed with failure. All three Lighthouse cold-load audits passed. The locale-aware scanner count assertion no longer failed; the profiler advanced beyond the initial 1,000-row scan and sort to the pagination step.
+
+The next failure was a Playwright strict-mode selector error: the generic `.table-pager button[aria-label="Next scanner page"]` matched three scanner page sections (Spot, USDⓈ-M, and COIN-M) simultaneously. The test must target only the active Spot Scanner page. No dashboard UI defect is indicated by this failure.
+
+Corrected all Next/Previous pager selectors in `tests/dashboard_performance_qa.cjs` to scope them under `#page-spot-scanner`. Commit: `8da9dc9b193767fd7deb2877a7619dcee4038408`.
+
+Run #16 artifact `14166841719` contains only the three Lighthouse JSON reports (213,091 bytes); the profiler stopped at the ambiguous pager selector, so no completed 1,000-row timings or heap snapshots are available from this run.
+
+## 45. Run #17 after pager selector correction (2026-11-15)
+
+Run #17 ([workflow 43726789990](https://github.com/mamunfb/universal-binance-ai-backend/actions/runs/43726789990)) was observed running on branch `feat/institutional-dashboard-design`, commit `8da9dc9b193767fd7deb2877a7619dcee4038408`. Chromium installation passed and the three-sample mobile Lighthouse stage was in progress at the time of this update. CPU/heap profiling has not yet started; no new scanner performance or heap result is claimed.
+
+No dashboard application source, backend business logic, database, secrets, `main`, PR merge state, staging or production deployment was changed.
