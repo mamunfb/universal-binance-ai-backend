@@ -291,11 +291,18 @@ class DashboardContractTests(unittest.TestCase):
         self.assertLess(scan_body.index(validation), scan_body.index("renderScanSummary(data)"))
 
     def test_scanner_rejects_non_object_response_rows_and_reports_count(self) -> None:
-        self.assertIn('const responseRows=safeArray(data,["symbols","markets","results","data"])', self.js)
+        self.assertIn('const rowKey=["symbols","markets","results","data"].find(key=>Array.isArray(data[key]))', self.js)
+        self.assertIn('const responseRows=hasRowsArray?data[rowKey]:[]', self.js)
         self.assertIn('responseRows.filter(item=>item!==null&&typeof item==="object"&&!Array.isArray(item))', self.js)
         self.assertIn("const rejectedRows=responseRows.length-rows.length", self.js)
         self.assertIn('"Rejected malformed rows: "+rejectedRows', self.js)
         self.assertIn("malformed rows were excluded", self.js)
+
+    def test_scanner_distinguishes_missing_result_array_from_empty_array(self) -> None:
+        self.assertIn("const hasRowsArray=rowKey!==undefined", self.js)
+        self.assertIn('"Result field: "+(rowKey||"Not supplied")', self.js)
+        self.assertIn("No recognized result array was supplied.", self.js)
+        self.assertIn('!hasRowsArray||rejectedRows?"info":"success"', self.js)
 
     def test_spot_scanner_exposes_backend_reported_coverage(self) -> None:
         self.assertIn('id="spot-coverage"', self.html)
