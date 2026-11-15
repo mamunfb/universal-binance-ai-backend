@@ -368,12 +368,14 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn('Network connection failed. Check your connection and backend availability.', self.js)
         self.assertIn('finally { window.clearTimeout(timer); externalSignal?.removeEventListener("abort",abortFromCaller); }', self.js)
 
-    def test_scanner_sort_precomputes_values_and_reuses_collator(self) -> None:
+    def test_scanner_sort_memoizes_numeric_keys_without_decorating_rows(self) -> None:
         self.assertIn("const scannerCollator = new Intl.Collator", self.js)
-        self.assertIn("const sortable=filtered.map(item=>", self.js)
-        self.assertIn("numeric:numericValue(value)", self.js)
-        self.assertIn("sortable.sort((a,b)=>", self.js)
-        self.assertIn("sortedRows=sortable.map(entry=>entry.item)", self.js)
+        self.assertIn("const numericCache=new WeakMap()", self.js)
+        self.assertIn("const numericFor=item=>", self.js)
+        self.assertIn("numericCache.set(item,numericValue(item?.[sortKey]))", self.js)
+        self.assertIn("const an=numericFor(a),bn=numericFor(b)", self.js)
+        self.assertNotIn("const sortable=filtered.map(item=>", self.js)
+        self.assertNotIn("sortedRows=sortable.map(entry=>entry.item)", self.js)
         self.assertNotIn('localeCompare(String(b?.symbol', self.js)
 
     def test_scanner_numeric_sort_rejects_coercible_non_primitive_values(self) -> None:
