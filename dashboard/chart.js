@@ -109,13 +109,13 @@ function drawLinePanel(title,values,{min=null,max=null,zero=false}={}){
 }
 function render(c){
  const host=document.getElementById("chart-placeholder");host.replaceChildren();if(!c.length){host.textContent="No complete candle data returned.";return;}
- const a=c.slice(-120),w=1000,h=330,top=18,bottom=238,volTop=260,volBottom=310,hi=Math.max(...a.map(x=>x.high)),lo=Math.min(...a.map(x=>x.low)),span=hi-lo||1,maxVol=Math.max(...a.map(x=>x.volume),1);
+ const a=c.slice(-120),w=1000,h=330,top=18,bottom=238,volTop=260,volBottom=310,closeAll=c.map(x=>x.close),bands=bollingerSeries(closeAll),bandValues=[...bands.upper,...bands.lower].filter(Number.isFinite),hi=Math.max(...a.map(x=>x.high),...bandValues),lo=Math.min(...a.map(x=>x.low),...bandValues),span=hi-lo||1,maxVol=Math.max(...a.map(x=>x.volume),1);
  const svg=document.createElementNS(ns,"svg");svg.setAttribute("viewBox","0 0 "+w+" "+h);svg.setAttribute("role","img");svg.setAttribute("aria-label","Candlestick and volume chart from verified backend OHLCV data");svg.style.width="100%";
  const add=(tag,attrs)=>{const e=document.createElementNS(ns,tag);Object.entries(attrs).forEach(([k,v])=>e.setAttribute(k,String(v)));svg.append(e);};
  for(let i=0;i<5;i++){const y=top+i*(bottom-top)/4;add("line",{x1:20,y1:y,x2:980,y2:y,stroke:"#243650","stroke-width":1});}
  const step=960/a.length,cw=Math.max(2,step*.58),y=v=>bottom-(v-lo)/span*(bottom-top);
  a.forEach((x,i)=>{const cx=20+i*step+step/2,color=x.close>=x.open?"#48c99a":"#ef737e";add("line",{x1:cx,y1:y(x.high),x2:cx,y2:y(x.low),stroke:color,"stroke-width":1.2});add("rect",{x:cx-cw/2,y:Math.min(y(x.open),y(x.close)),width:cw,height:Math.max(1,Math.abs(y(x.open)-y(x.close))),fill:color});const vh=x.volume/maxVol*(volBottom-volTop);add("rect",{x:cx-cw/2,y:volBottom-vh,width:cw,height:vh,fill:color,opacity:.4});});
- const closes=c.map(x=>x.close),ema20=emaSeries(closes,20),bands=bollingerSeries(closes),offset=c.length-a.length;
+ const closes=closeAll,ema20=emaSeries(closes,20),offset=c.length-a.length;
  const linePoints=series=>series.slice(offset).map((v,i)=>v===null?null:(20+i*step+step/2)+","+y(v)).filter(Boolean);
  for(const [series,color,width] of [[bands.upper,"#8b9db8",1.2],[bands.middle,"#8b9db8",1],[bands.lower,"#8b9db8",1],[ema20,"#f4c46a",2]]){const pts=linePoints(series);if(pts.length>1)add("polyline",{points:pts.join(" "),fill:"none",stroke:color,"stroke-width":width,"stroke-linejoin":"round","stroke-dasharray":color==="#8b9db8"?"5 4":"none"});}
  const caption=document.createElement("div");caption.className="chart-caption";caption.textContent=a.length+" candles · actual backend OHLCV · EMA20 + Bollinger(20,2) overlays · "+(c[0].time?new Date(c[0].time).toISOString():"");host.append(svg,caption);
