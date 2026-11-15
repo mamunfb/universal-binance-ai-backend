@@ -274,12 +274,12 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn('textContent="Next"', self.js)
         self.assertIn("matching / ", self.js)
         self.assertIn("let activeScanSequence=0", self.js)
-        self.assertIn("function invalidateScanRequests(){activeScanSequence++;}", self.js)
+        self.assertIn("function invalidateScanRequests(){activeScanSequence++;if(activeScanController){activeScanController.abort();activeScanController=null;}}", self.js)
         self.assertIn("if(requestSequence!==activeScanSequence)return{status:\"SUPERSEDED\",market}", self.js)
-        self.assertIn("const numericValue=v=>", self.js)
-        self.assertIn("if(am!==bm)return am?1:-1", self.js)
-        self.assertIn("else if((an!==null)!==(bn!==null))cmp=an!==null?-1:1", self.js)
-        self.assertIn('String(a?.symbol??"").localeCompare(String(b?.symbol??""),undefined,{numeric:true,sensitivity:"base"})', self.js)
+        self.assertIn("const numericValue=value=>", self.js)
+        self.assertIn("if(a.missing!==b.missing)return a.missing?1:-1", self.js)
+        self.assertIn("if((a.numeric!==null)!==(b.numeric!==null))return a.numeric!==null?-1:1", self.js)
+        self.assertIn('scannerCollator.compare(a.symbol,b.symbol)', self.js)
         self.assertIn('th.addEventListener("keydown",event=>{if(event.key==="Enter"||event.key===" ")', self.js)
         self.assertIn('th.setAttribute("aria-label","Sort by "+keys[index])', self.js)
         self.assertIn('th.setAttribute("aria-keyshortcuts","Enter Space")', self.js)
@@ -373,7 +373,7 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn("const sortable=filtered.map(item=>", self.js)
         self.assertIn("numeric:numericValue(value)", self.js)
         self.assertIn("sortable.sort((a,b)=>", self.js)
-        self.assertIn("const sortedRows=sortable.map(entry=>entry.item)", self.js)
+        self.assertIn("sortedRows=sortable.map(entry=>entry.item)", self.js)
         self.assertNotIn('localeCompare(String(b?.symbol', self.js)
 
     def test_scanner_numeric_sort_rejects_coercible_non_primitive_values(self) -> None:
@@ -807,6 +807,14 @@ class DashboardContractTests(unittest.TestCase):
         refresh = self.js.split("function refreshDisplayedTimestamps()", 1)[1].split("function connectSettings()", 1)[0]
         self.assertIn("renderScanSummary(cached?.data??state.lastScan,cached?.market??state.market)", refresh)
         self.assertIn("cached.additionalRowKeys,cached.quoteFilter", refresh)
+
+    def test_scanner_invalid_numeric_values_remain_after_numeric_values_in_both_sort_directions(self) -> None:
+        scanner = self.js.split("function renderRows(target, rows, columns)", 1)[1].split("function syncAnalysisHeader()", 1)[0]
+        comparator = scanner.split("sortable.sort((a,b)=>", 1)[1].split(";filteredCount=filtered.length", 1)[0]
+        self.assertIn("if(a.missing!==b.missing)return a.missing?1:-1", comparator)
+        self.assertIn("if((a.numeric!==null)!==(b.numeric!==null))return a.numeric!==null?-1:1", comparator)
+        self.assertLess(comparator.index("if((a.numeric!==null)!==(b.numeric!==null))"), comparator.index("return cmp===0?0:cmp*view.direction"))
+        self.assertIn("return cmp===0?0:cmp*view.direction", comparator)
 
 if __name__ == "__main__":
     unittest.main()
