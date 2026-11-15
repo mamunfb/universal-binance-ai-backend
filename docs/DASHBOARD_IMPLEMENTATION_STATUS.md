@@ -897,3 +897,11 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - The open draft PR #4 is a separate change: its head is `fix/binance-public-market-data-endpoints`, not this dashboard branch. Its validation claims must not be treated as dashboard-branch validation.
 - The latest dashboard commit has no PR-triggered workflow run returned by the commit-workflow lookup, and its combined commit status has no status entries. This means dashboard CI is unverified/not run for the current head, not passing.
 - No PR was created, no workflow was dispatched, and no merge or deployment was performed. This entry corrects branch/PR identity ambiguity; it does not change source code or runtime behavior.
+
+## Dashboard contract correction and isolated CI
+
+- Corrected a stale scanner static assertion: filtering now verifies the WeakMap-backed `scannerSearchText(target,item,keys)` helper rather than the removed inline `keys.some(...)` implementation.
+- Added a focused contract test for search-text WeakMap creation, per-row cached values, and invalidation of both search and sorted caches when a new response-row array arrives.
+- The dashboard contract test file now contains 110 test methods. This is a method count, not a test execution result.
+- Added `.github/workflows/dashboard-frontend.yml`, isolated from backend runtime checks. It runs Node syntax checks for `dashboard/app.js` and `dashboard/chart.js`, the Node chart fixture suite, and the Python dashboard contract suite. It triggers on pushes to this dashboard branch and on pull requests targeting `main` when dashboard/test/workflow paths change.
+- Workflow execution is pending verification. No backend source, migrations, existing backend CI workflow, secrets, deployment settings, PR state, merge, or deployment were changed.
