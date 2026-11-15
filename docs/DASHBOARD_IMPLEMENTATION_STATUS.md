@@ -2,7 +2,7 @@
 
 **Repository:** `mamunfb/universal-binance-ai-backend`  
 **Frontend branch:** `feat/institutional-dashboard-design`  
-**Current branch head at this checkpoint:** `c94120b914d617c384022277b3f46d8f91497a4a`  
+**Current source checkpoint before this ledger update:** `f051c46f26ea58744a57412917d3438ec854a837`  
 **Backend changes:** None in this branch.
 
 ## Completed in this work session
@@ -115,6 +115,23 @@
 - App, HTML and test changes were committed to the frontend-only branch and read back from GitHub.
 - Static test assertions have been extended; the Node and Python suites have **not** been executed locally or in CI.
 - No real scan response has been used to confirm optional coverage fields; absent fields remain clearly labelled "Not supplied".
+- No backend, migration, CI, secret, deployment, PR, merge or production changes were made.
+
+
+## Additional implementation — scanner search and coverage completion
+
+- Added independent full-response symbol search to USDⓈ-M and COIN-M scanners; search is applied before the existing 100-row pagination.
+- Added returned-row counts and coverage summaries to Spot, USDⓈ-M and COIN-M pages.
+- Coverage summaries display recognized response fields only: returned rows, status, eligible, scanned, failed, matched, source and timestamp.
+- Missing response metadata is labelled "Not supplied"; returned rows are not represented as total exchange coverage.
+- Preserved Spot's matching-versus-returned count during coverage refresh.
+- Extended static contract checks for all three scanner coverage blocks, futures search controls, and advanced ADX/Stochastic RSI/Bollinger indicators.
+
+## Verification status for scanner-controls pass
+
+- App, HTML and test changes were committed and read back from the frontend-only branch.
+- Static test assertions were added but have **not** been executed locally or in CI.
+- No live scan response has verified the optional coverage fields; absent fields remain labelled "Not supplied".
 - No backend, migration, CI, secret, deployment, PR, merge or production changes were made.
 
 ## Not yet verified / remaining work
