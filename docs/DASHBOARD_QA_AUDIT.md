@@ -682,3 +682,22 @@ The workflow requests three mobile Lighthouse cold-load JSON reports and preserv
 **Execution status:** harness and workflow files were committed to the feature branch and read back from GitHub. No completed Actions run or uploaded performance artifact has yet been verified in this audit. Therefore Lighthouse scores, Core Web Vitals, heap values and CPU-throttled timings remain **NOT MEASURED / PENDING RUN**. The workflow's successful completion and artifact contents must be checked before publishing any numbers. The current browser harness reports JS heap metrics after interaction/GC and captures snapshots at each CPU rate; it is not a repeated-cycle leak certification or physical-device profile.
 
 No `main` change, merge/rebase, PR merge, staging/production deployment, backend mutation, database change or secret change was made.
+
+
+
+## 34. Mobile navigation profiler correction (2026-11-15)
+
+A source review of the new CPU/heap profiling harness found that the dashboard intentionally makes the mobile sidebar inert while it is closed. The first profiler revision attempted to click sidebar links without opening the mobile menu, so its navigation-interaction loop was not reliable at the configured 390px viewport.
+
+Corrected `tests/dashboard_performance_qa.cjs` on the feature branch:
+- Open the mobile menu before each navigation-link click when the menu control is visible.
+- Wait for the expected hash route after each click, rather than merely waiting for a non-empty breadcrumb.
+- Record whether the sidebar is closed after navigation.
+
+Commits:
+- `832977e0e8b0cf65ad228d5f27425258222b6434` — mobile menu interaction.
+- `61f9cde26c8e78a89a84a4f95e1b762d87df0b8c` — route-completion assertion.
+
+**Verification limit:** these are source-level harness corrections only. The profiler and GitHub Actions workflow have not yet produced a verified completed run or raw artifact in this audit. No navigation timing, Lighthouse score, heap result, or CPU benchmark is claimed.
+
+No application code, backend, database, secrets, `main`, PR merge state, staging or production deployment was changed.
