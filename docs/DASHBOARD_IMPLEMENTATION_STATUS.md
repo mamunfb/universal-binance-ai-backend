@@ -851,3 +851,11 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - This is a source-level memory-allocation design improvement, not a measured RAM or speed result. No heap snapshot, browser profiling, large-dataset benchmark, Python test execution, CI run, merge, or deployment has been performed.
 - Frontend-only: backend source and CI workflows remain untouched.
 
+
+
+## Scanner search input responsiveness
+
+- Spot, USDⓈ-M and COIN-M search controls now update their normalized query immediately but defer the filter/sort/render pass by 150 ms. Rapid keystrokes cancel the pending render and schedule one pass after typing pauses; the search remains local to the already loaded scanner rows and does not trigger an API request.
+- Each scanner table has its own pending timer, so typing in one market does not delay searches in another market. Clearing backend credentials cancels pending scanner search renders while clearing the query and cached rows.
+- Added a static source-contract test for debounce scheduling, timer replacement and credential-clear cancellation. The test has not been executed; the delay and responsiveness have not been measured in a browser.
+- This is a frontend interaction change only. No backend source, CI workflow, PR state, merge, or deployment was changed.
