@@ -34,7 +34,7 @@ Configured workflow:
 - `node --check` for `dashboard/app.js` and `dashboard/chart.js`.
 - `python -m pytest -q`.
 
-The available commit-workflow lookup returned an empty list, but that connector endpoint is documented as filtering to pull-request-triggered runs only. Therefore this result does **not** establish whether the push-triggered run executed. No runner job ID, completed step list, or log has been verified for the audited commit. Do not mark CI PASS or FAIL until the actual Actions run and its job logs are inspected.
+**Historical note:** the first audit checkpoint lacked a verified runner job and log. This gap was subsequently resolved: Browser QA Run #31 (job `132835163790`) and Backend + Dashboard Run #1793 (job `132835163796`) both completed successfully on source commit `8d10f175d62da6edb2fa53bec4a948d6240eee2c`. Their actual step and test logs are recorded in Section 31; those results supersede the initial pending status.
 
 ## 2. Staging browser assessment
 
