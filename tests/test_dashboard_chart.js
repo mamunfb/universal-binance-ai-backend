@@ -451,3 +451,30 @@ test("candle parsing discards every row sharing a duplicate open timestamp", () 
   assert.deepEqual(parsed.map(row=>row.time),[3600000]);
 });
 
+test("EMA, RSI and ATR series resume after finite-data gaps with fresh warmup windows", () => {
+  const ema = charts.emaSeries([1,2,3,4,NaN,10,11,12,13],3);
+  assert.equal(ema[2],2);
+  assert.equal(ema[4],null);
+  assert.equal(ema[6],null);
+  assert.equal(ema[7],11);
+  assert.ok(Number.isFinite(ema[8]));
+
+  const rsi = charts.rsiSeries([10,11,12,NaN,20,19,18,17],2);
+  assert.equal(rsi[2],100);
+  assert.equal(rsi[3],null);
+  assert.equal(rsi[5],null);
+  assert.equal(rsi[6],0);
+  assert.equal(rsi[7],0);
+
+  const candles = Array.from({length:7}, (_,i) => ({
+    time:i,open:10,high:12,low:9,close:11,volume:1,closeTime:i+1
+  }));
+  candles[3].close = NaN;
+  const atr = charts.atrSeries(candles,2);
+  assert.ok(Number.isFinite(atr[2]));
+  assert.equal(atr[3],null);
+  assert.equal(atr[4],null);
+  assert.equal(atr[5],null);
+  assert.ok(Number.isFinite(atr[6]));
+});
+
