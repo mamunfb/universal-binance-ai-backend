@@ -226,6 +226,19 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn("return parsed.filter(candle=>counts.get(candle.time)===1)", parse_body)
         self.assertLess(parse_body.index("const parsed="), parse_body.index("return parsed.filter"))
 
+    def test_scanner_sort_precomputes_values_and_reuses_collator(self) -> None:
+        self.assertIn("const scannerCollator = new Intl.Collator", self.js)
+        self.assertIn("const sortable=filtered.map(item=>", self.js)
+        self.assertIn("numeric:numericValue(value)", self.js)
+        self.assertIn("sortable.sort((a,b)=>", self.js)
+        self.assertIn("const sortedRows=sortable.map(entry=>entry.item)", self.js)
+        self.assertNotIn('localeCompare(String(b?.symbol', self.js)
+
+    def test_backend_error_details_are_sanitized_and_bounded(self) -> None:
+        self.assertIn(r'detail.replace(/[\x00-\x1f\x7f]/g," ").replace(/\s+/g," ").trim().slice(0,300)', self.js)
+        self.assertIn('Backend request failed (HTTP "+response.status+")', self.js)
+        self.assertNotIn('throw new Error(typeof detail==="string"?detail:json(detail))', self.js)
+
     def test_scanner_count_metadata_rejects_blank_boolean_and_negative_values(self) -> None:
         self.assertIn('value.trim()===""', self.js)
         self.assertIn('typeof value!=="boolean"', self.js)
