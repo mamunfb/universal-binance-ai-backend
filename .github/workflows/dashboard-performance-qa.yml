@@ -36,23 +36,49 @@ jobs:
         run: npm install --no-save --no-package-lock playwright@1.56.1 lighthouse@12.8.2
       - name: Install Chromium
         run: npx --no-install playwright install --with-deps chromium
-      - name: Start isolated feature-branch dashboard
-        run: |
-          node tests/serve_dashboard_qa.cjs > /tmp/dashboard-qa-server.log 2>&1 &
-          for attempt in $(seq 1 30); do
-            if curl --fail --silent http://127.0.0.1:4173/ > /dev/null; then exit 0; fi
-            sleep 1
-          done
-          cat /tmp/dashboard-qa-server.log
-          exit 1
       - name: Run mobile Lighthouse cold-load audits
         run: |
+          set -euo pipefail
           mkdir -p artifacts/performance
+          node tests/serve_dashboard_qa.cjs > /tmp/dashboard-qa-lighthouse-server.log 2>&1 &
+          server_pid=$!
+          cleanup() {
+            kill "$server_pid" 2>/dev/null || true
+            wait "$server_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          ready=0
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:4173/ > /dev/null; then ready=1; break; fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then
+            cat /tmp/dashboard-qa-lighthouse-server.log
+            exit 1
+          fi
           for sample in 1 2 3; do
             npx --no-install lighthouse http://127.0.0.1:4173/ --preset=perf --form-factor=mobile --screenEmulation.mobile=true --screenEmulation.width=390 --screenEmulation.height=844 --screenEmulation.deviceScaleFactor=1 --throttling-method=simulate --chrome-flags="--headless --no-sandbox" --output=json --output-path="artifacts/performance/lighthouse-mobile-$sample.json"
           done
       - name: Run CPU-throttled browser and heap profiling
-        run: node tests/dashboard_performance_qa.cjs
+        run: |
+          set -euo pipefail
+          node tests/serve_dashboard_qa.cjs > /tmp/dashboard-qa-profiler-server.log 2>&1 &
+          server_pid=$!
+          cleanup() {
+            kill "$server_pid" 2>/dev/null || true
+            wait "$server_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          ready=0
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:4173/ > /dev/null; then ready=1; break; fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then
+            cat /tmp/dashboard-qa-profiler-server.log
+            exit 1
+          fi
+          node tests/dashboard_performance_qa.cjs
       - name: Upload raw performance evidence
         if: always()
         uses: actions/upload-artifact@v4
