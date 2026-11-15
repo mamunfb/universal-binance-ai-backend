@@ -804,3 +804,12 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Scanner coverage refresh reuses the quote-filter value captured when that successful request was made. Changing the selected filter or market therefore cannot relabel the previous successful scan during a timestamp refresh.
 - Added a static regression contract for market and quote-filter provenance across display refreshes. The test has not been executed; browser behavior remains unverified.
 - Frontend-only. No backend source, CI, PR, merge, or deployment changes.
+
+
+## Scanner numeric sorting edge-case correction
+
+- The scanner sorter previously applied ascending/descending direction to the mixed numeric/non-numeric comparison. As a result, a malformed value such as a non-empty text placeholder could move ahead of valid numeric values when sorting descending.
+- The comparator now keeps missing values last and keeps non-numeric values after valid numeric values in either direction; direction is applied only when comparing values of the same sortable class.
+- Updated the existing source-contract assertions to match the current abortable scanner request and cached sorting implementation, and added a regression contract for malformed numeric values in both directions.
+- Static source assertions were inspected after the edits; the Python test suite was not executed and browser behavior remains unverified.
+- Frontend-only. No backend source, CI, PR, merge, or deployment changes.
