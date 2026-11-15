@@ -131,7 +131,7 @@ function drawLinePanel(title,values,{min=null,max=null,zero=false}={}){
  let lo=min===null?valid[0]:min,hi=max===null?valid[0]:max;if(min===null||max===null){for(const value of valid){if(min===null&&value<lo)lo=value;if(max===null&&value>hi)hi=value;}}const scale=Math.max(Math.abs(lo),Math.abs(hi),1),scaledLo=lo/scale,scaledSpan=hi/scale-scaledLo||1,w=1000,h=104,pad=8;
  const svg=document.createElementNS(ns,"svg");svg.setAttribute("viewBox","0 0 "+w+" "+h);svg.setAttribute("role","img");svg.setAttribute("aria-label",title+" indicator pane");
  const add=(tag,attrs)=>{const e=document.createElementNS(ns,tag);Object.entries(attrs).forEach(([k,v])=>e.setAttribute(k,String(v)));svg.append(e);};
- if(zero&&lo<0&&hi>0){const zy=pad+(hi/span)* (h-pad*2);add("line",{x1:0,y1:zy,x2:w,y2:zy,stroke:"#40516b","stroke-dasharray":"4 4"});}
+ if(zero&&lo<0&&hi>0){const zy=h-pad-(0/scale-scaledLo)/scaledSpan*(h-pad*2);add("line",{x1:0,y1:zy,x2:w,y2:zy,stroke:"#40516b","stroke-dasharray":"4 4"});}
  let segment=[];const flush=()=>{if(segment.length>1)add("polyline",{points:segment.join(" "),fill:"none",stroke:"#63a7ff","stroke-width":2,"stroke-linejoin":"round","stroke-linecap":"round"});segment=[];};
  const step=w/Math.max(1,values.length-1);
  values.forEach((v,i)=>{if(!Number.isFinite(v)){flush();return;}const x=i*step,y=h-pad-(v/scale-scaledLo)/scaledSpan*(h-pad*2);if(Number.isFinite(x)&&Number.isFinite(y))segment.push(x+","+y);else flush();});flush();
