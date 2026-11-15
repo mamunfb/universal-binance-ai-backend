@@ -196,6 +196,17 @@
     const preferred=buttons.find(button=>button.getAttribute("aria-label")===label&&!button.disabled);
     (preferred||buttons.find(button=>!button.disabled))?.focus();
   }
+  function scannerCellText(key,value) {
+    if(value===null||value===undefined||value==="")return"—";
+    if(typeof value==="number")return Number.isFinite(value)?String(value):"Invalid number";
+    if(typeof value==="string"){
+      if(value.trim()==="")return"—";
+      if(["last_price","quote_volume_24h","price_change_percent_24h"].includes(key)&&!Number.isFinite(Number(value)))return"Invalid number";
+      return value;
+    }
+    if(typeof value==="boolean")return String(value);
+    return"Invalid value";
+  }
   function renderRows(target, rows, columns) {
     const body=$(target); if(!body) return;
     const keys=columns===6?["symbol","base_asset","quote_asset","last_price","quote_volume_24h","status"]:["symbol","last_price","quote_volume_24h","price_change_percent_24h","status"];
@@ -218,7 +229,7 @@
     body.replaceChildren();
     const visible=sortedRows.slice(view.page*view.pageSize,(view.page+1)*view.pageSize);
     if(!visible.length){const tr=document.createElement("tr"),td=document.createElement("td");td.colSpan=columns;td.className="empty-cell";td.textContent=view.rows.length?"No rows match the current filter.":"No market rows were returned. Inspect the raw response and scan status.";tr.append(td);body.append(tr);}
-    visible.forEach(item=>{const tr=document.createElement("tr");keys.forEach(key=>{const td=document.createElement("td");td.textContent=item?.[key]===undefined||item?.[key]===null||item?.[key]===""?"—":String(item[key]);tr.append(td);});body.append(tr);});
+    visible.forEach(item=>{const tr=document.createElement("tr");keys.forEach(key=>{const td=document.createElement("td");td.textContent=scannerCellText(key,item?.[key]);tr.append(td);});body.append(tr);});
     const table=body.closest("table"),headers=table?.querySelectorAll("thead th")||[];
     headers.forEach((th,index)=>{th.title="Sort by "+keys[index];th.setAttribute("aria-sort",keys[index]===view.sortKey?(view.direction===1?"ascending":"descending"):"none");th.style.cursor="pointer";});
     let pager=table?.parentElement?.parentElement?.querySelector(".table-pager");
