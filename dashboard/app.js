@@ -12,6 +12,7 @@
   let activeScanSequence=0;
   let activeEvidenceSequence=0;
   let activeQualitySequence=0;
+  let activeHealthSequence=0;
   const esc = (value) => String(value ?? "—").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const setText = (id, value) => { const el=$(id); if(el) el.textContent = value == null || value === "" ? "—" : String(value); };
   const toast = (message, type="info") => { const el=document.createElement("div"); el.className="toast "+(type==="error"?"error":type==="success"?"success":""); el.textContent=message; $("toast-region").append(el); window.setTimeout(()=>el.remove(),4500); };
@@ -67,8 +68,9 @@
     setText("overview-updated",data.generated_at||data.timestamp||data.updated_at||"Timestamp not supplied");
   }
   async function loadHealth() {
-    try { const result=await api("/health"); state.lastHealth=result; setText("health-status",result.status||"Healthy response"); setConnection(true,"Backend reachable"); return result; }
-    catch(error){setText("health-status","Unavailable");setConnection(false,"Backend unavailable: "+error.message);throw error;}
+    const requestSequence=++activeHealthSequence;
+    try { const result=await api("/health"); if(requestSequence!==activeHealthSequence)return{status:"SUPERSEDED"}; state.lastHealth=result; setText("health-status",result.status||"Healthy response"); setConnection(true,"Backend reachable"); return result; }
+    catch(error){if(requestSequence!==activeHealthSequence)return{status:"SUPERSEDED"};setText("health-status","Unavailable");setConnection(false,"Backend unavailable: "+error.message);throw error;}
   }
   function invalidateScanRequests(){activeScanSequence++;}
   async function scanMarket(market) {
@@ -117,12 +119,12 @@
     const view=tableViews[target]||(tableViews[target]={page:0,pageSize:100,sortKey:"symbol",direction:1,rows:[],query:""});
     view.rows=Array.isArray(rows)?rows.slice():[];
     const filtered=view.rows.filter(item=>!view.query||keys.some(key=>String(item?.[key]??"").toUpperCase().includes(view.query)));
-    filtered.sort((a,b)=>{const av=a?.[view.sortKey],bv=b?.[view.sortKey];const numericValue=v=>v!==null&&v!==undefined&&!(typeof v==="string"&&v.trim()==="")&&typeof v!=="boolean"&&Number.isFinite(Number(v))?Number(v):null;const an=numericValue(av),bn=numericValue(bv);const missing=v=>v===null||v===undefined||(typeof v==="string"&&v.trim()==="");const am=missing(av),bm=missing(bv);if(am!==bm)return am?1:-1;let cmp;if(an!==null&&bn!==null)cmp=an-bn;else if((an!==null)!==(bn!==null))cmp=an!==null?-1:1;else cmp=String(av??"").localeCompare(String(bv??""),undefined,{numeric:true,sensitivity:"base"});if(cmp===0)cmp=String(a?.symbol??"").localeCompare(String(b?.symbol??""),undefined,{numeric:true,sensitivity:"base"});return cmp*view.direction;});
+    filtered.sort((a,b)=>{const av=a?.[view.sortKey],bv=b?.[view.sortKey];const numericValue=v=>v!==null&&v!==undefined&&!(typeof v==="string"&&v.trim()==="")&&typeof v!=="boolean"&&Number.isFinite(Number(v))?Number(v):null;const an=numericValue(av),bn=numericValue(bv);const missing=v=>v===null||v===undefined||(typeof v==="string"&&v.trim()==="");const am=missing(av),bm=missing(bv);if(am!==bm)return am?1:-1;let cmp;if(an!==null&&bn!==null)cmp=an-bn;else if((an!==null)!==(bn!==null))cmp=an!==null?-1:1;else cmp=String(av??"").localeCompare(String(bv??""),undefined,{numeric:true,sensitivity:"base"});if(cmp===0)cmp=String(a?.symbol??"").localeCompare(String(b?.symbol??""),undefined,{numeric:true,sensitivity:"base"});return cmp===0?0:cmp*view.direction;});
     const pages=Math.max(1,Math.ceil(filtered.length/view.pageSize));view.page=Math.min(view.page,pages-1);
     body.replaceChildren();
     const visible=filtered.slice(view.page*view.pageSize,(view.page+1)*view.pageSize);
     if(!visible.length){const tr=document.createElement("tr"),td=document.createElement("td");td.colSpan=columns;td.className="empty-cell";td.textContent=view.rows.length?"No rows match the current filter.":"No market rows were returned. Inspect the raw response and scan status.";tr.append(td);body.append(tr);}
-    visible.forEach(item=>{const tr=document.createElement("tr");keys.forEach(key=>{const td=document.createElement("td");td.textContent=item?.[key]===undefined?"—":String(item[key]);tr.append(td);});body.append(tr);});
+    visible.forEach(item=>{const tr=document.createElement("tr");keys.forEach(key=>{const td=document.createElement("td");td.textContent=item?.[key]===undefined||item?.[key]===null||item?.[key]===""?"—":String(item[key]);tr.append(td);});body.append(tr);});
     const table=body.closest("table"),headers=table?.querySelectorAll("thead th")||[];
     headers.forEach((th,index)=>{th.title="Sort by "+keys[index];th.setAttribute("aria-sort",keys[index]===view.sortKey?(view.direction===1?"ascending":"descending"):"none");th.style.cursor="pointer";});
     let pager=table?.parentElement?.parentElement?.querySelector(".table-pager");
@@ -140,7 +142,7 @@
   }
   async function loadMarketEvidence() {
     syncAnalysisHeader(); invalidateChartView("Market evidence endpoint does not provide candle chart data."); const requestSequence=++activeEvidenceSequence; const path="/api/v1/analysis/market-evidence/"+encodeURIComponent(state.symbol);
-    const data=await api(path);if(requestSequence!==activeEvidenceSequence)return{status:"SUPERSEDED"};state.lastAnalysis=data;showJson("analysis-output",data);setText("chart-state","Evidence loaded; candle chart not provided by this endpoint");setText("technical-summary",data.summary||data.status||"Market evidence returned. Inspect evidence payload.");
+    let data;try{data=await api(path);}catch(error){if(requestSequence!==activeEvidenceSequence)return{status:"SUPERSEDED"};throw error;}if(requestSequence!==activeEvidenceSequence)return{status:"SUPERSEDED"};state.lastAnalysis=data;showJson("analysis-output",data);setText("chart-state","Evidence loaded; candle chart not provided by this endpoint");setText("technical-summary",data.summary||data.status||"Market evidence returned. Inspect evidence payload.");
     toast("Market evidence loaded.","success");return data;
   }
   async function loadTechnical() {
@@ -169,7 +171,7 @@
     const url=$("backend-url").value.trim().replace(/\/$/,"");if(!/^https:\/\//i.test(url) && !/^http:\/\/localhost(?::\d+)?$/i.test(url) && !/^http:\/\/127\.0\.0\.1(?::\d+)?$/i.test(url))throw new Error("Use HTTPS for remote backends. HTTP is allowed only for localhost.");
     let parsed;try{parsed=new URL(url);}catch{throw new Error("Enter a valid backend URL.");}
     if(parsed.username||parsed.password||parsed.search||parsed.hash)throw new Error("Backend URL must not contain embedded credentials, query parameters or a fragment.");
-    invalidateScanRequests();invalidateQualityRequest();activeEvidenceSequence++;window.DashboardCharts.invalidate();state.base=url;state.token=$("backend-token").value.trim();setText("settings-status","Connection details held in page memory only.");toast("Connection settings applied for this page session.","success");
+    invalidateScanRequests();invalidateQualityRequest();activeEvidenceSequence++;activeHealthSequence++;window.DashboardCharts.invalidate();state.base=url;state.token=$("backend-token").value.trim();setText("settings-status","Connection details held in page memory only.");toast("Connection settings applied for this page session.","success");
   }
   function bind() {
     document.querySelectorAll(".nav-link").forEach(a=>a.addEventListener("click",e=>{e.preventDefault();const page=a.dataset.page; if(PAGE_TITLES[page] && document.getElementById("page-"+page)) navigate(page); else navigate(page); history.replaceState(null,"","#"+page);}));
@@ -196,7 +198,7 @@
     $("load-market-evidence").addEventListener("click",()=>withButton("load-market-evidence",loadMarketEvidence,"Loading…"));
     $("load-quality").addEventListener("click",()=>withButton("load-quality",loadQuality,"Checking…"));
     $("test-connection").addEventListener("click",()=>withButton("test-connection",async()=>{connectSettings();await loadHealth();setText("settings-status","Backend health endpoint responded successfully.");},"Testing…"));
-    $("clear-credentials").addEventListener("click",()=>{invalidateScanRequests();invalidateQualityRequest();activeEvidenceSequence++;window.DashboardCharts.invalidate();state.base="";state.token="";$("backend-url").value="";$("backend-token").value="";setConnection(false,"Not connected");setText("settings-status","Credentials cleared from page memory.");toast("Connection credentials cleared.","success");});
+    $("clear-credentials").addEventListener("click",()=>{invalidateScanRequests();invalidateQualityRequest();activeEvidenceSequence++;activeHealthSequence++;window.DashboardCharts.invalidate();state.base="";state.token="";$("backend-url").value="";$("backend-token").value="";setConnection(false,"Not connected");setText("settings-status","Credentials cleared from page memory.");toast("Connection credentials cleared.","success");});
     $("default-market").addEventListener("change",e=>{invalidateScanRequests();$("global-market").value=e.target.value;state.market=e.target.value;invalidateChartView();});
     $("default-timeframe").addEventListener("change",e=>{$("global-timeframe").value=e.target.value;state.timeframe=e.target.value;invalidateChartView();});
     window.addEventListener("hashchange",()=>navigate(location.hash.slice(1)||"overview"));
