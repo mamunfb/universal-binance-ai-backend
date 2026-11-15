@@ -699,3 +699,10 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Added explicit visible focus styling for input, select and textarea controls, while suppressing the default outline on the programmatically focused page heading.
 - Added source-level contract checks for focus movement, decorative icon hiding and focus-visible styles. No browser or screen-reader QA has been performed; tests have not been executed.
 
+## Scanner table accessibility and pager focus retention
+
+- Named the Spot, USDⓈ-M and COIN-M scanner result tables and exposed each horizontally scrollable wrapper as a keyboard-focusable region. Column headers now declare `scope=col`.
+- Added a visible focus indicator to the keyboard-scrollable table regions for narrow-screen users.
+- Pagination now restores focus to the corresponding enabled Previous/Next control after rerendering the pager, and each control identifies the table body it controls. If the requested direction becomes unavailable at a boundary, focus falls back to the remaining enabled pager control.
+- Added static source-contract coverage for the three named tables, 16 column headers, keyboard-scroll focus styling and pager focus restoration. No browser/screen-reader QA has been performed; tests have not been executed.
+
