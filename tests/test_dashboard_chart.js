@@ -621,3 +621,17 @@ test("ADX treats structurally invalid OHLC bounds as a segment break and fully w
   assert.ok(Math.abs(adx[73]-100)<1e-10);
 });
 
+test("ATR rejects malformed current and previous OHLC candles and restarts its Wilder warm-up", () => {
+  const candles=Array.from({length:100},(_,i)=>{
+    const close=100+i;
+    return {time:i,open:close,high:close+1,low:close-1,close,volume:1,closeTime:i+1};
+  });
+  candles[45].high=candles[45].close-0.5;
+  const atr=charts.atrSeries(candles,14);
+  assert.ok(Number.isFinite(atr[44]));
+  assert.equal(atr[45],null);
+  assert.equal(atr[46],null);
+  assert.equal(atr[59],null);
+  assert.ok(Number.isFinite(atr[60]));
+});
+
