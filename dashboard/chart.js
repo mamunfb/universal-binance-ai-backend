@@ -53,9 +53,9 @@ function macd(a){
 }
 function indicators(c){
  if(!Array.isArray(c)||!c.length)return{candle_count:0,method:"Insufficient candle data"};
- const close=c.map(x=>x.close),last=c[c.length-1],m=sma(close,20),sd=m===null?null:scaledDeviation(close.slice(-20),m);
+ const close=c.map(x=>x.close),last=c[c.length-1],m=sma(close,20),sd=m===null?null:scaledDeviation(close.slice(-20),m),bandUpper=m!==null&&sd!==null?m+2*sd:null,bandLower=m!==null&&sd!==null?m-2*sd:null;
  const maxVolume=Math.max(...c.map(x=>x.volume)),vwap=maxVolume>0?c.reduce((state,x)=>{const weight=x.volume/maxVolume;if(!weight)return state;const price=x.high/3+x.low/3+x.close/3,total=state.weight+weight;return{weight:total,value:state.weight?state.value*(state.weight/total)+price*(weight/total):price};},{weight:0,value:0}).value:null;
- return{last_close:last.close,ema_20:ema(close,20),ema_50:ema(close,50),ema_200:ema(close,200),sma_20:m,rsi_14_wilder:rsi(close),macd_12_26:macd(close),bollinger_20_2:m!==null&&sd!==null?{upper:m+2*sd,middle:m,lower:m-2*sd}:null,atr_14_wilder:atrWilder(c),vwap,candle_count:c.length,method:"Client-side descriptive OHLCV calculations; not a validated trading signal"};
+ return{last_close:last.close,ema_20:ema(close,20),ema_50:ema(close,50),ema_200:ema(close,200),sma_20:m,rsi_14_wilder:rsi(close),macd_12_26:macd(close),bollinger_20_2:Number.isFinite(bandUpper)&&Number.isFinite(bandLower)?{upper:bandUpper,middle:m,lower:bandLower}:null,atr_14_wilder:atrWilder(c),vwap,candle_count:c.length,method:"Client-side descriptive OHLCV calculations; not a validated trading signal"};
 }
 function intervalFor(tf){return tf==="3h"?"1h":({"1D":"1d","3D":"3d","1W":"1w"}[tf]||tf);}
 function routeFor(market){return market==="SPOT"?"/api/v1/markets/spot/klines/":market==="USD_M"?"/api/v1/markets/futures/usdm/klines/":market==="COIN_M"?"/api/v1/markets/futures/coinm/klines/":null;}
@@ -136,11 +136,11 @@ function drawLinePanel(title,values,{min=null,max=null,zero=false}={}){
 }
 function render(c){
  const host=document.getElementById("chart-placeholder");host.replaceChildren();if(!c.length){host.textContent="No complete candle data returned.";return;}
- const a=c.slice(-120),w=1000,h=330,top=18,bottom=238,volTop=260,volBottom=310,closeAll=c.map(x=>x.close),bands=bollingerSeries(closeAll),bandValues=[...bands.upper.slice(-a.length),...bands.lower.slice(-a.length)].filter(Number.isFinite),hi=Math.max(...a.map(x=>x.high),...bandValues),lo=Math.min(...a.map(x=>x.low),...bandValues),span=hi-lo||1,maxVol=Math.max(...a.map(x=>x.volume),1);
+ const a=c.slice(-120),w=1000,h=330,top=18,bottom=238,volTop=260,volBottom=310,closeAll=c.map(x=>x.close),bands=bollingerSeries(closeAll),bandValues=[...bands.upper.slice(-a.length),...bands.lower.slice(-a.length)].filter(Number.isFinite),hi=Math.max(...a.map(x=>x.high),...bandValues),lo=Math.min(...a.map(x=>x.low),...bandValues),priceScale=Math.max(Math.abs(hi),Math.abs(lo),1),scaledLo=lo/priceScale,scaledSpan=hi/priceScale-scaledLo||1,maxVol=Math.max(...a.map(x=>x.volume),1);
  const svg=document.createElementNS(ns,"svg");svg.setAttribute("viewBox","0 0 "+w+" "+h);svg.setAttribute("role","img");svg.setAttribute("aria-label","Candlestick and volume chart from verified backend OHLCV data");svg.style.width="100%";
  const add=(tag,attrs)=>{const e=document.createElementNS(ns,tag);Object.entries(attrs).forEach(([k,v])=>e.setAttribute(k,String(v)));svg.append(e);};
  for(let i=0;i<5;i++){const y=top+i*(bottom-top)/4;add("line",{x1:20,y1:y,x2:980,y2:y,stroke:"#243650","stroke-width":1});}
- const step=960/a.length,cw=Math.max(2,step*.58),y=v=>bottom-(v-lo)/span*(bottom-top);
+ const step=960/a.length,cw=Math.max(2,step*.58),y=v=>bottom-(v/priceScale-scaledLo)/scaledSpan*(bottom-top);
  a.forEach((x,i)=>{const cx=20+i*step+step/2,color=x.close>=x.open?"#48c99a":"#ef737e";add("line",{x1:cx,y1:y(x.high),x2:cx,y2:y(x.low),stroke:color,"stroke-width":1.2});add("rect",{x:cx-cw/2,y:Math.min(y(x.open),y(x.close)),width:cw,height:Math.max(1,Math.abs(y(x.open)-y(x.close))),fill:color});const vh=x.volume/maxVol*(volBottom-volTop);add("rect",{x:cx-cw/2,y:volBottom-vh,width:cw,height:vh,fill:color,opacity:.4});});
  const closes=closeAll,ema20=emaSeries(closes,20),offset=c.length-a.length;
  const linePoints=series=>series.slice(offset).map((v,i)=>v===null?null:(20+i*step+step/2)+","+y(v)).filter(Boolean);
