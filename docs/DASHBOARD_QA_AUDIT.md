@@ -311,3 +311,20 @@ A further read-only source pass compared the current dashboard files and existin
 The push of the prior billing recheck report commit `2ebcc33f2b320af85dbcb22e32a9dd1b11657dad` triggered **Run #1706** (run ID `43706114829`). Its job ID is `132787442341`; the Jobs API reports conclusion `failure`, `steps: null`, and `logs_url: null`. This is consistent with the previously browser-confirmed billing block, but no separate browser annotation was captured for Run #1706. It supplies no evidence that the Python or Node test steps ran.
 
 The expanded source/coverage review in Section 19 is documentation-only. It does not change the application or workflow and does not resolve the account restriction. The latest source-level conclusions therefore remain unchanged: test cases are defined but not executed; runtime/browser/performance results are pending; arbitrary payload caps or API pagination changes remain deferred until measured.
+
+
+## 21. Run #1708 runner-start failure confirmed in GitHub UI (2026-11-15)
+
+A read-only inspection of the GitHub Actions page for **Backend and dashboard tests Run #1708** (run ID `43706217125`) confirmed the exact failure condition for the latest feature-branch commit `fb9b4f4af8f46446199f91e90b8d1596b8e9225d`.
+
+The visible annotation states:
+
+> The job was not started because recent account payments have failed or your spending limit needs to be increased.
+
+The job **Python tests and dashboard JavaScript validation** was not started, no runner was assigned, and zero workflow steps executed. The Jobs API reports job ID `132787754211`, conclusion `failure`, `steps: null`, and `logs_url: null`; a separate step lookup returned an empty array, the log download returned Azure `BlobNotFound`, and the run has no artifacts.
+
+**Conclusion:** Run #1708 is an account payment / spending-limit gate before runner allocation. It provides no evidence for either success or failure of Python tests, JavaScript validation, dashboard behavior, or application code. The ubuntu-latest migration annotation is informational and is not the cause of this run's failure.
+
+**Next action:** the repository/account owner must resolve the GitHub payment or spending-limit restriction. Once resolved, re-run the existing workflow and verify that a runner is assigned, step records are populated, and logs are retrievable before interpreting test outcomes.
+
+No billing setting, workflow, application source, main branch, PR, staging service, or production service was changed during this check.
