@@ -712,3 +712,10 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Health request sequence invalidation remains separate, and scanner/quality invalidation continues to run as before.
 - Added a static contract test covering both credential-change paths and the market-evidence abort controller. Tests have not been executed.
 
+## Accessible dynamic status announcements
+
+- Added polite, atomic status live regions for connection state, scanner state, backend health, chart state, technical summary, data-quality state and connection-settings feedback. This allows assistive technology to announce important asynchronous state changes without moving keyboard focus.
+- Added source-contract coverage to ensure each designated status element retains its live-region semantics.
+- Credential replacement and credential clearing now use the shared analysis cancellation helper, so pending chart and market-evidence requests are actively aborted in addition to being invalidated by sequence guards. Added a static contract for both flows.
+- Tests and browser/screen-reader QA have not been executed.
+
