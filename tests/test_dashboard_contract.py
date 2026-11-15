@@ -226,6 +226,28 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn("return parsed.filter(candle=>counts.get(candle.time)===1)", parse_body)
         self.assertLess(parse_body.index("const parsed="), parse_body.index("return parsed.filter"))
 
+    def test_scanner_pagination_reuses_cached_filtered_and_sorted_rows(self) -> None:
+        self.assertIn("view.sortedCache=null", self.js)
+        self.assertIn("cached.rows===view.rows", self.js)
+        self.assertIn("cached.query===view.query", self.js)
+        self.assertIn("cached.sortKey===view.sortKey", self.js)
+        self.assertIn("cached.direction===view.direction", self.js)
+        self.assertIn("sortedRows=cached.sortedRows", self.js)
+        self.assertIn("view.sortedCache={rows:view.rows", self.js)
+
+    def test_mobile_navigation_exposes_state_and_supports_escape(self) -> None:
+        self.assertIn('aria-controls="sidebar"', self.html)
+        self.assertIn('aria-expanded="false"', self.html)
+        self.assertIn('setAttribute("aria-expanded",String(open))', self.js)
+        self.assertIn('event.key==="Escape"', self.js)
+        self.assertIn('$("mobile-menu").focus()', self.js)
+        self.assertIn(".nav-link:focus-visible", self.css)
+
+    def test_api_network_failures_are_distinguished_from_timeouts(self) -> None:
+        self.assertIn('Request timed out.', self.js)
+        self.assertIn('Network connection failed. Check your connection and backend availability.', self.js)
+        self.assertIn('finally { window.clearTimeout(timer); }', self.js)
+
     def test_scanner_sort_precomputes_values_and_reuses_collator(self) -> None:
         self.assertIn("const scannerCollator = new Intl.Collator", self.js)
         self.assertIn("const sortable=filtered.map(item=>", self.js)
