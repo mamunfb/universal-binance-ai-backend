@@ -167,6 +167,8 @@
   }
   function connectSettings() {
     const url=$("backend-url").value.trim().replace(/\/$/,"");if(!/^https:\/\//i.test(url) && !/^http:\/\/localhost(?::\d+)?$/i.test(url) && !/^http:\/\/127\.0\.0\.1(?::\d+)?$/i.test(url))throw new Error("Use HTTPS for remote backends. HTTP is allowed only for localhost.");
+    let parsed;try{parsed=new URL(url);}catch{throw new Error("Enter a valid backend URL.");}
+    if(parsed.username||parsed.password||parsed.search||parsed.hash)throw new Error("Backend URL must not contain embedded credentials, query parameters or a fragment.");
     invalidateScanRequests();invalidateQualityRequest();activeEvidenceSequence++;window.DashboardCharts.invalidate();state.base=url;state.token=$("backend-token").value.trim();setText("settings-status","Connection details held in page memory only.");toast("Connection settings applied for this page session.","success");
   }
   function bind() {
