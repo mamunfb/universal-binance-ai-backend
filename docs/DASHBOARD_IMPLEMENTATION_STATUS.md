@@ -420,3 +420,11 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - An explicitly supplied array, including an empty array, remains authoritative and replaces the table contents. This keeps a valid empty scan distinct from an incomplete response shape.
 - Added static contract assertions that all three market tables are rendered only when a recognized result array is present.
 - GitHub source readback is the verification performed; runtime tests and browser QA remain unexecuted.
+
+
+## Incomplete scanner responses preserve summary freshness
+
+- Result-array detection now occurs before rendering scan summary metrics. When a response object contains no recognized result array, the dashboard retains both the previous table rows and the previous summary metrics/timestamp.
+- The scan status explicitly reports `Incomplete response · previous results retained`; response-level coverage diagnostics still update and the informational notice remains.
+- A response containing an explicit array (including `[]`) remains authoritative and updates the summary and table.
+- Added static contract assertions for this ordering and status behavior. Runtime tests and browser QA remain unexecuted.
