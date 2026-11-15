@@ -38,7 +38,7 @@ function rsi(a,n=14){
  if(a.length<=n||!a.every(Number.isFinite))return null;
  const gains=[],losses=[];for(let i=1;i<=n;i++){const d=a[i]-a[i-1];if(!Number.isFinite(d))return null;gains.push(Math.max(d,0));losses.push(Math.max(-d,0));}
  let g=finiteMean(gains),l=finiteMean(losses);if(g===null||l===null)return null;
- for(let i=n+1;i<a.length;i++){const d=a[i]-a[i-1];if(!Number.isFinite(d))return null;g=(g*(n-1)+Math.max(d,0))/n;l=(l*(n-1)+Math.max(-d,0))/n;}
+ for(let i=n+1;i<a.length;i++){const d=a[i]-a[i-1];if(!Number.isFinite(d))return null;g=g*((n-1)/n)+Math.max(d,0)/n;l=l*((n-1)/n)+Math.max(-d,0)/n;}
  if(!Number.isFinite(g)||!Number.isFinite(l))return null;
  if(g===0&&l===0)return 50;if(l===0)return 100;if(g===0)return 0;return 100-100/(1+g/l);
 }
@@ -46,7 +46,7 @@ function atrWilder(c,n=14){
  const tr=c.slice(1).map((x,i)=>Math.max(x.high-x.low,Math.abs(x.high-c[i].close),Math.abs(x.low-c[i].close)));
  if(tr.length<n||!tr.every(Number.isFinite))return null;
  let value=finiteMean(tr.slice(0,n));if(value===null)return null;
- for(let i=n;i<tr.length;i++)value=(value*(n-1)+tr[i])/n;
+ for(let i=n;i<tr.length;i++)value=value*((n-1)/n)+tr[i]/n;
  return Number.isFinite(value)?value:null;
 }
 function macd(a){
@@ -87,7 +87,7 @@ function rsiSeries(values,n=14){
    if(gains.length===n){averageGain=finiteMean(gains);averageLoss=finiteMean(losses);gains=[];losses=[];if(averageGain!==null&&averageLoss!==null)out[i]=value();else{averageGain=null;averageLoss=null;}}
    continue;
   }
-  averageGain=(averageGain*(n-1)+gain)/n;averageLoss=(averageLoss*(n-1)+loss)/n;
+  averageGain=averageGain*((n-1)/n)+gain/n;averageLoss=averageLoss*((n-1)/n)+loss/n;
   if(!Number.isFinite(averageGain)||!Number.isFinite(averageLoss)){gains=[];losses=[];averageGain=null;averageLoss=null;continue;}
   out[i]=value();
  }
@@ -101,7 +101,7 @@ function atrSeries(c,n=14){
   const validCurrent=cur&&typeof cur==="object"&&[cur.high,cur.low,cur.close].every(Number.isFinite)&&cur.high>0&&cur.low>0&&cur.close>0&&cur.high>=Math.max(cur.low,cur.close)&&cur.low<=Math.min(cur.high,cur.close),validPrevious=prev&&typeof prev==="object"&&[prev.high,prev.low,prev.close].every(Number.isFinite)&&prev.high>0&&prev.low>0&&prev.close>0&&prev.high>=Math.max(prev.low,prev.close)&&prev.low<=Math.min(prev.high,prev.close);const tr=validCurrent&&validPrevious?Math.max(cur.high-cur.low,Math.abs(cur.high-prev.close),Math.abs(cur.low-prev.close)):null;
   if(!Number.isFinite(tr)){seed=[];value=null;continue;}
   if(value===null){seed.push(tr);if(seed.length===n){value=finiteMean(seed);seed=[];if(value!==null)out[i]=value;else value=null;}continue;}
-  value=(value*(n-1)+tr)/n;if(!Number.isFinite(value)){seed=[];value=null;continue;}out[i]=value;
+  value=value*((n-1)/n)+tr/n;if(!Number.isFinite(value)){seed=[];value=null;continue;}out[i]=value;
  }
  return out;
 }
