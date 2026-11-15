@@ -227,6 +227,12 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn("return parsed.filter(candle=>counts.get(candle.time)===1)", parse_body)
         self.assertLess(parse_body.index("const parsed="), parse_body.index("return parsed.filter"))
 
+    def test_scanner_new_dataset_resets_pagination_and_keeps_missing_values_last(self) -> None:
+        self.assertIn("if(incomingRows!==view.rows){view.rows=incomingRows.slice();view.page=0;view.sortedCache=null;}", self.js)
+        missing_guard = self.js.split("sortable.sort((a,b)=>", 1)[1].split(";const sortedRows", 1)[0]
+        self.assertIn("if(a.missing!==b.missing)return a.missing?1:-1", missing_guard)
+        self.assertIn("cmp*view.direction", missing_guard)
+
     def test_scanner_pagination_reuses_cached_filtered_and_sorted_rows(self) -> None:
         self.assertIn("view.sortedCache=null", self.js)
         self.assertIn("cached.rows===view.rows", self.js)
