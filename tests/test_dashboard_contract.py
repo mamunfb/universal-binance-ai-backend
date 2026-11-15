@@ -117,7 +117,7 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn('type="url" placeholder="https://your-private-backend.example" required', self.html)
         self.assertIn('!/^[A-Z0-9]{1,40}$/.test(symbol)', self.js)
         self.assertIn('lookbackInput.setCustomValidity("Enter a whole number from 1 to 2160.")', self.js)
-        self.assertIn('const localHttp=parsed.protocol==="http:"&&(parsed.hostname==="localhost"||parsed.hostname==="127.0.0.1")', self.js)
+        self.assertIn('const localHttp=parsed.protocol==="http:"&&(parsed.hostname==="localhost"||parsed.hostname==="127.0.0.1"||parsed.hostname==="[::1]")', self.js)
         self.assertIn('parsed.protocol!=="https:"&&!localHttp', self.js)
 
     def test_dynamic_dashboard_status_regions_are_announced(self) -> None:
