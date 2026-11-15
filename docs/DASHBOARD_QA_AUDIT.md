@@ -216,3 +216,19 @@ The page also displayed the same zero-budget / usage-blocked state for Git LFS, 
 The feature branch currently points to commit `32d26662e9b3c0bca013372b4b2529265b9585c5`. Its push-triggered **Backend and dashboard tests Run #1701** (run ID `43705469974`) completed with conclusion `failure`. The Jobs API returned job ID `132785482166`, status `completed`, conclusion `failure`, but `steps: null` and `logs_url: null`. Therefore this run does not provide evidence that Python tests or dashboard JavaScript checks actually executed; it remains consistent with the billing/runner gate, but its specific failure annotation was not independently re-read in this pass.
 
 **Current gate:** the account owner must decide whether to allow GitHub Actions usage by changing the Actions budget / usage-block setting. Once authorized and resolved, rerun the existing workflow and verify an assigned non-zero runner ID, populated step records, and retrievable logs before interpreting CI results. No application code, workflow configuration, deployment configuration, main branch, PR, staging service, or production service was changed in this pass.
+
+
+## 15. Frontend test-inventory and payload-scaling review (2026-11-15)
+
+A read-only inventory of the current feature-branch test sources found **54 Node chart fixture tests** in `tests/test_dashboard_chart.js` and **110 Python dashboard contract tests** in `tests/test_dashboard_contract.py`. These are source-defined test cases, not a claim that they executed or passed. The chart fixtures cover OHLCV parsing, duplicate timestamps, 3h aggregation, indicator reference values, malformed data, numerical extremes, request supersession/invalidation, and the 1,000-source-row chart processing cap. The Python contract tests additionally cover scanner sorting/pagination, stale-response handling, request cancellation, credential handling, and dashboard markup contracts.
+
+Two payload-scaling areas remain unmeasured and deserve explicit runtime coverage:
+
+1. The shared browser API helper reads the complete response with `response.text()` before JSON parsing; the inspected client code does not impose a response-byte ceiling. A very large or unexpectedly streamed backend response could therefore increase browser memory use before schema validation. No exploit or actual memory failure was demonstrated.
+2. Scanner rendering filters and sorts the complete accepted row array before displaying a 100-row page. Pagination limits DOM rows, but does not itself limit the size of the response or the in-memory sort/search work. No large-market benchmark or browser memory profile has been run.
+
+The chart loader separately truncates candle input to the latest 1,000 rows before parsing/indicator calculation; this is a source-level bound, not a measured performance result. Future isolated QA should add representative small/large scanner payload benchmarks, API response-size stress cases, and memory/render timing measurements before choosing any hard cap or changing backend contracts.
+
+The latest feature-branch commit at the time of this review was `acdc2bf41ecd7316fe75fa07d69a15da88ba2afc`. Push-triggered **Backend and dashboard tests Run #1702** (run ID `43705633456`) completed with conclusion `failure`; job ID `132785971930` returned `steps: null` and `logs_url: null`. The Actions budget was independently confirmed in Section 14 as zero with usage blocked. Run #1702 therefore supplies no test-execution evidence; do not interpret it as an application test failure.
+
+No application code, workflow, backend contract, deployment configuration, main branch, PR, staging service, or production service was changed in this review.
