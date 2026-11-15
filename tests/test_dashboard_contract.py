@@ -432,3 +432,15 @@ if __name__ == "__main__":
     def test_scanner_coverage_identifies_status_alias_provenance(self) -> None:
         self.assertIn('metadataFieldName(data,["status","scan_status"])', self.js)
         self.assertIn('"Status field: "+', self.js)
+
+    def test_market_evidence_failure_keeps_previous_payload_and_shows_bounded_error(self) -> None:
+        self.assertIn('setText("chart-state","Evidence request failed · previous evidence retained")', self.js)
+        self.assertIn('setText("technical-summary","Request failed: "+metadataText(error?.message,"Unknown error",160))', self.js)
+        self.assertIn('if(requestSequence!==activeEvidenceSequence)return{status:"SUPERSEDED"};setText("chart-state"', self.js)
+
+    def test_quality_failure_keeps_previous_report_and_shows_bounded_error(self) -> None:
+        self.assertIn('setText("quality-state","Load failed · previous report retained · "+metadataText(error?.message,"Unknown error",120))', self.js)
+        self.assertIn('if(requestSequence!==activeQualitySequence)return{status:"SUPERSEDED"};setText("quality-state"', self.js)
+
+    def test_health_connection_error_label_is_length_bounded(self) -> None:
+        self.assertIn('setConnection(false,"Backend unavailable: "+metadataText(error?.message,"Request failed",160))', self.js)
