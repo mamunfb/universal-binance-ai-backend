@@ -777,3 +777,12 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Added explicit keyboard focus styling for brand/text links and dynamically generated table pager buttons, alongside existing input, navigation, and table-region focus states.
 - Added static contract checks for health cancellation on superseding requests and credential changes, plus responsive sizing and focus selectors. These checks have **not** been executed. No browser, mobile-device, screen-reader, or runtime network QA is claimed.
 - Frontend-only change: no backend files, CI workflows, PR state, merge, or deployment were changed.
+
+
+## Market evidence refresh failure-state consistency
+
+- The Market Evidence action no longer replaces the visible chart placeholder or clears the technical summary before the request succeeds. During refresh, the status explicitly says the previous chart and evidence are retained.
+- A failed or superseded request therefore leaves the last successfully rendered chart/evidence intact. The chart placeholder is changed to the endpoint-capability explanation only after a current request returns a valid JSON object.
+- Invalid response shapes (null, arrays, and primitives) are rejected before the UI's previous evidence is replaced.
+- Added a static regression contract for the preservation and validation ordering. It has not been executed; browser/runtime behavior remains unverified.
+- Frontend-only. No backend, CI, PR, merge, or deployment changes.
