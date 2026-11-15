@@ -582,6 +582,6 @@ Existing browser tests continue to cover the seven viewport widths, mobile keybo
 
 The API cases use browser route mocks and a local static dashboard server; they do not exercise a live backend. No production endpoint, credentials, trading action, database, deployment, or main-branch state is touched by these tests.
 
-Next verification is to inspect the browser workflow's actual runner allocation, step records, and test log for this checkpoint. Only after the log shows all seven tests passing should this section be upgraded to a pass result.
+Next verification is to inspect the browser workflow's actual runner allocation, step records, and test log for this checkpoint. Only after the log shows all eight tests passing should this section be upgraded to a pass result.
 
 No merge, production deployment, backend/database mutation, secret change, or `main` branch update was performed.
