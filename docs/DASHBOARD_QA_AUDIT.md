@@ -571,7 +571,8 @@ Expanded `tests/test_dashboard_browser.cjs` from four to eight independent Node/
 - network-level request failure;
 - successful HTTP status with an empty response body;
 - a JSON array where the health endpoint contract requires an object;
-- request timeout handling (the test shortens only the browser timer in its isolated page context and delays a mocked route);\n- changing the selected market while a scan is in flight cancels the stale request and prevents stale rendering;
+- request timeout handling (the test shortens only the browser timer in its isolated page context and delays a mocked route);
+- changing the selected market while a scan is in flight cancels the stale request and prevents stale rendering;
 - initially closed mobile sidebar is inert;
 - document main/header landmarks and a navigation landmark with an explicit accessible name;
 - reduced-motion CSS behavior.
