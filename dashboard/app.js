@@ -123,8 +123,14 @@
     if(!view.headersBound&&table){view.headersBound=true;headers.forEach((th,index)=>th.addEventListener("click",()=>{const key=keys[index];view.direction=view.sortKey===key?-view.direction:1;view.sortKey=key;view.page=0;renderRows(target,view.rows,columns);}));}
   }
   function syncAnalysisHeader(){state.symbol=$("global-symbol").value.trim().toUpperCase()||"BTCUSDT";state.market=$("global-market").value;state.timeframe=$("global-timeframe").value;setText("analysis-title",state.symbol+" · "+state.market);setText("analysis-subtitle","Timeframe "+state.timeframe+" · "+state.market+" · Research-only analysis");}
+  function invalidateChartView(message="Selection changed. Run analysis to load matching candles.") {
+    window.DashboardCharts.invalidate();
+    const host=$("chart-placeholder"); if(host) host.replaceChildren(document.createTextNode(message));
+    setText("chart-state","Awaiting analysis"); setText("technical-summary","Run analysis to load indicators for the current selection.");
+    setText("analysis-output","No chart response for the current selection.");
+  }
   async function loadMarketEvidence() {
-    syncAnalysisHeader(); const path="/api/v1/analysis/market-evidence/"+encodeURIComponent(state.symbol);
+    syncAnalysisHeader(); invalidateChartView("Market evidence endpoint does not provide candle chart data."); const path="/api/v1/analysis/market-evidence/"+encodeURIComponent(state.symbol);
     const data=await api(path);state.lastAnalysis=data;showJson("analysis-output",data);setText("chart-state","Evidence loaded; candle chart not provided by this endpoint");setText("technical-summary",data.summary||data.status||"Market evidence returned. Inspect evidence payload.");
     toast("Market evidence loaded.","success");return data;
   }
@@ -155,10 +161,10 @@
     $("open-settings").addEventListener("click",()=>{navigate("settings");history.replaceState(null,"","#settings");});
     $("banner-settings").addEventListener("click",()=>navigate("settings"));
     $("refresh-page").addEventListener("click",()=>{const page=location.hash.slice(1)||"overview";if(page==="overview")withButton("refresh-page",async()=>{await loadHealth();await scanMarket(state.market);},"Refreshing");else if(page==="reliability")withButton("refresh-page",loadQuality,"Refreshing");else if(page==="coin-analysis")withButton("refresh-page",loadTechnical,"Refreshing");else toast("No verified refresh action is mapped for this page yet.");});
-    $("global-market").addEventListener("change",e=>{state.market=e.target.value;document.querySelectorAll(".market-tab").forEach(b=>b.classList.toggle("active",b.dataset.market===state.market));});
-    $("global-symbol").addEventListener("change",()=>{state.symbol=$("global-symbol").value.trim().toUpperCase();syncAnalysisHeader();});
-    $("global-timeframe").addEventListener("change",()=>{state.timeframe=$("global-timeframe").value;syncAnalysisHeader();});
-    document.querySelectorAll(".market-tab").forEach(b=>b.addEventListener("click",()=>{state.market=b.dataset.market;document.querySelectorAll(".market-tab").forEach(x=>x.classList.toggle("active",x===b));$("global-market").value=state.market;}));
+    $("global-market").addEventListener("change",e=>{state.market=e.target.value;document.querySelectorAll(".market-tab").forEach(b=>b.classList.toggle("active",b.dataset.market===state.market));invalidateChartView();});
+    $("global-symbol").addEventListener("change",()=>{state.symbol=$("global-symbol").value.trim().toUpperCase();syncAnalysisHeader();invalidateChartView();});
+    $("global-timeframe").addEventListener("change",()=>{state.timeframe=$("global-timeframe").value;syncAnalysisHeader();invalidateChartView();});
+    document.querySelectorAll(".market-tab").forEach(b=>b.addEventListener("click",()=>{state.market=b.dataset.market;document.querySelectorAll(".market-tab").forEach(x=>x.classList.toggle("active",x===b));$("global-market").value=state.market;invalidateChartView();}));
     $("run-market-scan").addEventListener("click",()=>withButton("run-market-scan",()=>scanMarket(state.market),"Scanning…"));
     $("scan-spot").addEventListener("click",()=>withButton("scan-spot",()=>scanMarket("SPOT"),"Scanning…"));
     $("scan-usdm").addEventListener("click",()=>withButton("scan-usdm",()=>scanMarket("USD_M"),"Scanning…"));
@@ -174,8 +180,8 @@
     $("load-quality").addEventListener("click",()=>withButton("load-quality",loadQuality,"Checking…"));
     $("test-connection").addEventListener("click",()=>withButton("test-connection",async()=>{connectSettings();await loadHealth();setText("settings-status","Backend health endpoint responded successfully.");},"Testing…"));
     $("clear-credentials").addEventListener("click",()=>{state.base="";state.token="";$("backend-url").value="";$("backend-token").value="";setConnection(false,"Not connected");setText("settings-status","Credentials cleared from page memory.");toast("Connection credentials cleared.","success");});
-    $("default-market").addEventListener("change",e=>{$("global-market").value=e.target.value;state.market=e.target.value;});
-    $("default-timeframe").addEventListener("change",e=>{$("global-timeframe").value=e.target.value;state.timeframe=e.target.value;});
+    $("default-market").addEventListener("change",e=>{$("global-market").value=e.target.value;state.market=e.target.value;invalidateChartView();});
+    $("default-timeframe").addEventListener("change",e=>{$("global-timeframe").value=e.target.value;state.timeframe=e.target.value;invalidateChartView();});
     window.addEventListener("hashchange",()=>navigate(location.hash.slice(1)||"overview"));
   }
   initTimeframes();bind();navigate(location.hash.slice(1)||"overview");setConnection(false,"Backend not configured");
