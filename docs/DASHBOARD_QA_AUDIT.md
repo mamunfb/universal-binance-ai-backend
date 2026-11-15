@@ -731,3 +731,20 @@ A second workflow adjustment was committed as `eae6aa7ed4c0da7e36b82b8fe20691bd0
 This is a diagnostic/continuity correction, not a performance pass. The exact Lighthouse failure cause remains **unconfirmed** until the next run's Chrome and server logs are inspected. No benchmark metrics are accepted from either failed run.
 
 No application or backend source, database, secrets, `main`, PR merge state, staging or production deployment was changed.
+
+
+## 37. Static server MIME root-cause correction (2026-11-15)
+
+Run #7 (`43723851624`, workflow commit `eae6aa7ed4c0da7e36b82b8fe20691bd0a150c87`) provided the decisive profiler error: Playwright reported `page.goto: Download is starting` for the dashboard root URL. Inspection of `tests/serve_dashboard_qa.cjs` showed that the root path correctly read `dashboard/index.html`, but computed the response MIME type from `target`, which is the dashboard directory itself for `/`. Because that directory has no `.html` extension, the server returned `application/octet-stream`; Chromium treated the document as a download instead of rendering it. This also explains Lighthouse's earlier `ERR_ABORTED` / `FAILED_DOCUMENT_REQUEST` messages. The prior proxy hypothesis was not the root cause.
+
+Corrected in commit `e996f38583a8edabbae7c9939532430077dd527e`:
+- Determine MIME type from the actual served file path (`index.html` for `/`).
+- Add `X-Content-Type-Options: nosniff`.
+
+Added a profiler preflight in commit `8bc9b1e993f327a2159726301a423674c3927208`:
+- Require a successful root response with `text/html` content type.
+- Wait for the visible application shell before recording timings.
+
+Run #7's Lighthouse step exited 1 and produced only partial JSON with `FAILED_DOCUMENT_REQUEST`; its CPU/heap step then failed at initial navigation because of the MIME issue. Its artifact is not valid performance evidence. The MIME fix and preflight now need a fresh workflow run; no score or memory/timing result is claimed yet.
+
+No dashboard application UI, backend business logic, database, secrets, `main`, PR merge state, staging or production deployment was changed.
