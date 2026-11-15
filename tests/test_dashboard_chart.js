@@ -155,6 +155,34 @@ test("Wilder ADX and Stochastic RSI expose aligned bounded series with warm-up g
   assert.ok(stoch.d.filter(Number.isFinite).every(v=>v>=0&&v<=100));
 });
 
+test("ADX reaches 100 on a steady one-directional trend after Wilder warm-up", () => {
+  const candles = Array.from({length:80}, (_,i) => {
+    const close = 100 + i;
+    return {time:i*3600000,open:close-0.5,high:close+1,low:close-1,close,volume:1,closeTime:i*3600000+3599999};
+  });
+  const adx = charts.adxSeries(candles);
+  assert.equal(adx.slice(0,27).every(value=>value===null),true);
+  assert.ok(adx.slice(27).every(value=>Math.abs(value-100)<1e-10));
+});
+
+test("Stochastic RSI applies the documented K and D smoothing warm-up indices", () => {
+  const values = Array.from({length:80}, (_,i) => 100 + Math.sin(i/3)*5 + i*0.1);
+  const result = charts.stochRsiSeries(values,14,14,3,3);
+  assert.equal(result.k.slice(0,29).every(value=>value===null),true);
+  assert.equal(result.d.slice(0,31).every(value=>value===null),true);
+  assert.ok(Number.isFinite(result.k[29]));
+  assert.ok(Number.isFinite(result.d[31]));
+});
+
+test("Bollinger population deviation has a reproducible 20-candle reference value", () => {
+  const values = Array.from({length:20}, (_,i) => i+1);
+  const result = charts.bollingerSeries(values,20,2);
+  const deviation = Math.sqrt(33.25);
+  assert.ok(Math.abs(result.middle[19]-10.5)<1e-12);
+  assert.ok(Math.abs(result.upper[19]-(10.5+2*deviation))<1e-12);
+  assert.ok(Math.abs(result.lower[19]-(10.5-2*deviation))<1e-12);
+});
+
 test("flat candles produce neutral Stochastic RSI and zero ADX", () => {
   const candles = Array.from({length:80}, (_,i) => ({time:i*3600000,open:100,high:101,low:99,close:100,volume:1,closeTime:i*3600000+3599999}));
   const adx = charts.adxSeries(candles);
