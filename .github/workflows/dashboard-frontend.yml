@@ -8,6 +8,7 @@ on:
     paths:
       - "dashboard/**"
       - "tests/test_dashboard_contract.py"
+      - "tests/test_dashboard_accessibility.py"
       - "tests/test_dashboard_chart.js"
       - "docs/DASHBOARD_IMPLEMENTATION_STATUS.md"
       - ".github/workflows/dashboard-frontend.yml"
@@ -55,4 +56,4 @@ jobs:
         run: node --test tests/test_dashboard_chart.js
 
       - name: Run dashboard Python contract tests
-        run: python -m unittest discover -s tests -p "test_dashboard_contract.py" -v
+        run: python -m unittest discover -s tests -p "test_dashboard_*.py" -v
