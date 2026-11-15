@@ -228,12 +228,17 @@
         sortedRows.push(item);
       }
       const sortKey=view.sortKey,direction=view.direction;
+      const numericCache=new WeakMap();
+      const numericFor=item=>{
+        if(!numericCache.has(item))numericCache.set(item,numericValue(item?.[sortKey]));
+        return numericCache.get(item);
+      };
       sortedRows.sort((a,b)=>{
         const av=a?.[sortKey],bv=b?.[sortKey];
         const aMissing=av===null||av===undefined||(typeof av==="string"&&av.trim()==="");
         const bMissing=bv===null||bv===undefined||(typeof bv==="string"&&bv.trim()==="");
         if(aMissing!==bMissing)return aMissing?1:-1;
-        const an=numericValue(av),bn=numericValue(bv);
+        const an=numericFor(a),bn=numericFor(b);
         if((an!==null)!==(bn!==null))return an!==null?-1:1;
         let cmp=an!==null&&bn!==null?an-bn:scannerCollator.compare(String(av??""),String(bv??""));
         if(cmp===0)cmp=scannerCollator.compare(String(a?.symbol??""),String(b?.symbol??""));
