@@ -868,3 +868,11 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - The comparator still applies missing/non-numeric ordering and direction rules as before. This is a source-level reduction in repeated numeric parsing, not a measured speedup; WeakMap overhead and actual browser performance remain unbenchmarked.
 - Replaced the obsolete static test that expected a decorated array with assertions for the WeakMap-based row-reference strategy. The dashboard static contract file now contains 106 test methods; the test suite has not been executed.
 - Frontend-only. Backend source, CI workflow, PR state, merge and deployment remain unchanged.
+
+
+## Scanner repeated-query normalization review
+
+- The filter loop previously converted each searchable field to uppercase again for every new query. Added a per-table WeakMap that stores one normalized searchable-text string per source row, preserving the exact searchable columns and case-insensitive substring behavior.
+- The cache is weakly keyed by original row objects, and is replaced whenever a table receives a new row array or connection-scoped scanner data is cleared. It does not retain rows independently or create a decorated row array. It does retain one derived text string for each row still referenced by the table, so memory cost must be measured against reduced repeated string conversion.
+- Updated the scanner search contract to reflect debounced rendering and added a static contract for cache reuse and invalidation. Tests have not been executed; no large-dataset speed or memory improvement is claimed.
+- Frontend-only. Backend source, CI workflow, PR state, merge and deployment remain unchanged.
