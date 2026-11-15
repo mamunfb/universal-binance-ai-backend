@@ -28,7 +28,7 @@ The Coin Analysis workspace offers 16 requested timeframes: 1m, 3m, 5m, 15m, 30m
 
 - Native backend kline routes were inspected and accept Binance-native intervals except 3h.
 - 3h is currently built in the frontend from 1h OHLCV rows. Only UTC-aligned groups containing exactly three consecutive hourly candles are retained. Incomplete groups are discarded.
-- Client-side EMA, SMA, Wilder RSI, MACD line, Bollinger bands, ATR and VWAP are descriptive calculations only; they are not a substitute for validated backend research outputs or a trade signal.
+- Client-side EMA, SMA, Wilder RSI, MACD line (signal/histogram unavailable), Bollinger bands, Wilder-smoothed ATR(14) and VWAP are descriptive calculations only; they are not a substitute for validated backend research outputs or a trade signal. Candle parsing rejects invalid numeric fields, timestamps, negative volume and impossible OHLC relationships.
 - The backend market-data-quality endpoint currently accepts a smaller interval set and does not accept 3h, 3D, 1W or 1M. The UI must not call that endpoint with unsupported values.
 
 ## Designed capabilities not yet verified as end-to-end backend features
