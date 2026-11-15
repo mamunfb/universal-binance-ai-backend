@@ -10,3 +10,7 @@
 .indicator-pane svg{display:block;width:100%;height:74px;overflow:visible}
 .indicator-pane-empty{height:48px;display:flex;align-items:center;color:var(--muted);font-size:10px}
 @media(max-width:760px){.indicator-pane{padding:8px}.indicator-pane svg{height:62px}}
+
+/* Scanner pagination remains usable on narrow screens; sortable headers show keyboard focus. */
+.table-pager{flex-wrap:wrap}.table-pager>span:first-child{min-width:0;overflow-wrap:anywhere}.table-pager button{min-height:34px;padding:7px 12px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font:inherit}.table-pager button:disabled{opacity:.45;cursor:not-allowed}.table-scroll th:focus-visible{outline:2px solid var(--accent,#6ea8fe);outline-offset:-3px}
+@media(max-width:480px){.table-pager{align-items:flex-start!important;flex-direction:column}.table-pager>span:last-child{display:flex;gap:8px;width:100%}.table-pager button{flex:1}}
