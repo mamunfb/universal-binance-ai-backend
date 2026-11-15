@@ -1178,3 +1178,16 @@ Test-only commit: `08df16665cec566bbad3ee4c4954081b1570428f` on `feat/institutio
 **Validation status at documentation time:** GitHub accepted the commit, but a completed CI run/status for this commit was not yet available through the connected GitHub checks. These two new cases are therefore **committed, not yet CI-verified**. Do not interpret earlier successful Chromium runs as validation of these newly added cases.
 
 Physical Android/iPhone testing and manual screen-reader verification remain outstanding. No dashboard application source, backend business logic, database, secrets, `main`, PR metadata, or deployment configuration was changed.
+
+## 60. Mobile accessibility-state and API transport regression coverage (2026-11-15)
+
+Added two additional browser regression cases to `tests/test_dashboard_browser.cjs`:
+
+- Runs axe-core WCAG 2.1 A/AA checks at a 390px mobile viewport with the navigation both closed (inert) and open (keyboard accessible), then verifies Escape returns the sidebar to its inert closed state.
+- Verifies API fetch configuration uses `credentials: "omit"` and `cache: "no-store"`, and that a browser cookie scoped to the backend origin is not transmitted with the health request.
+
+Latest test commit: `49a0d374de2513537d292d183635e10ad63bd598`.
+
+**Validation status:** the changes are committed on the feature branch. No completed CI run or local Chromium execution has yet been verified for this commit; these new tests remain pending execution. Earlier CI success does not validate these newly added cases. Physical Android/iPhone testing and manual TalkBack/VoiceOver checks remain outstanding.
+
+No dashboard application source, backend business logic, database, secrets, `main`, PR metadata, or deployment configuration was changed.
