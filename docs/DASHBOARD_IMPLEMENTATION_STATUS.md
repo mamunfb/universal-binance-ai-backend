@@ -2,7 +2,7 @@
 
 **Repository:** `mamunfb/universal-binance-ai-backend`  
 **Frontend branch:** `feat/institutional-dashboard-design`  
-**Current branch head at this checkpoint:** `b2ec6383fc3c650b033183c8815643d3a6d18eee`  
+**Current branch head at this checkpoint:** `c1683f4c55cabefab7de0799b728af562f8d1336`  
 **Backend changes:** None in this branch.
 
 ## Completed in this work session
@@ -83,6 +83,23 @@
 - Extended the MACD fixture to assert that all three latest values are finite when sufficient history is present.
 - The chart test suite now contains eight named Node test cases; execution is still pending.
 
+
+## Additional implementation — advanced indicator and volatility-band pass
+
+- Added a candle-aligned Wilder ADX(14) series with directional-movement and true-range smoothing; the initial warm-up remains unavailable rather than being filled with zero.
+- Added Stochastic RSI with explicit %K and %D smoothing and bounded 0–100 output; flat RSI windows use a neutral 50 value.
+- Added aligned Bollinger Bands (20, 2) upper/middle/lower series using population standard deviation, and rendered all three as overlays with EMA20 on the price chart.
+- Expanded the chart's price scale to include the Bollinger band range so the overlay is not clipped when it extends beyond candle highs/lows.
+- Added three Node fixture cases covering Bollinger alignment/math, ADX and Stochastic RSI warm-up/range handling, and insufficient history.
+- These remain descriptive chart indicators only; they are not validated trading signals or recommendations.
+
+## Verification status for advanced indicator pass
+
+- Source and fixture changes were committed on the frontend-only branch.
+- The Node and Python test suites have **not** been executed in a repository runtime. The new fixtures are coverage added, not passing test results.
+- Browser rendering, live backend data, accessibility and mobile QA remain unperformed.
+- No backend source, migrations, CI workflows, secrets, deployment settings, PR, merge or deployment were changed.
+
 ## Not yet verified / remaining work
 
 - The Python dashboard contract test file has been added but has not yet been executed in CI or a repository test runner.
@@ -104,7 +121,7 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 1. Run the new static tests in the repository environment and add a frontend CI check without changing backend runtime behaviour.
 2. Add fixture-based tests for candle parsing, timeframe mapping and 3h bucket completeness.
 3. Complete scanner table fields, sorting/filtering and explicit coverage/failure display for all three markets.
-4. Complete the Coin Analysis chart workspace and indicator panels.
+4. Continue Coin Analysis chart QA, including price-band overlay alignment and indicator fixtures.
 5. Integrate only verified existing analysis, order-flow, derivatives, news and on-chain endpoints.
 6. Finish page scaffolds with explicit Unavailable/Planned status where backend support is missing.
 7. Browser QA and accessibility/mobile checks.
