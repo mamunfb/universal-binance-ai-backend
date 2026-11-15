@@ -147,7 +147,7 @@ function adxSeries(c,n=14){
  let segment=[],segmentStart=0;
  const flush=()=>{if(segment.length>=2*n)adxSegment(segment,n,out,segmentStart);segment=[];};
  for(let i=0;i<c.length;i++){
-  const candle=c[i],valid=candle&&typeof candle==="object"&&[candle.high,candle.low,candle.close].every(Number.isFinite)&&candle.high>=candle.low;
+  const candle=c[i],valid=candle&&typeof candle==="object"&&[candle.high,candle.low,candle.close].every(Number.isFinite)&&candle.high>0&&candle.low>0&&candle.close>0&&candle.high>=Math.max(candle.low,candle.close)&&candle.low<=Math.min(candle.high,candle.close);
   if(!valid){flush();segmentStart=i+1;continue;}
   if(!segment.length)segmentStart=i;
   segment.push(candle);
