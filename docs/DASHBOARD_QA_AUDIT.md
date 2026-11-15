@@ -328,3 +328,18 @@ The job **Python tests and dashboard JavaScript validation** was not started, no
 **Next action:** the repository/account owner must resolve the GitHub payment or spending-limit restriction. Once resolved, re-run the existing workflow and verify that a runner is assigned, step records are populated, and logs are retrievable before interpreting test outcomes.
 
 No billing setting, workflow, application source, main branch, PR, staging service, or production service was changed during this check.
+
+
+## 22. Follow-up CI run #1709 confirms the same pre-run billing gate (2026-11-15)
+
+The Section 21 documentation commit `85c60e86adeb01b6c56c41669677af4aec42901e` triggered **Run #1709** (run ID `43706390914`). A read-only GitHub Actions UI inspection independently confirmed the same account-level restriction.
+
+The exact visible annotation reads:
+
+> The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings.
+
+The run lasted approximately three seconds. No runner was assigned and no workflow steps executed. The Jobs API reports job ID `132788286526`, conclusion `failure`, `steps: null`, and `logs_url: null`.
+
+**Interpretation:** the documentation-only commit itself did not cause a code/test failure. Run #1709 was blocked before execution by the GitHub account payment / spending-limit restriction. The repeated UI confirmation across Runs #1708 and #1709 makes the administrative blocker conclusive for these two runs. Actual dashboard/browser/runtime QA and all CI test outcomes remain unverified until GitHub permits runner startup.
+
+No billing, workflow, application source, main branch, PR, staging, or production settings were changed.
