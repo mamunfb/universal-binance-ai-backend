@@ -2,7 +2,7 @@
 
 **Repository:** `mamunfb/universal-binance-ai-backend`  
 **Frontend branch:** `feat/institutional-dashboard-design`  
-**Current branch head at this checkpoint:** `a962ce75092823db41556d9bcf1d82c6d99df63b`  
+**Current branch head at this checkpoint:** `c94120b914d617c384022277b3f46d8f91497a4a`  
 **Backend changes:** None in this branch.
 
 ## Completed in this work session
@@ -100,13 +100,30 @@
 - Browser rendering, live backend data, accessibility and mobile QA remain unperformed.
 - No backend source, migrations, CI workflows, secrets, deployment settings, PR, merge or deployment were changed.
 
+
+## Additional implementation — USDⓈ-M and COIN-M scanner controls
+
+- Added independent full-response client-side symbol search fields to the USDⓈ-M and COIN-M scanner pages; filtering occurs before the existing 100-row pagination.
+- Added returned-row counts for both futures scanners.
+- Added scan coverage summaries for Spot, USDⓈ-M and COIN-M using recognized top-level response fields: returned rows, status, eligible, scanned, failed, matched, source and timestamp.
+- Missing backend metadata is explicitly displayed as "Not supplied"; returned-row count is not misrepresented as exchange-wide coverage.
+- Preserved Spot's matching-versus-returned count when scan metadata is refreshed.
+- Extended static contract coverage for scanner controls and advanced ADX, Stochastic RSI and Bollinger indicator panes.
+
+## Verification status for scanner-controls pass
+
+- App, HTML and test changes were committed to the frontend-only branch and read back from GitHub.
+- Static test assertions have been extended; the Node and Python suites have **not** been executed locally or in CI.
+- No real scan response has been used to confirm optional coverage fields; absent fields remain clearly labelled "Not supplied".
+- No backend, migration, CI, secret, deployment, PR, merge or production changes were made.
+
 ## Not yet verified / remaining work
 
 - The Python dashboard contract test file has been added but has not yet been executed in CI or a repository test runner.
 - No browser-based visual, keyboard, mobile, accessibility or cross-browser test has been run.
 - No live backend connection or real authenticated API response has been tested from this frontend.
-- Scanner sorting and 100-row client-side pagination are implemented; server-side pagination/virtualization is not available, and dedicated search/filter controls for USDⓈ-M and COIN-M plus richer coverage metadata remain outstanding.
-- Coin Analysis now renders OHLCV candlesticks, volume, EMA20 overlay and separate RSI/MACD/ATR panes. It is still not a full TradingView-equivalent chart; ADX, Stochastic RSI, Volume Profile, support/resistance and backend-derived structure levels remain outstanding.
+- Scanner sorting, 100-row client-side pagination and full-response search are implemented for Spot, USDⓈ-M and COIN-M; server-side pagination/virtualization is not available. Coverage summaries show only recognized returned fields and label missing metadata as Not supplied.
+- Coin Analysis now renders OHLCV candlesticks, volume, EMA20 and Bollinger(20,2) overlays, plus separate RSI, Stochastic RSI, ADX, MACD and ATR panes. It is still not a full TradingView-equivalent chart; Volume Profile, support/resistance and backend-derived structure levels remain outstanding.
 - The 3h frontend aggregation requires exactly three consecutive 1h candles aligned to UTC bucket starts; incomplete buckets are discarded. Fixture cases exist but have not been executed.
 - Daily scheduler, 96 scans/day, AI selection/research reports, three historical modes, Neon+R2 archive query, comparison, full news/on-chain views, signal evaluation and complete risk pages remain unintegrated or capability-unverified.
 - API auth/CORS behaviour and production frontend hosting are not verified.
