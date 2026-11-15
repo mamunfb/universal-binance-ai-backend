@@ -214,25 +214,29 @@
     const keys=columns===6?["symbol","base_asset","quote_asset","last_price","quote_volume_24h","status"]:["symbol","last_price","quote_volume_24h","price_change_percent_24h","status"];
     const view=tableViews[target]||(tableViews[target]={page:0,pageSize:100,sortKey:"symbol",direction:1,rows:[],query:""});
     const incomingRows=Array.isArray(rows)?rows:[];
-    if(incomingRows!==view.rows){view.rows=incomingRows.slice();view.page=0;view.sortedCache=null;}
+    if(incomingRows!==view.rows){view.rows=incomingRows;view.page=0;view.sortedCache=null;}
     const cached=view.sortedCache;
-    let filteredCount,sortedRows;
+    let filteredCount,sortedEntries;
     if(cached&&cached.rows===view.rows&&cached.query===view.query&&cached.sortKey===view.sortKey&&cached.direction===view.direction){
-      filteredCount=cached.filteredCount;sortedRows=cached.sortedRows;
+      filteredCount=cached.filteredCount;sortedEntries=cached.sortedEntries;
     }else{
-      const filtered=view.rows.filter(item=>!view.query||keys.some(key=>String(item?.[key]??"").toUpperCase().includes(view.query)));
       const numericValue=value=>{if(typeof value==="number")return Number.isFinite(value)?value:null;if(typeof value!=="string"||value.trim()==="")return null;const parsed=Number(value);return Number.isFinite(parsed)?parsed:null;};
-      const sortable=filtered.map(item=>{const value=item?.[view.sortKey];return{item,value,numeric:numericValue(value),missing:value===null||value===undefined||(typeof value==="string"&&value.trim()===""),symbol:String(item?.symbol??"")};});
+      const sortable=[];
+      for(const item of view.rows){
+        if(view.query&&!keys.some(key=>String(item?.[key]??"").toUpperCase().includes(view.query)))continue;
+        const value=item?.[view.sortKey];
+        sortable.push({item,value,numeric:numericValue(value),missing:value===null||value===undefined||(typeof value==="string"&&value.trim()===""),symbol:String(item?.symbol??"")});
+      }
       sortable.sort((a,b)=>{if(a.missing!==b.missing)return a.missing?1:-1;if((a.numeric!==null)!==(b.numeric!==null))return a.numeric!==null?-1:1;let cmp;if(a.numeric!==null&&b.numeric!==null)cmp=a.numeric-b.numeric;else cmp=scannerCollator.compare(String(a.value??""),String(b.value??""));if(cmp===0)cmp=scannerCollator.compare(a.symbol,b.symbol);return cmp===0?0:cmp*view.direction;});
-      filteredCount=filtered.length;sortedRows=sortable.map(entry=>entry.item);
-      view.sortedCache={rows:view.rows,query:view.query,sortKey:view.sortKey,direction:view.direction,filteredCount,sortedRows};
+      filteredCount=sortable.length;sortedEntries=sortable;
+      view.sortedCache={rows:view.rows,query:view.query,sortKey:view.sortKey,direction:view.direction,filteredCount,sortedEntries};
     }
-    const pages=Math.max(1,Math.ceil(sortedRows.length/view.pageSize));view.page=Math.min(view.page,pages-1);
+    const pages=Math.max(1,Math.ceil(sortedEntries.length/view.pageSize));view.page=Math.min(view.page,pages-1);
     body.replaceChildren();
     const rowFragment=document.createDocumentFragment();
-    const visible=sortedRows.slice(view.page*view.pageSize,(view.page+1)*view.pageSize);
+    const visible=sortedEntries.slice(view.page*view.pageSize,(view.page+1)*view.pageSize);
     if(!visible.length){const tr=document.createElement("tr"),td=document.createElement("td");td.colSpan=columns;td.className="empty-cell";td.textContent=view.rows.length?"No rows match the current filter.":"No market rows were returned. Inspect the raw response and scan status.";tr.append(td);rowFragment.append(tr);}
-    visible.forEach(item=>{const tr=document.createElement("tr");keys.forEach(key=>{const td=document.createElement("td");td.textContent=scannerCellText(key,item?.[key]);tr.append(td);});rowFragment.append(tr);});
+    visible.forEach(entry=>{const item=entry.item;const tr=document.createElement("tr");keys.forEach(key=>{const td=document.createElement("td");td.textContent=scannerCellText(key,item?.[key]);tr.append(td);});rowFragment.append(tr);});
     body.append(rowFragment);
     const table=body.closest("table"),headers=table?.querySelectorAll("thead th")||[];
     headers.forEach((th,index)=>{th.title="Sort by "+keys[index];th.setAttribute("aria-sort",keys[index]===view.sortKey?(view.direction===1?"ascending":"descending"):"none");th.style.cursor="pointer";});
