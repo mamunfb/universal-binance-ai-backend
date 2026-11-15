@@ -740,5 +740,14 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn("if(activeQualityController===controller)activeQualityController=null", quality)
         self.assertIn("invalidateQualityRequest()", self.js.split("function connectSettings()", 1)[1].split("function bind()", 1)[0])
 
+
+
+    def test_api_timeout_and_caller_cancellation_are_classified_by_abort_cause(self) -> None:
+        api = self.js.split("async function api(", 1)[1].split("async function withButton", 1)[0]
+        self.assertIn("let timedOut=false", api)
+        self.assertIn("timedOut=true;controller.abort()", api)
+        self.assertIn('timedOut?"Request timed out.":externalSignal?.aborted?"Request cancelled.":"Request aborted."', api)
+        self.assertIn('finally { window.clearTimeout(timer); externalSignal?.removeEventListener("abort",abortFromCaller); }', api)
+
 if __name__ == "__main__":
     unittest.main()
