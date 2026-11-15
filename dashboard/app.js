@@ -78,6 +78,7 @@
   }
   function invalidateScanRequests(){activeScanSequence++;}
   async function scanMarket(market) {
+    if(!["SPOT","USD_M","COIN_M"].includes(market))throw new Error("Unsupported scanner market selection.");
     const requestSequence=++activeScanSequence;
     const marketChanged=state.market!==market; state.market=market; $("global-market").value=market; if(marketChanged) invalidateChartView(); document.querySelectorAll(".market-tab").forEach(b=>b.classList.toggle("active",b.dataset.market===market));
     let path;
