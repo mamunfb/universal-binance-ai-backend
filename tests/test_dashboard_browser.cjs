@@ -636,3 +636,108 @@ test("a newer market scan wins when an older scan response arrives late", async 
   assert.deepEqual(pageErrors, []);
   await context.close();
 });
+
+
+test("a newer data-quality selection wins when an older report arrives late", async () => {
+  const {context, page, pageErrors} = await newPage(1280);
+  await page.locator('.nav-link[data-page="settings"]').click();
+  await page.route("https://backend.test/health", route => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    headers: {"access-control-allow-origin": "*"},
+    body: JSON.stringify({status: "ok"})
+  }));
+  await page.locator("#backend-url").fill("https://backend.test");
+  await page.locator("#test-connection").click();
+  await page.getByText("Backend health endpoint responded successfully.").waitFor();
+
+  let oldStarted;
+  let oldSettled;
+  const started = new Promise(resolve => { oldStarted = resolve; });
+  const settled = new Promise(resolve => { oldSettled = resolve; });
+  await page.route("https://backend.test/api/v1/quality/market-data/SPOT/BTCUSDT**", async route => {
+    oldStarted();
+    await new Promise(resolve => setTimeout(resolve, 400));
+    try {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        headers: {"access-control-allow-origin": "*"},
+        body: JSON.stringify({status: "stale-btc", symbol: "BTCUSDT"})
+      });
+    } catch { /* The changed quality selection intentionally aborts this request. */ }
+    finally { oldSettled(); }
+  });
+  await page.route("https://backend.test/api/v1/quality/market-data/SPOT/ETHUSDT**", route => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    headers: {"access-control-allow-origin": "*"},
+    body: JSON.stringify({status: "current-eth", symbol: "ETHUSDT"})
+  }));
+
+  await page.locator('.nav-link[data-page="reliability"]').click();
+  await page.locator("#load-quality").click();
+  await started;
+  await page.locator("#quality-symbol").fill("ETHUSDT");
+  await page.locator("#load-quality").click();
+  await page.getByText('"current-eth"', {exact: false}).waitFor();
+  await settled;
+
+  assert.match(await page.locator("#quality-output").innerText(), /ETHUSDT/);
+  assert.match(await page.locator("#quality-output").innerText(), /current-eth/);
+  assert.equal(await page.locator("#quality-state").innerText(), "current-eth");
+  assert.doesNotMatch(await page.locator("#quality-output").innerText(), /stale-btc/);
+  assert.deepEqual(pageErrors, []);
+  await context.close();
+});
+
+test("the latest research-readiness request wins when an older endpoint responds late", async () => {
+  const {context, page, pageErrors} = await newPage(1280);
+  await page.locator('.nav-link[data-page="settings"]').click();
+  await page.route("https://backend.test/health", route => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    headers: {"access-control-allow-origin": "*"},
+    body: JSON.stringify({status: "ok"})
+  }));
+  await page.locator("#backend-url").fill("https://backend.test");
+  await page.locator("#test-connection").click();
+  await page.getByText("Backend health endpoint responded successfully.").waitFor();
+
+  let oldStarted;
+  let oldSettled;
+  const started = new Promise(resolve => { oldStarted = resolve; });
+  const settled = new Promise(resolve => { oldSettled = resolve; });
+  await page.route("https://backend.test/api/v1/research/preflight", async route => {
+    oldStarted();
+    await new Promise(resolve => setTimeout(resolve, 400));
+    try {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        headers: {"access-control-allow-origin": "*"},
+        body: JSON.stringify({status: "stale-preflight", marker: "old"})
+      });
+    } catch { /* The phase-readiness request intentionally supersedes preflight. */ }
+    finally { oldSettled(); }
+  });
+  await page.route("https://backend.test/api/v1/research/phase-readiness", route => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    headers: {"access-control-allow-origin": "*"},
+    body: JSON.stringify({status: "current-readiness", marker: "new"})
+  }));
+
+  await page.locator("#load-preflight").click();
+  await started;
+  await page.locator("#load-readiness").click();
+  await page.getByText('"current-readiness"', {exact: false}).waitFor();
+  await settled;
+
+  assert.match(await page.locator("#readiness-output").innerText(), /current-readiness/);
+  assert.match(await page.locator("#readiness-output").innerText(), /new/);
+  assert.equal(await page.locator("#readiness-state").innerText(), "current-readiness");
+  assert.doesNotMatch(await page.locator("#readiness-output").innerText(), /stale-preflight/);
+  assert.deepEqual(pageErrors, []);
+  await context.close();
+});
