@@ -239,3 +239,12 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Added a reproducible 20-value Bollinger population-standard-deviation reference fixture (mean 10.5; population variance 33.25) and checks for both bands.
 - Extended the static dashboard contract suite so these numerical fixtures cannot silently disappear.
 - These are test additions only; they have not been executed in this environment. Numerical correctness beyond these deterministic invariants remains subject to runtime test execution and independent reference comparison.
+
+
+## Scanner table accessibility, sorting and API response hardening
+
+- Scanner column headers now support keyboard activation (Enter/Space), expose sort labels and preserve the column's aria-sort state. Pagination status is announced through a polite live region and Previous/Next controls have explicit accessible labels.
+- Sorting now places missing values last in either direction, sorts valid numeric values numerically, keeps numeric and text values in deterministic groups, and uses symbol as a stable tie-breaker.
+- API request timeout values are validated as positive finite numbers. Request bodies are detected by undefined-ness rather than truthiness, so valid falsy JSON payloads are not silently dropped. Successful empty responses are rejected explicitly instead of leaking null into response renderers.
+- Added static contract assertions for the new API guards, keyboard sorting, accessible pagination and mixed-type deterministic ordering.
+- Changes are committed and readback verification is pending. No runtime test execution or browser accessibility audit has been performed in this environment.
