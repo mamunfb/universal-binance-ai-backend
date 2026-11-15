@@ -128,6 +128,7 @@
       "Additional array fields: "+(additionalRowKeys.length?additionalRowKeys.join(", "):"None"),
       "Returned rows: "+rows.length,
       "Rejected malformed rows: "+rejectedRows,
+      "Status field: "+(metadataFieldName(data,["status","scan_status"])||"Not supplied"),
       "Status: "+metadataText(data.status,metadataText(data.scan_status,"Not supplied",80),80),
       "Eligible: "+(extractCount(data,countNames.eligible)??"Not supplied"),
       "Scanned: "+(extractCount(data,countNames.scanned)??"Not supplied"),
