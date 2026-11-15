@@ -580,10 +580,10 @@ test("Stochastic RSI rolling extrema and smoothing restart cleanly after missing
   const result=charts.stochRsiSeries(values,14,14,3,3);
   assert.equal(result.k[52],null);
   assert.equal(result.d[52],null);
-  assert.equal(result.k[80],null);
-  assert.equal(result.d[82],null);
-  assert.ok(Number.isFinite(result.k[81]));
-  assert.ok(Number.isFinite(result.d[83]));
+  assert.equal(result.k[81],null);
+  assert.equal(result.d[83],null);
+  assert.ok(Number.isFinite(result.k[82]));
+  assert.ok(Number.isFinite(result.d[84]));
   assert.ok(result.k.every(value=>value===null||(Number.isFinite(value)&&value>=0&&value<=100)));
   assert.ok(result.d.every(value=>value===null||(Number.isFinite(value)&&value>=0&&value<=100)));
 });
