@@ -101,6 +101,7 @@ test("backend health success updates connection status without page errors", asy
   await page.route("https://backend.test/health", route => route.fulfill({
     status: 200,
     contentType: "application/json",
+    headers: {"access-control-allow-origin": "*"},
     body: JSON.stringify({status: "ok"})
   }));
   await page.locator("#backend-url").fill("https://backend.test");
@@ -116,6 +117,7 @@ test("API HTTP 503 and malformed JSON failures are visible and do not crash the 
   await page.route("https://backend.test/health", route => route.fulfill({
     status: 503,
     contentType: "application/json",
+    headers: {"access-control-allow-origin": "*"},
     body: JSON.stringify({detail: "service unavailable"})
   }));
   await page.locator("#backend-url").fill("https://backend.test");
@@ -127,6 +129,7 @@ test("API HTTP 503 and malformed JSON failures are visible and do not crash the 
   await page.route("https://backend.test/health", route => route.fulfill({
     status: 200,
     contentType: "application/json",
+    headers: {"access-control-allow-origin": "*"},
     body: "<html>not json</html>"
   }));
   await page.locator("#test-connection").click();
