@@ -33,7 +33,7 @@
     menu.setAttribute("aria-expanded",String(Boolean(open&&mobile)));
     menu.setAttribute("aria-label",open&&mobile?"Close navigation":"Open navigation");
     sidebar.inert=mobile&&!open;
-    if(open&&mobile)sidebar.querySelector(".nav-link")?.focus();
+    if(open&&mobile)sidebar.querySelector('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])')?.focus();
   }
   function navigate(page) {
     const known = PAGE_TITLES[page] ? page : "overview";
