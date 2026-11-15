@@ -147,9 +147,6 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn("--sidebar:264px", self.css)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
     def test_spot_scanner_exposes_backend_reported_coverage(self) -> None:
         self.assertIn('id="spot-coverage"', self.html)
         self.assertIn('id="spot-count"', self.html)
@@ -165,3 +162,6 @@ if __name__ == "__main__":
         self.assertIn('"Failed: "+(extractCount(data,countNames.failed)', self.js)
         self.assertIn('"Returned rows: "+rows.length', self.js)
 
+
+if __name__ == "__main__":
+    unittest.main()
