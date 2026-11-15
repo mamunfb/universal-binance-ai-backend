@@ -132,7 +132,7 @@ function invalidate(){activeLoadSequence++;}
 async function load(api,market,symbol,timeframe){
  const requestSequence=++activeLoadSequence;
  const tf=timeframe,interval=intervalFor(tf),route=routeFor(market);if(!route)throw new Error("Unsupported market type: "+market);
- const response=await api(route+encodeURIComponent(symbol)+"?interval="+encodeURIComponent(interval)+"&limit=1000");
+ let response;try{response=await api(route+encodeURIComponent(symbol)+"?interval="+encodeURIComponent(interval)+"&limit=1000");}catch(error){if(requestSequence!==activeLoadSequence)return{status:"SUPERSEDED",market,symbol,requested_timeframe:tf};throw error;}
  if(requestSequence!==activeLoadSequence)return{status:"SUPERSEDED",market,symbol,requested_timeframe:tf};
  let candles=parse(response?.klines);if(tf==="3h")candles=aggregate3h(candles);if(!candles.length)throw new Error("Backend returned no valid complete candle rows.");
  const values=indicators(candles);render(candles);
