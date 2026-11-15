@@ -638,3 +638,32 @@ The 1,000-row test also required two harness corrections: scope pager locators t
 - Live backend/API connectivity and physical-device behavior remain outside this isolated local-server test.
 
 No backend business logic, database, secrets, billing, `main`, PR merge state, staging or production deployment was changed.
+
+
+## 32. Performance QA execution gate and benchmark plan (2026-11-15)
+
+**Review scope:** Lighthouse/Core Web Vitals, JavaScript heap/memory profiling, and CPU-throttled rendering benchmark.
+
+### Current evidence and execution status
+
+The current feature-branch audit still has no measured Lighthouse report, Web Vitals trace, heap snapshot, retained-heap comparison, or CPU-throttled timing result. The previously verified 1,000-row Chromium test establishes bounded table DOM pagination (100 visible rows), search/sort interaction, and absence of horizontal overflow at the tested viewport. It does **not** establish render latency, CPU cost, heap growth, garbage-collection behavior, or Core Web Vitals.
+
+The latest inspected CI checkpoint, Backend and dashboard tests Run #1708 (run ID `43706217125`), returned one completed failed job (job ID `132787754211`) with `steps: null` and `logs_url: null`. This does not prove that a performance command or application test executed. The existing Actions budget restriction recorded earlier in this report remains an execution blocker unless independently resolved.
+
+The existing Render services were previously inspected and found to serve a different branch/dashboard implementation. They are not valid targets for measuring this feature branch. No service was repointed and no staging or production deployment was attempted. No local feature-branch browser/DevTools runtime was available in this GitHub source-inspection session. Consequently, running Lighthouse against the old staging page or reporting source-derived estimates as measurements would produce misleading evidence.
+
+### Planned combined benchmark protocol (not yet executed)
+
+1. **Lighthouse / Web Vitals:** serve the exact feature-branch dashboard in a disposable isolated QA runtime; run mobile Lighthouse at a fixed viewport and network profile for at least three cold-load samples; retain each JSON/HTML report and report the median LCP, CLS, FCP, Speed Index and TBT. Treat INP as a field metric requiring real user interaction data; do not infer it from TBT. Record browser, Lighthouse version, device emulation, network profile, cache state and commit SHA.
+2. **Heap and memory:** capture a baseline heap snapshot after initial idle; load the 1,000-row scanner fixture; repeat search, sort, pagination and chart symbol/timeframe changes; capture a second snapshot after cleanup/settling. Compare retained heap, detached DOM nodes and listener/object retention. Repeat the interaction cycle to distinguish one-time allocation from continuing growth. Preserve snapshots and browser/commit metadata.
+3. **CPU-throttled benchmark:** use the same exact build and deterministic fixture at normal CPU and fixed 4x CPU slowdown. Measure initial render, 1,000-row scanner filter/sort/page transition, and chart render with Performance traces and User Timing marks. Repeat each scenario at least five times and report median and p95, plus the raw traces. Do not compare runs with different browser versions, fixtures, cache state or machine profiles.
+
+### Gate and acceptance evidence
+
+These three tests remain **BLOCKED / NOT RUN** until an isolated feature-branch runtime and an executable browser profiling environment are available. The GitHub Actions runner/budget issue must also be cleared before CI-based measurements can be trusted. The reports must identify the exact tested commit and include raw artifacts; no performance pass/fail threshold or improvement claim is assigned without measured data.
+
+Screen-reader testing, physical mobile-device QA and live backend fault testing remain outstanding. The existing automated axe-core result is limited to the initial visible dashboard state and is not a substitute for a screen-reader session.
+
+### Change-control confirmation
+
+This checkpoint is documentation-only. No dashboard application code, backend code, workflow, database, secrets, billing settings, `main`, PR merge state, staging service or production service was changed. No merge/rebase or deployment was performed.
