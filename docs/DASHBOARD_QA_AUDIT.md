@@ -1211,3 +1211,13 @@ Test commit: `e36843d17972abe667632d84b89036d86fafac7f` on `feat/institutional-d
 **Validation status:** committed; this additional assertion has not yet been verified by a completed CI run or local Chromium execution. Existing axe-core checks and previous successful runs do not establish that this new assertion passed. Manual TalkBack/VoiceOver announcement quality checks remain outstanding.
 
 No dashboard application source, backend business logic, database, secrets, `main`, PR metadata, merge state, or deployment configuration was changed. No merge or deployment was performed.
+
+## 63. Overlapping market-scan stale-response regression coverage (2026-11-15)
+
+Added a Chromium browser regression case that starts a delayed Spot scan, switches to the USDⓈ-M scanner, and completes the newer USDⓈ-M scan before the older Spot response is released. The test asserts that the latest USDⓈ-M row remains visible, the superseded Spot response does not populate the Spot table, and the selected market/status remain consistent.
+
+Test commit: `bd7ad870a62404b17eecb29da095a2efe5be1ef7` on `feat/institutional-dashboard-design`.
+
+**Validation status:** committed; the new overlap/race test is not yet verified by a completed CI run or local Chromium execution. It must not be described as passed until an actual run is inspected. This is browser automation and does not replace physical-device or manual assistive-technology testing.
+
+No dashboard application source, backend business logic, database, secrets, `main`, PR metadata, merge state, or deployment configuration was changed. No merge or deployment was performed.
