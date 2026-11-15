@@ -662,3 +662,9 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Wilder ATR seed collection restarts after the invalid transition and waits for a complete fresh period before publishing values.
 - Added regression coverage for malformed OHLC bounds, the invalid transition, and the exact post-gap warm-up index. Tests have not been executed.
 
+## Overflow-safe Wilder smoothing
+
+- Scalar and series RSI/ATR calculations now update Wilder averages as convex weighted terms (`previous × (n−1)/n + current/n`) instead of multiplying the previous average by `n−1` before division. This avoids an avoidable intermediate overflow when the mathematically representable smoothed value is near the JavaScript numeric limit.
+- The initial finite-mean seeds and existing gap-reset behavior are retained. Added large-magnitude rising-price/range regression coverage for scalar and series RSI/ATR, plus a source-contract assertion for the stable update form.
+- Tests have not been executed; this is a source-level numerical-safety change, not a benchmark claim.
+
