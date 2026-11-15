@@ -184,7 +184,7 @@
     setText("analysis-output","No chart response for the current selection.");
   }
   async function loadMarketEvidence() {
-    syncAnalysisHeader(); invalidateChartView("Market evidence endpoint does not provide candle chart data."); const requestSequence=++activeEvidenceSequence; const path="/api/v1/analysis/market-evidence/"+encodeURIComponent(state.symbol);
+    syncAnalysisHeader(); activeEvidenceSequence++; window.DashboardCharts.invalidate(); const chartHost=$("chart-placeholder"); if(chartHost)chartHost.replaceChildren(document.createTextNode("Market evidence endpoint does not provide candle chart data.")); setText("chart-state","Loading market evidence · previous evidence retained"); setText("technical-summary","Loading evidence for the current selection."); const requestSequence=++activeEvidenceSequence; const path="/api/v1/analysis/market-evidence/"+encodeURIComponent(state.symbol);
     let data;try{data=await api(path);}catch(error){if(requestSequence!==activeEvidenceSequence)return{status:"SUPERSEDED"};setText("chart-state","Evidence request failed · previous evidence retained");setText("technical-summary","Request failed: "+metadataText(error?.message,"Unknown error",160));throw error;}if(requestSequence!==activeEvidenceSequence)return{status:"SUPERSEDED"};state.lastAnalysis=data;showJson("analysis-output",data);setText("chart-state","Evidence loaded; candle chart not provided by this endpoint");setText("technical-summary",metadataText(data.summary,metadataText(data.status,"Market evidence returned. Inspect evidence payload.",120),120));
     toast("Market evidence loaded.","success");return data;
   }
