@@ -67,6 +67,8 @@ class DashboardContractTests(unittest.TestCase):
             "3h aggregation discards incomplete",
             "timeframe and market route mapping",
             "flat price RSI is neutral",
+            "Bollinger bands are candle-aligned",
+            "Wilder ADX and Stochastic RSI",
             "insufficient history leaves long-period indicators unavailable",
         ):
             self.assertIn(case, source)
@@ -86,6 +88,15 @@ class DashboardContractTests(unittest.TestCase):
             'drawLinePanel("MACD signal · EMA9 of MACD"',
             'drawLinePanel("MACD histogram · line − signal"',
             'drawLinePanel("ATR (14) · Wilder"',
+        ):
+            self.assertIn(token, self.chart_js)
+        for token in (
+            "function bollingerSeries",
+            "function adxSeries",
+            "function stochRsiSeries",
+            'drawLinePanel("ADX (14) · Wilder"',
+            'drawLinePanel("Stochastic RSI · %K"',
+            'drawLinePanel("Stochastic RSI · %D"',
         ):
             self.assertIn(token, self.chart_js)
         self.assertIn(".indicator-pane", self.css)
