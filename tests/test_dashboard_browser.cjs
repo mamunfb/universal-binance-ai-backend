@@ -319,7 +319,7 @@ test("1000-row scanner response stays paginated, searchable and keyboard-sortabl
   assert.equal(await page.locator("#spot-rows tr").first().locator("td").first().innerText(), "ASSET0999USDT");
 
   await page.locator("#spot-search").fill("ASSET0999");
-  await page.waitForFunction(() => document.querySelector("#spot-rows tr td")?.textContent === "ASSET0999USDT");
+  await page.waitForFunction(() => document.querySelector("#page-spot-scanner .table-pager")?.textContent.includes("1 matching / 1,000 returned"));
   assert.equal(await page.locator("#spot-rows tr").count(), 1);
   assert.match(await pager.innerText(), /1 matching \/ 1000 returned/);
 
