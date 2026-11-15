@@ -937,3 +937,12 @@ Review of the Run #17 V8 heap snapshots found that the baseline snapshot was tak
 Updated `tests/dashboard_performance_qa.cjs` on the feature branch to wait explicitly for exactly 100 visible `#spot-rows tr` elements after clearing the search before baseline garbage collection/snapshot, and after each repeated-cycle search clear. The final cycle already waits for page 1/10; the explicit row-count guard makes the intended DOM state measurable at both comparison points.
 
 This is a test-harness reliability correction only. It does not alter dashboard application code or backend behavior. A fresh Run #18 is required before publishing a corrected heap delta. Until that run completes, the Run #17 scanner timings remain valid as recorded, but its heap delta remains provisional. No claim of leak absence is made.
+
+
+## 48. Heap snapshot wrapper-materialization follow-up (2026-11-15)
+
+After Run #18 passed with the 100-row count guard, direct inspection of the V8 snapshots showed 24 `HTMLTableCellElement` wrapper objects in each baseline snapshot versus 624 after the five interaction cycles. The 100-row DOM count guard alone therefore did not prove that equivalent cell wrappers had been materialized at both snapshot points. This can make the measured heap delta include lazy wrapper materialization and still prevents a clean retained-heap comparison.
+
+Strengthened `tests/dashboard_performance_qa.cjs` again in commit `d6b28aae08b5ea9c5f3fa8fba03f75a8ec4774ff`: before the baseline snapshot and after each search-clear cycle, the harness now explicitly traverses every visible table cell, reads its text, forces layout with `getBoundingClientRect()`, and asserts exactly 100 rows / 600 cells. This aims to make wrapper materialization consistent before comparing snapshots.
+
+Run #18 remains a successful execution of the earlier row-count guard, but its heap delta is still provisional because of the wrapper-count discrepancy found in the downloaded artifact. The new cell-materialization guard requires a fresh CI run before any updated heap interpretation. This is QA harness-only; no dashboard application, backend, database, secrets, `main`, merge state, or deployment was changed.
