@@ -421,3 +421,13 @@ test("indicator series reject invalid containers and period arguments safely", (
   }
 });
 
+test("3h aggregation rejects invalid containers and malformed candle objects", () => {
+  assert.deepEqual(charts.aggregate3h(null),[]);
+  assert.deepEqual(charts.aggregate3h([null,{}, {time:0}]),[]);
+  const valid = Array.from({length:3}, (_,i) => ({time:i*3600000,open:10,high:12,low:9,close:11,volume:1,closeTime:i*3600000+3599999}));
+  assert.equal(charts.aggregate3h(valid).length,1);
+  const malformed = valid.map(x=>({...x}));
+  malformed[1].volume = Number.POSITIVE_INFINITY;
+  assert.deepEqual(charts.aggregate3h(malformed),[]);
+});
+
