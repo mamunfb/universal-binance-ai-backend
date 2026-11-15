@@ -1,6 +1,6 @@
 (function(){
 "use strict";
-const ns="http://www.w3.org/2000/svg";
+const ns="http://www.w3.org/2000/svg";\nlet activeLoadSequence=0;
 const number=v=>v!==null&&v!==undefined&&v!==""&&typeof v!=="boolean"&&Number.isFinite(Number(v))?Number(v):null;
 function parse(rows){
  if(!Array.isArray(rows))return[];
