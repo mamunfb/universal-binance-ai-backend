@@ -2,7 +2,7 @@
 
 **Date:** 2026-11-15  
 **Working branch:** `feat/institutional-dashboard-design`  
-**Audited source commit:** `3fab6c7a7f4d47bffa8981c71a7366789dec8256`  
+**Audited source commit:** `ff39adc7d9d013215d5e1af3e79e3913a7560f8a`  
 **Scope:** dashboard CI, responsive layout, keyboard accessibility, JavaScript/API handling, rendering performance.  
 **Change-control boundary:** `main`, PR merge state, and production deployment are intentionally unchanged.
 
@@ -450,3 +450,43 @@ The Dashboard frontend workflow now discovers all `test_dashboard_*.py` tests an
 - Backend and dashboard Run #1728, job `132813716961`: **success**; **631 passed, 2 warnings in 5.14s**.
 
 **Limit:** These are static markup/source/CSS contract checks. They are not a real Chromium/WebKit mobile viewport run, screen-reader session, keyboard interaction session, or visual regression test. Those still require a browser-served build and an approved QA environment; no deployment was performed.
+
+
+## 27. Latest feature-branch CI and source-level API/performance review
+
+**Verified HEAD:** `ff39adc7d9d013215d5e1af3e79e3913a7560f8a`  
+**Verification date:** 2026-11-15
+
+### CI evidence on the verified HEAD
+
+- Dashboard Frontend workflow run #19 completed successfully. Its job log records JavaScript syntax checks, chart fixtures, and **116 Python dashboard tests passed**.
+- Backend + Dashboard workflow run #1730 completed successfully. Its job log records dashboard document/script-reference validation, JavaScript syntax checks, and **631 pytest tests passed with 2 warnings**.
+- These are CI results for the feature branch HEAD above; they do not constitute browser/device QA.
+
+### Source-level API/runtime handling review
+
+Reviewed `dashboard/app.js` at the verified HEAD:
+
+- API requests use an AbortController, a finite positive timeout, optional caller cancellation, and cleanup of timeout/event listeners.
+- Non-JSON, empty successful JSON, non-2xx responses, timeout, cancellation, and network TypeError paths are converted into explicit errors.
+- Backend-provided detail text is control-character stripped, whitespace-normalized and length-limited before being surfaced.
+- Credentials are held in page memory; remote backend URLs require HTTPS, and embedded credentials/query/hash are rejected.
+- Request sequence counters and cancellation controllers are used by scanner, health, readiness, quality and analysis flows to reduce stale-response rendering.
+- No runtime exception telemetry, real API fault injection, or browser console capture was performed. This remains source review, not runtime proof.
+
+### Source-level rendering/performance review
+
+- Scanner text and numeric sort keys use WeakMap caches.
+- Scanner search input is debounced (150 ms); rendered table rows are batched with DocumentFragment; pagination limits the rendered page to 100 rows.
+- Chart rendering is bounded to the most recent 120 candles (per source-level test coverage).
+- The full API response remains in browser memory; no virtualization, memory profiling, Lighthouse run, or measured frame/paint benchmark was performed.
+
+### Remaining verification
+
+- Real browser viewport testing of this exact feature-branch build at mobile and desktop widths.
+- Keyboard-only and screen-reader testing in a browser.
+- API fault-injection tests for timeout, cancellation, malformed JSON, HTTP errors and stale responses.
+- Lighthouse/Core Web Vitals and memory/render profiling.
+- Existing two dependency/framework deprecation warnings should be reviewed separately; they did not fail the CI run.
+
+No backend code, database, secrets, billing, main branch, PR merge state, or deployment settings were changed in this audit.
