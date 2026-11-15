@@ -208,3 +208,14 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - This tightens the regression test's scope; it does not change dashboard runtime behaviour.
 - The Node and Python suites have still **not** been executed. This is a source/test review and GitHub readback only; no pass result is claimed.
 - No backend files, CI workflows, secrets, database or deployment settings were changed. No PR, merge or deployment was performed.
+
+
+## Batched chart request invalidation and selection-consistency pass
+
+- Added an explicit chart-request invalidation method so an in-flight candle request cannot overwrite the workspace after the user changes the market, symbol or timeframe.
+- The chart view is cleared and marked as awaiting analysis when market/symbol/timeframe controls or scanner market selection changes; this avoids presenting old candles as if they belonged to the new selection.
+- Market Evidence now invalidates pending candle requests and clears the previous candle chart because that endpoint does not provide OHLCV chart data.
+- Renamed the technical chart action to a market-neutral label; the handler already uses the currently selected market rather than always requesting Spot.
+- Extended the Python static contract suite to assert the invalidation hook and its app integration.
+- GitHub source writes and subsequent readback are the verification performed. Node and Python tests have **not** been executed; no pass result is claimed. Browser QA and live API testing remain outstanding.
+- Changes remain confined to dashboard frontend source, dashboard tests and this ledger. No backend, migrations, CI workflows, secrets, deployment settings, PR, merge or deployment were changed.
