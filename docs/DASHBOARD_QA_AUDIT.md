@@ -132,3 +132,20 @@ Follow-up job inspection returned an empty `steps` array for both jobs. The job-
 ## 8. Follow-up change-control confirmation
 
 No changes were made to `main`. No PR was created or merged. No production or staging deployment was initiated. The CI rerun requests above did not modify application source or deployment configuration.
+
+
+## 9. Runner allocation evidence (2026-11-15)
+
+The GitHub Actions Jobs API was queried directly for the latest failed jobs. The returned job metadata explicitly reports:
+
+| Run | Job ID | Requested labels | Runner ID | Runner name | Steps |
+|---|---:|---|---:|---|---|
+| #1696 | 132783385205 | `ubuntu-latest` | `0` | empty | `[]` |
+| #1695 (attempt 2) | 132782892223 | `ubuntu-latest` | `0` | empty | `[]` |
+| Dashboard #9 (attempt 2) | 132782882178 | `ubuntu-latest` | `0` | empty | `[]` |
+
+This is stronger evidence than the earlier missing-log observation: for these three inspected jobs, GitHub's job metadata contains no assigned runner identity (`runner_id=0`, empty `runner_name`) and no executed steps. The jobs completed as failures within roughly 2–4 seconds. Therefore the evidence points to a runner assignment/dispatch problem before step execution, not to a demonstrated Python, Node, dashboard, or application test failure. The precise underlying cause (hosted-runner availability, repository Actions policy, billing/quota, service-side dispatch, or another GitHub-side condition) cannot be distinguished from the accessible metadata.
+
+The workflow requests `ubuntu-latest`; its YAML defines normal checkout, Python 3.12, Node 22, syntax checks, dashboard tests, and pytest steps. No artifacts were published for Run #1696. Repository metadata confirms the repository is private and the connected GitHub identity has admin/push permissions, but the available API wrapper rejected direct reads of Actions runner inventory and Actions permissions endpoints. Those settings remain unverified.
+
+**Required next action:** inspect the repository's Settings → Actions → Runners and Actions → General pages in GitHub, and the account/org Actions usage/billing limits. Confirm GitHub-hosted runner availability and that the repository is permitted to use GitHub-hosted runners. Do not weaken workflow permissions or deployment protections to work around this. After runner availability is restored, re-run the existing workflows and require non-empty runner identity, non-empty step records, and retained logs before treating CI as valid.
