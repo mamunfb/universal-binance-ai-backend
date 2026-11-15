@@ -822,3 +822,12 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Duplicate diagnostics are computed once per metadata render and do not alter the backend response or the table's row set.
 - Added a source-contract regression test for the diagnostic counts and row-retention path. The Python test suite has not been executed; browser/runtime behavior and large-dataset performance remain unverified.
 - Frontend-only. No backend source, CI workflow, PR state, merge, or deployment was changed.
+
+
+## Scanner malformed cell-value rendering
+
+- Scanner table cells now render null, undefined and empty values as an em dash; non-finite numeric values and malformed numeric strings in price/volume/change columns are shown as "Invalid number".
+- Object and array values are shown as "Invalid value" rather than the unhelpful JavaScript string "[object Object]". Boolean and ordinary text values remain readable.
+- Cell content continues to be assigned through `textContent`; no backend payload is inserted as HTML.
+- Added a source-contract regression test for malformed numeric and structured values. The Python test suite has not been executed; browser/runtime rendering remains unverified.
+- Frontend-only. No backend source, CI workflow, PR state, merge, or deployment was changed.
