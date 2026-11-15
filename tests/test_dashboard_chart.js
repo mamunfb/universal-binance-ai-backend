@@ -89,6 +89,11 @@ test("MACD signal and histogram are derived from the aligned MACD line", () => {
   assert.ok(result.line.slice(25).every(Number.isFinite));
   assert.ok(result.signal.slice(33).every(Number.isFinite));
   for (let i=33;i<values.length;i++) assert.ok(Math.abs(result.histogram[i]-(result.line[i]-result.signal[i]))<1e-10);
+  const candles = values.map((close,i) => ({time:i*3600000,open:close,high:close+1,low:close-1,close,volume:10,closeTime:i*3600000+3599999}));
+  const latest = charts.indicators(candles).macd_12_26;
+  assert.ok(Number.isFinite(latest.line));
+  assert.ok(Number.isFinite(latest.signal));
+  assert.ok(Number.isFinite(latest.histogram));
 });
 
 test("insufficient history leaves long-period indicators unavailable", () => {
