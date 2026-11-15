@@ -367,7 +367,7 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 
 ## Scanner response row-shape validation
 
-- Scanner response arrays are now filtered to plain object-like records before table rendering; nulls, primitive values and nested arrays are excluded rather than displayed as misleading table rows.
-- The coverage metadata reports the number of malformed rows excluded, and the scan notification calls attention to that count.
+- Scanner response arrays are now filtered to non-null, non-array object records before table rendering; nulls, primitive values and nested arrays are excluded rather than displayed as misleading table rows.
+- The coverage metadata reports the number of malformed rows excluded, and an informational scan notification calls attention to that count without treating a partially usable response as a complete scan failure.
 - Added a Python static contract assertion for the filter, rejected-row count and user-visible reporting.
 - This is defensive frontend response handling, not a claim that the backend response schema has been fully validated. GitHub readback is the only verification performed; runtime tests and browser QA remain unexecuted.
