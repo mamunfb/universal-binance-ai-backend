@@ -564,7 +564,7 @@ No merge, production deployment, backend/database mutation, secret change or `ma
 
 ## 30. Expanded Chromium API-failure and accessibility regression suite
 
-**Browser-test source checkpoint:** `86358ccad4bbb942e3f11d0ebedaca93c3295236` (dashboard status fix; browser test source remains `f82f0a445ce47ad3e69f2d66b98cb699613c5402`)  
+**Verified baseline:** dashboard source `86358ccad4bbb942e3f11d0ebedaca93c3295236`; browser test source `f82f0a445ce47ad3e69f2d66b98cb699613c5402`  
 **Verification date:** 2026-11-15
 
 Expanded `tests/test_dashboard_browser.cjs` from four to eight independent Node/Playwright tests. New browser coverage includes:
@@ -586,6 +586,8 @@ Existing browser tests continue to cover the seven viewport widths, mobile keybo
 **Verified pass:** GitHub Actions browser QA Run #20 (`43720395219`) on commit `86358ccad4bbb942e3f11d0ebedaca93c3295236` completed successfully. The actual job log records **8 tests, 8 passed, 0 failed** (11.45 seconds). This is the first verified all-green result for the expanded eight-test browser suite.
 
 The API cases use browser route mocks and a local static dashboard server; they do not exercise a live backend. No production endpoint, credentials, trading action, database, deployment, or main-branch state is touched by these tests.
+
+**Additional accessibility assertions:** browser-test commit `3f9e1a4a87faa5dc9cd570660712ad24a1b3e645` now also checks the mobile menu's accessible name across open/closed states and verifies the primary navigation landmark and active-page `aria-current` state. These are follow-up assertions beyond the verified baseline and await their own CI result.
 
 Next verification is to broaden the accessibility and performance regression checks while preserving the verified eight-test baseline.
 
