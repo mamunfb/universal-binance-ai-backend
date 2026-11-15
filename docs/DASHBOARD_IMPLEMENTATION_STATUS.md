@@ -757,3 +757,13 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Both readiness actions now use the guarded loader, validate the response as a JSON object, and ignore superseded success/failure results.
 - Added a static regression contract for readiness request cancellation, sequence checks and both button handlers.
 - Source readback only. Runtime tests and browser QA remain unrun; no pass is claimed. Backend files, CI, PR, merge and deployment remain untouched.
+
+
+## Scanner and Data Quality request cancellation hardening
+
+- Follow-up request-lifecycle inspection found that scanner and data-quality requests used sequence guards but did not abort the underlying fetch when superseded or when backend credentials changed.
+- Added dedicated AbortControllers for both request families. Starting a replacement request aborts the previous request; existing selection and credential invalidation paths now abort in-flight work while sequence guards continue to prevent stale UI updates.
+- Request cleanup only clears the active controller when it still belongs to that request, avoiding an older request's finally handler from clearing a newer controller.
+- API abort classification now records whether the timeout fired, so a later caller cancellation cannot mislabel an already-triggered timeout (and caller cancellation remains distinct from timeout).
+- Added static regression contracts for scanner cancellation, quality cancellation, credential-change invalidation, and timeout/caller-abort classification.
+- Source readback only. No runtime tests, browser QA, keyboard/screen-reader checks or responsive device checks were run. No test pass is claimed. Backend source, CI workflows, PR state, merge and deployment were not changed.
