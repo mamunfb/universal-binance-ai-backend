@@ -10,6 +10,7 @@
   };
   const state = {base:"", token:"", market:"SPOT", symbol:"BTCUSDT", timeframe:"1h", lastScan:null, lastHealth:null, lastAnalysis:null};
   let activeScanSequence=0;
+  let activeEvidenceSequence=0;
   const esc = (value) => String(value ?? "—").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const setText = (id, value) => { const el=$(id); if(el) el.textContent = value == null || value === "" ? "—" : String(value); };
   const toast = (message, type="info") => { const el=document.createElement("div"); el.className="toast "+(type==="error"?"error":type==="success"?"success":""); el.textContent=message; $("toast-region").append(el); window.setTimeout(()=>el.remove(),4500); };
@@ -129,19 +130,20 @@
   }
   function syncAnalysisHeader(){state.symbol=$("global-symbol").value.trim().toUpperCase()||"BTCUSDT";state.market=$("global-market").value;state.timeframe=$("global-timeframe").value;setText("analysis-title",state.symbol+" · "+state.market);setText("analysis-subtitle","Timeframe "+state.timeframe+" · "+state.market+" · Research-only analysis");}
   function invalidateChartView(message="Selection changed. Run analysis to load matching candles.") {
-    window.DashboardCharts.invalidate();
+    activeEvidenceSequence++; window.DashboardCharts.invalidate();
     const host=$("chart-placeholder"); if(host) host.replaceChildren(document.createTextNode(message));
     setText("chart-state","Awaiting analysis"); setText("technical-summary","Run analysis to load indicators for the current selection.");
     setText("analysis-output","No chart response for the current selection.");
   }
   async function loadMarketEvidence() {
-    syncAnalysisHeader(); invalidateChartView("Market evidence endpoint does not provide candle chart data."); const path="/api/v1/analysis/market-evidence/"+encodeURIComponent(state.symbol);
-    const data=await api(path);state.lastAnalysis=data;showJson("analysis-output",data);setText("chart-state","Evidence loaded; candle chart not provided by this endpoint");setText("technical-summary",data.summary||data.status||"Market evidence returned. Inspect evidence payload.");
+    syncAnalysisHeader(); invalidateChartView("Market evidence endpoint does not provide candle chart data."); const requestSequence=++activeEvidenceSequence; const path="/api/v1/analysis/market-evidence/"+encodeURIComponent(state.symbol);
+    const data=await api(path);if(requestSequence!==activeEvidenceSequence)return{status:"SUPERSEDED"};state.lastAnalysis=data;showJson("analysis-output",data);setText("chart-state","Evidence loaded; candle chart not provided by this endpoint");setText("technical-summary",data.summary||data.status||"Market evidence returned. Inspect evidence payload.");
     toast("Market evidence loaded.","success");return data;
   }
   async function loadTechnical() {
-    syncAnalysisHeader();
+    syncAnalysisHeader(); activeEvidenceSequence++;
     const data=await window.DashboardCharts.load(api,state.market,state.symbol,state.timeframe);
+    if(data?.status==="SUPERSEDED")return data;
     state.lastAnalysis=data;toast("Verified candle chart and descriptive indicators loaded.","success");return data;
   }
   function initTimeframes() {
