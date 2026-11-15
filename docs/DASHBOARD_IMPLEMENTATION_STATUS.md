@@ -647,6 +647,6 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 ## Stochastic RSI rolling-window performance
 
 - Replaced repeated per-candle array slicing, min/max scans and smoothing reductions with monotonic deques for rolling RSI extrema plus incremental rolling sums for %K and %D.
-- The rolling extrema and smoothing passes are linear in the number of observations rather than repeatedly rescanning each configured window. Missing RSI observations reset the active window and smoothing warm-up, preserving gap alignment and null behavior.
+- The rolling extrema and smoothing passes are linear in the number of observations rather than repeatedly rescanning each configured window. Missing RSI observations reset the active window and smoothing warm-up, preserving gap alignment and null behavior. Raw %K and smoothed %K/%D are clamped to their documented 0–100 range against floating-point boundary drift.
 - Added regression coverage for gap recovery, bounded 0–100 output, existing warm-up indices and equivalence with a straightforward reference implementation. These tests have not been executed; no measured benchmark is claimed.
 
