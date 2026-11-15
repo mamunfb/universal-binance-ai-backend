@@ -355,3 +355,11 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - New row-array identity now resets the page index to zero while invalidating the sorted-row cache.
 - Added a Python contract assertion for the reset and for the comparator's missing-value ordering branch. The missing-value branch returns before applying ascending/descending direction, preserving missing values at the end in either sort direction.
 - GitHub source readback is the verification performed. Runtime Python/Node tests and browser interaction tests remain unexecuted; no passing test claim is made.
+
+
+## Scanner numeric sort input-type hardening
+
+- Tightened numeric sorting so only finite JavaScript numbers and non-empty numeric strings are treated as numeric values.
+- Boolean, array and object values are no longer coerced through JavaScript's `Number(...)` conversion (for example, an empty array or a single-element array can otherwise become a numeric value). Such malformed field values now use the text-sort path instead.
+- Added a Python static contract assertion for the primitive-type guard and numeric-string parsing.
+- This is source-level hardening; runtime sort behaviour and browser interaction have not been executed in this session. No runtime test-pass claim is made.
