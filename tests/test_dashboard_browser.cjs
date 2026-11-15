@@ -370,3 +370,58 @@ test("visible dashboard UI passes WCAG 2.1 A/AA automated accessibility checks",
   assert.deepEqual(pageErrors, []);
   await context.close();
 });
+
+test("API authentication, authorization, rate-limit and server errors remain visible and text-only", async () => {
+  const {context, page, pageErrors} = await newPage(1280);
+  await page.locator('.nav-link[data-page="settings"]').click();
+  await page.locator("#backend-url").fill("https://backend.test");
+  const cases = [
+    {status: 401, detail: "authentication required"},
+    {status: 403, detail: "permission denied"},
+    {status: 429, detail: "rate limit exceeded"},
+    {status: 500, detail: "internal server error"},
+    {status: 403, detail: "access denied <img src=x onerror=alert(1)>"}
+  ];
+  let activeCase = cases[0];
+  await page.route("https://backend.test/health", route => route.fulfill({
+    status: activeCase.status,
+    contentType: "application/json",
+    headers: {"access-control-allow-origin": "*"},
+    body: JSON.stringify({detail: activeCase.detail})
+  }));
+
+  for (const item of cases) {
+    activeCase = item;
+    await page.locator("#test-connection").click();
+    const toast = page.locator(".toast.error").filter({hasText: item.detail});
+    await toast.waitFor();
+    assert.match(await page.locator("#health-status").innerText(), /unavailable/i);
+    assert.equal(await toast.locator("img").count(), 0,
+      "backend error details must be rendered as text, not executable markup");
+  }
+  assert.deepEqual(pageErrors, []);
+  await context.close();
+});
+
+test("mobile navigation remains inert and focus-safe across desktop/mobile viewport changes", async () => {
+  const {context, page, pageErrors} = await newPage(390, 844);
+  const menu = page.locator("#mobile-menu");
+  const sidebar = page.locator("#sidebar");
+  await menu.click();
+  assert.equal(await sidebar.evaluate(el => el.inert), false);
+
+  const firstLink = sidebar.locator(".nav-link").first();
+  await firstLink.focus();
+  await page.setViewportSize({width: 1024, height: 900});
+  await page.waitForFunction(() => !document.querySelector("#sidebar").classList.contains("open"));
+  assert.equal(await sidebar.evaluate(el => el.inert), false);
+  assert.equal(await menu.getAttribute("aria-expanded"), "false");
+
+  await page.setViewportSize({width: 390, height: 844});
+  await page.waitForFunction(() => document.querySelector("#sidebar").inert === true);
+  assert.equal(await page.evaluate(() => document.activeElement.id), "mobile-menu",
+    "focus must leave the sidebar before it becomes inert on mobile");
+  assert.equal(await menu.getAttribute("aria-expanded"), "false");
+  assert.deepEqual(pageErrors, []);
+  await context.close();
+});
