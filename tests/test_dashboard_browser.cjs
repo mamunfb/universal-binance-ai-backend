@@ -54,7 +54,7 @@ async function newPage(width, height = 900) {
 }
 
 test("responsive layout has no horizontal overflow at supported viewport widths", async () => {
-  for (const width of [360, 390, 480, 760, 768, 1100, 1280]) {
+  for (const width of [320, 344, 360, 390, 480, 760, 768, 900, 1100, 1280]) {
     const {context, page, pageErrors} = await newPage(width);
     const metrics = await page.evaluate(() => ({
       viewport: document.documentElement.clientWidth,
