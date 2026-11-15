@@ -128,6 +128,7 @@ function render(c){
  const macd=macdComponents(valuesClose);host.append(drawLinePanel("MACD line · EMA12 − EMA26",macd.line,{zero:true}));host.append(drawLinePanel("MACD signal · EMA9 of MACD",macd.signal,{zero:true}));host.append(drawLinePanel("MACD histogram · line − signal",macd.histogram,{zero:true}));
  host.append(drawLinePanel("ATR (14) · Wilder",atrSeries(c)));
 }
+function invalidate(){activeLoadSequence++;}
 async function load(api,market,symbol,timeframe){
  const requestSequence=++activeLoadSequence;
  const tf=timeframe,interval=intervalFor(tf),route=routeFor(market);if(!route)throw new Error("Unsupported market type: "+market);
@@ -142,5 +143,5 @@ async function load(api,market,symbol,timeframe){
  document.getElementById("chart-state").textContent=tf==="3h"?"3h aggregated from complete 1h candles":candles.length+" candles loaded";
  return result;
 }
-window.DashboardCharts={load,parse,aggregate3h,indicators,intervalFor,routeFor,emaSeries,rsiSeries,atrSeries,macdSeries,macdComponents,bollingerSeries,adxSeries,stochRsiSeries};
+window.DashboardCharts={load,invalidate,parse,aggregate3h,indicators,intervalFor,routeFor,emaSeries,rsiSeries,atrSeries,macdSeries,macdComponents,bollingerSeries,adxSeries,stochRsiSeries};
 })();
