@@ -1020,3 +1020,38 @@ To avoid manufacturing misleading snapshot evidence, commit `ebf7e8849bd0ef71a1f
 This is a coarse post-GC heap/DOM trend for the deterministic mock fixture only. It does not prove absence or presence of a leak; no numerical leak threshold is asserted. The next CI artifact must be checked to confirm the final state and metrics. The workflow should no longer emit V8 heap snapshots. Scanner interaction timing remains independently measured.
 
 Run #21 results from its profiler output: 1x scan render/sort/search/pagination 67/38/170/68 ms; 4x 86/79/171/130 ms; five cycles 2,350 ms at 1x and 3,127 ms at 4x. These timing observations are from a deterministic 1,000-row mocked response, not production traffic.
+
+
+## 53. Run #22 matched-GC profiler verification (2026-11-15)
+
+Run #22 ([workflow 43732332892](https://github.com/mamunfb/universal-binance-ai-backend/actions/runs/43732332892)) completed successfully on commit `ebf7e8849bd0ef71a1ff510b34f64884af839ce7`. The profiler step and artifact upload passed. The new artifact (ID `14169365473`, 226,254 bytes, SHA-256 `a299da2f248fa616906ce976372a556c5140fbbdd24f3c9c77a7c28b884a59ae`) contains three Lighthouse JSON reports and `browser-profile.json`; it no longer contains V8 heap snapshots.
+
+### 1,000-row scanner fixture
+
+| Measurement | CPU 1x | CPU 4x |
+|---|---:|---:|
+| Scan render | 66 ms | 98 ms |
+| Sort | 38 ms | 81 ms |
+| Search | 171 ms | 189 ms |
+| Pagination | 69 ms | 140 ms |
+| Five repeated interaction cycles | 2,449 ms | 3,303 ms |
+| Post-GC heap delta (raw trend only) | +71,824 bytes | +71,824 bytes |
+| DOM nodes after cycles | 2,652 | 2,649 |
+| Browser page errors | 0 | 0 |
+
+The harness restores the same ascending sort and page-1 state before the final GC measurement. These heap deltas are coarse lab observations only; the harness does not assert a memory-leak threshold and the values do not establish a leak or its absence. The DOM node counts are reported after cycles; baseline DOM-node count was not included in this run's output and will be added in a follow-up for a more useful before/after comparison.
+
+### Lighthouse mobile cold-load
+
+Three samples, 390 × 844 CSS px, mobile simulated throttling; values read directly from the artifact JSON.
+
+| Metric | Sample 1 | Sample 2 | Sample 3 | Median |
+|---|---:|---:|---:|---:|
+| Performance score | 99 | 100 | 100 | 100 |
+| FCP | 904 ms | 903 ms | 906 ms | 904 ms |
+| LCP | 1,656 ms | 1,653 ms | 1,506 ms | 1,653 ms |
+| Speed Index | 904 ms | 903 ms | 906 ms | 904 ms |
+| Total Blocking Time | 72 ms | 0 ms | 0 ms | 0 ms |
+| CLS | 0.0000238 | 0.0000238 | 0.0000238 | 0.0000238 |
+
+The artifact confirms the profiler output and Lighthouse reports; these remain isolated static-dashboard lab measurements using a deterministic mock scanner API, not live Binance or production-user performance.
