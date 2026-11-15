@@ -822,3 +822,12 @@ For each CPU setting (1x and 4x), the harness now:
 - Forces garbage collection and captures baseline and post-cycle heap metrics/snapshots for comparison.
 
 Run #13 (`43725367464`, commit `6bee57edfe9f4d11ef77ff389d9afb43025330df`) was still in progress at the latest inspection; Chromium installation was ongoing and no fixture benchmark result is available yet. Do not infer a pass from the earlier Run #12, which predates this expanded fixture.
+
+
+## 41. Run #13 scanner-fixture timeout and diagnostic follow-up (2026-11-15)
+
+Run #13 (`43725367464`, commit `6bee57edfe9f4d11ef77ff389d9afb43025330df`) completed with failure. The three Lighthouse cold-load audits passed. The expanded CPU/heap profiler failed at the assertion waiting for `#spot-count` to become `1000 matching / 1000 returned`; the wait timed out after 30 seconds. Therefore Run #13 provides no accepted 1,000-row timing or repeated-cycle heap comparison. The artifact upload succeeded, but it contains only the Lighthouse reports because the profiler exited before producing its profiling output.
+
+Added targeted failure diagnostics in commit `e44a79be840954e120031b337616bc450edb56ec`: capture mocked API response/request failures, browser page errors, scanner state, count, coverage, toast, button state, settings status, and route hash when the fixture does not render. The next run will distinguish a missing click/event, a failed/mismatched mock request, an API/schema issue, and a dashboard rendering issue instead of reporting only a generic timeout.
+
+No dashboard application source or backend code changed. No live backend calls, database/secrets changes, `main` changes, merges, or deployments.
