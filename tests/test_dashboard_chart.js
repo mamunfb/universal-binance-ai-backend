@@ -647,7 +647,8 @@ test("Wilder RSI and ATR smoothing remain finite for very large representable ga
   const atr=charts.atrSeries(candles,14);
   assert.equal(rsi.at(-1),100);
   assert.ok(Number.isFinite(atr.at(-1)));
-  assert.equal(charts.rsi(closes,14),100);
-  assert.ok(Number.isFinite(charts.atrWilder(candles,14)));
+  const snapshot=charts.indicators(candles);
+  assert.equal(snapshot.rsi_14_wilder,100);
+  assert.ok(Number.isFinite(snapshot.atr_14_wilder));
 });
 
