@@ -65,6 +65,21 @@ test("flat price RSI is neutral and ATR uses Wilder smoothing", () => {
   assert.match(result.method, /not a validated trading signal/);
 });
 
+test("indicator series align to candles and expose MACD line, signal and histogram", () => {
+  const values = Array.from({length:80}, (_,i) => 100 + Math.sin(i/5)*4 + i*0.08);
+  const rsi = charts.rsiSeries(values);
+  const atrCandles = values.map((close,i) => ({time:i*3600000,open:close-0.2,high:close+1,low:close-1,close,volume:10,closeTime:i*3600000+3599999}));
+  const atr = charts.atrSeries(atrCandles);
+  const macd = charts.macdComponents(values);
+  assert.equal(rsi.length, values.length);
+  assert.equal(atr.length, values.length);
+  assert.equal(macd.line.length, values.length);
+  assert.equal(macd.signal.length, values.length);
+  assert.equal(macd.histogram.length, values.length);
+  assert.ok(rsi.slice(14).every(v => Number.isFinite(v) && v >= 0 && v <= 100));
+  assert.ok(macd.histogram.slice(33).every(v => Number.isFinite(v)));
+});
+
 test("insufficient history leaves long-period indicators unavailable", () => {
   const rows = [candle(0, 100), candle(3600000, 101)];
   const result = charts.indicators(rows.map(row => ({time:row[0],open:row[1],high:row[2],low:row[3],close:row[4],volume:row[5],closeTime:row[6]})));
