@@ -15,7 +15,7 @@ const {chromium}=require("playwright");
    for(let i=0;i<Math.min(count,12);i++){
     const link=nav.nth(i),pageName=await link.getAttribute("data-page");
     if(await page.locator("#mobile-menu").isVisible())await page.locator("#mobile-menu").click();
-    const t=Date.now();await link.click();await page.waitForFunction(name=>document.querySelector("#page-crumb")?.textContent?.trim()!=="",pageName);await page.waitForTimeout(30);
+    const t=Date.now();await link.click();await page.waitForFunction(name=>location.hash==="#"+name,pageName);await page.waitForTimeout(30);
     navSamples.push({page:pageName,duration_ms:Date.now()-t,sidebar_closed:!(await page.locator("#sidebar").evaluate(el=>el.classList.contains("open")))});
    }
    await cdp.send("HeapProfiler.collectGarbage");
