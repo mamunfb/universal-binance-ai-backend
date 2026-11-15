@@ -607,3 +607,17 @@ test("optimized Stochastic RSI matches a straightforward rolling-window referenc
   }
 });
 
+test("ADX treats structurally invalid OHLC bounds as a segment break and fully warms up again", () => {
+  const candles=Array.from({length:100},(_,i)=>{
+    const close=100+i;
+    return {time:i,open:close,high:close+1,low:close-1,close,volume:1,closeTime:i+1};
+  });
+  candles[45].high=candles[45].close-0.5;
+  const adx=charts.adxSeries(candles,14);
+  assert.ok(Number.isFinite(adx[40]));
+  assert.equal(adx[45],null);
+  assert.equal(adx[72],null);
+  assert.ok(Number.isFinite(adx[73]));
+  assert.ok(Math.abs(adx[73]-100)<1e-10);
+});
+
