@@ -557,3 +557,9 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 
 - Three-hour aggregation now checks the summed source-candle volume after aggregation. If individually finite source volumes overflow to a non-finite total, that bucket is discarded rather than passing Infinity into chart scaling and indicator calculations.
 - Added a Node regression fixture using finite maximum-range volume values to exercise aggregate overflow rejection. This test was added but not executed.
+
+
+## VWAP volume-overflow safety
+
+- Replaced direct total-volume and price-volume accumulation with a normalized, incremental weighted mean. This avoids overflowing the raw sum when individual finite candle volumes are very large while retaining volume-weighted typical-price semantics.
+- Added a regression test with two maximum-range finite volumes and distinct typical prices; the expected VWAP is 16. The test was added but not executed.
