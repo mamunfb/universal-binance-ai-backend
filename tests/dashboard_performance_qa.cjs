@@ -35,7 +35,7 @@ const {chromium}=require("playwright");
    await page.locator("#mobile-menu").click();
    await page.locator('#main-nav .nav-link[data-page="spot-scanner"]').click();
    const scanStart=Date.now();await page.locator("#scan-spot").click();
-   try{await page.waitForFunction(()=>document.querySelector("#spot-count")?.textContent.includes("1000 matching / 1000 returned"),{timeout:10000});}catch(error){const diagnostic=await page.evaluate(()=>({scanState:document.querySelector("#scan-state")?.textContent,spotCount:document.querySelector("#spot-count")?.textContent,coverage:document.querySelector("#spot-coverage")?.textContent,toast:document.querySelector("#toast-container")?.textContent,buttonDisabled:document.querySelector("#scan-spot")?.disabled,settingsStatus:document.querySelector("#settings-status")?.textContent,hash:location.hash}));throw new Error("1000-row scanner fixture did not render. UI="+JSON.stringify(diagnostic)+" API="+JSON.stringify(apiEvents)+" pageErrors="+JSON.stringify(errors)+"; "+error.message);}
+   try{await page.waitForFunction(()=>document.querySelector("#spot-count")?.textContent.replace(/,/g,"").includes("1000 matching / 1000 returned"),null,{timeout:10000});}catch(error){const diagnostic=await page.evaluate(()=>({scanState:document.querySelector("#scan-state")?.textContent,spotCount:document.querySelector("#spot-count")?.textContent,coverage:document.querySelector("#spot-coverage")?.textContent,toast:document.querySelector("#toast-container")?.textContent,buttonDisabled:document.querySelector("#scan-spot")?.disabled,settingsStatus:document.querySelector("#settings-status")?.textContent,hash:location.hash}));throw new Error("1000-row scanner fixture did not render. UI="+JSON.stringify(diagnostic)+" API="+JSON.stringify(apiEvents)+" pageErrors="+JSON.stringify(errors)+"; "+error.message);}
    const scanRenderMs=Date.now()-scanStart,visibleRows=await page.locator("#spot-rows tr").count();
    const sortStart=Date.now();await page.locator('table[aria-label="Spot market scan results"] thead th').nth(4).click();
    await page.waitForFunction(()=>document.querySelector('table[aria-label="Spot market scan results"] thead th:nth-child(5)')?.getAttribute("aria-sort")==="ascending");
@@ -44,9 +44,9 @@ const {chromium}=require("playwright");
    const pageStart=Date.now();await pager.click();await page.getByText(/page 2\/10/).waitFor();const paginationMs=Date.now()-pageStart;
    await page.locator('.table-pager button[aria-label="Previous scanner page"]').click();await page.getByText(/page 1\/10/).waitFor();
    const searchStart=Date.now();await page.locator("#spot-search").fill("COIN0999USDT");
-   await page.waitForFunction(()=>document.querySelector("#spot-count")?.textContent.includes("1 matching / 1000 returned"));
+   await page.waitForFunction(()=>document.querySelector("#spot-count")?.textContent.replace(/,/g,"").includes("1 matching / 1000 returned"));
    const searchMs=Date.now()-searchStart,searchRows=await page.locator("#spot-rows tr").count();
-   await page.locator("#spot-search").fill("");await page.waitForFunction(()=>document.querySelector("#spot-count")?.textContent.includes("1000 matching / 1000 returned"));
+   await page.locator("#spot-search").fill("");await page.waitForFunction(()=>document.querySelector("#spot-count")?.textContent.replace(/,/g,"").includes("1000 matching / 1000 returned"));
    await cdp.send("HeapProfiler.collectGarbage");
    const readMetrics=async()=>{const m=await cdp.send("Performance.getMetrics");return Object.fromEntries(m.metrics.map(x=>[x.name,x.value]));};
    const baselineMetrics=await readMetrics();
