@@ -36,7 +36,7 @@ const {chromium}=require("playwright");
    await page.locator('#main-nav .nav-link[data-page="spot-scanner"]').click();
    const scanStart=Date.now();await page.locator("#scan-spot").click();
    try{await page.waitForFunction(()=>document.querySelector("#spot-count")?.textContent.replace(/,/g,"").includes("1000 matching / 1000 returned"),null,{timeout:10000});}catch(error){const diagnostic=await page.evaluate(()=>({scanState:document.querySelector("#scan-state")?.textContent,spotCount:document.querySelector("#spot-count")?.textContent,coverage:document.querySelector("#spot-coverage")?.textContent,toast:document.querySelector("#toast-container")?.textContent,buttonDisabled:document.querySelector("#scan-spot")?.disabled,settingsStatus:document.querySelector("#settings-status")?.textContent,hash:location.hash}));throw new Error("1000-row scanner fixture did not render. UI="+JSON.stringify(diagnostic)+" API="+JSON.stringify(apiEvents)+" pageErrors="+JSON.stringify(errors)+"; "+error.message);}
-   const settleScannerDom=async()=>{const state=await page.evaluate(()=>{const rows=Array.from(document.querySelectorAll("#spot-rows tr"));const cellRefs=rows.flatMap(row=>Array.from(row.cells));window.__qaHeapKeepAlive=cellRefs;for(const cell of cellRefs){void cell.textContent;cell.getBoundingClientRect();}return{rows:rows.length,cells:cellRefs.length,connected_cells:cellRefs.filter(cell=>cell.isConnected).length};});if(state.rows!==100||state.cells!==600||state.connected_cells!==600)throw new Error("Scanner DOM did not settle to 100 rows / 600 cells before heap snapshot: "+JSON.stringify(state));};
+   const settleScannerDom=async()=>{const state=await page.evaluate(()=>{const rows=Array.from(document.querySelectorAll("#spot-rows tr"));let cells=0;for(const row of rows){for(const cell of row.cells){void cell.textContent;cell.getBoundingClientRect();cells++;}}return{rows:rows.length,cells};});if(state.rows!==100||state.cells!==600)throw new Error("Scanner DOM did not settle to 100 rows / 600 cells before GC metrics: "+JSON.stringify(state));};
    const scanRenderMs=Date.now()-scanStart,visibleRows=await page.locator("#spot-rows tr").count();
    const sortStart=Date.now();await page.locator('table[aria-label="Spot market scan results"] thead th').nth(4).click();
    await page.waitForFunction(()=>document.querySelector('table[aria-label="Spot market scan results"] thead th:nth-child(5)')?.getAttribute("aria-sort")==="ascending");
@@ -51,8 +51,6 @@ const {chromium}=require("playwright");
    await cdp.send("HeapProfiler.collectGarbage");
    const readMetrics=async()=>{const m=await cdp.send("Performance.getMetrics");return Object.fromEntries(m.metrics.map(x=>[x.name,x.value]));};
    const baselineMetrics=await readMetrics();
-   const captureSnapshot=async name=>{const chunks=[];const listener=({chunk})=>chunks.push(chunk);cdp.on("HeapProfiler.addHeapSnapshotChunk",listener);await cdp.send("HeapProfiler.takeHeapSnapshot",{reportProgress:false});cdp.off("HeapProfiler.addHeapSnapshotChunk",listener);fs.writeFileSync(path.join(out,name),chunks.join(""));};
-   await captureSnapshot("heap-cpu-"+rate+"x-baseline.heapsnapshot");
    const cycleStart=Date.now();
    for(let cycle=0;cycle<5;cycle++){
     await page.locator("#spot-search").fill("COIN0999USDT");
@@ -66,10 +64,10 @@ const {chromium}=require("playwright");
     await page.getByText(/page 1\/10/).waitFor();await settleScannerDom();
    }
    const repeatedCyclesMs=Date.now()-cycleStart;
+   await page.locator('table[aria-label="Spot market scan results"] thead th').nth(4).click();await page.waitForFunction(()=>document.querySelector('table[aria-label="Spot market scan results"] thead th:nth-child(5)')?.getAttribute("aria-sort")==="ascending");await settleScannerDom();
    await cdp.send("HeapProfiler.collectGarbage");
    const finalMetrics=await readMetrics();
-   await captureSnapshot("heap-cpu-"+rate+"x-after-5-cycles.heapsnapshot");
-   results.samples.push({cpu_throttle:rate,initial_navigation_ms:loadMs,navigation_samples:navSamples,scanner_fixture:{rows:fixtureRows.length,visible_rows_first_page:visibleRows,scan_render_ms:scanRenderMs,sort_ms:sortMs,search_ms:searchMs,search_visible_rows:searchRows,pagination_ms:paginationMs,repeated_5_cycle_ms:repeatedCyclesMs,heap_used_before_cycles_bytes:baselineMetrics.JSHeapUsedSize,heap_used_after_cycles_bytes:finalMetrics.JSHeapUsedSize,heap_delta_bytes:finalMetrics.JSHeapUsedSize-baselineMetrics.JSHeapUsedSize,dom_nodes_after_cycles:finalMetrics.Nodes},heap_used_bytes:finalMetrics.JSHeapUsedSize,heap_total_bytes:finalMetrics.JSHeapTotalSize,dom_nodes:finalMetrics.Nodes,page_errors:errors});
+   results.samples.push({cpu_throttle:rate,initial_navigation_ms:loadMs,navigation_samples:navSamples,scanner_fixture:{rows:fixtureRows.length,visible_rows_first_page:visibleRows,scan_render_ms:scanRenderMs,sort_ms:sortMs,search_ms:searchMs,search_visible_rows:searchRows,pagination_ms:paginationMs,repeated_5_cycle_ms:repeatedCyclesMs,heap_used_before_cycles_bytes:baselineMetrics.JSHeapUsedSize,heap_used_after_cycles_bytes:finalMetrics.JSHeapUsedSize,gc_heap_delta_bytes:finalMetrics.JSHeapUsedSize-baselineMetrics.JSHeapUsedSize,dom_nodes_after_cycles:finalMetrics.Nodes},heap_used_bytes:finalMetrics.JSHeapUsedSize,heap_total_bytes:finalMetrics.JSHeapTotalSize,dom_nodes:finalMetrics.Nodes,page_errors:errors});
    await context.close();
   }
   fs.writeFileSync(path.join(out,"browser-profile.json"),JSON.stringify(results,null,2));process.stdout.write(JSON.stringify(results,null,2)+"\n");
