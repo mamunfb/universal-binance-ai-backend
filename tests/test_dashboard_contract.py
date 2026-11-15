@@ -274,6 +274,7 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn('parsed.protocol==="http:"', self.js)
         self.assertIn('parsed.hostname==="localhost"', self.js)
         self.assertIn('parsed.hostname==="127.0.0.1"', self.js)
+        self.assertIn('parsed.hostname==="[::1]"', self.js)
         self.assertIn("let parsed;try{parsed=new URL(url);}", self.js)
         self.assertIn("parsed.username||parsed.password||parsed.search||parsed.hash", self.js)
 
