@@ -1,6 +1,7 @@
 (function(){
 "use strict";
 const ns="http://www.w3.org/2000/svg";
+const MAX_SOURCE_CANDLES=1000;
 let activeLoadSequence=0,activeLoadController=null;
 const number=v=>{if(typeof v==="number")return Number.isFinite(v)?v:null;if(typeof v!=="string")return null;const text=v.trim();if(!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(text))return null;const parsed=Number(text);return Number.isFinite(parsed)?parsed:null;};
 function parse(rows){
@@ -209,9 +210,9 @@ async function load(api,market,symbol,timeframe){
  if(requestSequence!==activeLoadSequence)return{status:"SUPERSEDED",market,symbol,requested_timeframe:tf};
  if(response===null||typeof response!=="object"||Array.isArray(response))throw new Error("Candle endpoint returned an invalid response shape. Expected a JSON object; previous chart was preserved.");
  if(!Array.isArray(response.klines))throw new Error("Candle endpoint did not provide a klines array; previous chart was preserved.");
- let candles=parse(response.klines);if(tf==="3h")candles=aggregate3h(candles);if(!candles.length)throw new Error("Backend returned no valid complete candle rows; previous chart was preserved.");
+ const sourceRows=response.klines.length>MAX_SOURCE_CANDLES?response.klines.slice(-MAX_SOURCE_CANDLES):response.klines;let candles=parse(sourceRows);if(tf==="3h")candles=aggregate3h(candles);if(!candles.length)throw new Error("Backend returned no valid complete candle rows; previous chart was preserved.");
  const values=indicators(candles);render(candles);
- const result={status:response.status||"RESPONSE_RECEIVED",market,symbol,requested_timeframe:tf,source_interval:interval,aggregation:tf==="3h"?"UTC-aligned groups of exactly three consecutive 1h candles; incomplete groups discarded":"Exchange-native interval",source:response.source||"Configured backend",candle_count:candles.length,latest_candle_time_utc:new Date(candles[candles.length-1].time).toISOString(),indicators:values,warning:"Descriptive frontend calculations only; not a validated trade signal."};
+ const result={status:response.status||"RESPONSE_RECEIVED",market,symbol,requested_timeframe:tf,source_interval:interval,aggregation:tf==="3h"?"UTC-aligned groups of exactly three consecutive 1h candles; incomplete groups discarded":"Exchange-native interval",source:response.source||"Configured backend",candle_count:candles.length,source_rows_received:response.klines.length,source_rows_processed:sourceRows.length,latest_candle_time_utc:new Date(candles[candles.length-1].time).toISOString(),indicators:values,warning:"Descriptive frontend calculations only; not a validated trade signal."};
  const summary=Object.entries(values).filter(([k,v])=>k!=="method"&&v!==null&&typeof v!=="object").map(([k,v])=>k.replaceAll("_"," ")+": "+(typeof v==="number"?new Intl.NumberFormat(undefined,{maximumFractionDigits:4}).format(v):String(v))).join(" · ");
  document.getElementById("technical-summary").textContent=summary||"Insufficient history for indicator calculations.";
  document.getElementById("analysis-output").textContent=JSON.stringify(result,null,2);
