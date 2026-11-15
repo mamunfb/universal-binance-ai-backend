@@ -510,3 +510,35 @@ test("Bollinger and MACD series retain candle alignment and restart after gaps",
   assert.ok(macd.histogram.every(value=>value===null||Number.isFinite(value)));
 });
 
+test("volume bars scale tiny positive volumes correctly and keep all-zero volume finite", async () => {
+  const makeElement = tag => ({
+    tagName:tag,attributes:{},children:[],style:{},textContent:"",
+    setAttribute(key,value){this.attributes[key]=String(value);},
+    append(...nodes){this.children.push(...nodes);},
+    replaceChildren(...nodes){this.children=[...nodes];}
+  });
+  const host = makeElement("host");
+  const nodes = {"chart-placeholder":host,"technical-summary":makeElement("summary"),"analysis-output":makeElement("output"),"chart-state":makeElement("state")};
+  const originalDocument = global.document;
+  global.document = {
+    getElementById(id){return nodes[id];},
+    createElement(tag){return makeElement(tag);},
+    createElementNS(_ns,tag){return makeElement(tag);}
+  };
+  const rows = Array.from({length:80}, (_,i) => {
+    const close=100+i*0.1, volume=i===0?1e-300:i===1?5e-300:0;
+    return [i*3600000,close,close+1,close-1,close,volume,i*3600000+3599999];
+  });
+  try {
+    await charts.load(async()=>({klines:rows}),"SPOT","BTCUSDT","1h");
+    const bars=host.children[0].children.filter(node=>node.tagName==="rect"&&node.attributes.opacity==="0.4");
+    assert.equal(Number(bars[0].attributes.height),10);
+    assert.equal(Number(bars[1].attributes.height),50);
+    const zeroRows=rows.map(row=>[...row.slice(0,5),0,row[6]]);
+    await charts.load(async()=>({klines:zeroRows}),"SPOT","BTCUSDT","1h");
+    const zeroBars=host.children[0].children.filter(node=>node.tagName==="rect"&&node.attributes.opacity==="0.4");
+    assert.ok(zeroBars.every(node=>Number(node.attributes.height)===0));
+    assert.ok(zeroBars.every(node=>Object.values(node.attributes).every(value=>!/(?:NaN|Infinity)/.test(value))));
+  } finally { global.document=originalDocument; }
+});
+
