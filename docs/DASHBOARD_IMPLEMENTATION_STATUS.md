@@ -738,3 +738,13 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Invalid or missing backend base URLs now set a field-level custom validity message and call the browser validity reporter before the connection attempt is rejected. This makes HTTPS, absolute-URL, host and prohibited URL-component errors discoverable at the input rather than only through a transient toast.
 - Editing the URL clears the stale custom validity state; clearing credentials also resets the URL field validity.
 - Added a source-contract assertion for validation feedback, input reset and credential-clear reset. Runtime tests and browser validation UX have not been executed.
+
+
+## Credential-change stale-data clearing and Display Preferences
+
+- Applying backend connection settings or clearing credentials now clears connection-scoped dashboard content, not only its status labels. Cached scan/health/analysis references are reset; scanner table rows, search filters, coverage summaries, readiness output, quality output, chart content and technical/evidence output are cleared.
+- Existing request sequence invalidation and AbortController cancellation remain in place, so a late response from the previous connection cannot repopulate the cleared view.
+- Display Preferences now initialize the active market and timeframe controls on page startup. Changing the default market/timeframe synchronizes the active dashboard controls and invalidates analysis tied to the previous selection.
+- The display timezone preference now formats recognized ISO-style scan timestamps through Intl.DateTimeFormat; changing timezone re-renders the cached scan summary and coverage timestamp. Preferences remain page-session-only; no browser storage or backend persistence was introduced.
+- Added static regression contracts for connection-scoped data clearing, cached timestamp timezone formatting, and startup/default preference wiring.
+- Source readback is the only verification performed for this pass. Runtime tests, browser QA, keyboard/screen-reader testing and responsive viewport testing have **not** been run. No test pass is claimed. No backend source, CI workflow, PR, merge or deployment was changed.
