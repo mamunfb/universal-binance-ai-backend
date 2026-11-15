@@ -37,6 +37,8 @@ jobs:
       - name: Install Chromium
         run: npx --no-install playwright install --with-deps chromium
       - name: Run mobile Lighthouse cold-load audits
+        id: lighthouse
+        continue-on-error: true
         run: |
           set -euo pipefail
           mkdir -p artifacts/performance
@@ -57,9 +59,10 @@ jobs:
             exit 1
           fi
           for sample in 1 2 3; do
-            npx --no-install lighthouse http://127.0.0.1:4173/ --preset=perf --form-factor=mobile --screenEmulation.mobile=true --screenEmulation.width=390 --screenEmulation.height=844 --screenEmulation.deviceScaleFactor=1 --throttling-method=simulate --chrome-flags="--headless --no-sandbox" --output=json --output-path="artifacts/performance/lighthouse-mobile-$sample.json"
+            npx --no-install lighthouse http://127.0.0.1:4173/ --preset=perf --form-factor=mobile --screenEmulation.mobile=true --screenEmulation.width=390 --screenEmulation.height=844 --screenEmulation.deviceScaleFactor=1 --throttling-method=simulate --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage --no-proxy-server --proxy-bypass-list=<-loopback>" --output=json --output-path="artifacts/performance/lighthouse-mobile-$sample.json"
           done
       - name: Run CPU-throttled browser and heap profiling
+        if: always()
         run: |
           set -euo pipefail
           node tests/serve_dashboard_qa.cjs > /tmp/dashboard-qa-profiler-server.log 2>&1 &
@@ -79,6 +82,11 @@ jobs:
             exit 1
           fi
           node tests/dashboard_performance_qa.cjs
+      - name: Preserve Lighthouse failure as job failure
+        if: always() && steps.lighthouse.outcome == 'failure'
+        run: |
+          echo "Lighthouse failed; CPU/heap profiling and artifact upload were still attempted."
+          exit 1
       - name: Upload raw performance evidence
         if: always()
         uses: actions/upload-artifact@v4
