@@ -99,7 +99,7 @@
       "Timestamp: "+(data.generated_at||data.timestamp||data.updated_at||"Not supplied")
     ];
     setText(prefix+"-coverage",details.join(" · "));
-    setText(prefix+"-count",rows.length.toLocaleString()+" returned");
+    if(market!=="SPOT") setText(prefix+"-count",rows.length.toLocaleString()+" returned");
   }
   const tableViews = {};
   function renderRows(target, rows, columns) {
