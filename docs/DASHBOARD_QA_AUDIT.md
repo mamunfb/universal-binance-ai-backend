@@ -1201,3 +1201,13 @@ Test commit: `b6a203c315331531c16d537b8a570c3e0804802c` on `feat/institutional-d
 **Validation status:** committed to the feature branch. This test has not yet been verified by a completed CI run or local Chromium execution; it remains pending execution. Earlier passing CI runs do not validate this new case. The automated case does not replace physical Android/iPhone testing or manual TalkBack/VoiceOver review.
 
 No dashboard application source, backend business logic, database, secrets, `main`, PR metadata, merge state, or deployment configuration was changed. No merge or deployment was performed.
+
+## 62. Live-region announcement semantics regression coverage (2026-11-15)
+
+Added a Chromium browser assertion for the dashboard's asynchronous status outputs. It verifies that the connection, scan, health, chart, technical-summary, settings, and data-quality status elements retain `role="status"`, `aria-live="polite"`, and `aria-atomic="true"`; transient toast feedback is also checked for a polite live region.
+
+Test commit: `e36843d17972abe667632d84b89036d86fafac7f` on `feat/institutional-dashboard-design`.
+
+**Validation status:** committed; this additional assertion has not yet been verified by a completed CI run or local Chromium execution. Existing axe-core checks and previous successful runs do not establish that this new assertion passed. Manual TalkBack/VoiceOver announcement quality checks remain outstanding.
+
+No dashboard application source, backend business logic, database, secrets, `main`, PR metadata, merge state, or deployment configuration was changed. No merge or deployment was performed.
