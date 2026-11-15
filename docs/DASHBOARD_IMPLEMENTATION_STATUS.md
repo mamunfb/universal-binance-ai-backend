@@ -498,3 +498,11 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - During a follow-up audit, several recently added dashboard contract test methods were found below the module's `unittest.main()` guard. They were therefore not part of the `DashboardContractTests` class and would not be discovered as intended. The methods have been moved back into the test class before the single main guard, and a source-level regression check now verifies their placement.
 - Added a static contract assertion for the technical chart loading, retained-result failure and superseded-request paths.
 - GitHub source readback is the verification performed. Python/Node runtime suites and browser QA have not been run; no test-pass claim is made.
+
+
+## Overview refresh attempts health and scanner independently
+
+- Corrected the Overview refresh action so a failed `/health` request no longer prevents the selected market scanner request from being attempted.
+- Health and scanner requests now settle independently. Each endpoint continues to update its own loading/success/failure state and retain its previous data on failure; if one or both fail, the refresh action reports a bounded partial-failure summary after both requests settle.
+- Added a Python static contract assertion for the independent request execution and bounded failure summary.
+- GitHub source readback is the verification performed; runtime tests and browser QA have not been run.
