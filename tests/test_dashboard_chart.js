@@ -588,3 +588,22 @@ test("Stochastic RSI rolling extrema and smoothing restart cleanly after missing
   assert.ok(result.d.every(value=>value===null||(Number.isFinite(value)&&value>=0&&value<=100)));
 });
 
+test("optimized Stochastic RSI matches a straightforward rolling-window reference", () => {
+  const values=Array.from({length:140},(_,i)=>90+Math.sin(i/5)*8+Math.cos(i/11)*3+i*0.04);
+  const rsi=charts.rsiSeries(values,10),raw=Array(values.length).fill(null),expectedK=Array(values.length).fill(null),expectedD=Array(values.length).fill(null);
+  for(let i=0;i<rsi.length;i++){
+    if(i<10+12-1||!Number.isFinite(rsi[i]))continue;
+    const window=rsi.slice(i-11,i+1);if(!window.every(Number.isFinite))continue;
+    const lo=Math.min(...window),hi=Math.max(...window);raw[i]=hi===lo?50:(rsi[i]-lo)/(hi-lo)*100;
+  }
+  for(let i=0;i<raw.length;i++){
+    if(i>=2&&raw.slice(i-2,i+1).every(Number.isFinite))expectedK[i]=raw.slice(i-2,i+1).reduce((sum,value)=>sum+value,0)/3;
+    if(i>=4&&expectedK.slice(i-2,i+1).every(Number.isFinite))expectedD[i]=expectedK.slice(i-2,i+1).reduce((sum,value)=>sum+value,0)/3;
+  }
+  const actual=charts.stochRsiSeries(values,10,12,3,3);
+  for(let i=0;i<values.length;i++){
+    if(expectedK[i]===null)assert.equal(actual.k[i],null);else assert.ok(Math.abs(actual.k[i]-expectedK[i])<1e-10);
+    if(expectedD[i]===null)assert.equal(actual.d[i],null);else assert.ok(Math.abs(actual.d[i]-expectedD[i])<1e-10);
+  }
+});
+
