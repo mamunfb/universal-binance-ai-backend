@@ -250,3 +250,12 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Changes are committed and source/test/ledger readback has been verified from the branch. No runtime test execution or browser accessibility audit has been performed in this environment.
 
 - Accessibility follow-up: sortable headers retain native table-column header semantics rather than being re-role'd as buttons; they remain keyboard-focusable with Enter/Space handling and explicit key-shortcut metadata. Contract assertions enforce this.
+
+
+## Data-quality concurrency and backend URL validation pass
+
+- Added a dedicated data-quality request sequence. If the user changes market, symbol, interval or lookback while a report is pending, the old response (or late failure) is ignored and the UI asks for a fresh check instead of displaying stale data as current.
+- Changing backend connection settings and clearing credentials invalidates pending scanner, quality and analysis/evidence work so old-connection responses cannot overwrite the current session's view.
+- Backend URL configuration now parses the URL and rejects embedded username/password, query parameters and fragments in addition to requiring HTTPS for remote hosts (HTTP remains limited to localhost/127.0.0.1).
+- Added static contract assertions for quality request invalidation and URL credential/query rejection.
+- Source/test readback verification is pending. Node.js/Python suites and browser testing have not been run; no runtime pass is claimed.
