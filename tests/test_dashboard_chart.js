@@ -665,3 +665,24 @@ test("Bollinger bands safely reject non-array input and invalid window parameter
   }
 });
 
+test("EMA and incremental means remain finite for repeated values near Number.MAX_VALUE", () => {
+  const maximum=Number.MAX_VALUE;
+  const constant=Array(240).fill(maximum);
+  const constantEma=charts.emaSeries(constant,20);
+  assert.ok(constantEma.every(value=>value===null||Number.isFinite(value)));
+  assert.equal(constantEma.at(-1),maximum);
+
+  const alternating=Array.from({length:240},(_,i)=>i%2?maximum*0.8:maximum*0.9);
+  const alternatingEma=charts.emaSeries(alternating,20);
+  assert.ok(alternatingEma.every(value=>value===null||Number.isFinite(value)));
+
+  const close=maximum*0.9;
+  const candles=Array.from({length:40},(_,i)=>({
+    time:i*3600000,open:close,high:maximum,low:maximum*0.8,
+    close,volume:1,closeTime:i*3600000+3599999
+  }));
+  const snapshot=charts.indicators(candles);
+  assert.ok(Number.isFinite(snapshot.ema_20));
+  assert.equal(snapshot.ema_20,close);
+});
+
