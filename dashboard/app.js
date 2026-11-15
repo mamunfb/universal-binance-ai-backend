@@ -250,12 +250,14 @@
     showJson("quality-output",data);setText("quality-state",metadataText(data.status,"Report received",80));toast("Data quality report loaded.","success");return data;
   }
   function connectSettings() {
-    const urlInput=$("backend-url"),rawUrl=urlInput.value.trim(),url=rawUrl.replace(/\/$/,"");urlInput.setCustomValidity("");
-    if(!url){urlInput.setCustomValidity("Enter the private backend base URL.");urlInput.reportValidity();throw new Error("Enter the private backend base URL.");}
-    let parsed;try{parsed=new URL(url);}catch{urlInput.setCustomValidity("Enter a valid absolute backend URL.");urlInput.reportValidity();throw new Error("Enter a valid backend URL.");}
+    const urlInput=$("backend-url"),rawUrl=urlInput.value.trim(),url=rawUrl.replace(/\/$/,"");
+    const rejectUrl=(message)=>{urlInput.setCustomValidity(message);urlInput.reportValidity();throw new Error(message);};
+    urlInput.setCustomValidity("");
+    if(!url)rejectUrl("Enter the private backend base URL.");
+    let parsed;try{parsed=new URL(url);}catch{rejectUrl("Enter a valid absolute backend URL.");}
     const localHttp=parsed.protocol==="http:"&&(parsed.hostname==="localhost"||parsed.hostname==="127.0.0.1");
-    if(parsed.protocol!=="https:"&&!localHttp)throw new Error("Use HTTPS for remote backends. HTTP is allowed only for localhost or 127.0.0.1.");
-    if(!parsed.hostname||parsed.username||parsed.password||parsed.search||parsed.hash)throw new Error("Backend URL must include a host and must not contain embedded credentials, query parameters or a fragment.");
+    if(parsed.protocol!=="https:"&&!localHttp)rejectUrl("Use HTTPS for remote backends. HTTP is allowed only for localhost or 127.0.0.1.");
+    if(!parsed.hostname||parsed.username||parsed.password||parsed.search||parsed.hash)rejectUrl("Backend URL must include a host and must not contain embedded credentials, query parameters or a fragment.");
     invalidateScanRequests();invalidateQualityRequest();cancelAnalysisRequests();activeHealthSequence++;state.base=url;state.token=$("backend-token").value.trim();setText("health-status","Not checked · test the new connection");setConnection(false,"Connection settings changed · test connection");setText("scan-state","Connection settings changed · run a new scan");setText("quality-state","Connection settings changed · run a new quality check");setText("settings-status","Connection details held in page memory only.");toast("Connection settings applied for this page session.","success");
   }
   function bind() {
@@ -286,8 +288,9 @@
     $("load-technical").addEventListener("click",()=>withButton("load-technical",loadTechnical,"Loading…"));
     $("load-market-evidence").addEventListener("click",()=>withButton("load-market-evidence",loadMarketEvidence,"Loading…"));
     $("load-quality").addEventListener("click",()=>withButton("load-quality",loadQuality,"Checking…"));
+    $("backend-url").addEventListener("input",()=> $("backend-url").setCustomValidity(""));
     $("test-connection").addEventListener("click",()=>withButton("test-connection",async()=>{connectSettings();const result=await loadHealth();if(result?.status==="SUPERSEDED")return result;setText("settings-status","Backend health endpoint responded successfully.");return result;},"Testing…"));
-    $("clear-credentials").addEventListener("click",()=>{invalidateScanRequests();invalidateQualityRequest();cancelAnalysisRequests();activeHealthSequence++;state.base="";state.token="";$("backend-url").value="";$("backend-token").value="";setText("health-status","Not checked · backend credentials cleared");setText("scan-state","Backend credentials cleared · scan unavailable");setText("quality-state","Backend credentials cleared · quality check unavailable");setConnection(false,"Not connected");setText("settings-status","Credentials cleared from page memory.");toast("Connection credentials cleared.","success");});
+    $("clear-credentials").addEventListener("click",()=>{invalidateScanRequests();invalidateQualityRequest();cancelAnalysisRequests();activeHealthSequence++;state.base="";state.token="";$("backend-url").value="";$("backend-url").setCustomValidity("");$("backend-token").value="";setText("health-status","Not checked · backend credentials cleared");setText("scan-state","Backend credentials cleared · scan unavailable");setText("quality-state","Backend credentials cleared · quality check unavailable");setConnection(false,"Not connected");setText("settings-status","Credentials cleared from page memory.");toast("Connection credentials cleared.","success");});
     $("default-market").addEventListener("change",e=>{invalidateScanRequests();setText("scan-state","Market selection changed · run a new scan");$("global-market").value=e.target.value;state.market=e.target.value;invalidateChartView();});
     $("default-timeframe").addEventListener("change",e=>{$("global-timeframe").value=e.target.value;state.timeframe=e.target.value;invalidateChartView();});
     window.addEventListener("hashchange",()=>navigate(location.hash.slice(1)||"overview"));
