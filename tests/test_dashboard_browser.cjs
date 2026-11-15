@@ -180,7 +180,7 @@ test("document landmarks and reduced-motion preference are honored", async () =>
   const {context, page, pageErrors} = await newPage(1280);
   assert.equal(await page.locator("main").count(), 1);
   assert.equal(await page.locator("header").count(), 1);
-  assert.equal(await page.locator("nav[aria-label]").count(), 1);
+  assert.equal(await page.locator('nav[aria-label="Primary navigation"]').count(), 1);
   await page.emulateMedia({reducedMotion: "reduce"});
   const transitionDuration = await page.locator("#sidebar").evaluate(el => getComputedStyle(el).transitionDuration);
   assert.match(transitionDuration, /^(0s|0ms)$/);
