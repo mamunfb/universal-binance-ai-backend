@@ -32,10 +32,12 @@
   function apiHeaders() { const h={"Accept":"application/json"}; if(state.token) h.Authorization="Bearer "+state.token; return h; }
   async function api(path, {method="GET", body, timeout=20000}={}) {
     if(!state.base) throw new Error("Configure the private backend URL in Settings first.");
-    const controller=new AbortController(); const timer=window.setTimeout(()=>controller.abort(),timeout);
+    if(!Number.isFinite(timeout)||timeout<=0)throw new Error("Request timeout must be a positive finite number.");
+    const hasBody=body!==undefined; const controller=new AbortController(); const timer=window.setTimeout(()=>controller.abort(),timeout);
     try {
-      const response=await fetch(state.base.replace(/\/$/,"")+path,{method,headers:{...apiHeaders(),...(body?{"Content-Type":"application/json"}:{})},body:body?JSON.stringify(body):undefined,signal:controller.signal,credentials:"omit",cache:"no-store"});
+      const response=await fetch(state.base.replace(/\/$/,"")+path,{method,headers:{...apiHeaders(),...(hasBody?{"Content-Type":"application/json"}:{})},body:hasBody?JSON.stringify(body):undefined,signal:controller.signal,credentials:"omit",cache:"no-store"});
       const raw=await response.text(); let data=null; try{data=raw?JSON.parse(raw):null;}catch{throw new Error("Backend returned a non-JSON response (HTTP "+response.status+").");}
+      if(response.ok&&data===null)throw new Error("Backend returned an empty JSON response (HTTP "+response.status+").");
       if(!response.ok){const detail=data?.detail||data?.message||("HTTP "+response.status);throw new Error(typeof detail==="string"?detail:json(detail));}
       return data;
     } catch(error) { if(error.name==="AbortError") throw new Error("Request timed out."); throw error; }
@@ -114,7 +116,7 @@
     const view=tableViews[target]||(tableViews[target]={page:0,pageSize:100,sortKey:"symbol",direction:1,rows:[],query:""});
     view.rows=Array.isArray(rows)?rows.slice():[];
     const filtered=view.rows.filter(item=>!view.query||keys.some(key=>String(item?.[key]??"").toUpperCase().includes(view.query)));
-    filtered.sort((a,b)=>{const av=a?.[view.sortKey],bv=b?.[view.sortKey];const numericValue=v=>v!==null&&v!==undefined&&!(typeof v==="string"&&v.trim()==="")&&typeof v!=="boolean"&&Number.isFinite(Number(v))?Number(v):null;const an=numericValue(av),bn=numericValue(bv);const numeric=an!==null&&bn!==null;const cmp=numeric?an-bn:String(av??"").localeCompare(String(bv??""),undefined,{numeric:true,sensitivity:"base"});return cmp*view.direction;});
+    filtered.sort((a,b)=>{const av=a?.[view.sortKey],bv=b?.[view.sortKey];const numericValue=v=>v!==null&&v!==undefined&&!(typeof v==="string"&&v.trim()==="")&&typeof v!=="boolean"&&Number.isFinite(Number(v))?Number(v):null;const an=numericValue(av),bn=numericValue(bv);const missing=v=>v===null||v===undefined||(typeof v==="string"&&v.trim()==="");const am=missing(av),bm=missing(bv);if(am!==bm)return am?1:-1;const bothNumeric=an!==null&&bn!==null;const cmp=bothNumeric?an-bn:String(av??"").localeCompare(String(bv??""),undefined,{numeric:true,sensitivity:"base"});return cmp*view.direction;});
     const pages=Math.max(1,Math.ceil(filtered.length/view.pageSize));view.page=Math.min(view.page,pages-1);
     body.replaceChildren();
     const visible=filtered.slice(view.page*view.pageSize,(view.page+1)*view.pageSize);
@@ -124,9 +126,9 @@
     headers.forEach((th,index)=>{th.title="Sort by "+keys[index];th.setAttribute("aria-sort",keys[index]===view.sortKey?(view.direction===1?"ascending":"descending"):"none");th.style.cursor="pointer";});
     let pager=table?.parentElement?.parentElement?.querySelector(".table-pager");
     if(table&&!pager){pager=document.createElement("div");pager.className="table-pager";pager.style.cssText="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;color:var(--muted,#9aa);font-size:12px";table.parentElement.parentElement.append(pager);}
-    if(pager){pager.replaceChildren();const info=document.createElement("span");info.textContent=filtered.length.toLocaleString()+" matching / "+view.rows.length.toLocaleString()+" returned · page "+(view.page+1)+"/"+pages+" · "+view.pageSize+" per page";const controls=document.createElement("span");const prev=document.createElement("button"),next=document.createElement("button");prev.type=next.type="button";prev.textContent="Previous";next.textContent="Next";prev.disabled=view.page===0;next.disabled=view.page>=pages-1;prev.addEventListener("click",()=>{view.page--;renderRows(target,view.rows,columns);});next.addEventListener("click",()=>{view.page++;renderRows(target,view.rows,columns);});controls.append(prev,next);pager.append(info,controls);}
+    if(pager){pager.replaceChildren();const info=document.createElement("span");info.setAttribute("aria-live","polite");info.textContent=filtered.length.toLocaleString()+" matching / "+view.rows.length.toLocaleString()+" returned · page "+(view.page+1)+"/"+pages+" · "+view.pageSize+" per page";const controls=document.createElement("span");const prev=document.createElement("button"),next=document.createElement("button");prev.type=next.type="button";prev.textContent="Previous";next.textContent="Next";prev.setAttribute("aria-label","Previous scanner page");next.setAttribute("aria-label","Next scanner page");prev.disabled=view.page===0;next.disabled=view.page>=pages-1;prev.addEventListener("click",()=>{view.page--;renderRows(target,view.rows,columns);});next.addEventListener("click",()=>{view.page++;renderRows(target,view.rows,columns);});controls.append(prev,next);pager.append(info,controls);}
     if(target==="spot-rows")setText("spot-count",filtered.length.toLocaleString()+" matching / "+view.rows.length.toLocaleString()+" returned");
-    if(!view.headersBound&&table){view.headersBound=true;headers.forEach((th,index)=>th.addEventListener("click",()=>{const key=keys[index];view.direction=view.sortKey===key?-view.direction:1;view.sortKey=key;view.page=0;renderRows(target,view.rows,columns);}));}
+    if(!view.headersBound&&table){view.headersBound=true;headers.forEach((th,index)=>{const sort=()=>{const key=keys[index];view.direction=view.sortKey===key?-view.direction:1;view.sortKey=key;view.page=0;renderRows(target,view.rows,columns);};th.tabIndex=0;th.setAttribute("role","button");th.setAttribute("aria-label","Sort by "+keys[index]);th.addEventListener("click",sort);th.addEventListener("keydown",event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();sort();}});});}
   }
   function syncAnalysisHeader(){state.symbol=$("global-symbol").value.trim().toUpperCase()||"BTCUSDT";state.market=$("global-market").value;state.timeframe=$("global-timeframe").value;setText("analysis-title",state.symbol+" · "+state.market);setText("analysis-subtitle","Timeframe "+state.timeframe+" · "+state.market+" · Research-only analysis");}
   function invalidateChartView(message="Selection changed. Run analysis to load matching candles.") {
