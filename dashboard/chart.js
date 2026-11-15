@@ -118,8 +118,8 @@ function adxSeries(c,n=14){
  return out;
 }
 function stochRsiSeries(values,rsiPeriod=14,stochPeriod=14,smoothK=3,smoothD=3){
- const raw=Array(values.length).fill(null),k=Array(values.length).fill(null),d=Array(values.length).fill(null);
- if(![rsiPeriod,stochPeriod,smoothK,smoothD].every(Number.isSafeInteger)||rsiPeriod<1||stochPeriod<1||smoothK<1||smoothD<1||!Number.isSafeInteger(rsiPeriod+stochPeriod))return{k,d};
+ const length=Array.isArray(values)?values.length:0,raw=Array(length).fill(null),k=Array(length).fill(null),d=Array(length).fill(null);
+ if(!Array.isArray(values)||![rsiPeriod,stochPeriod,smoothK,smoothD].every(Number.isSafeInteger)||rsiPeriod<1||stochPeriod<1||smoothK<1||smoothD<1||!Number.isSafeInteger(rsiPeriod+stochPeriod))return{k,d};
  const rsi=rsiSeries(values,rsiPeriod);
  for(let i=0;i<rsi.length;i++){if(i<rsiPeriod+stochPeriod-1||!Number.isFinite(rsi[i]))continue;const w=rsi.slice(i-stochPeriod+1,i+1);if(!w.every(Number.isFinite))continue;const lo=Math.min(...w),hi=Math.max(...w);raw[i]=hi===lo?50:(rsi[i]-lo)/(hi-lo)*100;}
  for(let i=0;i<raw.length;i++){if(i>=smoothK-1&&raw.slice(i-smoothK+1,i+1).every(Number.isFinite))k[i]=raw.slice(i-smoothK+1,i+1).reduce((s,x)=>s+x,0)/smoothK;
