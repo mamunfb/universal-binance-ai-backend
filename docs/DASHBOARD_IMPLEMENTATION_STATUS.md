@@ -866,7 +866,7 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Source review found that the compact row-reference cache avoided retained decorated row objects, but numeric strings were reparsed with Number() on every comparator invocation. For numeric sorting this repeated conversion work can occur O(M log M) times for M matching rows.
 - Added a per-sort-pass WeakMap keyed by the original row object. Each row selected sort-key numeric interpretation is computed at most once during that sort pass and reused by later comparisons. The cache is local to the sort operation and does not add persistent per-row metadata to view.sortedCache.
 - The comparator still applies missing/non-numeric ordering and direction rules as before. This is a source-level reduction in repeated numeric parsing, not a measured speedup; WeakMap overhead and actual browser performance remain unbenchmarked.
-- Replaced the obsolete static test that expected a decorated array with assertions for the WeakMap-based row-reference strategy. The dashboard static contract file now contains 106 test methods; the test suite has not been executed.
+- Replaced the obsolete static test that expected a decorated array with assertions for the WeakMap-based row-reference strategy. The dashboard static contract file now contains 107 test methods; the test suite has not been executed.
 - Frontend-only. Backend source, CI workflow, PR state, merge and deployment remain unchanged.
 
 
