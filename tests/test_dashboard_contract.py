@@ -142,6 +142,9 @@ class DashboardContractTests(unittest.TestCase):
         for forbidden in ("localStorage", "sessionStorage", "document.cookie"):
             self.assertNotIn(forbidden, self.js)
         self.assertIn('credentials:"omit"', self.js)
+        self.assertIn("if(!Number.isFinite(timeout)||timeout<=0)", self.js)
+        self.assertIn("const hasBody=body!==undefined", self.js)
+        self.assertIn("if(response.ok&&data===null)", self.js)
 
     def test_no_order_or_withdrawal_execution_routes_are_exposed(self) -> None:
         for forbidden in ("/api/v1/orders", "/api/v1/order", "/api/v1/withdraw", "/api/v1/withdrawals"):
@@ -162,6 +165,12 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn("function invalidateScanRequests(){activeScanSequence++;}", self.js)
         self.assertIn("if(requestSequence!==activeScanSequence)return{status:\"SUPERSEDED\",market}", self.js)
         self.assertIn("const numericValue=v=>", self.js)
+        self.assertIn("if(am!==bm)return am?1:-1", self.js)
+        self.assertIn('th.addEventListener("keydown",event=>{if(event.key==="Enter"||event.key===" ")', self.js)
+        self.assertIn('th.setAttribute("aria-label","Sort by "+keys[index])', self.js)
+        self.assertIn('info.setAttribute("aria-live","polite")', self.js)
+        self.assertIn('prev.setAttribute("aria-label","Previous scanner page")', self.js)
+        self.assertIn('next.setAttribute("aria-label","Next scanner page")', self.js)
 
     def test_spot_filter_uses_full_returned_dataset_before_pagination(self) -> None:
         self.assertIn('view.query=e.target.value.trim().toUpperCase()', self.js)
