@@ -94,7 +94,7 @@
     setMetric("qualified",extractCount(data,["qualified_count","matched_count","candidate_count"]));
     const summary=$("scan-summary"); summary.innerHTML="";
     const rows=[
-      ["Market",state.market],["Eligible",eligible],["Scanned",scanned],["Matched",extractCount(data,["matched_count","match_count"])],
+      ["Market",market],["Eligible",eligible],["Scanned",scanned],["Matched",extractCount(data,["matched_count","match_count"])],
       ["Failed",failed],["Status",metadataText(data.status,metadataText(data.scan_status,"Returned",80),80)],["Source",metadataText(data.source,"Backend response",120)],["Updated",scanTimestamp(data)]
     ];
     rows.forEach(([label,value])=>{const line=document.createElement("div");line.className="status-list";const row=document.createElement("div");const a=document.createElement("span");a.textContent=label;const b=document.createElement("b");b.textContent=value==null?"Not supplied":String(value);row.append(a,b);line.append(row);summary.append(line);});
