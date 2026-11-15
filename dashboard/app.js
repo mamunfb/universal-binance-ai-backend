@@ -229,9 +229,11 @@
     }
     const pages=Math.max(1,Math.ceil(sortedRows.length/view.pageSize));view.page=Math.min(view.page,pages-1);
     body.replaceChildren();
+    const rowFragment=document.createDocumentFragment();
     const visible=sortedRows.slice(view.page*view.pageSize,(view.page+1)*view.pageSize);
-    if(!visible.length){const tr=document.createElement("tr"),td=document.createElement("td");td.colSpan=columns;td.className="empty-cell";td.textContent=view.rows.length?"No rows match the current filter.":"No market rows were returned. Inspect the raw response and scan status.";tr.append(td);body.append(tr);}
-    visible.forEach(item=>{const tr=document.createElement("tr");keys.forEach(key=>{const td=document.createElement("td");td.textContent=scannerCellText(key,item?.[key]);tr.append(td);});body.append(tr);});
+    if(!visible.length){const tr=document.createElement("tr"),td=document.createElement("td");td.colSpan=columns;td.className="empty-cell";td.textContent=view.rows.length?"No rows match the current filter.":"No market rows were returned. Inspect the raw response and scan status.";tr.append(td);rowFragment.append(tr);}
+    visible.forEach(item=>{const tr=document.createElement("tr");keys.forEach(key=>{const td=document.createElement("td");td.textContent=scannerCellText(key,item?.[key]);tr.append(td);});rowFragment.append(tr);});
+    body.append(rowFragment);
     const table=body.closest("table"),headers=table?.querySelectorAll("thead th")||[];
     headers.forEach((th,index)=>{th.title="Sort by "+keys[index];th.setAttribute("aria-sort",keys[index]===view.sortKey?(view.direction===1?"ascending":"descending"):"none");th.style.cursor="pointer";});
     let pager=table?.parentElement?.parentElement?.querySelector(".table-pager");
