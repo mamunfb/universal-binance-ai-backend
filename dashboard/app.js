@@ -9,6 +9,7 @@
     liquidations:"Liquidation Intelligence",news:"News & Catalysts",onchain:"On-Chain Intelligence",performance:"Signals & Performance",risk:"Risk Monitoring",reports:"Reports",reliability:"Data Reliability",settings:"Settings"
   };
   const state = {base:"", token:"", market:"SPOT", symbol:"BTCUSDT", timeframe:"1h", lastScan:null, lastHealth:null, lastAnalysis:null};
+  let activeScanSequence=0;
   const esc = (value) => String(value ?? "—").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const setText = (id, value) => { const el=$(id); if(el) el.textContent = value == null || value === "" ? "—" : String(value); };
   const toast = (message, type="info") => { const el=document.createElement("div"); el.className="toast "+(type==="error"?"error":type==="success"?"success":""); el.textContent=message; $("toast-region").append(el); window.setTimeout(()=>el.remove(),4500); };
@@ -65,13 +66,17 @@
     try { const result=await api("/health"); state.lastHealth=result; setText("health-status",result.status||"Healthy response"); setConnection(true,"Backend reachable"); return result; }
     catch(error){setText("health-status","Unavailable");setConnection(false,"Backend unavailable: "+error.message);throw error;}
   }
+  function invalidateScanRequests(){activeScanSequence++;}
   async function scanMarket(market) {
+    const requestSequence=++activeScanSequence;
     const marketChanged=state.market!==market; state.market=market; $("global-market").value=market; if(marketChanged) invalidateChartView(); document.querySelectorAll(".market-tab").forEach(b=>b.classList.toggle("active",b.dataset.market===market));
     let path;
     if(market==="SPOT") { const quote=($("spot-quote")?.value||"").trim().toUpperCase(); path="/api/v1/markets/spot/scan"+(quote?"?quote_asset="+encodeURIComponent(quote):""); }
     else if(market==="USD_M") path="/api/v1/markets/futures/usdm/scan";
     else path="/api/v1/markets/futures/coinm/scan";
-    const data=await api(path); renderScanSummary(data);
+    let data; try{data=await api(path);}catch(error){if(requestSequence!==activeScanSequence)return{status:"SUPERSEDED",market};throw error;}
+    if(requestSequence!==activeScanSequence)return{status:"SUPERSEDED",market};
+    renderScanSummary(data);
     const rows=safeArray(data,["symbols","markets","results","data"]);
     if(market==="SPOT") renderRows("spot-rows",rows,6);
     if(market==="USD_M") renderRows("usdm-rows",rows,5);
@@ -108,7 +113,7 @@
     const view=tableViews[target]||(tableViews[target]={page:0,pageSize:100,sortKey:"symbol",direction:1,rows:[],query:""});
     view.rows=Array.isArray(rows)?rows.slice():[];
     const filtered=view.rows.filter(item=>!view.query||keys.some(key=>String(item?.[key]??"").toUpperCase().includes(view.query)));
-    filtered.sort((a,b)=>{const av=a?.[view.sortKey],bv=b?.[view.sortKey];const an=Number(av),bn=Number(bv);const numeric=av!==null&&av!==""&&bv!==null&&bv!==""&&Number.isFinite(an)&&Number.isFinite(bn);const cmp=numeric?an-bn:String(av??"").localeCompare(String(bv??""),undefined,{numeric:true,sensitivity:"base"});return cmp*view.direction;});
+    filtered.sort((a,b)=>{const av=a?.[view.sortKey],bv=b?.[view.sortKey];const numericValue=v=>v!==null&&v!==undefined&&!(typeof v==="string"&&v.trim()==="")&&typeof v!=="boolean"&&Number.isFinite(Number(v))?Number(v):null;const an=numericValue(av),bn=numericValue(bv);const numeric=an!==null&&bn!==null;const cmp=numeric?an-bn:String(av??"").localeCompare(String(bv??""),undefined,{numeric:true,sensitivity:"base"});return cmp*view.direction;});
     const pages=Math.max(1,Math.ceil(filtered.length/view.pageSize));view.page=Math.min(view.page,pages-1);
     body.replaceChildren();
     const visible=filtered.slice(view.page*view.pageSize,(view.page+1)*view.pageSize);
@@ -161,10 +166,10 @@
     $("open-settings").addEventListener("click",()=>{navigate("settings");history.replaceState(null,"","#settings");});
     $("banner-settings").addEventListener("click",()=>navigate("settings"));
     $("refresh-page").addEventListener("click",()=>{const page=location.hash.slice(1)||"overview";if(page==="overview")withButton("refresh-page",async()=>{await loadHealth();await scanMarket(state.market);},"Refreshing");else if(page==="reliability")withButton("refresh-page",loadQuality,"Refreshing");else if(page==="coin-analysis")withButton("refresh-page",loadTechnical,"Refreshing");else toast("No verified refresh action is mapped for this page yet.");});
-    $("global-market").addEventListener("change",e=>{state.market=e.target.value;document.querySelectorAll(".market-tab").forEach(b=>b.classList.toggle("active",b.dataset.market===state.market));invalidateChartView();});
+    $("global-market").addEventListener("change",e=>{invalidateScanRequests();state.market=e.target.value;document.querySelectorAll(".market-tab").forEach(b=>b.classList.toggle("active",b.dataset.market===state.market));invalidateChartView();});
     $("global-symbol").addEventListener("change",()=>{state.symbol=$("global-symbol").value.trim().toUpperCase();syncAnalysisHeader();invalidateChartView();});
     $("global-timeframe").addEventListener("change",()=>{state.timeframe=$("global-timeframe").value;syncAnalysisHeader();invalidateChartView();});
-    document.querySelectorAll(".market-tab").forEach(b=>b.addEventListener("click",()=>{state.market=b.dataset.market;document.querySelectorAll(".market-tab").forEach(x=>x.classList.toggle("active",x===b));$("global-market").value=state.market;invalidateChartView();}));
+    document.querySelectorAll(".market-tab").forEach(b=>b.addEventListener("click",()=>{invalidateScanRequests();state.market=b.dataset.market;document.querySelectorAll(".market-tab").forEach(x=>x.classList.toggle("active",x===b));$("global-market").value=state.market;invalidateChartView();}));
     $("run-market-scan").addEventListener("click",()=>withButton("run-market-scan",()=>scanMarket(state.market),"Scanning…"));
     $("scan-spot").addEventListener("click",()=>withButton("scan-spot",()=>scanMarket("SPOT"),"Scanning…"));
     $("scan-usdm").addEventListener("click",()=>withButton("scan-usdm",()=>scanMarket("USD_M"),"Scanning…"));
@@ -180,7 +185,7 @@
     $("load-quality").addEventListener("click",()=>withButton("load-quality",loadQuality,"Checking…"));
     $("test-connection").addEventListener("click",()=>withButton("test-connection",async()=>{connectSettings();await loadHealth();setText("settings-status","Backend health endpoint responded successfully.");},"Testing…"));
     $("clear-credentials").addEventListener("click",()=>{state.base="";state.token="";$("backend-url").value="";$("backend-token").value="";setConnection(false,"Not connected");setText("settings-status","Credentials cleared from page memory.");toast("Connection credentials cleared.","success");});
-    $("default-market").addEventListener("change",e=>{$("global-market").value=e.target.value;state.market=e.target.value;invalidateChartView();});
+    $("default-market").addEventListener("change",e=>{invalidateScanRequests();$("global-market").value=e.target.value;state.market=e.target.value;invalidateChartView();});
     $("default-timeframe").addEventListener("change",e=>{$("global-timeframe").value=e.target.value;state.timeframe=e.target.value;invalidateChartView();});
     window.addEventListener("hashchange",()=>navigate(location.hash.slice(1)||"overview"));
   }
