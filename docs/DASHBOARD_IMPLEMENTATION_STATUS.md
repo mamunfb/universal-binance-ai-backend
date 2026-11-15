@@ -247,6 +247,6 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Sorting now places missing values last in either direction, sorts valid numeric values numerically, keeps numeric and text values in deterministic groups, and uses symbol as a stable tie-breaker.
 - API request timeout values are validated as positive finite numbers. Request bodies are detected by undefined-ness rather than truthiness, so valid falsy JSON payloads are not silently dropped. Successful empty responses are rejected explicitly instead of leaking null into response renderers.
 - Added static contract assertions for the new API guards, keyboard sorting, accessible pagination and mixed-type deterministic ordering.
-- Changes are committed and readback verification is pending. No runtime test execution or browser accessibility audit has been performed in this environment.
+- Changes are committed and source/test/ledger readback has been verified from the branch. No runtime test execution or browser accessibility audit has been performed in this environment.
 
 - Accessibility follow-up: sortable headers retain native table-column header semantics rather than being re-role'd as buttons; they remain keyboard-focusable with Enter/Space handling and explicit key-shortcut metadata. Contract assertions enforce this.
