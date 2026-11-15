@@ -431,3 +431,22 @@ Corrections included:
 **Scope qualification:** green CI proves the automated checks in these workflows passed for this commit. It does not prove live backend connectivity, browser viewport behavior, screen-reader behavior, live exchange data correctness, performance profiling or full structured Data Reliability/collector/Neon/R2 rendering. Those remain separate QA tasks.
 
 No `main` changes, PR merge, staging deployment, production deployment, billing change or backend service logic change was made in this pass.
+
+
+## 26. Static accessibility and responsive contract expansion (2026-11-15)
+
+Added `tests/test_dashboard_accessibility.py` using Python's standard-library HTML parser. It checks:
+- duplicate HTML IDs and required main/navigation/header landmarks;
+- accessible labels for every static input/select/textarea;
+- accessible names for every static button;
+- mobile sidebar `aria-controls`/`aria-expanded`, inert state and Escape-key close contract;
+- 1100/760/480/360px responsive breakpoints and reduced-motion declaration;
+- keyboard focus indicators for navigation, form controls, pagination and named table regions.
+
+The Dashboard frontend workflow now discovers all `test_dashboard_*.py` tests and watches the new test file.
+
+**CI evidence on commit `a5782637d3861c2a5a060b194ef9caeee25dea3c`:**
+- Dashboard frontend Run #18, job `132813709715`: **success**; 116 Python dashboard contract/accessibility tests passed, and the existing JavaScript syntax and Node chart-fixture steps passed.
+- Backend and dashboard Run #1728, job `132813716961`: **success**; **631 passed, 2 warnings in 5.14s**.
+
+**Limit:** These are static markup/source/CSS contract checks. They are not a real Chromium/WebKit mobile viewport run, screen-reader session, keyboard interaction session, or visual regression test. Those still require a browser-served build and an approved QA environment; no deployment was performed.
