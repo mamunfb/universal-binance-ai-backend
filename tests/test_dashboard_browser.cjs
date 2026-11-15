@@ -98,6 +98,7 @@ test("mobile sidebar opens, traps keyboard focus, closes with Escape and restore
 
 test("backend health success updates connection status without page errors", async () => {
   const {context, page, pageErrors} = await newPage(1280);
+  await page.locator('.nav-link[data-page="settings"]').click();
   await page.route("https://backend.test/health", route => route.fulfill({
     status: 200,
     contentType: "application/json",
@@ -114,6 +115,7 @@ test("backend health success updates connection status without page errors", asy
 
 test("API HTTP 503 and malformed JSON failures are visible and do not crash the dashboard", async () => {
   const {context, page, pageErrors} = await newPage(1280);
+  await page.locator('.nav-link[data-page="settings"]').click();
   await page.route("https://backend.test/health", route => route.fulfill({
     status: 503,
     contentType: "application/json",
