@@ -932,3 +932,21 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - The suite remains **FAIL** until reviewed corrections are made and a subsequent run proves the fixes. No code/test changes are implied by this status note alone.
 
 Run: https://github.com/mamunfb/universal-binance-ai-backend/actions/runs/43706451197 (Attempt 2, job ID `132807793811`, commit `7c0eed163fcc53ec622c0ecc7657eb7969cf127c`).
+
+
+## CI recovery and full automated test pass (2026-11-15)
+
+The feature branch's two GitHub Actions workflows completed successfully on commit `f95e5afd4690b56ab91b7ae2e704bfdc5a16a9af`:
+
+- Backend and dashboard tests Run #1723: **625 passed, 2 warnings**; all steps succeeded.
+- Dashboard frontend checks Run #16: JavaScript syntax, 53 Node chart fixtures and 110 dashboard Python contract tests all succeeded.
+
+Corrections made before the green run:
+- Stable scaled compensated summation for chart `finiteMean`, including extreme-value handling.
+- Bollinger middle-line preservation when upper/lower bounds are unrepresentable.
+- Corrected chart fixture candle-object inputs, post-gap indicator warm-up indices and DOM DocumentFragment mock.
+- Deterministic seven-day test window for the fixed-date news fixture; production freshness behavior was not weakened.
+- Updated brittle dashboard source-contract checks for current SPA structure and API cancellation.
+- Replaced legacy Data Reliability markup assertions with tests for the current SPA's controls, route, validation and JSON/text output.
+
+Automated CI is green for this commit. Real browser/mobile viewport QA, assistive-technology testing, live API integration, structured Data Reliability/collector UI, Lighthouse/performance profiling and production/staging verification remain unclaimed and pending.
