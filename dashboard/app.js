@@ -95,7 +95,7 @@
     if(market==="USD_M") renderRows("usdm-rows",rows,5);
     if(market==="COIN_M") renderRows("coinm-rows",rows,5);
     renderScannerMeta(market,data,rows,rejectedRows);
-    toast(market+" scan response received. Check coverage and failure counts."+(rejectedRows?" "+rejectedRows+" malformed rows were excluded.":""),rejectedRows?"error":"success");
+    toast(market+" scan response received. Check coverage and failure counts."+(rejectedRows?" "+rejectedRows+" malformed rows were excluded.":""),rejectedRows?"info":"success");
     return data;
   }
   function renderScannerMeta(market,data,rows,rejectedRows=0) {
