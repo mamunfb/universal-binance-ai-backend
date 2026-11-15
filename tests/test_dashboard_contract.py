@@ -181,7 +181,7 @@ class DashboardContractTests(unittest.TestCase):
     def test_spot_filter_uses_full_returned_dataset_before_pagination(self) -> None:
         self.assertIn('view.query=e.target.value.trim().toUpperCase()', self.js)
         self.assertIn("view.rows.filter", self.js)
-        self.assertIn("filtered.slice(view.page*view.pageSize", self.js)
+        self.assertIn("sortedRows.slice(view.page*view.pageSize", self.js)
 
     def test_health_and_market_evidence_ignore_superseded_responses(self) -> None:
         self.assertIn("let activeHealthSequence=0", self.js)
