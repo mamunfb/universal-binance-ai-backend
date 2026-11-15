@@ -98,7 +98,7 @@ function atrSeries(c,n=14){
  let seed=[],value=null;
  for(let i=1;i<c.length;i++){
   const cur=c[i],prev=c[i-1];
-  const validCurrent=cur&&typeof cur==="object"&&[cur.high,cur.low,cur.close].every(Number.isFinite)&&cur.high>0&&cur.low>0&&cur.close>0&&cur.high>=Math.max(cur.low,cur.close)&&cur.low<=Math.min(cur.high,cur.close),validPrevious=prev&&typeof prev==="object"&&Number.isFinite(prev.close)&&prev.close>0;const tr=validCurrent&&validPrevious?Math.max(cur.high-cur.low,Math.abs(cur.high-prev.close),Math.abs(cur.low-prev.close)):null;
+  const validCurrent=cur&&typeof cur==="object"&&[cur.high,cur.low,cur.close].every(Number.isFinite)&&cur.high>0&&cur.low>0&&cur.close>0&&cur.high>=Math.max(cur.low,cur.close)&&cur.low<=Math.min(cur.high,cur.close),validPrevious=prev&&typeof prev==="object"&&[prev.high,prev.low,prev.close].every(Number.isFinite)&&prev.high>0&&prev.low>0&&prev.close>0&&prev.high>=Math.max(prev.low,prev.close)&&prev.low<=Math.min(prev.high,prev.close);const tr=validCurrent&&validPrevious?Math.max(cur.high-cur.low,Math.abs(cur.high-prev.close),Math.abs(cur.low-prev.close)):null;
   if(!Number.isFinite(tr)){seed=[];value=null;continue;}
   if(value===null){seed.push(tr);if(seed.length===n){value=finiteMean(seed);seed=[];if(value!==null)out[i]=value;else value=null;}continue;}
   value=(value*(n-1)+tr)/n;if(!Number.isFinite(value)){seed=[];value=null;continue;}out[i]=value;
