@@ -101,6 +101,10 @@ class DashboardContractTests(unittest.TestCase):
     def test_primary_coin_analysis_action_loads_candles(self) -> None:
         self.assertIn('$("load-coin-analysis").addEventListener("click",()=>withButton("load-coin-analysis",loadTechnical', self.js)
 
+    def test_dynamic_dashboard_status_regions_are_announced(self) -> None:
+        for element_id in ("connection-label", "scan-state", "health-status", "chart-state", "technical-summary", "quality-state", "settings-status"):
+            self.assertRegex(self.html, rf'<[^>]+id="{element_id}"[^>]*role="status" aria-live="polite" aria-atomic="true"')
+
     def test_scanner_tables_are_named_and_keyboard_scrollable(self) -> None:
         self.assertIn('role="region" aria-label="Spot market scan results" tabindex="0"', self.html)
         self.assertIn('role="region" aria-label="USDⓈ-M market scan results" tabindex="0"', self.html)
