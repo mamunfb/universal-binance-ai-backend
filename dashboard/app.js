@@ -78,11 +78,26 @@
     toast(market+" scan response received. Check coverage and failure counts.","success");
     return data;
   }
+  const tableViews = {};
   function renderRows(target, rows, columns) {
-    const body=$(target); if(!body) return; body.replaceChildren();
-    if(!rows.length){const tr=document.createElement("tr"),td=document.createElement("td");td.colSpan=columns;td.className="empty-cell";td.textContent="No market rows were returned. Inspect the raw response and scan status.";tr.append(td);body.append(tr);return;}
+    const body=$(target); if(!body) return;
     const keys=columns===6?["symbol","base_asset","quote_asset","last_price","quote_volume_24h","status"]:["symbol","last_price","quote_volume_24h","price_change_percent_24h","status"];
-    rows.forEach(item=>{const tr=document.createElement("tr");keys.forEach(key=>{const td=document.createElement("td");td.textContent=item?.[key]===undefined?"—":String(item[key]);tr.append(td);});body.append(tr);});
+    const view=tableViews[target]||(tableViews[target]={page:0,pageSize:100,sortKey:"symbol",direction:1,rows:[],query:""});
+    view.rows=Array.isArray(rows)?rows.slice():[];
+    const filtered=view.rows.filter(item=>!view.query||keys.some(key=>String(item?.[key]??"").toUpperCase().includes(view.query)));
+    filtered.sort((a,b)=>{const av=a?.[view.sortKey],bv=b?.[view.sortKey];const an=Number(av),bn=Number(bv);const numeric=av!==null&&av!==""&&bv!==null&&bv!==""&&Number.isFinite(an)&&Number.isFinite(bn);const cmp=numeric?an-bn:String(av??"").localeCompare(String(bv??""),undefined,{numeric:true,sensitivity:"base"});return cmp*view.direction;});
+    const pages=Math.max(1,Math.ceil(filtered.length/view.pageSize));view.page=Math.min(view.page,pages-1);
+    body.replaceChildren();
+    const visible=filtered.slice(view.page*view.pageSize,(view.page+1)*view.pageSize);
+    if(!visible.length){const tr=document.createElement("tr"),td=document.createElement("td");td.colSpan=columns;td.className="empty-cell";td.textContent=view.rows.length?"No rows match the current filter.":"No market rows were returned. Inspect the raw response and scan status.";tr.append(td);body.append(tr);}
+    visible.forEach(item=>{const tr=document.createElement("tr");keys.forEach(key=>{const td=document.createElement("td");td.textContent=item?.[key]===undefined?"—":String(item[key]);tr.append(td);});body.append(tr);});
+    const table=body.closest("table"),headers=table?.querySelectorAll("thead th")||[];
+    headers.forEach((th,index)=>{th.title="Sort by "+keys[index];th.setAttribute("aria-sort",keys[index]===view.sortKey?(view.direction===1?"ascending":"descending"):"none");th.style.cursor="pointer";});
+    let pager=table?.parentElement?.parentElement?.querySelector(".table-pager");
+    if(table&&!pager){pager=document.createElement("div");pager.className="table-pager";pager.style.cssText="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;color:var(--muted,#9aa);font-size:12px";table.parentElement.parentElement.append(pager);}
+    if(pager){pager.replaceChildren();const info=document.createElement("span");info.textContent=filtered.length.toLocaleString()+" matching / "+view.rows.length.toLocaleString()+" returned · page "+(view.page+1)+"/"+pages+" · "+view.pageSize+" per page";const controls=document.createElement("span");const prev=document.createElement("button"),next=document.createElement("button");prev.type=next.type="button";prev.textContent="Previous";next.textContent="Next";prev.disabled=view.page===0;next.disabled=view.page>=pages-1;prev.addEventListener("click",()=>{view.page--;renderRows(target,view.rows,columns);});next.addEventListener("click",()=>{view.page++;renderRows(target,view.rows,columns);});controls.append(prev,next);pager.append(info,controls);}
+    if(target==="spot-rows")setText("spot-count",filtered.length.toLocaleString()+" matching / "+view.rows.length.toLocaleString()+" returned");
+    if(!view.headersBound&&table){view.headersBound=true;headers.forEach((th,index)=>th.addEventListener("click",()=>{const key=keys[index];view.direction=view.sortKey===key?-view.direction:1;view.sortKey=key;view.page=0;renderRows(target,view.rows,columns);}));}
   }
   function syncAnalysisHeader(){state.symbol=$("global-symbol").value.trim().toUpperCase()||"BTCUSDT";state.market=$("global-market").value;state.timeframe=$("global-timeframe").value;setText("analysis-title",state.symbol+" · "+state.market);setText("analysis-subtitle","Timeframe "+state.timeframe+" · "+state.market+" · Research-only analysis");}
   async function loadMarketEvidence() {
@@ -125,7 +140,7 @@
     $("scan-spot").addEventListener("click",()=>withButton("scan-spot",()=>scanMarket("SPOT"),"Scanning…"));
     $("scan-usdm").addEventListener("click",()=>withButton("scan-usdm",()=>scanMarket("USD_M"),"Scanning…"));
     $("scan-coinm").addEventListener("click",()=>withButton("scan-coinm",()=>scanMarket("COIN_M"),"Scanning…"));
-    $("spot-search").addEventListener("input",e=>{const q=e.target.value.toUpperCase();document.querySelectorAll("#spot-rows tr").forEach(row=>row.hidden=!row.textContent.toUpperCase().includes(q));});
+    $("spot-search").addEventListener("input",e=>{const view=tableViews["spot-rows"]||(tableViews["spot-rows"]={page:0,pageSize:100,sortKey:"symbol",direction:1,rows:[],query:""});view.query=e.target.value.trim().toUpperCase();view.page=0;renderRows("spot-rows",view.rows,6);});
     $("load-preflight").addEventListener("click",()=>withButton("load-preflight",async()=>showJson("readiness-output",await api("/api/v1/research/preflight")),"Checking…"));
     $("load-readiness").addEventListener("click",()=>withButton("load-readiness",async()=>showJson("readiness-output",await api("/api/v1/research/phase-readiness")),"Checking…"));
     $("load-coin-analysis").addEventListener("click",()=>withButton("load-coin-analysis",loadMarketEvidence,"Loading…"));
