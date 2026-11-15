@@ -551,3 +551,9 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - The chart loader accepts only the dashboard-supported timeframe set and requires a non-empty string symbol before constructing the API path.
 - Added regression cases for invalid selections, ensuring they do not issue API calls or invalidate a pending valid request; for a newer failed request superseding an older response; and for malformed candle batches being rejected before render.
 - These are source and test-fixture changes only; Node tests and browser QA have not been executed.
+
+
+## 3h candle aggregate numeric safety
+
+- Three-hour aggregation now checks the summed source-candle volume after aggregation. If individually finite source volumes overflow to a non-finite total, that bucket is discarded rather than passing Infinity into chart scaling and indicator calculations.
+- Added a Node regression fixture using finite maximum-range volume values to exercise aggregate overflow rejection. This test was added but not executed.
