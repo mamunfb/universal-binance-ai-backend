@@ -126,7 +126,7 @@ function bollingerSeries(values,n=20,multiplier=2){
  if(!Array.isArray(values))return{upper:[],middle:[],lower:[]};
  const middle=Array(values.length).fill(null),upper=Array(values.length).fill(null),lower=Array(values.length).fill(null);
  if(!Number.isSafeInteger(n)||n<1||!Number.isFinite(multiplier)||multiplier<0)return{upper,middle,lower};
- for(let i=n-1;i<values.length;i++){const window=values.slice(i-n+1,i+1),mean=finiteMean(window),sd=scaledDeviation(window,mean);if(mean===null||sd===null)continue;const upperValue=mean+multiplier*sd,lowerValue=mean-multiplier*sd;if(!Number.isFinite(upperValue)||!Number.isFinite(lowerValue))continue;middle[i]=mean;upper[i]=upperValue;lower[i]=lowerValue;}
+ for(let i=n-1;i<values.length;i++){const window=values.slice(i-n+1,i+1),mean=finiteMean(window),sd=scaledDeviation(window,mean);if(mean===null||sd===null)continue;middle[i]=mean;const upperValue=mean+multiplier*sd,lowerValue=mean-multiplier*sd;if(Number.isFinite(upperValue))upper[i]=upperValue;if(Number.isFinite(lowerValue))lower[i]=lowerValue;}
  return{upper,middle,lower};
 }
 function adxSegment(c,n,out,offset){
