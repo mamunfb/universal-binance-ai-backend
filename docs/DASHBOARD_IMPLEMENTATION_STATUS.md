@@ -668,3 +668,10 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - The initial finite-mean seeds and existing gap-reset behavior are retained. Added large-magnitude rising-price/range regression coverage for scalar and series RSI/ATR, plus a source-contract assertion for the stable update form.
 - Tests have not been executed; this is a source-level numerical-safety change, not a benchmark claim.
 
+## SVG batching and Bollinger input safeguards
+
+- Candlestick chart SVG elements are now assembled in a detached `DocumentFragment` and appended to the SVG once, rather than mutating the live SVG tree for every grid, candle, volume bar and overlay element. This reduces repeated live-tree append operations; no browser benchmark has been run and no measured speedup is claimed.
+- Bollinger series now safely return empty aligned arrays for non-array input instead of throwing while reading `.length`. Invalid period or multiplier parameters continue to return null-filled arrays.
+- The default Bollinger window remains a numerically scaled, per-window population-deviation calculation. It is intentionally not replaced with a naïve rolling sum-of-squares algorithm, which can lose precision or overflow on extreme finite inputs. Chart payloads are already capped at 1,000 source rows and the default period is 20, so the current default work is bounded; a more complex rolling algorithm requires a separately validated stable-variance design.
+- Added source-level checks and regression coverage for non-array input, invalid parameters and the fragment-based chart builder. Tests have not been executed.
+
