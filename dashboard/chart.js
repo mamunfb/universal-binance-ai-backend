@@ -2,12 +2,14 @@
 "use strict";
 const ns="http://www.w3.org/2000/svg";
 let activeLoadSequence=0;
-const number=v=>v!==null&&v!==undefined&&v!==""&&typeof v!=="boolean"&&Number.isFinite(Number(v))?Number(v):null;
+const number=v=>v!==null&&v!==undefined&&v!==""&&!(typeof v==="string"&&v.trim()==="")&&typeof v!=="boolean"&&Number.isFinite(Number(v))?Number(v):null;
 function parse(rows){
  if(!Array.isArray(rows))return[];
  return rows.filter(r=>Array.isArray(r)&&r.length>=7).map(r=>({time:number(r[0]),open:number(r[1]),high:number(r[2]),low:number(r[3]),close:number(r[4]),volume:number(r[5]),closeTime:number(r[6])}))
   .filter(c=>Object.values(c).every(Number.isFinite)&&Number.isInteger(c.time)&&Number.isInteger(c.closeTime)&&c.time>=0&&c.closeTime>=c.time&&c.open>0&&c.high>0&&c.low>0&&c.close>0&&c.volume>=0&&c.high>=Math.max(c.open,c.close,c.low)&&c.low<=Math.min(c.open,c.close,c.high))
   .sort((a,b)=>a.time-b.time);
+ const counts=new Map();for(const candle of parsed)counts.set(candle.time,(counts.get(candle.time)||0)+1);
+ return parsed.filter(candle=>counts.get(candle.time)===1);
 }
 function aggregate3h(rows){
  const map=new Map();rows.forEach(c=>{const start=Math.floor(c.time/10800000)*10800000;if(!map.has(start))map.set(start,[]);map.get(start).push(c);});
