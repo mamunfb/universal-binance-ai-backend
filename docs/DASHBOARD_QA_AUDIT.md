@@ -878,3 +878,53 @@ Run #16 artifact `14166841719` contains only the three Lighthouse JSON reports (
 Run #17 ([workflow 43726789990](https://github.com/mamunfb/universal-binance-ai-backend/actions/runs/43726789990)) was observed running on branch `feat/institutional-dashboard-design`, commit `8da9dc9b193767fd7deb2877a7619dcee4038408`. Chromium installation passed and the three-sample mobile Lighthouse stage was in progress at the time of this update. CPU/heap profiling has not yet started; no new scanner performance or heap result is claimed.
 
 No dashboard application source, backend business logic, database, secrets, `main`, PR merge state, staging or production deployment was changed.
+
+
+## 46. Run #17 successful 1,000-row benchmark and Lighthouse evidence (2026-11-15)
+
+Run #17 ([workflow 43726789990](https://github.com/mamunfb/universal-binance-ai-backend/actions/runs/43726789990), job 132850355237) completed successfully on `feat/institutional-dashboard-design`, commit `8da9dc9b193767fd7deb2877a7619dcee4038408`. Chromium setup, all three Lighthouse mobile cold-load runs, CPU-throttled browser/heap profiling, and artifact upload succeeded. The profiler output confirms that the Spot Scanner accepted and rendered the full deterministic 1,000-row fixture; this is the first completed scanner fixture benchmark in this audit.
+
+### Lighthouse mobile cold-load results
+
+Artifact JSON files were downloaded and inspected directly. Test viewport: 390 × 844 CSS px; Lighthouse mobile simulated throttling; three cold-load samples.
+
+| Metric | Sample 1 | Sample 2 | Sample 3 | Median |
+|---|---:|---:|---:|---:|
+| Performance score | 100 | 100 | 100 | 100 |
+| FCP | 904 ms | 903 ms | 902 ms | 903 ms |
+| LCP | 1,535 ms | 1,653 ms | 1,693 ms | 1,653 ms |
+| Speed Index | 904 ms | 903 ms | 902 ms | 903 ms |
+| Total Blocking Time | 0 ms | 0 ms | 0 ms | 0 ms |
+| CLS | 0.0000238 | 0.0000238 | 0 | 0.0000238 |
+
+The Lighthouse CLI also logged non-fatal Lantern diagnostics that the all-frames FCP/LCP computations are not implemented; each report was nevertheless generated and the Lighthouse command completed successfully. The reported core page metrics above are read from the actual JSON reports. These are isolated static-dashboard lab measurements, not production field data or a real-user INP result.
+
+### Deterministic 1,000-row Spot Scanner fixture
+
+The Playwright harness intercepted the mock API on `qa.invalid`; no live Binance endpoint, backend credentials, or production service was used. The real dashboard Settings and Spot Scanner UI paths were exercised.
+
+| Measurement | CPU 1x | CPU 4x |
+|---|---:|---:|
+| 1,000-row scan render | 67 ms | 93 ms |
+| Sort | 37 ms | 74 ms |
+| Search | 156 ms | 177 ms |
+| Search result rows | 1 | 1 |
+| Pagination | 68 ms | 120 ms |
+| Five repeated search/clear/sort/next/previous cycles | 2,351 ms | 2,975 ms |
+| Heap before repeated cycles | 2,320,812 bytes | 2,315,908 bytes |
+| Heap after repeated cycles | 2,413,072 bytes | 2,373,340 bytes |
+| Heap delta | +92,260 bytes | +57,432 bytes |
+| DOM nodes after cycles | 2,662 | 2,659 |
+| Browser page errors | 0 | 0 |
+
+The first page displayed 100 rows from the 1,000-row fixture. Twelve in-app route navigations also completed with the mobile sidebar closed after every click (12/12 at both CPU settings); route-navigation median was 149 ms at 1x and 270 ms at 4x. Initial navigation was 32 ms / 52 ms respectively.
+
+Heap snapshots were captured at baseline and after the five interaction cycles for both CPU settings. The measured post-GC heap deltas are limited observations from this specific fixture/run; they do not certify the absence of memory leaks or detached-DOM retention. A longer repeated soak test and snapshot-retainer comparison remain appropriate follow-up work.
+
+### Evidence and scope
+
+- Artifact: [dashboard-performance-8da9dc9b193767fd7deb2877a7619dcee4038408](https://github.com/mamunfb/universal-binance-ai-backend/actions/runs/43726789990/artifacts/14166732415)
+- Artifact ID: `14166732415`; 4,764,528 bytes; SHA-256 `de3711bac0d3fe12572d7b83c8d7a6ce73f2e0a6210de77a56fd8c7799bc0d58`.
+- Contents inspected: three Lighthouse JSON reports, browser profile JSON, and four baseline/after-cycle V8 heap snapshots.
+- No dashboard application source, backend logic, database, secrets, `main`, PR merge state, staging, or production deployment was changed by this benchmark/audit update.
+- Physical-device mobile testing, manual keyboard/screen-reader verification, and a longer memory soak/leak investigation remain outstanding. Do not describe the dashboard as fully production-certified on the basis of this CI lab run.
