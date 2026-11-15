@@ -246,3 +246,18 @@ The branch workflow file `.github/workflows/dashboard-frontend.yml` was also rea
 **Current verified state:** feature branch head is `0cae08e...`; Run #1703 is a workflow/job failure with no executed-step or log evidence; the zero-dollar Actions usage-block state documented in Sections 11 and 14 remains the known administrative blocker. The precise failure annotation for Run #1703 was not available from the job/log endpoints in this pass, so the billing gate is consistent with the failure but is not re-proven as the specific annotation for this individual run.
 
 **Next safe actions:** account owner resolves the Actions budget/usage-block setting; then re-run the existing workflows and verify non-zero runner identity, populated steps, and retrievable logs. After CI execution is restored, run the existing dashboard fixture and contract suites, then proceed to isolated browser/runtime and payload-scale QA. No workflow, application source, deployment configuration, main branch, PR, staging service, production service, or billing setting was changed in this pass.
+
+
+## 17. Exact GitHub Actions failure annotation confirmed in browser (2026-11-15)
+
+A read-only authenticated GitHub Actions page inspection was completed for Run #1703 (`43705706619`). The failed job displayed this exact annotation:
+
+> The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings
+
+The Actions page showed that no runner was assigned and no steps or logs were available. This confirms that Run #1703 stopped before workflow execution because GitHub blocked job startup on an account billing / spending-limit condition. It is not evidence of a failing Python test, JavaScript syntax check, dashboard fixture, or application defect.
+
+A fresh Actions run-list query after the latest audit commit found **Backend and dashboard tests Run #1704** (run ID `43705802334`) for head commit `3f5bbf0b18f04412e9f726740aa9825ad2fb7c15`. Its job ID is `132786485790`; the Jobs API again reports conclusion `failure`, `steps: null`, and `logs_url: null`. The exact UI annotation for Run #1704 was not separately inspected, so it is recorded as matching the same pre-execution failure pattern, not as a separately confirmed annotation.
+
+**Required owner action remains:** review GitHub **Billing & plans** and **Settings → Billing → Budgets and alerts**, resolve any failed-payment or spending-limit restriction, and ensure Actions usage is permitted. No payment method, billing budget, spending limit, or account setting was changed during this audit.
+
+No source code, workflow, branch protection, deployment configuration, PR, staging service, or production service was changed in this pass.
