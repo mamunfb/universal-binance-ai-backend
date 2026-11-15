@@ -80,14 +80,15 @@
   async function scanMarket(market) {
     if(!["SPOT","USD_M","COIN_M"].includes(market))throw new Error("Unsupported scanner market selection.");
     const requestSequence=++activeScanSequence;
+    setText("scan-state","Refreshing · previous results retained");
     const marketChanged=state.market!==market; state.market=market; $("global-market").value=market; if(marketChanged) invalidateChartView(); document.querySelectorAll(".market-tab").forEach(b=>b.classList.toggle("active",b.dataset.market===market));
     let path;
     if(market==="SPOT") { const quote=($("spot-quote")?.value||"").trim().toUpperCase(); path="/api/v1/markets/spot/scan"+(quote?"?quote_asset="+encodeURIComponent(quote):""); }
     else if(market==="USD_M") path="/api/v1/markets/futures/usdm/scan";
     else path="/api/v1/markets/futures/coinm/scan";
-    let data; try{data=await api(path);}catch(error){if(requestSequence!==activeScanSequence)return{status:"SUPERSEDED",market};throw error;}
+    let data; try{data=await api(path);}catch(error){if(requestSequence!==activeScanSequence)return{status:"SUPERSEDED",market};setText("scan-state","Refresh failed · previous results retained");throw error;}
     if(requestSequence!==activeScanSequence)return{status:"SUPERSEDED",market};
-    if(data===null||typeof data!=="object"||Array.isArray(data))throw new Error("Scanner endpoint returned an invalid response shape. Expected a JSON object; previous results were preserved.");
+    if(data===null||typeof data!=="object"||Array.isArray(data)){setText("scan-state","Invalid response · previous results retained");throw new Error("Scanner endpoint returned an invalid response shape. Expected a JSON object; previous results were preserved.");}
     renderScanSummary(data);
     const rowKey=["symbols","markets","results","data"].find(key=>Array.isArray(data[key]));
     const hasRowsArray=rowKey!==undefined;
