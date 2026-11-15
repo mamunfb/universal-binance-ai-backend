@@ -2,7 +2,7 @@
 
 **Repository:** `mamunfb/universal-binance-ai-backend`  
 **Frontend branch:** `feat/institutional-dashboard-design`  
-**Current branch head at this checkpoint:** `c1683f4c55cabefab7de0799b728af562f8d1336`  
+**Current branch head at this checkpoint:** `fdc047f9764c6ac107a01f31b46733910d56bec4`  
 **Backend changes:** None in this branch.
 
 ## Completed in this work session
@@ -86,7 +86,7 @@
 
 ## Additional implementation — advanced indicator and volatility-band pass
 
-- Added a candle-aligned Wilder ADX(14) series with directional-movement and true-range smoothing; the initial warm-up remains unavailable rather than being filled with zero.
+- Added a candle-aligned Wilder ADX(14) series with directional-movement and true-range smoothing; the first ADX value is aligned to candle index 2n−1 and the warm-up remains unavailable rather than being filled with zero.
 - Added Stochastic RSI with explicit %K and %D smoothing and bounded 0–100 output; flat RSI windows use a neutral 50 value.
 - Added aligned Bollinger Bands (20, 2) upper/middle/lower series using population standard deviation, and rendered all three as overlays with EMA20 on the price chart.
 - Expanded the chart's price scale to include the Bollinger band range so the overlay is not clipped when it extends beyond candle highs/lows.
