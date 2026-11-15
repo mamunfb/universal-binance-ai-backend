@@ -212,3 +212,41 @@ test("API timeout is reported without an uncaught browser exception", async () =
   assert.deepEqual(pageErrors, []);
   await context.close();
 });
+
+test("changing market cancels an in-flight scan without an uncaught error", async () => {
+  const {context, page, pageErrors} = await newPage(1280);
+  await page.locator('.nav-link[data-page="settings"]').click();
+  await page.route("https://backend.test/health", route => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    headers: {"access-control-allow-origin": "*"},
+    body: JSON.stringify({status: "ok"})
+  }));
+  await page.locator("#backend-url").fill("https://backend.test");
+  await page.locator("#test-connection").click();
+  await page.getByText("Backend health endpoint responded successfully.").waitFor();
+
+  let scanStarted;
+  const started = new Promise(resolve => { scanStarted = resolve; });
+  await page.route("https://backend.test/api/v1/markets/spot/scan", async route => {
+    scanStarted();
+    await new Promise(resolve => setTimeout(resolve, 500));
+    try {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        headers: {"access-control-allow-origin": "*"},
+        body: JSON.stringify({symbols: []})
+      });
+    } catch { /* The client intentionally aborted this mocked request. */ }
+  });
+  const failed = page.waitForEvent("requestfailed", request =>
+    request.url().includes("/api/v1/markets/spot/scan"));
+  await page.locator("#run-market-scan").click();
+  await started;
+  await page.locator("#global-market").selectOption("USD_M");
+  await failed;
+  assert.match(await page.locator("#scan-state").innerText(), /Market selection changed/i);
+  assert.deepEqual(pageErrors, []);
+  await context.close();
+});
