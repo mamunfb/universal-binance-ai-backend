@@ -88,15 +88,17 @@
     let data; try{data=await api(path);}catch(error){if(requestSequence!==activeScanSequence)return{status:"SUPERSEDED",market};throw error;}
     if(requestSequence!==activeScanSequence)return{status:"SUPERSEDED",market};
     renderScanSummary(data);
-    const rows=safeArray(data,["symbols","markets","results","data"]);
+    const responseRows=safeArray(data,["symbols","markets","results","data"]);
+    const rows=responseRows.filter(item=>item!==null&&typeof item==="object"&&!Array.isArray(item));
+    const rejectedRows=responseRows.length-rows.length;
     if(market==="SPOT") renderRows("spot-rows",rows,6);
     if(market==="USD_M") renderRows("usdm-rows",rows,5);
     if(market==="COIN_M") renderRows("coinm-rows",rows,5);
-    renderScannerMeta(market,data,rows);
-    toast(market+" scan response received. Check coverage and failure counts.","success");
+    renderScannerMeta(market,data,rows,rejectedRows);
+    toast(market+" scan response received. Check coverage and failure counts."+(rejectedRows?" "+rejectedRows+" malformed rows were excluded.":""),rejectedRows?"error":"success");
     return data;
   }
-  function renderScannerMeta(market,data,rows) {
+  function renderScannerMeta(market,data,rows,rejectedRows=0) {
     const prefix=market==="USD_M"?"usdm":market==="COIN_M"?"coinm":"spot";
     const countNames={
       eligible:["eligible_count","eligible_symbols","eligible","total_eligible","total_symbols"],
@@ -106,6 +108,7 @@
     };
     const details=[
       "Returned rows: "+rows.length,
+      "Rejected malformed rows: "+rejectedRows,
       "Status: "+(data.status||data.scan_status||"Not supplied"),
       "Eligible: "+(extractCount(data,countNames.eligible)??"Not supplied"),
       "Scanned: "+(extractCount(data,countNames.scanned)??"Not supplied"),
