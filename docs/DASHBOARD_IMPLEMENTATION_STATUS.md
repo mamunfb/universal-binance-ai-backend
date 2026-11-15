@@ -961,3 +961,14 @@ CI on commit `a5782637d3861c2a5a060b194ef9caeee25dea3c`:
 - Backend and dashboard Run #1728: **success**, **631 passed, 2 warnings**.
 
 This remains static QA. Real browser/mobile viewport, keyboard interaction, screen-reader and visual regression tests are still pending. No deployment, PR merge or `main` change was made.
+
+
+## Latest CI checkpoint — 2026-11-15
+
+Verified feature-branch HEAD: `ff39adc7d9d013215d5e1af3e79e3913a7560f8a`.
+
+- Dashboard Frontend workflow run #19 completed successfully; job logs record 116 dashboard Python tests, JavaScript syntax checks and chart fixture validation.
+- Backend + Dashboard workflow run #1730 completed successfully; job logs record 631 pytest tests passed with 2 warnings, plus dashboard document/script-reference and JavaScript syntax validation.
+- Source-level API error handling and rendering safeguards are documented in Section 27 of `docs/DASHBOARD_QA_AUDIT.md`.
+- Real-browser viewport, keyboard/screen-reader, live API fault-injection and performance profiling remain pending. CI success must not be interpreted as completion of those manual/runtime checks.
+- No merge, deployment, backend/database change or main-branch update was performed.
