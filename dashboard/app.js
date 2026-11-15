@@ -236,8 +236,11 @@
   function invalidateQualityRequest(){activeQualitySequence++;}
   async function loadQuality() {
     const requestSequence=++activeQualitySequence;
-    const market=$("quality-market").value,symbol=$("quality-symbol").value.trim().toUpperCase(),interval=$("quality-interval").value,lookback=Number($("quality-lookback").value);
-    if(!symbol) throw new Error("Enter a symbol.");if(!Number.isInteger(lookback)||lookback<1||lookback>2160)throw new Error("Lookback must be 1–2160 hours.");
+    const market=$("quality-market").value,symbolInput=$("quality-symbol"),symbol=symbolInput.value.trim().toUpperCase(),interval=$("quality-interval").value,lookbackInput=$("quality-lookback"),lookback=Number(lookbackInput.value);
+    symbolInput.setCustomValidity("");lookbackInput.setCustomValidity("");
+    if(!symbol){symbolInput.setCustomValidity("Enter a market symbol.");symbolInput.reportValidity();throw new Error("Enter a market symbol.");}
+    if(!/^[A-Z0-9]{1,40}$/.test(symbol)){symbolInput.setCustomValidity("Use 1–40 letters or digits only.");symbolInput.reportValidity();throw new Error("Market symbol must contain 1–40 letters or digits only.");}
+    if(!Number.isInteger(lookback)||lookback<1||lookback>2160){lookbackInput.setCustomValidity("Enter a whole number from 1 to 2160.");lookbackInput.reportValidity();throw new Error("Lookback must be a whole number from 1–2160 hours.");}
     const q=new URLSearchParams({interval,lookback_hours:String(lookback)});
     setText("quality-state","Loading "+symbol+" · "+interval+" · previous report retained");
     let data;try{data=await api("/api/v1/quality/market-data/"+encodeURIComponent(market)+"/"+encodeURIComponent(symbol)+"?"+q);}catch(error){if(requestSequence!==activeQualitySequence)return{status:"SUPERSEDED"};setText("quality-state","Load failed · previous report retained · "+metadataText(error?.message,"Unknown error",120));throw error;}
@@ -246,9 +249,12 @@
     showJson("quality-output",data);setText("quality-state",metadataText(data.status,"Report received",80));toast("Data quality report loaded.","success");return data;
   }
   function connectSettings() {
-    const url=$("backend-url").value.trim().replace(/\/$/,"");if(!/^https:\/\//i.test(url) && !/^http:\/\/localhost(?::\d+)?$/i.test(url) && !/^http:\/\/127\.0\.0\.1(?::\d+)?$/i.test(url))throw new Error("Use HTTPS for remote backends. HTTP is allowed only for localhost.");
-    let parsed;try{parsed=new URL(url);}catch{throw new Error("Enter a valid backend URL.");}
-    if(parsed.username||parsed.password||parsed.search||parsed.hash)throw new Error("Backend URL must not contain embedded credentials, query parameters or a fragment.");
+    const urlInput=$("backend-url"),rawUrl=urlInput.value.trim(),url=rawUrl.replace(/\/$/,"");urlInput.setCustomValidity("");
+    if(!url){urlInput.setCustomValidity("Enter the private backend base URL.");urlInput.reportValidity();throw new Error("Enter the private backend base URL.");}
+    let parsed;try{parsed=new URL(url);}catch{urlInput.setCustomValidity("Enter a valid absolute backend URL.");urlInput.reportValidity();throw new Error("Enter a valid backend URL.");}
+    const localHttp=parsed.protocol==="http:"&&(parsed.hostname==="localhost"||parsed.hostname==="127.0.0.1");
+    if(parsed.protocol!=="https:"&&!localHttp)throw new Error("Use HTTPS for remote backends. HTTP is allowed only for localhost or 127.0.0.1.");
+    if(!parsed.hostname||parsed.username||parsed.password||parsed.search||parsed.hash)throw new Error("Backend URL must include a host and must not contain embedded credentials, query parameters or a fragment.");
     invalidateScanRequests();invalidateQualityRequest();cancelAnalysisRequests();activeHealthSequence++;state.base=url;state.token=$("backend-token").value.trim();setText("health-status","Not checked · test the new connection");setConnection(false,"Connection settings changed · test connection");setText("scan-state","Connection settings changed · run a new scan");setText("quality-state","Connection settings changed · run a new quality check");setText("settings-status","Connection details held in page memory only.");toast("Connection settings applied for this page session.","success");
   }
   function bind() {
