@@ -215,6 +215,21 @@ test("API timeout is reported without an uncaught browser exception", async () =
 
 test("changing market cancels an in-flight scan without an uncaught error", async () => {
   const {context, page, pageErrors} = await newPage(1280);
+  await page.addInitScript(() => {
+    const originalFetch = window.fetch.bind(window);
+    window.__scanAbortObserved = false;
+    window.fetch = (input, init = {}) => {
+      const url = typeof input === "string" ? input : input.url;
+      if (url.includes("/api/v1/markets/spot/scan") && init.signal) {
+        if (init.signal.aborted) window.__scanAbortObserved = true;
+        else init.signal.addEventListener("abort", () => {
+          window.__scanAbortObserved = true;
+        }, {once: true});
+      }
+      return originalFetch(input, init);
+    };
+  });
+  await page.reload({waitUntil: "networkidle"});
   await page.locator('.nav-link[data-page="settings"]').click();
   await page.route("https://backend.test/health", route => route.fulfill({
     status: 200,
@@ -240,13 +255,11 @@ test("changing market cancels an in-flight scan without an uncaught error", asyn
       });
     } catch { /* The client intentionally aborted this mocked request. */ }
   });
-  const failed = page.waitForEvent("requestfailed", request =>
-    request.url().includes("/api/v1/markets/spot/scan"));
   await page.locator("#run-market-scan").click();
   await started;
   await page.locator("#global-market").selectOption("USD_M");
-  await failed;
+  await page.waitForFunction(() => window.__scanAbortObserved === true);
   assert.match(await page.locator("#scan-state").innerText(), /Market selection changed/i);
   assert.deepEqual(pageErrors, []);
   await context.close();
-});
+})
