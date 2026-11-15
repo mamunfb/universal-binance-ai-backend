@@ -813,3 +813,12 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Updated the existing source-contract assertions to match the current abortable scanner request and cached sorting implementation, and added a regression contract for malformed numeric values in both directions.
 - Static source assertions were inspected after the edits; the Python test suite was not executed and browser behavior remains unverified.
 - Frontend-only. No backend source, CI, PR, merge, or deployment changes.
+
+
+## Scanner duplicate-symbol diagnostics
+
+- Scanner coverage metadata now reports the number of unique non-empty symbol strings, the number of distinct symbols appearing more than once, and the number of extra duplicate rows.
+- Symbol comparison trims surrounding whitespace and normalizes case for diagnostics. Rows are intentionally retained in the scanner table; this frontend does not silently deduplicate market data or assume that similarly named assets across different market contexts are interchangeable.
+- Duplicate diagnostics are computed once per metadata render and do not alter the backend response or the table's row set.
+- Added a source-contract regression test for the diagnostic counts and row-retention path. The Python test suite has not been executed; browser/runtime behavior and large-dataset performance remain unverified.
+- Frontend-only. No backend source, CI workflow, PR state, merge, or deployment was changed.
