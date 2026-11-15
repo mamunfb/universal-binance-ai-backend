@@ -1055,3 +1055,57 @@ Three samples, 390 × 844 CSS px, mobile simulated throttling; values read direc
 | CLS | 0.0000238 | 0.0000238 | 0.0000238 | 0.0000238 |
 
 The artifact confirms the profiler output and Lighthouse reports; these remain isolated static-dashboard lab measurements using a deterministic mock scanner API, not live Binance or production-user performance.
+
+
+## 54. Run #23 browser keyboard regression and matched-GC baseline DOM results (2026-11-15)
+
+Two independent feature-branch workflows completed successfully:
+
+- Dashboard browser QA: [Run 43733156900](https://github.com/mamunfb/universal-binance-ai-backend/actions/runs/43733156900), commit `d528e481cf08b477eb1c02894de8afac79b2003f`.
+- Dashboard performance QA: [Run 43733165359](https://github.com/mamunfb/universal-binance-ai-backend/actions/runs/43733165359), commit `7a9e9c27ab60fb3733c440d7653ec675db16b396`.
+
+### Browser regression tests
+
+The Chromium browser suite completed with **10 passed, 0 failed** (14.18 seconds). The 1,000-row mobile scanner test now additionally verifies:
+- Enter and Space both activate the focused sortable table header and update sort order;
+- pagination restores focus to the corresponding Next/Previous control after the table rerenders;
+- Enter and Space keyboard activation work across page changes;
+- existing 360–1280px responsive, sidebar focus-trap/Escape, API failure, timeout/cancellation, reduced-motion, and automated axe accessibility checks remain in the same passing suite.
+
+This is automated Chromium/axe evidence, not a manual screen-reader or physical-device audit.
+
+### Performance QA: scanner and memory trend
+
+The performance workflow passed all steps and uploaded artifact `14169074007` (227,043 bytes; SHA-256 `400af5c7b0d9808b529d675636c4a84971e6e4d20445dd936c831846b0942f1a`). The artifact contains three Lighthouse reports and browser-profile JSON; no V8 snapshots are produced.
+
+| Measurement | CPU 1x | CPU 4x |
+|---|---:|---:|
+| Scan render | 68 ms | 90 ms |
+| Sort | 36 ms | 82 ms |
+| Search | 156 ms | 179 ms |
+| Pagination | 69 ms | 123 ms |
+| Five repeated cycles | 2,353 ms | 3,067 ms |
+| Post-GC heap delta | +35,620 bytes | +71,876 bytes |
+| DOM nodes before cycles | 2,647 | 2,647 |
+| DOM nodes after cycles | 2,652 | 2,652 |
+| DOM node delta | +5 | +5 |
+| Browser page errors | 0 | 0 |
+
+The DOM-node count remained close to the baseline (+5) after the five-cycle fixture run. Post-GC heap deltas are still coarse observations only and are not a leak/no-leak verdict.
+
+### Lighthouse mobile cold-load
+
+Three samples at 390 × 844 CSS px with Lighthouse mobile simulated throttling; values read from the uploaded JSON reports.
+
+| Metric | Sample 1 | Sample 2 | Sample 3 | Median |
+|---|---:|---:|---:|---:|
+| Performance score | 93 | 100 | 100 | 100 |
+| FCP | 1,834 ms | 904 ms | 902 ms | 904 ms |
+| LCP | 2,134 ms | 1,654 ms | 1,652 ms | 1,654 ms |
+| Speed Index | 1,834 ms | 904 ms | 902 ms | 904 ms |
+| Total Blocking Time | 250 ms | 0 ms | 0 ms | 0 ms |
+| CLS | 0 | 0.0000238 | 0.0000238 | 0.0000238 |
+
+The first sample is a slower cold-load outlier; retain all samples and do not present the median as a guaranteed user experience. These are isolated static-dashboard lab measurements with a deterministic mocked scanner API, not production-user metrics.
+
+No dashboard application source, backend logic, database, secrets, `main`, PR merge state, staging, or production deployment was changed by these QA-only commits.
