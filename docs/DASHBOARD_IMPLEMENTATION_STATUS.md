@@ -199,3 +199,12 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Hardened scanner count extraction: whitespace-only strings, booleans, non-finite values and negative counts are no longer treated as valid coverage counts. Missing/invalid metadata remains explicitly unavailable rather than being shown as zero.
 - Added Python static contract tests asserting duplicate filtering is reachable in the parser and scanner count parsing rejects invalid metadata.
 - These are source and static-test changes only. Node/Python suites remain unexecuted in a repository runtime; no pass result is claimed.
+
+
+## Additional static-test review — parser assertion scope
+
+- Reviewed the chart and scanner source against the current frontend contract tests.
+- Corrected the Python contract test's parser-body extraction delimiter so the duplicate-timestamp reachability assertion isolates the `parse()` function rather than accidentally scanning the remainder of the file.
+- This tightens the regression test's scope; it does not change dashboard runtime behaviour.
+- The Node and Python suites have still **not** been executed. This is a source/test review and GitHub readback only; no pass result is claimed.
+- No backend files, CI workflows, secrets, database or deployment settings were changed. No PR, merge or deployment was performed.
