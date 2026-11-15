@@ -283,6 +283,14 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn('Number.isSafeInteger(parsed)&&parsed>=0', self.js)
         self.assertNotIn('Number.isFinite(Number(value))', self.js)
 
+    def test_scanner_refresh_state_preserves_previous_results_on_failure(self) -> None:
+        scan_body = self.js.split("async function scanMarket(market) {", 1)[1].split("function renderScannerMeta", 1)[0]
+        self.assertIn('setText("scan-state","Refreshing · previous results retained")', scan_body)
+        self.assertIn('setText("scan-state","Refresh failed · previous results retained")', scan_body)
+        self.assertIn('setText("scan-state","Invalid response · previous results retained")', scan_body)
+        self.assertLess(scan_body.index('setText("scan-state","Refreshing · previous results retained")'), scan_body.index("await api(path)"))
+        self.assertLess(scan_body.index("await api(path)"), scan_body.index("renderScanSummary(data)"))
+
     def test_scanner_market_is_validated_before_request_state_changes(self) -> None:
         scan_body = self.js.split("async function scanMarket(market) {", 1)[1].split("function renderScannerMeta", 1)[0]
         validation = 'if(!["SPOT","USD_M","COIN_M"].includes(market))throw new Error("Unsupported scanner market selection.")'
