@@ -95,9 +95,11 @@
     const responseRows=hasRowsArray?data[rowKey]:[];
     const rows=responseRows.filter(item=>item!==null&&typeof item==="object"&&!Array.isArray(item));
     const rejectedRows=responseRows.length-rows.length;
-    if(market==="SPOT") renderRows("spot-rows",rows,6);
-    if(market==="USD_M") renderRows("usdm-rows",rows,5);
-    if(market==="COIN_M") renderRows("coinm-rows",rows,5);
+    if(hasRowsArray){
+      if(market==="SPOT") renderRows("spot-rows",rows,6);
+      if(market==="USD_M") renderRows("usdm-rows",rows,5);
+      if(market==="COIN_M") renderRows("coinm-rows",rows,5);
+    }
     renderScannerMeta(market,data,rows,rejectedRows,rowKey);
     toast(market+" scan response received."+(!hasRowsArray?" No recognized result array was supplied.":rejectedRows?" "+rejectedRows+" malformed rows were excluded.":" Check coverage and failure counts."),!hasRowsArray||rejectedRows?"info":"success");
     return data;
