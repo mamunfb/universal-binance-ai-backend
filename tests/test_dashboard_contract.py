@@ -810,11 +810,11 @@ class DashboardContractTests(unittest.TestCase):
 
     def test_scanner_invalid_numeric_values_remain_after_numeric_values_in_both_sort_directions(self) -> None:
         scanner = self.js.split("function renderRows(target, rows, columns)", 1)[1].split("function syncAnalysisHeader()", 1)[0]
-        comparator = scanner.split("sortable.sort((a,b)=>", 1)[1].split(";filteredCount=sortable.length", 1)[0]
-        self.assertIn("if(a.missing!==b.missing)return a.missing?1:-1", comparator)
-        self.assertIn("if((a.numeric!==null)!==(b.numeric!==null))return a.numeric!==null?-1:1", comparator)
-        self.assertLess(comparator.index("if((a.numeric!==null)!==(b.numeric!==null))"), comparator.index("return cmp===0?0:cmp*view.direction"))
-        self.assertIn("return cmp===0?0:cmp*view.direction", comparator)
+        comparator = scanner.split("sortedRows.sort((a,b)=>", 1)[1].split(");", 1)[0]
+        self.assertIn("if(aMissing!==bMissing)return aMissing?1:-1", comparator)
+        self.assertIn("if((an!==null)!==(bn!==null))return an!==null?-1:1", comparator)
+        self.assertLess(comparator.index("if((an!==null)!==(bn!==null))"), comparator.index("return cmp===0?0:cmp*direction"))
+        self.assertIn("return cmp===0?0:cmp*direction", comparator)
 
 
     def test_scanner_reports_duplicate_symbols_without_dropping_rows(self) -> None:
@@ -855,18 +855,19 @@ class DashboardContractTests(unittest.TestCase):
         self.assertNotIn("body.append(tr)", rows)
 
 
-    def test_scanner_search_and_sort_use_one_filtered_entry_array(self) -> None:
+    def test_scanner_search_and_sort_cache_only_row_references(self) -> None:
         rows = self.js.split("function renderRows(target, rows, columns)", 1)[1].split("function syncAnalysisHeader()", 1)[0]
         self.assertIn("view.rows=incomingRows", rows)
         self.assertNotIn("incomingRows.slice()", rows)
         self.assertIn("for(const item of view.rows)", rows)
         self.assertIn("if(view.query&&!keys.some", rows)
-        self.assertIn("sortable.push({item,value,numeric:", rows)
-        self.assertIn("filteredCount=sortable.length;sortedEntries=sortable", rows)
-        self.assertIn("sortedEntries.slice(view.page*view.pageSize", rows)
-        self.assertIn("const item=entry.item", rows)
+        self.assertIn("sortedRows.push(item)", rows)
+        self.assertIn("sortedRows.sort((a,b)=>", rows)
+        self.assertIn("view.sortedCache={rows:view.rows,query:view.query,sortKey,direction,filteredCount,sortedRows}", rows)
+        self.assertIn("sortedRows.slice(view.page*view.pageSize", rows)
+        self.assertNotIn("sortable.push({item", rows)
+        self.assertNotIn("sortedEntries", rows)
         self.assertNotIn("view.rows.filter(", rows)
-        self.assertNotIn("sortable.map(entry=>entry.item)", rows)
 
 if __name__ == "__main__":
     unittest.main()
