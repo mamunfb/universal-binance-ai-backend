@@ -12,7 +12,7 @@
   const esc = (value) => String(value ?? "—").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const setText = (id, value) => { const el=$(id); if(el) el.textContent = value == null || value === "" ? "—" : String(value); };
   const toast = (message, type="info") => { const el=document.createElement("div"); el.className="toast "+(type==="error"?"error":type==="success"?"success":""); el.textContent=message; $("toast-region").append(el); window.setTimeout(()=>el.remove(),4500); };
-  const formatNumber = (value) => Number.isFinite(Number(value)) ? new Intl.NumberFormat(undefined,{maximumFractionDigits:2}).format(Number(value)) : "—";
+  const formatNumber = (value) => value===null || value===undefined || value==="" ? "—" : (Number.isFinite(Number(value)) ? new Intl.NumberFormat(undefined,{maximumFractionDigits:2}).format(Number(value)) : "—");
   const json = (value) => JSON.stringify(value,null,2);
   const showJson = (id, value) => { const el=$(id); if(el) el.textContent=json(value); };
   const safeArray = (obj, keys=[]) => { if(Array.isArray(obj)) return obj; for(const key of keys) if(Array.isArray(obj?.[key])) return obj[key]; return []; };
@@ -44,7 +44,7 @@
     try { await task(); } catch(error) { toast(error.message,"error"); } finally { el.disabled=false; el.textContent=original; }
   }
   function setMetric(key,value){setText("metric-"+key,formatNumber(value));}
-  function extractCount(data, names) { for(const name of names){ if(Number.isFinite(Number(data?.[name]))) return Number(data[name]); } return null; }
+  function extractCount(data, names) { for(const name of names){ const value=data?.[name]; if(value!==null && value!==undefined && value!=="" && Number.isFinite(Number(value))) return Number(value); } return null; }
   function renderScanSummary(data) {
     state.lastScan=data;
     const eligible=extractCount(data,["eligible_count","eligible_symbols","eligible","total_eligible","total_symbols"]);
@@ -97,7 +97,7 @@
   }
   function initTimeframes() {
     ["global-timeframe","default-timeframe","quality-interval"].forEach(id=>{const select=$(id);select.replaceChildren();TIMEFRAMES.forEach(tf=>{const option=document.createElement("option");option.value=tf;option.textContent=tf;select.append(option);});});
-    $("global-timeframe").value="1h";$("default-timeframe").value="1h";$("quality-interval").value="1h";
+    $("global-timeframe").value="1h";$("default-timeframe").value="1h";const qualitySelect=$("quality-interval");qualitySelect.replaceChildren();["1m","3m","5m","15m","30m","1h","2h","4h","6h","8h","12h","1d"].forEach(tf=>{const option=document.createElement("option");option.value=tf;option.textContent=tf;qualitySelect.append(option);});qualitySelect.value="1h";
     const strip=$("analysis-timeframes");TIMEFRAMES.forEach(tf=>{const button=document.createElement("button");button.className="timeframe-btn"+(tf==="1h"?" active":"");button.type="button";button.textContent=tf;button.addEventListener("click",()=>{state.timeframe=tf;$("global-timeframe").value=tf;strip.querySelectorAll("button").forEach(b=>b.classList.toggle("active",b===button));syncAnalysisHeader();withButton("load-coin-analysis",loadTechnical,"Loading…");});strip.append(button);});
   }
   async function loadQuality() {
