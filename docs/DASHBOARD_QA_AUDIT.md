@@ -1221,3 +1221,5 @@ Test commit: `bd7ad870a62404b17eecb29da095a2efe5be1ef7` on `feat/institutional-d
 **Validation status:** committed; the new overlap/race test is not yet verified by a completed CI run or local Chromium execution. It must not be described as passed until an actual run is inspected. This is browser automation and does not replace physical-device or manual assistive-technology testing.
 
 No dashboard application source, backend business logic, database, secrets, `main`, PR metadata, merge state, or deployment configuration was changed. No merge or deployment was performed.
+
+The overlap test's empty-Spot assertion was tightened in follow-up commit `7d9a2b0a0fdb3915b34eeea363b78db53e457072`: it now checks the actual initial placeholder row text rather than assuming the table has zero rows. This is a test expectation correction, not an application change. The test remains pending CI execution.
