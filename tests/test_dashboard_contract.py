@@ -235,6 +235,10 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn("sortedRows=cached.sortedRows", self.js)
         self.assertIn("view.sortedCache={rows:view.rows", self.js)
 
+    def test_navigation_marks_the_current_page_for_assistive_technology(self) -> None:
+        self.assertIn('a.setAttribute("aria-current","page")', self.js)
+        self.assertIn('a.removeAttribute("aria-current")', self.js)
+
     def test_mobile_navigation_exposes_state_and_supports_escape(self) -> None:
         self.assertIn('aria-controls="sidebar"', self.html)
         self.assertIn('aria-expanded="false"', self.html)
