@@ -304,5 +304,11 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn('catch(error){if(requestSequence!==activeLoadSequence)return{status:"SUPERSEDED"', self.chart_js)
 
 
+    def test_dashboard_stylesheet_has_no_escaped_newline_tokens(self) -> None:
+        self.assertNotIn(r"\\n", self.css)
+        self.assertIn("\\n.chart-caption{", self.css)
+        self.assertIn("\\n.indicator-pane{", self.css)
+
+
 if __name__ == "__main__":
     unittest.main()
