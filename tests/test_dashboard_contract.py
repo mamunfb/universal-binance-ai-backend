@@ -101,6 +101,20 @@ class DashboardContractTests(unittest.TestCase):
     def test_primary_coin_analysis_action_loads_candles(self) -> None:
         self.assertIn('$("load-coin-analysis").addEventListener("click",()=>withButton("load-coin-analysis",loadTechnical', self.js)
 
+    def test_scanner_tables_are_named_and_keyboard_scrollable(self) -> None:
+        self.assertIn('role="region" aria-label="Spot market scan results" tabindex="0"', self.html)
+        self.assertIn('role="region" aria-label="USDⓈ-M market scan results" tabindex="0"', self.html)
+        self.assertIn('role="region" aria-label="COIN-M market scan results" tabindex="0"', self.html)
+        self.assertEqual(self.html.count('<th scope="col">'), 16)
+        self.assertIn('.table-scroll[role="region"]:focus-visible', self.css)
+
+    def test_scanner_pagination_preserves_keyboard_focus_after_rerender(self) -> None:
+        self.assertIn("function focusPagerControl(table,label)", self.js)
+        self.assertIn('focusPagerControl(table,"Previous scanner page")', self.js)
+        self.assertIn('focusPagerControl(table,"Next scanner page")', self.js)
+        self.assertIn('prev.setAttribute("aria-controls",target)', self.js)
+        self.assertIn('next.setAttribute("aria-controls",target)', self.js)
+
     def test_navigation_moves_keyboard_focus_and_hides_decorative_glyphs(self) -> None:
         self.assertIn('target.setAttribute("tabindex","-1")', self.js)
         self.assertIn('target.focus({preventScroll:true})', self.js)
