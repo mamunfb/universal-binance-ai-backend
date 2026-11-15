@@ -101,6 +101,17 @@ class DashboardContractTests(unittest.TestCase):
     def test_primary_coin_analysis_action_loads_candles(self) -> None:
         self.assertIn('$("load-coin-analysis").addEventListener("click",()=>withButton("load-coin-analysis",loadTechnical', self.js)
 
+    def test_stochastic_rsi_uses_linear_rolling_extrema_and_smoothing(self) -> None:
+        stoch_body = self.chart_js.split("function stochRsiSeries(", 1)[1].split("\\nfunction drawLinePanel", 1)[0]
+        self.assertIn("const minDeque=[],maxDeque=[]", stoch_body)
+        self.assertIn("minDeque[minHead]<=i-stochPeriod", stoch_body)
+        self.assertIn("maxDeque[maxHead]<=i-stochPeriod", stoch_body)
+        self.assertIn("kSum+=raw[i]", stoch_body)
+        self.assertIn("dSum+=k[i]", stoch_body)
+        self.assertNotIn("rsi.slice(i-stochPeriod+1,i+1)", stoch_body)
+        self.assertIn("optimized Stochastic RSI matches a straightforward rolling-window reference", self.chart_test_js)
+        self.assertIn("Stochastic RSI rolling extrema and smoothing restart cleanly after missing observations", self.chart_test_js)
+
     def test_chart_exposes_separate_indicator_panes(self) -> None:
         for token in (
             'drawLinePanel("RSI (14) · Wilder"',
