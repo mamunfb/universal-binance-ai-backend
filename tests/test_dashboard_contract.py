@@ -450,7 +450,7 @@ class DashboardContractTests(unittest.TestCase):
         scan_body = self.js.split("async function scanMarket(market) {", 1)[1].split("function renderScannerMeta", 1)[0]
         self.assertIn(validation, scan_body)
         self.assertIn("previous results were preserved.", scan_body)
-        self.assertLess(scan_body.index(validation), scan_body.index("renderScanSummary(data)"))
+        self.assertLess(scan_body.index(validation), scan_body.index("renderScanSummary(data,market)"))
 
 
     def test_scanner_rejects_non_object_response_rows_and_reports_count(self) -> None:
