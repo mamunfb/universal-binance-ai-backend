@@ -1164,3 +1164,17 @@ Two independent GitHub Actions workflows completed successfully on that exact co
 - [Backend and dashboard tests Run 43735279349](https://github.com/mamunfb/universal-binance-ai-backend/actions/runs/43735279349): **634 passed, 0 failed, 2 warnings in 4.46 seconds**. Dashboard document/script reference validation and JavaScript syntax checks also passed. The two warnings are the previously documented non-fatal deprecations.
 
 This is Chromium automation on the CI runner, not a physical-device test. Manual screen-reader/assistive-technology verification and production-user performance monitoring remain outstanding. Only the browser test viewport list and this audit document were changed; no dashboard application source, backend logic, database, secrets, `main`, PR merge state, staging, or production deployment was changed.
+
+
+## 59. API status-class and mobile viewport-transition regression coverage (2026-11-15)
+
+Added two Chromium browser regression cases in `tests/test_dashboard_browser.cjs`:
+
+- API error handling now explicitly exercises HTTP **401, 403, 429 and 500** responses, verifies that backend-provided error details remain visible in the dashboard, and checks that HTML-like error text is rendered as text rather than inserted as markup.
+- Mobile navigation now exercises a **390px → 1024px → 390px** viewport transition while a sidebar link owns focus. The test verifies that desktop navigation is not inert, the mobile menu's expanded state is reset, and focus returns to the menu control before the sidebar becomes inert again.
+
+Test-only commit: `08df16665cec566bbad3ee4c4954081b1570428f` on `feat/institutional-dashboard-design`.
+
+**Validation status at documentation time:** GitHub accepted the commit, but a completed CI run/status for this commit was not yet available through the connected GitHub checks. These two new cases are therefore **committed, not yet CI-verified**. Do not interpret earlier successful Chromium runs as validation of these newly added cases.
+
+Physical Android/iPhone testing and manual screen-reader verification remain outstanding. No dashboard application source, backend business logic, database, secrets, `main`, PR metadata, or deployment configuration was changed.
