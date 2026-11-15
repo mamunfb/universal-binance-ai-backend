@@ -406,3 +406,18 @@ test("Stochastic RSI rejects invalid periods without producing non-finite values
   }
 });
 
+test("indicator series reject invalid containers and period arguments safely", () => {
+  assert.deepEqual(charts.emaSeries(null,14),[]);
+  assert.deepEqual(charts.rsiSeries(null,14),[]);
+  assert.deepEqual(charts.atrSeries(null,14),[]);
+  assert.deepEqual(charts.adxSeries(null,14),[]);
+  const values = Array.from({length:40}, (_,i) => 100+i);
+  const candles = values.map((close,i) => ({time:i,open:close,high:close+1,low:close-1,close,volume:1,closeTime:i+1}));
+  for (const invalid of [0,-1,1.5,Number.MAX_SAFE_INTEGER+1]) {
+    assert.ok(charts.emaSeries(values,invalid).every(value => value===null));
+    assert.ok(charts.rsiSeries(values,invalid).every(value => value===null));
+    assert.ok(charts.atrSeries(candles,invalid).every(value => value===null));
+    assert.ok(charts.adxSeries(candles,invalid).every(value => value===null));
+  }
+});
+
