@@ -385,8 +385,8 @@
     urlInput.setCustomValidity("");
     if(!url)rejectUrl("Enter the private backend base URL.");
     let parsed;try{parsed=new URL(url);}catch{rejectUrl("Enter a valid absolute backend URL.");}
-    const localHttp=parsed.protocol==="http:"&&(parsed.hostname==="localhost"||parsed.hostname==="127.0.0.1");
-    if(parsed.protocol!=="https:"&&!localHttp)rejectUrl("Use HTTPS for remote backends. HTTP is allowed only for localhost or 127.0.0.1.");
+    const localHttp=parsed.protocol==="http:"&&(parsed.hostname==="localhost"||parsed.hostname==="127.0.0.1"||parsed.hostname==="[::1]");
+    if(parsed.protocol!=="https:"&&!localHttp)rejectUrl("Use HTTPS for remote backends. HTTP is allowed only for localhost, 127.0.0.1 or [::1].");
     if(!parsed.hostname||parsed.username||parsed.password||parsed.search||parsed.hash)rejectUrl("Backend URL must include a host and must not contain embedded credentials, query parameters or a fragment.");
     invalidateScanRequests();invalidateQualityRequest();invalidateReadinessRequests();cancelAnalysisRequests();invalidateHealthRequests();state.base=url;state.token=$("backend-token").value.trim();clearConnectionScopedData("Connection settings changed · previous backend data cleared");setText("health-status","Not checked · test the new connection");setConnection(false,"Connection settings changed · test connection");setText("scan-state","Connection settings changed · run a new scan");setText("quality-state","Connection settings changed · run a new quality check");setText("settings-status","Connection details held in page memory only.");toast("Connection settings applied for this page session.","success");
   }
