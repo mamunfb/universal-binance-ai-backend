@@ -158,10 +158,28 @@ function adxSeries(c,n=14){
 function stochRsiSeries(values,rsiPeriod=14,stochPeriod=14,smoothK=3,smoothD=3){
  const length=Array.isArray(values)?values.length:0,raw=Array(length).fill(null),k=Array(length).fill(null),d=Array(length).fill(null);
  if(!Array.isArray(values)||![rsiPeriod,stochPeriod,smoothK,smoothD].every(Number.isSafeInteger)||rsiPeriod<1||stochPeriod<1||smoothK<1||smoothD<1||!Number.isSafeInteger(rsiPeriod+stochPeriod)||!Number.isSafeInteger(smoothK+smoothD))return{k,d};
- const rsi=rsiSeries(values,rsiPeriod);
- for(let i=0;i<rsi.length;i++){if(i<rsiPeriod+stochPeriod-1||!Number.isFinite(rsi[i]))continue;const w=rsi.slice(i-stochPeriod+1,i+1);if(!w.every(Number.isFinite))continue;const lo=Math.min(...w),hi=Math.max(...w);raw[i]=hi===lo?50:(rsi[i]-lo)/(hi-lo)*100;}
- for(let i=0;i<raw.length;i++){if(i>=smoothK-1&&raw.slice(i-smoothK+1,i+1).every(Number.isFinite))k[i]=raw.slice(i-smoothK+1,i+1).reduce((s,x)=>s+x,0)/smoothK;
-  if(i>=smoothK+smoothD-2&&k.slice(i-smoothD+1,i+1).every(Number.isFinite))d[i]=k.slice(i-smoothD+1,i+1).reduce((s,x)=>s+x,0)/smoothD;}
+ const rsi=rsiSeries(values,rsiPeriod),minDeque=[],maxDeque=[];let minHead=0,maxHead=0,validRun=0;
+ for(let i=0;i<rsi.length;i++){
+  const current=rsi[i];if(!Number.isFinite(current)){minDeque.length=0;maxDeque.length=0;minHead=0;maxHead=0;validRun=0;continue;}
+  validRun++;
+  while(minHead<minDeque.length&&minDeque[minHead]<=i-stochPeriod)minHead++;
+  while(maxHead<maxDeque.length&&maxDeque[maxHead]<=i-stochPeriod)maxHead++;
+  while(minDeque.length>minHead&&rsi[minDeque[minDeque.length-1]]>=current)minDeque.pop();
+  while(maxDeque.length>maxHead&&rsi[maxDeque[maxDeque.length-1]]<=current)maxDeque.pop();
+  minDeque.push(i);maxDeque.push(i);
+  if(validRun>=stochPeriod){const lo=rsi[minDeque[minHead]],hi=rsi[maxDeque[maxHead]];raw[i]=hi===lo?50:(current-lo)/(hi-lo)*100;}
+ }
+ let kRun=0,kSum=0,dRun=0,dSum=0;
+ for(let i=0;i<length;i++){
+  if(Number.isFinite(raw[i])){
+   kRun++;kSum+=raw[i];if(kRun>smoothK)kSum-=raw[i-smoothK];
+   if(kRun>=smoothK)k[i]=kSum/smoothK;
+  }else{kRun=0;kSum=0;}
+  if(Number.isFinite(k[i])){
+   dRun++;dSum+=k[i];if(dRun>smoothD)dSum-=k[i-smoothD];
+   if(dRun>=smoothD)d[i]=dSum/smoothD;
+  }else{dRun=0;dSum=0;}
+ }
  return{k,d};
 }
 function drawLinePanel(title,values,{min=null,max=null,zero=false}={}){
