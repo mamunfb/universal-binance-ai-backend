@@ -399,3 +399,35 @@ Failure inventory from the log:
 **Disposition:** CI is now genuinely executing. The Python suite is not green. Do not change production logic or weaken assertions blindly. Next work should (1) modernize static contract tests to assert current behavior rather than brittle old source snippets, (2) decide whether the advanced Data Reliability metrics need dedicated structured UI rendering or whether raw JSON is the accepted design, and (3) make the news test fixture deterministic relative to the 72-hour window. Re-run the full suite after reviewed corrections.
 
 No backend application logic, production deployment, staging service, `main`, PR merge state, or billing settings were changed during this diagnostic rerun.
+
+
+## 25. Full CI green after test and numerical-safety corrections (2026-11-15)
+
+Both feature-branch workflows completed successfully on commit `f95e5afd4690b56ab91b7ae2e704bfdc5a16a9af`.
+
+**Backend and dashboard tests — Run #1723**
+- Run ID: `43713781865`
+- Job ID: `132811050272`
+- Conclusion: **success**
+- Pytest: **625 passed, 2 warnings in 5.04s**
+- All workflow steps succeeded: Python 3.12 setup, Node 22 setup, dependency installation, dashboard HTML/script-reference validation, dashboard JavaScript syntax checks, and the full Python suite.
+
+**Dashboard frontend checks — Run #16**
+- Run ID: `43713781843`
+- Job ID: `132810816183`
+- Conclusion: **success**
+- Dashboard JavaScript syntax checks: success
+- Node chart fixtures: success (**53 tests**, as reported by the preceding run log after the four fixture/implementation corrections)
+- Dashboard Python contract tests: success (**110 unittest cases**)
+
+Corrections included:
+1. Stabilized `finiteMean` by scaling finite inputs and using compensated summation. This removed a large cancellation error for alternating `±Number.MAX_VALUE` values.
+2. Bollinger series now preserves a representable middle/SMA value even when upper/lower bounds overflow; only unrepresentable bounds remain unavailable.
+3. Corrected the 3h aggregation fixture to pass parsed candle objects, corrected post-gap indicator warm-up expectations, and completed the DOM test double's DocumentFragment behavior.
+4. Made the news-intelligence test deterministic by explicitly using a seven-day test window for its fixed historical RSS fixture. Production freshness logic remains unchanged.
+5. Refreshed brittle dashboard source-contract assertions to match the current SPA's actual abortable API calls, validation ordering, cached timestamp refresh, and keyboard Escape behavior.
+6. Replaced legacy inline/camelCase quality-markup checks with tests for the current split SPA controls, verified route, input validation, shared API client and text/JSON response rendering.
+
+**Scope qualification:** green CI proves the automated checks in these workflows passed for this commit. It does not prove live backend connectivity, browser viewport behavior, screen-reader behavior, live exchange data correctness, performance profiling or full structured Data Reliability/collector/Neon/R2 rendering. Those remain separate QA tasks.
+
+No `main` changes, PR merge, staging deployment, production deployment, billing change or backend service logic change was made in this pass.
