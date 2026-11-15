@@ -2,7 +2,7 @@
 
 **Repository:** `mamunfb/universal-binance-ai-backend`  
 **Frontend branch:** `feat/institutional-dashboard-design`  
-**Current branch head at this checkpoint:** `c5498ddb9952e90d5f6d4f4fc7027a1e144f0656`  
+**Current branch head at this checkpoint:** `54f8ebd342dd717eb496b3270bc52f9e18fa88be`  
 **Backend changes:** None in this branch.
 
 ## Completed in this work session
@@ -65,7 +65,7 @@
 - The Python dashboard contract test file has been added but has not yet been executed in CI or a repository test runner.
 - No browser-based visual, keyboard, mobile, accessibility or cross-browser test has been run.
 - No live backend connection or real authenticated API response has been tested from this frontend.
-- Full scan result pagination/virtualization, scanner sort/filter controls and all scan metadata still need implementation.
+- Scanner sorting and 100-row client-side pagination are implemented; server-side pagination/virtualization is not available, and dedicated search/filter controls for USDⓈ-M and COIN-M plus richer coverage metadata remain outstanding.
 - Coin Analysis currently renders OHLCV candlesticks and a limited descriptive indicator set. It is not yet a full TradingView-equivalent chart, nor does it yet display every requested indicator/overlay/pane.
 - The 3h frontend aggregation requires exactly three consecutive 1h candles aligned to UTC bucket starts; incomplete buckets are discarded. This has syntax/static review only, not a live data fixture test yet.
 - Daily scheduler, 96 scans/day, AI selection/research reports, three historical modes, Neon+R2 archive query, comparison, full news/on-chain views, signal evaluation and complete risk pages remain unintegrated or capability-unverified.
