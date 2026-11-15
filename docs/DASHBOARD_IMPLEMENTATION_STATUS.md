@@ -606,3 +606,9 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Added regression coverage for accepted decimal strings, rejected coercions and duplicate open timestamps. Duplicate timestamps continue to invalidate every ambiguous row at that timestamp rather than selecting an arbitrary candle.
 - Tests were added but not executed; no runtime or browser verification is claimed.
 
+## Indicator missing-data recovery and alignment
+
+- EMA, RSI and ATR series now treat non-finite inputs/intermediates as segment boundaries. They remain unavailable across the gap, then restart only after a complete fresh warm-up window of consecutive valid observations is available.
+- Output arrays retain the same index alignment and length as their input series; no values are shifted across missing observations. This allows later valid chart segments to render without connecting or carrying calculations through invalid data.
+- Added regression coverage for EMA, RSI and ATR recovery after gaps. Tests have not been executed; runtime/browser verification remains outstanding.
+
