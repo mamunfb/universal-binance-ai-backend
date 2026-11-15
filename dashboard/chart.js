@@ -81,11 +81,11 @@ function atrSeries(c,n=14){
 }
 function macdComponents(values){
  const fast=emaSeries(values,12),slow=emaSeries(values,26);
- const line=values.map((_,i)=>fast[i]===null||slow[i]===null?null:fast[i]-slow[i]);
+ const line=values.map((_,i)=>{if(fast[i]===null||slow[i]===null)return null;const value=fast[i]-slow[i];return Number.isFinite(value)?value:null;});
  const first=line.findIndex(Number.isFinite),compact=first<0?[]:line.slice(first);
  const signalCompact=emaSeries(compact,9),signal=Array(values.length).fill(null);
- signalCompact.forEach((v,i)=>{signal[first+i]=v;});
- const histogram=line.map((v,i)=>v===null||signal[i]===null?null:v-signal[i]);
+ signalCompact.forEach((v,i)=>{signal[first+i]=Number.isFinite(v)?v:null;});
+ const histogram=line.map((v,i)=>{if(!Number.isFinite(v)||!Number.isFinite(signal[i]))return null;const value=v-signal[i];return Number.isFinite(value)?value:null;});
  return{line,signal,histogram};
 }
 function macdSeries(values){return macdComponents(values).line;}
@@ -118,7 +118,9 @@ function adxSeries(c,n=14){
  return out;
 }
 function stochRsiSeries(values,rsiPeriod=14,stochPeriod=14,smoothK=3,smoothD=3){
- const rsi=rsiSeries(values,rsiPeriod),raw=Array(values.length).fill(null),k=Array(values.length).fill(null),d=Array(values.length).fill(null);
+ const raw=Array(values.length).fill(null),k=Array(values.length).fill(null),d=Array(values.length).fill(null);
+ if(![rsiPeriod,stochPeriod,smoothK,smoothD].every(Number.isSafeInteger)||rsiPeriod<1||stochPeriod<1||smoothK<1||smoothD<1||!Number.isSafeInteger(rsiPeriod+stochPeriod))return{k,d};
+ const rsi=rsiSeries(values,rsiPeriod);
  for(let i=0;i<rsi.length;i++){if(i<rsiPeriod+stochPeriod-1||!Number.isFinite(rsi[i]))continue;const w=rsi.slice(i-stochPeriod+1,i+1);if(!w.every(Number.isFinite))continue;const lo=Math.min(...w),hi=Math.max(...w);raw[i]=hi===lo?50:(rsi[i]-lo)/(hi-lo)*100;}
  for(let i=0;i<raw.length;i++){if(i>=smoothK-1&&raw.slice(i-smoothK+1,i+1).every(Number.isFinite))k[i]=raw.slice(i-smoothK+1,i+1).reduce((s,x)=>s+x,0)/smoothK;
   if(i>=smoothK+smoothD-2&&k.slice(i-smoothD+1,i+1).every(Number.isFinite))d[i]=k.slice(i-smoothD+1,i+1).reduce((s,x)=>s+x,0)/smoothD;}
