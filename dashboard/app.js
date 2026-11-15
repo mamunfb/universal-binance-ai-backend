@@ -89,9 +89,10 @@
     let data; try{data=await api(path);}catch(error){if(requestSequence!==activeScanSequence)return{status:"SUPERSEDED",market};setText("scan-state","Refresh failed · previous results retained");throw error;}
     if(requestSequence!==activeScanSequence)return{status:"SUPERSEDED",market};
     if(data===null||typeof data!=="object"||Array.isArray(data)){setText("scan-state","Invalid response · previous results retained");throw new Error("Scanner endpoint returned an invalid response shape. Expected a JSON object; previous results were preserved.");}
-    renderScanSummary(data);
     const rowKey=["symbols","markets","results","data"].find(key=>Array.isArray(data[key]));
     const hasRowsArray=rowKey!==undefined;
+    if(hasRowsArray)renderScanSummary(data);
+    else setText("scan-state","Incomplete response · previous results retained");
     const responseRows=hasRowsArray?data[rowKey]:[];
     const rows=responseRows.filter(item=>item!==null&&typeof item==="object"&&!Array.isArray(item));
     const rejectedRows=responseRows.length-rows.length;
