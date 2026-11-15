@@ -795,5 +795,18 @@ class DashboardContractTests(unittest.TestCase):
         self.assertLess(scanner.index("if(responseRows.length>0&&rows.length===0)"), scanner.index("renderScanSummary(data)"))
         self.assertIn('Requested quote filter:', self.js.split("function renderScannerMeta", 1)[1].split("const details=", 1)[1].split("];", 1)[0])
 
+    def test_scanner_market_and_quote_filter_provenance_survive_timezone_refresh(self) -> None:
+        summary = self.js.split("function renderScanSummary(data,market=state.market)", 1)[1].split("function invalidateHealthRequests", 1)[0]
+        self.assertIn('["Market",market]', summary)
+        scan = self.js.split("async function scanMarket(market)", 1)[1].split("function scannerCountAliasConflicts", 1)[0]
+        self.assertIn("let path,quoteFilter=null", scan)
+        self.assertIn("state.lastScanDetails={market,data,rows,rejectedRows,rowKey,additionalRowKeys,quoteFilter}", scan)
+        self.assertIn("renderScannerMeta(market,data,rows,rejectedRows,rowKey,additionalRowKeys,quoteFilter)", scan)
+        meta = self.js.split("function renderScannerMeta", 1)[1].split("const tableViews", 1)[0]
+        self.assertIn('metadataText(quoteFilter,"All quote assets",40)', meta)
+        refresh = self.js.split("function refreshDisplayedTimestamps()", 1)[1].split("function connectSettings()", 1)[0]
+        self.assertIn("renderScanSummary(cached?.data??state.lastScan,cached?.market??state.market)", refresh)
+        self.assertIn("cached.additionalRowKeys,cached.quoteFilter", refresh)
+
 if __name__ == "__main__":
     unittest.main()
