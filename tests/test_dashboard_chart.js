@@ -431,3 +431,23 @@ test("3h aggregation rejects invalid containers and malformed candle objects", (
   assert.deepEqual(charts.aggregate3h(malformed),[]);
 });
 
+test("candle parsing accepts decimal numeric strings but rejects non-decimal coercions", () => {
+  const decimal = ["1000","10.5","12","9","11","0.25","3600999"];
+  const parsed = charts.parse([decimal]);
+  assert.equal(parsed.length,1);
+  assert.equal(parsed[0].open,10.5);
+  for (const invalid of ["0x10","0b10","0o10"," ","Infinity",true]) {
+    const row = [0,10,11,9,10,1,3599999];
+    row[1] = invalid;
+    assert.deepEqual(charts.parse([row]),[]);
+  }
+});
+
+test("candle parsing discards every row sharing a duplicate open timestamp", () => {
+  const duplicateA = candle(0,100);
+  const duplicateB = candle(0,101);
+  const unique = candle(3600000,102);
+  const parsed = charts.parse([duplicateA,unique,duplicateB]);
+  assert.deepEqual(parsed.map(row=>row.time),[3600000]);
+});
+
