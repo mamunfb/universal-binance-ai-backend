@@ -831,3 +831,32 @@ Run #13 (`43725367464`, commit `6bee57edfe9f4d11ef77ff389d9afb43025330df`) compl
 Added targeted failure diagnostics in commit `e44a79be840954e120031b337616bc450edb56ec`: capture mocked API response/request failures, browser page errors, scanner state, count, coverage, toast, button state, settings status, and route hash when the fixture does not render. The next run will distinguish a missing click/event, a failed/mismatched mock request, an API/schema issue, and a dashboard rendering issue instead of reporting only a generic timeout.
 
 No dashboard application source or backend code changed. No live backend calls, database/secrets changes, `main` changes, merges, or deployments.
+
+
+
+## 42. Run #14 scanner assertion diagnosis (2026-11-15)
+
+Run #14 ([workflow 43726195766](https://github.com/mamunfb/universal-binance-ai-backend/actions/runs/43726195766), profiler job 132848540298) completed with failure. Chromium setup and all three mobile Lighthouse cold-load audits passed. The profiler reached the Spot Scanner and the deterministic mock API returned HTTP 200 for both `/health` and `/api/v1/markets/spot/scan`.
+
+The captured browser diagnostics establish that the dashboard successfully rendered the fixture:
+- Scanner state: `ok`
+- Displayed count: `1,000 matching / 1,000 returned`
+- Coverage: 1,000 returned rows, 1,000 unique symbols, zero duplicate or malformed rows
+- Fixture source: `deterministic QA fixture`
+- Browser page errors: zero
+
+The assertion expected the unformatted literal `1000 matching / 1000 returned`, while the dashboard correctly formats counts with locale grouping separators. In addition, the original Playwright `waitForFunction` options argument was passed in the argument position, so the intended 10-second timeout was not applied; the actual wait timed out after 30 seconds. This was a test assertion/configuration defect, not a dashboard data-loading defect.
+
+Run #14 artifact uploaded successfully (artifact ID `14166491931`, 214,298 bytes), but it contains only the three Lighthouse JSON reports; no scanner timings or heap snapshots were produced. No 1,000-row performance metrics are claimed from this run.
+
+## 43. Locale-aware scanner assertions and Run #16 (2026-11-15)
+
+Updated `tests/dashboard_performance_qa.cjs` to remove comma grouping from displayed scanner counts before comparing them with expected numeric text, covering initial render, search, clearing search, and all five repeated interaction cycles. Corrected the initial wait to pass Playwright's options in the third argument position, so the 10-second diagnostic timeout is now effective.
+
+Changes were committed on `feat/institutional-dashboard-design`:
+- `144e34e09b56d308cf3d1b5e7cb4cac87ecd45f5` — initial locale-aware assertion update.
+- `3fd5c762384d91053b531e28f386be00278f1ea7` — completed normalization of all remaining repeated-cycle assertions.
+
+Run #16 ([workflow 43726505493](https://github.com/mamunfb/universal-binance-ai-backend/actions/runs/43726505493)) was observed running against commit `3fd5c762384d91053b531e28f386be00278f1ea7`. At the time of this audit update, Chromium installation was still in progress; no profiler pass or 1,000-row timing/heap result is claimed yet.
+
+Scope remains unchanged: no dashboard application logic, backend, database, secrets, `main`, PR merge state, staging, or production deployment was modified.
