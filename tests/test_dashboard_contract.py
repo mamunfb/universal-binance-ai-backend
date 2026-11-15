@@ -291,7 +291,7 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn("const numericValue=value=>", self.js)
         self.assertIn("if(aMissing!==bMissing)return aMissing?1:-1", self.js)
         self.assertIn("if((an!==null)!==(bn!==null))return an!==null?-1:1", self.js)
-        self.assertIn("scannerCollator.compare(String(a?.symbol??""),String(b?.symbol??""))", self.js)
+        self.assertIn('scannerCollator.compare(String(a?.symbol??""),String(b?.symbol??""))', self.js)
         self.assertIn('th.addEventListener("keydown",event=>{if(event.key==="Enter"||event.key===" ")', self.js)
         self.assertIn('th.setAttribute("aria-label","Sort by "+keys[index])', self.js)
         self.assertIn('th.setAttribute("aria-keyshortcuts","Enter Space")', self.js)
