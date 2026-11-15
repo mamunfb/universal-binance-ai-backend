@@ -92,14 +92,13 @@
   }
   async function loadTechnical() {
     syncAnalysisHeader();
-    if(state.market!=="SPOT") throw new Error("The currently verified technical endpoint is Spot-only. Futures technical API mapping is pending.");
-    const path="/api/v1/analysis/spot/technical/"+encodeURIComponent(state.symbol)+"?interval="+encodeURIComponent(state.timeframe)+"&limit=500";
-    const data=await api(path);showJson("analysis-output",data);state.lastAnalysis=data;setText("chart-state","Technical response loaded; chart rendering requires verified candle schema");setText("technical-summary",data.status||"Technical response loaded.");toast("Spot technical analysis loaded.","success");return data;
+    const data=await window.DashboardCharts.load(api,state.market,state.symbol,state.timeframe);
+    state.lastAnalysis=data;toast("Verified candle chart and descriptive indicators loaded.","success");return data;
   }
   function initTimeframes() {
     ["global-timeframe","default-timeframe","quality-interval"].forEach(id=>{const select=$(id);select.replaceChildren();TIMEFRAMES.forEach(tf=>{const option=document.createElement("option");option.value=tf;option.textContent=tf;select.append(option);});});
     $("global-timeframe").value="1h";$("default-timeframe").value="1h";$("quality-interval").value="1h";
-    const strip=$("analysis-timeframes");TIMEFRAMES.forEach(tf=>{const button=document.createElement("button");button.className="timeframe-btn"+(tf==="1h"?" active":"");button.type="button";button.textContent=tf;button.addEventListener("click",()=>{state.timeframe=tf;$("global-timeframe").value=tf;strip.querySelectorAll("button").forEach(b=>b.classList.toggle("active",b===button));syncAnalysisHeader();$("chart-state").textContent=tf==="3h"?"3h selected — custom aggregation capability must be verified":"Timeframe selected; reload analysis";});strip.append(button);});
+    const strip=$("analysis-timeframes");TIMEFRAMES.forEach(tf=>{const button=document.createElement("button");button.className="timeframe-btn"+(tf==="1h"?" active":"");button.type="button";button.textContent=tf;button.addEventListener("click",()=>{state.timeframe=tf;$("global-timeframe").value=tf;strip.querySelectorAll("button").forEach(b=>b.classList.toggle("active",b===button));syncAnalysisHeader();withButton("load-coin-analysis",loadTechnical,"Loading…");});strip.append(button);});
   }
   async function loadQuality() {
     const market=$("quality-market").value,symbol=$("quality-symbol").value.trim().toUpperCase(),interval=$("quality-interval").value,lookback=Number($("quality-lookback").value);
