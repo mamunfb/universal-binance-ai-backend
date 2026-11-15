@@ -427,7 +427,7 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn('typeof value==="number"&&Number.isFinite(value)', self.js)
         self.assertIn('return fallback;', self.js)
         self.assertIn('metadataText(data.status,metadataText(data.scan_status,"Returned",80),80)', self.js)
-        self.assertIn('metadataText(data.generated_at??data.timestamp??data.updated_at??"Not supplied")', self.js)
+        self.assertIn('formatTimestamp(data.generated_at??data.timestamp??data.updated_at??"Not supplied")', self.js)
         self.assertIn('"Status: "+metadataText(data.status,metadataText(data.scan_status,"Not supplied",80),80)', self.js)
 
     def test_scanner_refresh_state_preserves_previous_results_on_failure(self) -> None:
