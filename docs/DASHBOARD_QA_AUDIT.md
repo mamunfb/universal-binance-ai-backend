@@ -173,3 +173,18 @@ A read-only inspection of the account's Billing Summary page showed no failed-pa
 **Most likely actionable blocker:** the GitHub Actions budget is at a zero-dollar cap with usage blocked. The account owner must review the Actions budget under [GitHub Billing Budgets](https://github.com/settings/billing/budgets) and decide whether to set an appropriate non-zero budget / permit usage. If that does not clear the block, review the account's payment status in Billing & plans as the failure annotation also mentions recent payment failures. No budget, payment method, spending limit, or account setting was changed by this audit.
 
 **Next verification gate:** after the account owner resolves the billing/budget restriction, rerun the latest failed job or push a deliberate QA commit and confirm a real runner ID, non-empty steps, and downloadable logs before treating CI as operational. Do not interpret the present failures as code-test results.
+
+
+## 12. Static dashboard QA readiness review (2026-11-15)
+
+A read-only source review was completed against the feature branch after identifying the Actions budget block. This is static inspection only; it is not a browser/runtime test and does not replace CI.
+
+Checks observed:
+- `dashboard/index.html` contains a viewport declaration, a main landmark, and the expected local script references (`./chart.js`, `./app.js`).
+- The HTML contains no duplicate static element IDs. All 70 statically detected `$("id")` references in `dashboard/app.js` resolve to one of the 37 unique IDs declared in the HTML; no missing static ID references were detected.
+- No inline HTML event-handler attributes were detected in the dashboard HTML.
+- The dashboard stylesheet contains responsive breakpoints at 1100px, 760px, 480px, and 360px, plus `prefers-reduced-motion` and `:focus-visible` rules.
+- The inspected app source uses request cancellation via AbortController, has bounded request timeouts, uses `textContent` for toast messages, and the only direct `innerHTML` assignment found in `app.js` clears the scan-summary container rather than interpolating remote response text.
+- No `eval`, `new Function`, or localStorage use was detected in `dashboard/app.js`.
+
+These are source-level observations only. They do not prove responsive layout correctness, focus order, screen-reader behavior, actual API behavior, performance, or memory stability. The next QA tasks remain blocked on a working execution environment: (1) owner resolves the Actions budget restriction, then obtain real CI runner/step/log evidence; and (2) provision an explicitly separate feature-branch QA preview before browser tests. Existing Render services must not be repointed or used for this purpose.
