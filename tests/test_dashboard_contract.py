@@ -109,7 +109,7 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn("sidebar.inert=mobile&&!open", self.js)
         self.assertIn('setSidebarOpen(false);', self.js)
         self.assertIn('window.addEventListener("resize"', self.js)
-        self.assertIn('event.key==="Escape"&&$("sidebar").classList.contains("open")', self.js)
+        self.assertIn('if(event.key==="Escape"){event.preventDefault();setSidebarOpen(false);return;}', self.js)
 
     def test_quality_and_backend_inputs_have_explicit_validation(self) -> None:
         self.assertIn('required maxlength="40" pattern="[A-Za-z0-9]{1,40}"', self.html)
@@ -196,7 +196,7 @@ class DashboardContractTests(unittest.TestCase):
 
     def test_stochastic_rsi_uses_linear_rolling_extrema_and_smoothing(self) -> None:
         stoch_body = self.chart_js.split("function stochRsiSeries(", 1)[1].split("\\nfunction drawLinePanel", 1)[0]
-        self.assertIn("const minDeque=[],maxDeque=[]", stoch_body)
+        self.assertIn("const rsi=rsiSeries(values,rsiPeriod),minDeque=[],maxDeque=[]", stoch_body)
         self.assertIn("minDeque[minHead]<=i-stochPeriod", stoch_body)
         self.assertIn("maxDeque[maxHead]<=i-stochPeriod", stoch_body)
         self.assertIn("kSum+=raw[i]", stoch_body)
@@ -415,7 +415,8 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn('typeof value!=="number" && typeof value!=="string"', self.js)
         self.assertIn('typeof value==="string" && value.trim()===""', self.js)
         self.assertIn('Number.isSafeInteger(parsed)&&parsed>=0', self.js)
-        self.assertNotIn('Number.isFinite(Number(value))', self.js)
+        count_body = self.js.split("function extractCount", 1)[1].split("function metadataText", 1)[0]
+        self.assertNotIn("Number.isFinite", count_body)
 
 
     def test_scanner_display_metadata_accepts_only_safe_primitives(self) -> None:
@@ -435,17 +436,17 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn('setText("scan-state","Refreshing · previous results retained")', scan_body)
         self.assertIn('setText("scan-state","Refresh failed · previous results retained")', scan_body)
         self.assertIn('setText("scan-state","Invalid response · previous results retained")', scan_body)
-        self.assertLess(scan_body.index('setText("scan-state","Refreshing · previous results retained")'), scan_body.index("await api(path)"))
+        self.assertLess(scan_body.index('setText("scan-state","Refreshing · previous results retained")'), scan_body.index("await api(path,{signal:controller.signal})"))
         self.assertLess(scan_body.index("await api(path)"), scan_body.index("renderScanSummary(data)"))
 
     def test_scanner_market_is_validated_before_request_state_changes(self) -> None:
         scan_body = self.js.split("async function scanMarket(market) {", 1)[1].split("function renderScannerMeta", 1)[0]
         validation = 'if(!["SPOT","USD_M","COIN_M"].includes(market))throw new Error("Unsupported scanner market selection.")'
         self.assertIn(validation, scan_body)
-        self.assertLess(scan_body.index(validation), scan_body.index("const requestSequence=++activeScanSequence"))
+        self.assertLess(scan_body.index(validation), scan_body.index("invalidateScanRequests()"))
 
     def test_scanner_rejects_invalid_top_level_payload_before_rendering(self) -> None:
-        validation = 'if(data===null||typeof data!=="object"||Array.isArray(data))throw new Error("Scanner endpoint returned an invalid response shape.'
+        validation = 'if(data===null||typeof data!=="object"||Array.isArray(data)){setText("scan-state","Invalid response · previous results retained");throw new Error("Scanner endpoint returned an invalid response shape.'
         scan_body = self.js.split("async function scanMarket(market) {", 1)[1].split("function renderScannerMeta", 1)[0]
         self.assertIn(validation, scan_body)
         self.assertIn("previous results were preserved.", scan_body)
@@ -597,7 +598,7 @@ class DashboardContractTests(unittest.TestCase):
     def test_health_refresh_exposes_retained_previous_status(self) -> None:
         health_body = self.js.split("async function loadHealth() {", 1)[1].split("function invalidateScanRequests()", 1)[0]
         self.assertIn('setText("health-status","Checking backend health · previous status retained")', health_body)
-        self.assertLess(health_body.index('setText("health-status","Checking backend health · previous status retained")'), health_body.index('await api("/health")'))
+        self.assertLess(health_body.index('setText("health-status","Checking backend health · previous status retained")'), health_body.index('await api("/health",{signal:controller.signal})'))
         self.assertIn('setText("health-status","Unavailable")', health_body)
 
     def test_quality_refresh_and_spot_quote_change_explain_retained_results(self) -> None:
@@ -677,7 +678,7 @@ class DashboardContractTests(unittest.TestCase):
 
     def test_market_evidence_refresh_preserves_previous_payload_until_success(self) -> None:
         evidence_body = self.js.split("async function loadMarketEvidence() {", 1)[1].split("async function loadTechnical()", 1)[0]
-        self.assertIn('setText("chart-state","Loading market evidence · previous evidence retained")', evidence_body)
+        self.assertIn('setText("chart-state","Loading market evidence · previous chart and evidence retained")', evidence_body)
         self.assertIn('window.DashboardCharts.invalidate();', evidence_body)
         self.assertNotIn('invalidateChartView("Market evidence endpoint does not provide candle chart data.")', evidence_body)
         self.assertLess(evidence_body.index("await api(path)"), evidence_body.index('showJson("analysis-output",data)'))
@@ -727,8 +728,8 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn('setText("overview-updated",scanTimestamp(data))', self.js)
         self.assertIn('$("display-timezone").addEventListener("change"', self.js)
         refresh_body = self.js.split("function refreshDisplayedTimestamps()", 1)[1].split("function connectSettings()", 1)[0]
-        self.assertIn("renderScanSummary(state.lastScan)", refresh_body)
-        self.assertIn("renderScannerMeta(cached.market,cached.data,cached.rows,cached.rejectedRows,cached.rowKey,cached.additionalRowKeys)", refresh_body)
+        self.assertIn("renderScanSummary(cached?.data??state.lastScan,cached?.market??state.market)", refresh_body)
+        self.assertIn("renderScannerMeta(cached.market,cached.data,cached.rows,cached.rejectedRows,cached.rowKey,cached.additionalRowKeys,cached.quoteFilter)", refresh_body)
 
     def test_display_preferences_initialize_dashboard_market_and_timeframe(self) -> None:
         prefs = self.js.split("function applyDisplayPreferences()", 1)[1].split("function invalidateQualityRequest()", 1)[0]
@@ -830,13 +831,13 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn('return{status:"INCOMPLETE_RESPONSE",market}', incomplete)
         self.assertNotIn("renderRows(", incomplete)
         self.assertNotIn("renderScannerMeta(", incomplete)
-        self.assertLess(scanner.index("if(rowKey===undefined)"), scanner.index("renderScanSummary(data)"))
+        self.assertLess(scanner.index("if(rowKey===undefined)"), scanner.index("renderScanSummary(data,market)"))
 
     def test_scanner_rejects_all_malformed_rows_without_replacing_previous_results(self) -> None:
         scanner = self.js.split("async function scanMarket(market)", 1)[1].split("function scannerCountAliasConflicts", 1)[0]
         malformed = scanner.split("if(responseRows.length>0&&rows.length===0)", 1)[1].split("renderScanSummary(data)", 1)[0]
         self.assertIn("previous results and coverage were preserved", malformed)
-        self.assertLess(scanner.index("if(responseRows.length>0&&rows.length===0)"), scanner.index("renderScanSummary(data)"))
+        self.assertLess(scanner.index("if(responseRows.length>0&&rows.length===0)"), scanner.index("renderScanSummary(data,market)"))
         self.assertIn('Requested quote filter:', self.js.split("function renderScannerMeta", 1)[1].split("const details=", 1)[1].split("];", 1)[0])
 
     def test_scanner_market_and_quote_filter_provenance_survive_timezone_refresh(self) -> None:
