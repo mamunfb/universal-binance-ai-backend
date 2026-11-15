@@ -810,7 +810,7 @@ class DashboardContractTests(unittest.TestCase):
 
     def test_scanner_invalid_numeric_values_remain_after_numeric_values_in_both_sort_directions(self) -> None:
         scanner = self.js.split("function renderRows(target, rows, columns)", 1)[1].split("function syncAnalysisHeader()", 1)[0]
-        comparator = scanner.split("sortable.sort((a,b)=>", 1)[1].split(";filteredCount=filtered.length", 1)[0]
+        comparator = scanner.split("sortable.sort((a,b)=>", 1)[1].split(";filteredCount=sortable.length", 1)[0]
         self.assertIn("if(a.missing!==b.missing)return a.missing?1:-1", comparator)
         self.assertIn("if((a.numeric!==null)!==(b.numeric!==null))return a.numeric!==null?-1:1", comparator)
         self.assertLess(comparator.index("if((a.numeric!==null)!==(b.numeric!==null))"), comparator.index("return cmp===0?0:cmp*view.direction"))
@@ -853,6 +853,20 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn("rowFragment.append(tr)", rows)
         self.assertIn("body.append(rowFragment)", rows)
         self.assertNotIn("body.append(tr)", rows)
+
+
+    def test_scanner_search_and_sort_use_one_filtered_entry_array(self) -> None:
+        rows = self.js.split("function renderRows(target, rows, columns)", 1)[1].split("function syncAnalysisHeader()", 1)[0]
+        self.assertIn("view.rows=incomingRows", rows)
+        self.assertNotIn("incomingRows.slice()", rows)
+        self.assertIn("for(const item of view.rows)", rows)
+        self.assertIn("if(view.query&&!keys.some", rows)
+        self.assertIn("sortable.push({item,value,numeric:", rows)
+        self.assertIn("filteredCount=sortable.length;sortedEntries=sortable", rows)
+        self.assertIn("sortedEntries.slice(view.page*view.pageSize", rows)
+        self.assertIn("const item=entry.item", rows)
+        self.assertNotIn("view.rows.filter(", rows)
+        self.assertNotIn("sortable.map(entry=>entry.item)", rows)
 
 if __name__ == "__main__":
     unittest.main()
