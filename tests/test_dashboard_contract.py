@@ -285,9 +285,10 @@ class DashboardContractTests(unittest.TestCase):
 
     def test_scanner_rejects_invalid_top_level_payload_before_rendering(self) -> None:
         validation = 'if(data===null||typeof data!=="object"||Array.isArray(data))throw new Error("Scanner endpoint returned an invalid response shape.'
-        self.assertIn(validation, self.js)
-        self.assertIn("previous results were preserved.", self.js)
-        self.assertLess(self.js.index(validation), self.js.index("renderScanSummary(data)"))
+        scan_body = self.js.split("async function scanMarket(market) {", 1)[1].split("function renderScannerMeta", 1)[0]
+        self.assertIn(validation, scan_body)
+        self.assertIn("previous results were preserved.", scan_body)
+        self.assertLess(scan_body.index(validation), scan_body.index("renderScanSummary(data)"))
 
     def test_scanner_rejects_non_object_response_rows_and_reports_count(self) -> None:
         self.assertIn('const responseRows=safeArray(data,["symbols","markets","results","data"])', self.js)
