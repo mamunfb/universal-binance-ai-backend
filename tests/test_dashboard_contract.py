@@ -280,7 +280,7 @@ class DashboardContractTests(unittest.TestCase):
     def test_scanner_count_metadata_accepts_only_nonnegative_numeric_primitives(self) -> None:
         self.assertIn('typeof value!=="number" && typeof value!=="string"', self.js)
         self.assertIn('typeof value==="string" && value.trim()===""', self.js)
-        self.assertIn('Number.isFinite(parsed)&&parsed>=0', self.js)
+        self.assertIn('Number.isSafeInteger(parsed)&&parsed>=0', self.js)
         self.assertNotIn('Number.isFinite(Number(value))', self.js)
 
     def test_scanner_rejects_non_object_response_rows_and_reports_count(self) -> None:
