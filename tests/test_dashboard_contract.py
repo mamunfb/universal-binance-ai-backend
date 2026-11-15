@@ -166,6 +166,8 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn("if(requestSequence!==activeScanSequence)return{status:\"SUPERSEDED\",market}", self.js)
         self.assertIn("const numericValue=v=>", self.js)
         self.assertIn("if(am!==bm)return am?1:-1", self.js)
+        self.assertIn("else if((an!==null)!==(bn!==null))cmp=an!==null?-1:1", self.js)
+        self.assertIn('String(a?.symbol??"").localeCompare(String(b?.symbol??""),undefined,{numeric:true,sensitivity:"base"})', self.js)
         self.assertIn('th.addEventListener("keydown",event=>{if(event.key==="Enter"||event.key===" ")', self.js)
         self.assertIn('th.setAttribute("aria-label","Sort by "+keys[index])', self.js)
         self.assertIn('info.setAttribute("aria-live","polite")', self.js)
