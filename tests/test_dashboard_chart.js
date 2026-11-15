@@ -83,9 +83,11 @@ test("3h aggregation scales across many complete buckets and discards a missing-
 });
 
 test("3h aggregation combines exactly three UTC-aligned consecutive hourly candles", () => {
-  const rows = [candle(0, 101, {open:100, high:103, low:99, volume:2}),
+  const rows = charts.parse([
+    candle(0, 101, {open:100, high:103, low:99, volume:2}),
     candle(3600000, 102, {open:101, high:104, low:100, volume:3}),
-    candle(7200000, 103, {open:102, high:105, low:101, volume:4})];
+    candle(7200000, 103, {open:102, high:105, low:101, volume:4})
+  ]);
   const result = charts.aggregate3h(rows);
   assert.equal(result.length, 1);
   assert.deepEqual(result[0], {time:0,open:100,high:105,low:99,close:103,volume:9,closeTime:10799999});
@@ -499,14 +501,14 @@ test("Bollinger and MACD series retain candle alignment and restart after gaps",
   const bands = charts.bollingerSeries(values,20,2);
   assert.equal(bands.middle[50],null);
   assert.equal(bands.middle[68],null);
-  assert.ok(Number.isFinite(bands.middle[69]));
+  assert.ok(Number.isFinite(bands.middle[70]));
 
   const macd = charts.macdComponents(values);
   assert.equal(macd.line[50],null);
   assert.equal(macd.signal[50],null);
-  assert.ok(Number.isFinite(macd.line[75]));
-  assert.equal(macd.signal[75],null);
-  assert.ok(Number.isFinite(macd.signal[83]));
+  assert.ok(Number.isFinite(macd.line[76]));
+  assert.equal(macd.signal[76],null);
+  assert.ok(Number.isFinite(macd.signal[84]));
   assert.equal(macd.histogram.length,values.length);
   assert.ok(macd.histogram.every(value=>value===null||Number.isFinite(value)));
 });
@@ -515,7 +517,7 @@ test("volume bars scale tiny positive volumes correctly and keep all-zero volume
   const makeElement = tag => ({
     tagName:tag,attributes:{},children:[],style:{},textContent:"",
     setAttribute(key,value){this.attributes[key]=String(value);},
-    append(...nodes){this.children.push(...nodes);},
+    append(...nodes){this.children.push(...nodes.flatMap(node=>node?.tagName==="fragment"?node.children:[node]));},
     replaceChildren(...nodes){this.children=[...nodes];}
   });
   const host = makeElement("host");
@@ -524,7 +526,8 @@ test("volume bars scale tiny positive volumes correctly and keep all-zero volume
   global.document = {
     getElementById(id){return nodes[id];},
     createElement(tag){return makeElement(tag);},
-    createElementNS(_ns,tag){return makeElement(tag);}
+    createElementNS(_ns,tag){return makeElement(tag);},
+    createDocumentFragment(){return makeElement("fragment");}
   };
   const rows = Array.from({length:80}, (_,i) => {
     const close=100+i*0.1, volume=i===0?1e-300:i===1?5e-300:0;
