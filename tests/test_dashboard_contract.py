@@ -229,7 +229,7 @@ class DashboardContractTests(unittest.TestCase):
 
     def test_scanner_new_dataset_resets_pagination_and_keeps_missing_values_last(self) -> None:
         self.assertIn("if(incomingRows!==view.rows){view.rows=incomingRows.slice();view.page=0;view.sortedCache=null;}", self.js)
-        missing_guard = self.js.split("sortable.sort((a,b)=>", 1)[1].split(";const sortedRows", 1)[0]
+        missing_guard = self.js.split("sortable.sort((a,b)=>", 1)[1].split(";filteredCount=filtered.length", 1)[0]
         self.assertIn("if(a.missing!==b.missing)return a.missing?1:-1", missing_guard)
         self.assertIn("cmp*view.direction", missing_guard)
 
