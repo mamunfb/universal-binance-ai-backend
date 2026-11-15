@@ -921,3 +921,14 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - The contract file remains at 110 test methods. A source-level cross-check now finds no remaining direct `assertIn(..., self.js/self.html/self.chart_js/self.css)` literals that are absent from the corresponding current source files. This is static consistency checking only; it does not execute the Python suite or prove runtime behavior.
 - The latest workflow run for commit `8e93863a9af8d279c968c1ad456e623bdf939e73` again failed before runner steps were recorded. The latest job returned an empty step list, so Node/Python checks remain unexecuted.
 - Frontend tests and documentation only. Backend source, PR state, merge, deployment, and production configuration remain untouched.
+
+
+## First actual CI execution — Run #1710 Attempt 2
+
+- After the repository was made Public, the failed job from Run #1710 was re-run. GitHub allocated a hosted runner; checkout, Python 3.12, Node.js 22, toolchain verification, dependency installation, dashboard HTML/script-reference validation, and JavaScript syntax checks all completed successfully.
+- The Python suite executed and reported **31 failed, 609 passed, 2 warnings**. This is an actual test result, not a runner-start failure.
+- The failures group into 10 brittle dashboard contract assertions that no longer match current source structure, 20 legacy quality-markup assertions that target the previous inline/camelCase dashboard rather than the current split SPA, and one news-intelligence test whose fixed 2026-11-10 RSS timestamp falls outside the service's default 72-hour freshness window at the 2026-11-15 CI run time.
+- The production freshness filter must not be relaxed to satisfy a stale fixture. Make the test fixture deterministic, modernize source-contract assertions against actual behavior, and explicitly decide whether Data Reliability's detailed metrics require structured rendering instead of generic JSON output.
+- The suite remains **FAIL** until reviewed corrections are made and a subsequent run proves the fixes. No code/test changes are implied by this status note alone.
+
+Run: https://github.com/mamunfb/universal-binance-ai-backend/actions/runs/43706451197 (Attempt 2, job ID `132807793811`, commit `7c0eed163fcc53ec622c0ecc7657eb7969cf127c`).
