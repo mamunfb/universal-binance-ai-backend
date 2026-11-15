@@ -913,3 +913,11 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Because no runner started and no steps were recorded, neither the Node syntax checks, Node chart fixtures, nor Python contract tests executed. This is an infrastructure/runner-start failure signal; it does not establish that the test code passed or failed.
 - Added `workflow_dispatch` so the dashboard workflow can also be started manually, and included this status ledger in both push and pull-request path filters.
 - CI remains unverified until GitHub allocates a runner and records the test steps. No backend or deployment configuration was changed; no PR was created, merged, or deployed.
+
+## Dashboard contract audit — stale expectations refreshed
+
+- A further source-to-test review found additional static assertions that still described superseded dashboard implementations, including the former scanner row-copy/sort structure, previous mobile navigation focus handling, earlier metadata fallbacks, and an older scanner response-shape flow.
+- Updated the affected contract checks to assert the current implementation: row-reference sorting and cache invalidation, bounded metadata formatting, mobile focus restoration, current scanner result-array validation, chart request sequencing, and the actual CSS selector structure.
+- The contract file remains at 110 test methods. A source-level cross-check now finds no remaining direct `assertIn(..., self.js/self.html/self.chart_js/self.css)` literals that are absent from the corresponding current source files. This is static consistency checking only; it does not execute the Python suite or prove runtime behavior.
+- The latest workflow run for commit `8e93863a9af8d279c968c1ad456e623bdf939e73` again failed before runner steps were recorded. The latest job returned an empty step list, so Node/Python checks remain unexecuted.
+- Frontend tests and documentation only. Backend source, PR state, merge, deployment, and production configuration remain untouched.
