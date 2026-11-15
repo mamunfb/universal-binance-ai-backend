@@ -536,3 +536,10 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - A successful HTTP response is no longer treated as a healthy backend unless `/health` returns a non-null JSON object; arrays and scalar JSON values are rejected and reported as unavailable.
 - Data Quality accepts only a non-null JSON object. A successful HTTP response containing an array or scalar is reported as invalid, and the previously displayed report is preserved.
 - Added static contract tests verifying validation occurs before health state is marked successful or quality output is replaced. Runtime tests and browser QA have not been run.
+
+
+## Candle response and timestamp validation
+
+- Chart loading now rejects successful API payloads unless the top-level response is a non-null JSON object and `klines` is an array. Invalid payloads produce a clear error before the chart renderer can replace the previous chart.
+- Candle parsing now requires safe-integer timestamps within the JavaScript Date range for both open and close times. This prevents out-of-range timestamps from reaching `toISOString()` and breaking an otherwise successful chart render.
+- Added Node regression cases for invalid response shapes, missing `klines`, unsafe integers and out-of-range timestamps. These tests were added but have not been executed in this environment.
