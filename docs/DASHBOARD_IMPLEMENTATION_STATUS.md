@@ -452,3 +452,10 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Status text is capped at 80 characters, source text at 120 characters and timestamp text at 80 characters; longer values are visibly truncated with an ellipsis. This prevents unexpectedly large metadata strings from overwhelming compact summary and coverage areas.
 - Numeric metadata remains limited to finite numbers, and invalid types continue to use the configured fallback. Raw API payloads remain available in the existing response inspection paths where applicable.
 - Added static contract assertions for truncation behavior and field-specific limits. GitHub source readback is the verification performed; runtime tests and browser QA remain unexecuted.
+
+## Health, quality and market-evidence metadata hardening
+
+- Health status and Data Quality report status now use the shared primitive-only metadata formatter with an 80-character display limit. Backend objects, arrays, booleans, blank strings and non-finite numbers no longer become misleading generic text in these compact status labels.
+- Market-evidence summaries now use the same safe formatter with a 120-character limit and fall back to a safely formatted status value before the static explanatory message.
+- Raw health, quality and evidence payloads remain available in their existing response/state inspection paths; this change only constrains compact UI labels.
+- Added Python static contract assertions for the three display paths. GitHub source readback is the verification performed; Python/Node runtime suites and browser QA have not been run.
