@@ -719,3 +719,10 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Credential replacement and credential clearing now use the shared analysis cancellation helper, so pending chart and market-evidence requests are actively aborted in addition to being invalidated by sequence guards. Added a static contract for both flows.
 - Tests and browser/screen-reader QA have not been executed.
 
+## Mobile navigation and input validation hardening
+
+- Closed mobile navigation is now marked `inert`, preventing hidden sidebar links from receiving keyboard focus. Opening the mobile menu removes inertness and focuses the first navigation link; closing with Escape or selecting a page restores focus to the menu control before hiding the sidebar. Resizing to desktop clears the mobile-open state and restores normal sidebar interaction.
+- Data-quality symbol input now requires 1–40 alphanumeric characters, and lookback hours must be an integer from 1 to 2160. Invalid values set a field-specific custom validity message and report it before a request is sent.
+- Backend URL input is required and validated as an absolute URL. Remote backends must use HTTPS; HTTP is limited to localhost and 127.0.0.1. Embedded credentials, query parameters and fragments remain rejected.
+- Added static source-contract checks for inert sidebar behavior, resize/Escape handling and the validation rules. Runtime tests and browser/mobile QA have not been executed.
+
