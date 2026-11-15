@@ -414,3 +414,10 @@ if __name__ == "__main__":
 
     def test_market_evidence_summary_metadata_is_bounded_and_type_safe(self) -> None:
         self.assertIn('metadataText(data.summary,metadataText(data.status,"Market evidence returned. Inspect evidence payload.",120),120)', self.js)
+
+    def test_scanner_count_alias_conflicts_are_reported_without_merging(self) -> None:
+        self.assertIn("function scannerCountAliasConflicts(data,countNames)", self.js)
+        self.assertIn('const distinct=new Set(supplied.map(entry=>entry.value))', self.js)
+        self.assertIn('distinct.size>1?[label+": "+supplied.map', self.js)
+        self.assertIn('"Count alias conflicts: "+(scannerCountAliasConflicts(data,countNames).join("; ")||"None detected")', self.js)
+        self.assertIn('extractCount(data,countNames.eligible)', self.js)
