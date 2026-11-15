@@ -33,7 +33,7 @@ function macd(a){
 function indicators(c){
  if(!Array.isArray(c)||!c.length)return{candle_count:0,method:"Insufficient candle data"};
  const close=c.map(x=>x.close),last=c[c.length-1],m=sma(close,20),sd=m===null?null:Math.sqrt(close.slice(-20).reduce((s,x)=>s+(x-m)**2,0)/20);
- const vol=c.reduce((s,x)=>s+x.volume,0),vwap=vol?c.reduce((s,x)=>s+((x.high+x.low+x.close)/3)*x.volume,0)/vol:null;
+ const maxVolume=Math.max(...c.map(x=>x.volume)),vwap=maxVolume>0?c.reduce((state,x)=>{const weight=x.volume/maxVolume;if(!weight)return state;const price=x.high/3+x.low/3+x.close/3,total=state.weight+weight;return{weight:total,value:state.weight?state.value*(state.weight/total)+price*(weight/total):price};},{weight:0,value:0}).value:null;
  return{last_close:last.close,ema_20:ema(close,20),ema_50:ema(close,50),ema_200:ema(close,200),sma_20:m,rsi_14_wilder:rsi(close),macd_12_26:macd(close),bollinger_20_2:m!==null&&sd!==null?{upper:m+2*sd,middle:m,lower:m-2*sd}:null,atr_14_wilder:atrWilder(c),vwap,candle_count:c.length,method:"Client-side descriptive OHLCV calculations; not a validated trading signal"};
 }
 function intervalFor(tf){return tf==="3h"?"1h":({"1D":"1d","3D":"3d","1W":"1w"}[tf]||tf);}
