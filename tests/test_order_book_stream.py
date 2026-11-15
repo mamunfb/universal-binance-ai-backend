@@ -1,3 +1,4 @@
+import asyncio
 import json
 import sqlite3
 
@@ -68,3 +69,41 @@ def test_sample_calculates_spread_and_depth(tmp_path):
     assert row["best_ask"] == 101.0
     assert row["spread_bps"] > 0
     assert row["depth_imbalance"] < 0  # Ask-side price-weighted notional exceeds bid-side notional.
+
+
+@pytest.mark.asyncio
+async def test_reader_shutdown_signal_is_not_lost_when_queue_is_full(tmp_path):
+    collector = OrderBookStreamCollector(
+        OrderBookHistoryStore(str(tmp_path / "book.sqlite3")),
+        lambda: None,
+        lambda market: None,
+    )
+    queue = asyncio.Queue(maxsize=1)
+
+    class ClosingSocket:
+        def __aiter__(self):
+            self.sent = False
+            return self
+
+        async def __anext__(self):
+            if self.sent:
+                raise StopAsyncIteration
+            self.sent = True
+            return json.dumps({"u": 101, "U": 101})
+
+    await collector._reader(ClosingSocket(), queue)
+
+    # The buffered delta may be sacrificed to guarantee shutdown notification.
+    # The consumer then reconnects and validates a fresh snapshot sequence.
+    assert queue.qsize() == 1
+    assert await queue.get() is None
+
+
+def test_reader_shutdown_signal_preserves_existing_items_when_queue_has_space():
+    queue = asyncio.Queue(maxsize=2)
+    queue.put_nowait({"u": 101})
+
+    OrderBookStreamCollector._signal_reader_closed(queue)
+
+    assert queue.get_nowait() == {"u": 101}
+    assert queue.get_nowait() is None
