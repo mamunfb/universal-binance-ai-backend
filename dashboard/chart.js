@@ -13,7 +13,7 @@ function parse(rows){
 }
 function aggregate3h(rows){
  const map=new Map();rows.forEach(c=>{const start=Math.floor(c.time/10800000)*10800000;if(!map.has(start))map.set(start,[]);map.get(start).push(c);});
- return [...map.entries()].sort((a,b)=>a[0]-b[0]).flatMap(([start,a])=>{a.sort((x,y)=>x.time-y.time);if(a.length!==3||a[0].time!==start||a[1].time!==start+3600000||a[2].time!==start+7200000||a.some(x=>x.closeTime!==x.time+3599999))return[];return[{time:start,open:a[0].open,high:Math.max(...a.map(x=>x.high)),low:Math.min(...a.map(x=>x.low)),close:a[2].close,volume:a.reduce((s,x)=>s+x.volume,0),closeTime:a[2].closeTime}];});
+ return [...map.entries()].sort((a,b)=>a[0]-b[0]).flatMap(([start,a])=>{a.sort((x,y)=>x.time-y.time);if(a.length!==3||a[0].time!==start||a[1].time!==start+3600000||a[2].time!==start+7200000||a.some(x=>x.closeTime!==x.time+3599999))return[];const volume=a.reduce((sum,x)=>sum+x.volume,0);if(!Number.isFinite(volume))return[];return[{time:start,open:a[0].open,high:Math.max(...a.map(x=>x.high)),low:Math.min(...a.map(x=>x.low)),close:a[2].close,volume,closeTime:a[2].closeTime}];});
 }
 function ema(a,n){if(a.length<n)return null;const k=2/(n+1);let v=a.slice(0,n).reduce((s,x)=>s+x,0)/n;for(let i=n;i<a.length;i++)v=a[i]*k+v*(1-k);return v;}
 function sma(a,n){return a.length<n?null:a.slice(-n).reduce((s,x)=>s+x,0)/n;}
