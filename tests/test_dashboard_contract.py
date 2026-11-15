@@ -286,5 +286,23 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn('"Returned rows: "+rows.length', self.js)
 
 
+    def test_scanner_search_resets_page_and_cache_tracks_query(self) -> None:
+        self.assertIn('view.query=e.target.value.trim().toUpperCase();view.page=0;renderRows(target,view.rows,columns)', self.js)
+        self.assertIn('cached.query===view.query', self.js)
+        self.assertIn('view.sortedCache={rows:view.rows,query:view.query', self.js)
+
+    def test_api_requests_do_not_send_browser_credentials_or_cache_responses(self) -> None:
+        self.assertIn('credentials:"omit"', self.js)
+        self.assertIn('cache:"no-store"', self.js)
+        self.assertIn('body:hasBody?JSON.stringify(body):undefined', self.js)
+        self.assertIn('const hasBody=body!==undefined', self.js)
+
+    def test_chart_requests_ignore_superseded_responses_and_failures(self) -> None:
+        self.assertIn('let activeLoadSequence=0', self.chart_js)
+        self.assertIn('function invalidate(){activeLoadSequence++;}', self.chart_js)
+        self.assertIn('if(requestSequence!==activeLoadSequence)return{status:"SUPERSEDED"', self.chart_js)
+        self.assertIn('catch(error){if(requestSequence!==activeLoadSequence)return{status:"SUPERSEDED"', self.chart_js)
+
+
 if __name__ == "__main__":
     unittest.main()
