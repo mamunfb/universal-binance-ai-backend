@@ -135,7 +135,7 @@ test("API HTTP 503 and malformed JSON failures are visible and do not crash the 
     body: "<html>not json</html>"
   }));
   await page.locator("#test-connection").click();
-  await page.getByText("non-JSON response", {exact: false}).waitFor();
+  await page.locator(".toast.error").filter({hasText: "non-JSON response"}).waitFor();
   assert.deepEqual(pageErrors, []);
   await context.close();
 });
