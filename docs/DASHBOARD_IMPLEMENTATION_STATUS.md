@@ -732,3 +732,9 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - The mobile sidebar now synchronizes its `inert` state on every viewport resize, not only when resizing to desktop. This prevents off-canvas navigation links from remaining keyboard-focusable after switching from desktop to a narrow viewport.
 - The menu control now announces “Open navigation” or “Close navigation” in step with its expanded state. Resizing closes the mobile drawer and restores the closed-state semantics.
 - Added a source-contract test for resize synchronization, sidebar inertness and the changing accessible label. Tests and browser/device accessibility checks have not been executed.
+
+## Backend URL validation feedback
+
+- Invalid or missing backend base URLs now set a field-level custom validity message and call the browser validity reporter before the connection attempt is rejected. This makes HTTPS, absolute-URL, host and prohibited URL-component errors discoverable at the input rather than only through a transient toast.
+- Editing the URL clears the stale custom validity state; clearing credentials also resets the URL field validity.
+- Added a source-contract assertion for validation feedback, input reset and credential-clear reset. Runtime tests and browser validation UX have not been executed.
