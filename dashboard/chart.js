@@ -69,7 +69,7 @@ function bollingerSeries(values,n=20,multiplier=2){
  return{upper,middle,lower};
 }
 function adxSeries(c,n=14){
- const out=Array(c.length).fill(null);if(c.length<2*n+1)return out;
+ const out=Array(c.length).fill(null);if(c.length<2*n)return out;
  const tr=[],plus=[],minus=[];
  for(let i=1;i<c.length;i++){const cur=c[i],prev=c[i-1],up=cur.high-prev.high,down=prev.low-cur.low;
   tr.push(Math.max(cur.high-cur.low,Math.abs(cur.high-prev.close),Math.abs(cur.low-prev.close)));
