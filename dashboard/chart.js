@@ -6,7 +6,7 @@ const number=v=>v!==null&&v!==undefined&&v!==""&&!(typeof v==="string"&&v.trim()
 function parse(rows){
  if(!Array.isArray(rows))return[];
  const parsed=rows.filter(r=>Array.isArray(r)&&r.length>=7).map(r=>({time:number(r[0]),open:number(r[1]),high:number(r[2]),low:number(r[3]),close:number(r[4]),volume:number(r[5]),closeTime:number(r[6])}))
-  .filter(c=>Object.values(c).every(Number.isFinite)&&Number.isInteger(c.time)&&Number.isInteger(c.closeTime)&&c.time>=0&&c.closeTime>=c.time&&c.open>0&&c.high>0&&c.low>0&&c.close>0&&c.volume>=0&&c.high>=Math.max(c.open,c.close,c.low)&&c.low<=Math.min(c.open,c.close,c.high))
+  .filter(c=>Object.values(c).every(Number.isFinite)&&Number.isSafeInteger(c.time)&&Number.isSafeInteger(c.closeTime)&&c.time>=0&&c.closeTime>=c.time&&c.time<=8640000000000000&&c.closeTime<=8640000000000000&&c.open>0&&c.high>0&&c.low>0&&c.close>0&&c.volume>=0&&c.high>=Math.max(c.open,c.close,c.low)&&c.low<=Math.min(c.open,c.close,c.high))
   .sort((a,b)=>a.time-b.time);
  const counts=new Map();for(const candle of parsed)counts.set(candle.time,(counts.get(candle.time)||0)+1);
  return parsed.filter(candle=>counts.get(candle.time)===1);
@@ -134,7 +134,9 @@ async function load(api,market,symbol,timeframe){
  const tf=timeframe,interval=intervalFor(tf),route=routeFor(market);if(!route)throw new Error("Unsupported market type: "+market);
  let response;try{response=await api(route+encodeURIComponent(symbol)+"?interval="+encodeURIComponent(interval)+"&limit=1000");}catch(error){if(requestSequence!==activeLoadSequence)return{status:"SUPERSEDED",market,symbol,requested_timeframe:tf};throw error;}
  if(requestSequence!==activeLoadSequence)return{status:"SUPERSEDED",market,symbol,requested_timeframe:tf};
- let candles=parse(response?.klines);if(tf==="3h")candles=aggregate3h(candles);if(!candles.length)throw new Error("Backend returned no valid complete candle rows.");
+ if(response===null||typeof response!=="object"||Array.isArray(response))throw new Error("Candle endpoint returned an invalid response shape. Expected a JSON object; previous chart was preserved.");
+ if(!Array.isArray(response.klines))throw new Error("Candle endpoint did not provide a klines array; previous chart was preserved.");
+ let candles=parse(response.klines);if(tf==="3h")candles=aggregate3h(candles);if(!candles.length)throw new Error("Backend returned no valid complete candle rows; previous chart was preserved.");
  const values=indicators(candles);render(candles);
  const result={status:response.status||"RESPONSE_RECEIVED",market,symbol,requested_timeframe:tf,source_interval:interval,aggregation:tf==="3h"?"UTC-aligned groups of exactly three consecutive 1h candles; incomplete groups discarded":"Exchange-native interval",source:response.source||"Configured backend",candle_count:candles.length,latest_candle_time_utc:new Date(candles[candles.length-1].time).toISOString(),indicators:values,warning:"Descriptive frontend calculations only; not a validated trade signal."};
  const summary=Object.entries(values).filter(([k,v])=>k!=="method"&&v!==null&&typeof v!=="object").map(([k,v])=>k.replaceAll("_"," ")+": "+(typeof v==="number"?new Intl.NumberFormat(undefined,{maximumFractionDigits:4}).format(v):String(v))).join(" · ");
