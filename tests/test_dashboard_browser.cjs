@@ -74,6 +74,8 @@ test("mobile sidebar opens, traps keyboard focus, closes with Escape and restore
   const {context, page} = await newPage(390);
   const menu = page.locator("#mobile-menu");
   const sidebar = page.locator("#sidebar");
+  assert.equal(await sidebar.evaluate(el => el.inert), true,
+    "closed mobile navigation must be removed from keyboard interaction");
   await menu.click();
   assert.equal(await menu.getAttribute("aria-expanded"), "true");
   assert.equal(await sidebar.evaluate(el => el.inert), false);
@@ -170,6 +172,18 @@ test("network failure, empty JSON success and invalid health shape are handled s
   await page.locator("#test-connection").click();
   await page.locator(".toast.error").filter({hasText: "invalid response shape"}).waitFor();
   assert.match(await page.locator("#health-status").innerText(), /unavailable/i);
+  assert.deepEqual(pageErrors, []);
+  await context.close();
+});
+
+test("document landmarks and reduced-motion preference are honored", async () => {
+  const {context, page, pageErrors} = await newPage(1280);
+  assert.equal(await page.locator("main").count(), 1);
+  assert.equal(await page.locator("header").count(), 1);
+  assert.equal(await page.locator("nav[aria-label]").count(), 1);
+  await page.emulateMedia({reducedMotion: "reduce"});
+  const transitionDuration = await page.locator("#sidebar").evaluate(el => getComputedStyle(el).transitionDuration);
+  assert.match(transitionDuration, /^(0s|0ms)$/);
   assert.deepEqual(pageErrors, []);
   await context.close();
 });
