@@ -403,6 +403,22 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn('assert.equal(aggregated.length, 1000)', self.chart_test_js)
         self.assertIn('assert.equal(gapAggregated.length, 999)', self.chart_test_js)
 
+    def test_backend_reconfiguration_resets_stale_connection_and_data_statuses(self) -> None:
+        connect_body = self.js.split("function connectSettings() {", 1)[1].split("function bind()", 1)[0]
+        self.assertIn('setText("health-status","Not checked · test the new connection")', connect_body)
+        self.assertIn('setConnection(false,"Connection settings changed · test connection")', connect_body)
+        self.assertIn('setText("scan-state","Connection settings changed · run a new scan")', connect_body)
+        self.assertIn('setText("quality-state","Connection settings changed · run a new quality check")', connect_body)
+        clear_body = self.js.split('$("clear-credentials").addEventListener', 1)[1].split('$("default-market")', 1)[0]
+        self.assertIn('setText("health-status","Not checked · backend credentials cleared")', clear_body)
+        self.assertIn('setText("quality-state","Backend credentials cleared · quality check unavailable")', clear_body)
+
+    def test_market_selection_invalidation_does_not_leave_scan_loading_state(self) -> None:
+        market_tabs = self.js.split('document.querySelectorAll(".market-tab").forEach', 1)[1].split('$("run-market-scan")', 1)[0]
+        default_market = self.js.split('$("default-market").addEventListener', 1)[1].split('$("default-timeframe")', 1)[0]
+        self.assertIn('setText("scan-state","Market selection changed · run a new scan")', market_tabs)
+        self.assertIn('setText("scan-state","Market selection changed · run a new scan")', default_market)
+
     def test_health_refresh_exposes_retained_previous_status(self) -> None:
         health_body = self.js.split("async function loadHealth() {", 1)[1].split("function invalidateScanRequests()", 1)[0]
         self.assertIn('setText("health-status","Checking backend health · previous status retained")', health_body)
