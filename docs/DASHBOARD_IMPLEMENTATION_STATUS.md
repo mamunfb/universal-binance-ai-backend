@@ -905,3 +905,11 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - The dashboard contract test file now contains 110 test methods. This is a method count, not a test execution result.
 - Added `.github/workflows/dashboard-frontend.yml`, isolated from backend runtime checks. It runs Node syntax checks for `dashboard/app.js` and `dashboard/chart.js`, the Node chart fixture suite, and the Python dashboard contract suite. It triggers on pushes to this dashboard branch and on pull requests targeting `main` when dashboard/test/workflow paths change.
 - Workflow execution is pending verification. No backend source, migrations, existing backend CI workflow, secrets, deployment settings, PR state, merge, or deployment were changed.
+
+
+## Dashboard CI execution follow-up
+
+- The first push-triggered Dashboard workflow run was created, but GitHub reported the job as failed before assigning a runner: the job had no execution steps and no runner ID. A single retry produced the same pre-runner failure.
+- Because no runner started and no steps were recorded, neither the Node syntax checks, Node chart fixtures, nor Python contract tests executed. This is an infrastructure/runner-start failure signal; it does not establish that the test code passed or failed.
+- Added `workflow_dispatch` so the dashboard workflow can also be started manually, and included this status ledger in both push and pull-request path filters.
+- CI remains unverified until GitHub allocates a runner and records the test steps. No backend or deployment configuration was changed; no PR was created, merged, or deployed.
