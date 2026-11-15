@@ -153,6 +153,8 @@ class DashboardContractTests(unittest.TestCase):
     def test_remote_backend_requires_https(self) -> None:
         self.assertIn("Use HTTPS for remote backends", self.js)
         self.assertIn("http://localhost", self.js)
+        self.assertIn("let parsed;try{parsed=new URL(url);}", self.js)
+        self.assertIn("parsed.username||parsed.password||parsed.search||parsed.hash", self.js)
 
     def test_market_scanners_support_sorting_and_bounded_pagination(self) -> None:
         self.assertIn("const tableViews = {}", self.js)
