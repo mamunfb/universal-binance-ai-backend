@@ -345,3 +345,17 @@ test("Bollinger bands leave unrepresentable extreme bounds unavailable instead o
   assert.equal(bands.lower[19],null);
 });
 
+test("ADX remains finite when directional-movement accumulators would overflow", () => {
+  const step = Number.MAX_VALUE * 0.005;
+  const range = Number.MAX_VALUE * 0.1;
+  const candles = Array.from({length:80}, (_,i) => {
+    const high = Number.MAX_VALUE * 0.5 + i * step;
+    const low = high - range;
+    const close = low + range / 2;
+    return {time:i*3600000,open:close,high,low,close,volume:1,closeTime:i*3600000+3599999};
+  });
+  const adx = charts.adxSeries(candles);
+  assert.ok(adx.slice(27).every(Number.isFinite));
+  assert.ok(adx.slice(27).every(value => Math.abs(value-100)<1e-10));
+});
+
