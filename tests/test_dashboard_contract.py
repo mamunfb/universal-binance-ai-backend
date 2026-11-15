@@ -884,7 +884,9 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn("view.rows=incomingRows", rows)
         self.assertNotIn("incomingRows.slice()", rows)
         self.assertIn("for(const item of view.rows)", rows)
-        self.assertIn("if(view.query&&!keys.some", rows)
+        self.assertIn("scannerSearchText(target,item,keys).includes(view.query)", rows)
+        self.assertIn("const scannerSearchTextCaches = {}", self.js)
+        self.assertIn("scannerSearchTextCaches[target]=new WeakMap()", rows)
         self.assertIn("sortedRows.push(item)", rows)
         self.assertIn("sortedRows.sort((a,b)=>", rows)
         self.assertIn("view.sortedCache={rows:view.rows,query:view.query,sortKey,direction,filteredCount,sortedRows}", rows)
@@ -892,6 +894,17 @@ class DashboardContractTests(unittest.TestCase):
         self.assertNotIn("sortable.push({item", rows)
         self.assertNotIn("sortedEntries", rows)
         self.assertNotIn("view.rows.filter(", rows)
+
+    def test_scanner_search_text_cache_is_invalidated_when_rows_change(self) -> None:
+        helper = self.js.split("function scannerSearchText(", 1)[1].split("function scannerCellText", 1)[0]
+        self.assertIn("new WeakMap()", helper)
+        self.assertIn("cache.has(item)", helper)
+        self.assertIn("cache.set(item,keys.map", helper)
+        rows = self.js.split("function renderRows(target, rows, columns)", 1)[1].split("function syncAnalysisHeader()", 1)[0]
+        invalidation = rows.split("if(incomingRows!==view.rows)", 1)[1].split("const cached=", 1)[0]
+        self.assertIn("view.sortedCache=null", invalidation)
+        self.assertIn("scannerSearchTextCaches[target]=new WeakMap()", invalidation)
+        self.assertIn("scannerSearchText(target,item,keys).includes(view.query)", rows)
 
     def test_scanner_search_rendering_is_debounced_and_cancelled_on_clear(self) -> None:
         self.assertIn("const scannerSearchTimers = {}", self.js)
