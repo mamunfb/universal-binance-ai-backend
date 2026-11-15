@@ -40,7 +40,7 @@
       const response=await fetch(state.base.replace(/\/$/,"")+path,{method,headers:{...apiHeaders(),...(hasBody?{"Content-Type":"application/json"}:{})},body:hasBody?JSON.stringify(body):undefined,signal:controller.signal,credentials:"omit",cache:"no-store"});
       const raw=await response.text(); let data=null; try{data=raw?JSON.parse(raw):null;}catch{throw new Error("Backend returned a non-JSON response (HTTP "+response.status+").");}
       if(response.ok&&data===null)throw new Error("Backend returned an empty JSON response (HTTP "+response.status+").");
-      if(!response.ok){const detail=data?.detail??data?.message;const safeDetail=typeof detail==="string"?detail.replace(/[\\u0000-\\u001f\\u007f]/g," ").replace(/\\s+/g," ").trim().slice(0,300):"";throw new Error(safeDetail||("Backend request failed (HTTP "+response.status+")."));}
+      if(!response.ok){const detail=data?.detail??data?.message;const safeDetail=typeof detail==="string"?detail.replace(/[\x00-\x1f\x7f]/g," ").replace(/\s+/g," ").trim().slice(0,300):"";throw new Error(safeDetail||("Backend request failed (HTTP "+response.status+")."));}
       return data;
     } catch(error) { if(error.name==="AbortError") throw new Error("Request timed out."); throw error; }
     finally { window.clearTimeout(timer); }
