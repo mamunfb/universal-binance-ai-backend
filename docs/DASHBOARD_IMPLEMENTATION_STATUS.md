@@ -160,3 +160,11 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 6. Finish page scaffolds with explicit Unavailable/Planned status where backend support is missing.
 7. Browser QA and accessibility/mobile checks.
 8. Create a reviewable frontend-only PR. Backend gap work remains a separate subsequent task.
+
+
+## Test-discovery correction
+
+- Code review found that two scanner coverage test methods had been placed after the module-level `unittest.main()` guard and therefore were not part of the test class during normal direct execution.
+- Moved both methods into `DashboardContractTests` before the main guard. GitHub readback confirms both methods now precede the guard.
+- This is a test-discovery/source correction only. The Python and Node test suites have still **not** been executed; no passing test result is claimed.
+- No backend, CI workflow, migration, secret, deployment, PR or merge action was performed.
