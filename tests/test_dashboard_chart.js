@@ -90,6 +90,28 @@ test("timeframe and market route mapping stays explicit", () => {
   assert.equal(charts.routeFor("UNKNOWN"), null);
 });
 
+test("EMA seeds with the initial SMA and applies the recursive smoothing factor", () => {
+  const result = charts.emaSeries([1,2,3,4,5],3);
+  assert.deepEqual(result.slice(0,2),[null,null]);
+  assert.deepEqual(result.slice(2),[2,3,4]);
+});
+
+test("Wilder RSI and ATR match hand-calculated gain-loss and true-range fixtures", () => {
+  const rsi = charts.rsiSeries([1,2,3,2,4],2);
+  assert.equal(rsi[2],100);
+  assert.equal(rsi[3],50);
+  assert.ok(Math.abs(rsi[4]-(100-100/(1+1.25/0.25)))<1e-12);
+  const candles = [
+    {time:0,open:10,high:11,low:9,close:10,volume:1,closeTime:3599999},
+    {time:3600000,open:10,high:12,low:10,close:11,volume:1,closeTime:7199999},
+    {time:7200000,open:11,high:15,low:11,close:14,volume:1,closeTime:10799999},
+    {time:10800000,open:14,high:20,low:14,close:19,volume:1,closeTime:14399999}
+  ];
+  const atr = charts.atrSeries(candles,2);
+  assert.equal(atr[2],3);
+  assert.equal(atr[3],4.5);
+});
+
 test("flat price RSI is neutral and ATR uses Wilder smoothing", () => {
   const flat = Array.from({length:16}, (_,i) => ({time:i*3600000,open:100,high:101,low:99,close:100,volume:1,closeTime:i*3600000+3599999}));
   const result = charts.indicators(flat);
