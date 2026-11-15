@@ -2,7 +2,7 @@
 "use strict";
 const ns="http://www.w3.org/2000/svg";
 let activeLoadSequence=0;
-const number=v=>v!==null&&v!==undefined&&v!==""&&!(typeof v==="string"&&v.trim()==="")&&typeof v!=="boolean"&&Number.isFinite(Number(v))?Number(v):null;
+const number=v=>{if(typeof v==="number")return Number.isFinite(v)?v:null;if(typeof v!=="string")return null;const text=v.trim();if(!/^[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?$/.test(text))return null;const parsed=Number(text);return Number.isFinite(parsed)?parsed:null;};
 function parse(rows){
  if(!Array.isArray(rows))return[];
  const parsed=rows.filter(r=>Array.isArray(r)&&r.length>=7).map(r=>({time:number(r[0]),open:number(r[1]),high:number(r[2]),low:number(r[3]),close:number(r[4]),volume:number(r[5]),closeTime:number(r[6])}))
