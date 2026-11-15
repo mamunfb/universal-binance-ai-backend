@@ -499,3 +499,55 @@ test("backend requests never send browser cookies and use no-store caching", asy
   assert.deepEqual(pageErrors, []);
   await context.close();
 });
+
+test("clearing backend credentials cancels an in-flight health check without stale status", async () => {
+  const {context, page, pageErrors} = await newPage(1280);
+  await page.addInitScript(() => {
+    window.__healthAbortObserved = false;
+    const originalFetch = window.fetch.bind(window);
+    window.fetch = (input, init = {}) => {
+      const url = typeof input === "string" ? input : input.url;
+      if (url === "https://backend.test/health" && init.signal) {
+        init.signal.addEventListener("abort", () => {
+          window.__healthAbortObserved = true;
+        }, {once: true});
+      }
+      return originalFetch(input, init);
+    };
+  });
+  await page.reload({waitUntil: "networkidle"});
+  await page.locator('.nav-link[data-page="settings"]').click();
+  await page.locator("#backend-url").fill("https://backend.test");
+
+  let requestStarted;
+  let routeSettled;
+  const started = new Promise(resolve => { requestStarted = resolve; });
+  const settled = new Promise(resolve => { routeSettled = resolve; });
+  await page.route("https://backend.test/health", async route => {
+    requestStarted();
+    await new Promise(resolve => setTimeout(resolve, 350));
+    try {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        headers: {"access-control-allow-origin": "*"},
+        body: JSON.stringify({status: "stale late response"})
+      });
+    } catch { /* Credential clearing intentionally aborts this request. */ }
+    finally { routeSettled(); }
+  });
+
+  await page.locator("#test-connection").click();
+  await started;
+  await page.locator("#clear-credentials").click();
+  await page.waitForFunction(() => window.__healthAbortObserved === true);
+  await settled;
+
+  assert.equal(await page.locator("#health-status").innerText(),
+    "Not checked · backend credentials cleared");
+  assert.equal(await page.locator("#connection-label").innerText(), "Not connected");
+  assert.equal(await page.locator("#settings-status").innerText(),
+    "Credentials cleared from page memory.");
+  assert.deepEqual(pageErrors, []);
+  await context.close();
+});
