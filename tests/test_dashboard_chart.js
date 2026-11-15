@@ -177,6 +177,37 @@ test("chart load rejects non-object payloads and missing klines without replacin
   } finally { global.document = originalDocument; }
 });
 
+test("chart load rejects unsupported selections before starting or superseding requests", async () => {
+  let calls = 0;
+  await assert.rejects(charts.load(async () => { calls++; return {}; }, "UNKNOWN", "BTCUSDT", "1h"), /Unsupported market type/);
+  await assert.rejects(charts.load(async () => { calls++; return {}; }, "SPOT", "BTCUSDT", "2h30m"), /Unsupported chart timeframe/);
+  await assert.rejects(charts.load(async () => { calls++; return {}; }, "SPOT", "   ", "1h"), /valid trading symbol/);
+  assert.equal(calls, 0);
+});
+
+test("invalid chart selection does not supersede a valid request already in flight", async () => {
+  let resolvePending;
+  const pending = new Promise(resolve => { resolvePending = resolve; });
+  const first = charts.load(() => pending, "SPOT", "BTCUSDT", "1h");
+  await assert.rejects(charts.load(async () => ({}), "SPOT", "BTCUSDT", "2h30m"), /Unsupported chart timeframe/);
+  resolvePending([]);
+  await assert.rejects(first, /invalid response shape/);
+});
+
+test("a newer chart request supersedes an older response even when it fails", async () => {
+  let resolveOlder;
+  const older = new Promise(resolve => { resolveOlder = resolve; });
+  const first = charts.load(() => older, "SPOT", "BTCUSDT", "1h");
+  await assert.rejects(charts.load(async () => [], "SPOT", "ETHUSDT", "1h"), /invalid response shape/);
+  resolveOlder([]);
+  assert.deepEqual(await first, {status:"SUPERSEDED",market:"SPOT",symbol:"BTCUSDT",requested_timeframe:"1h"});
+});
+
+test("chart load rejects candle batches with no valid rows before rendering", async () => {
+  const invalidRows = [[0, 10, 9, 8, 10, 1, 3599999], [3600000, null, 11, 9, 10, 1, 7199999]];
+  await assert.rejects(charts.load(async () => ({klines:invalidRows}), "SPOT", "BTCUSDT", "1h"), /no valid complete candle rows; previous chart was preserved/);
+});
+
 test("latest RSI and ATR series values match the compact indicator snapshot", () => {
   const values = Array.from({length:80}, (_,i) => 120 + Math.sin(i/4)*3 + i*0.12);
   const candles = values.map((close,i) => ({time:i*3600000,open:close-0.15,high:close+1.1,low:close-0.9,close,volume:10,closeTime:i*3600000+3599999}));
