@@ -534,6 +534,13 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn('setText("scan-state","Spot quote filter changed · previous results retained; run a new scan")', quote_handler)
         self.assertIn("invalidateScanRequests()", quote_handler)
 
+    def test_backend_credential_changes_abort_pending_analysis_requests(self) -> None:
+        connect_body = self.js.split("function connectSettings() {", 1)[1].split("function bind()", 1)[0]
+        clear_body = self.js.split('$("#clear-credentials")', 1)[-1] if '$("#clear-credentials")' in self.js else self.js.split('$("clear-credentials").addEventListener', 1)[1].split('$("default-market")', 1)[0]
+        self.assertIn("cancelAnalysisRequests()", connect_body)
+        self.assertIn("cancelAnalysisRequests()", clear_body)
+        self.assertIn("if(activeMarketEvidenceController){activeMarketEvidenceController.abort();activeMarketEvidenceController=null;}", self.js)
+
     def test_connection_test_does_not_report_success_for_superseded_health(self) -> None:
         handler = self.js.split('$("test-connection").addEventListener', 1)[1].split('$("clear-credentials").addEventListener', 1)[0]
         self.assertIn("const result=await loadHealth()", handler)
