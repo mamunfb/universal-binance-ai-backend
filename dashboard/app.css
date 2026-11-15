@@ -27,3 +27,31 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px soli
 /* Scanner result regions can receive keyboard focus for horizontal scrolling on narrow screens. */
 .table-scroll[role="region"]:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
 
+
+
+/* Prevent flex/grid children from forcing horizontal overflow on compact viewports. */
+.topbar-controls>*,
+.page-view,
+.panel,
+.metric-card,
+.filter-row>*{min-width:0}
+.filter-row>input,
+.filter-row>label{flex:1 1 140px;max-width:100%}
+.filter-row>label input,
+.filter-row>label select{width:100%;min-width:0}
+.button-row>*{min-width:0;flex:1 1 140px}
+@media(max-width:360px){
+  .topbar-left{min-width:0;max-width:100%}
+  .crumb{min-width:0;white-space:normal;overflow-wrap:anywhere}
+  .topbar-controls{gap:7px}
+  .connection-banner{align-items:flex-start;flex-wrap:wrap}
+  .heading-actions{align-items:flex-start;flex-wrap:wrap}
+}
+/* Consistent visible focus for secondary actions, links and dynamically-created pager controls. */
+.brand:focus-visible,
+.text-btn:focus-visible,
+.table-pager button:focus-visible,
+.filter-row input:focus-visible,
+.filter-row select:focus-visible,
+.settings-grid input:focus-visible,
+.settings-grid select:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
