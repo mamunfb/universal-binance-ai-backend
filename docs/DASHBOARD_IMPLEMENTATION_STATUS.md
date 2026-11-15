@@ -839,3 +839,13 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - The current page's rows are now assembled in a detached `DocumentFragment` and appended to the table body once, including the empty-state row. This avoids one live table-body append per row; no measured performance improvement is claimed because browser profiling has not been run.
 - Added a source-contract regression check for fragment construction, row accumulation and the single body append. The Python suite has not been executed and large-market browser profiling remains outstanding.
 - Frontend-only. No backend source, CI workflow, PR state, merge, or deployment was changed.
+
+## Scanner large-dataset allocation review
+
+- Source inspection found that each search/sort rebuild previously created a filtered row array, a second array of decorated sort records, and a third array of sorted row references. A new scan also copied the incoming row array into the table view.
+- Reworked the Scanner pipeline to retain the already-owned incoming row array, filter into one decorated-entry array, sort that array in place, and keep the sorted entries in the existing cache. Rendering reads the underlying row from each entry. This removes the full-size filtered intermediate array, the full-size mapped sorted-row array, and the extra incoming-row copy.
+- Search still scans the current dataset and selected visible columns for each input update; sorting remains synchronous and comparison-sort based. No debounce, worker, server-side pagination, or backend changes were introduced. Complexity remains O(N × searchable columns) per uncached search and O(M log M) for sorting the M matching rows.
+- Added a source-contract regression method covering single-array filtering/sorting, row-array ownership, and paginated entry rendering; the static contract method count is expected to increase from 104 to 105.
+- This is a source-level allocation reduction hypothesis, not a measured memory or speed result. No heap snapshot, browser profiling, large-dataset benchmark, Python test execution, CI run, merge, or deployment has been performed.
+- Frontend-only: backend source and CI workflows remain untouched.
+
