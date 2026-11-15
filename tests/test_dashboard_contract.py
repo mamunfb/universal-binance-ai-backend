@@ -70,6 +70,19 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn("Use HTTPS for remote backends", self.js)
         self.assertIn("http://localhost", self.js)
 
+    def test_market_scanners_support_sorting_and_bounded_pagination(self) -> None:
+        self.assertIn("const tableViews = {}", self.js)
+        self.assertIn("pageSize:100", self.js)
+        self.assertIn('setAttribute("aria-sort"', self.js)
+        self.assertIn('textContent="Previous"', self.js)
+        self.assertIn('textContent="Next"', self.js)
+        self.assertIn("matching / ", self.js)
+
+    def test_spot_filter_uses_full_returned_dataset_before_pagination(self) -> None:
+        self.assertIn('view.query=e.target.value.trim().toUpperCase()', self.js)
+        self.assertIn("view.rows.filter", self.js)
+        self.assertIn("filtered.slice(view.page*view.pageSize", self.js)
+
     def test_dark_dense_terminal_shell_exists(self) -> None:
         self.assertIn('class="sidebar"', self.html)
         self.assertIn('class="metric-grid"', self.html)
