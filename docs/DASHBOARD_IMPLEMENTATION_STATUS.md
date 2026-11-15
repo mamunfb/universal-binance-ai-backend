@@ -950,3 +950,14 @@ Corrections made before the green run:
 - Replaced legacy Data Reliability markup assertions with tests for the current SPA's controls, route, validation and JSON/text output.
 
 Automated CI is green for this commit. Real browser/mobile viewport QA, assistive-technology testing, live API integration, structured Data Reliability/collector UI, Lighthouse/performance profiling and production/staging verification remain unclaimed and pending.
+
+
+## Accessibility and responsive static QA expansion (2026-11-15)
+
+Added `tests/test_dashboard_accessibility.py` with six standard-library checks for duplicate IDs/landmarks, form-control labels, button accessible names, mobile sidebar ARIA/inert/Escape behavior, responsive breakpoints/reduced motion and keyboard focus indicators. The dashboard workflow now runs all `test_dashboard_*.py` tests.
+
+CI on commit `a5782637d3861c2a5a060b194ef9caeee25dea3c`:
+- Dashboard frontend Run #18: **success**, 116 dashboard Python contract/accessibility tests plus JavaScript syntax and Node chart fixtures all passed.
+- Backend and dashboard Run #1728: **success**, **631 passed, 2 warnings**.
+
+This remains static QA. Real browser/mobile viewport, keyboard interaction, screen-reader and visual regression tests are still pending. No deployment, PR merge or `main` change was made.
