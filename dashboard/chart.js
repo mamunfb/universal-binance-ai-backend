@@ -51,10 +51,16 @@ function atrSeries(c,n=14){
  if(tr.length<n)return out;let value=tr.slice(0,n).reduce((s,x)=>s+x,0)/n;out[n]=value;
  for(let i=n+1;i<c.length;i++){value=(value*(n-1)+tr[i-1])/n;out[i]=value;}return out;
 }
-function macdSeries(values){
+function macdComponents(values){
  const fast=emaSeries(values,12),slow=emaSeries(values,26);
- return values.map((_,i)=>fast[i]===null||slow[i]===null?null:fast[i]-slow[i]);
+ const line=values.map((_,i)=>fast[i]===null||slow[i]===null?null:fast[i]-slow[i]);
+ const first=line.findIndex(Number.isFinite),compact=first<0?[]:line.slice(first);
+ const signalCompact=emaSeries(compact,9),signal=Array(values.length).fill(null);
+ signalCompact.forEach((v,i)=>{signal[first+i]=v;});
+ const histogram=line.map((v,i)=>v===null||signal[i]===null?null:v-signal[i]);
+ return{line,signal,histogram};
 }
+function macdSeries(values){return macdComponents(values).line;}
 function drawLinePanel(title,values,{min=null,max=null,zero=false}={}){
  const valid=values.filter(Number.isFinite);const panel=document.createElement("section");panel.className="indicator-pane";
  const heading=document.createElement("div");heading.className="indicator-pane-heading";const label=document.createElement("strong");label.textContent=title;const latest=document.createElement("span");latest.textContent=valid.length?new Intl.NumberFormat(undefined,{maximumFractionDigits:4}).format(valid[valid.length-1]):"Insufficient history";heading.append(label,latest);panel.append(heading);
@@ -81,7 +87,7 @@ function render(c){
  const caption=document.createElement("div");caption.className="chart-caption";caption.textContent=a.length+" candles · actual backend OHLCV · EMA20 overlay · "+(c[0].time?new Date(c[0].time).toISOString():"");host.append(svg,caption);
  const valuesClose=c.map(x=>x.close);
  host.append(drawLinePanel("RSI (14) · Wilder",rsiSeries(valuesClose),{min:0,max:100}));
- host.append(drawLinePanel("MACD line · EMA12 − EMA26",macdSeries(valuesClose),{zero:true}));
+ const macd=macdComponents(valuesClose);host.append(drawLinePanel("MACD line · EMA12 − EMA26",macd.line,{zero:true}));host.append(drawLinePanel("MACD signal · EMA9 of MACD",macd.signal,{zero:true}));host.append(drawLinePanel("MACD histogram · line − signal",macd.histogram,{zero:true}));
  host.append(drawLinePanel("ATR (14) · Wilder",atrSeries(c)));
 }
 async function load(api,market,symbol,timeframe){
@@ -96,5 +102,5 @@ async function load(api,market,symbol,timeframe){
  document.getElementById("chart-state").textContent=tf==="3h"?"3h aggregated from complete 1h candles":candles.length+" candles loaded";
  return result;
 }
-window.DashboardCharts={load,parse,aggregate3h,indicators,intervalFor,routeFor,emaSeries,rsiSeries,atrSeries,macdSeries};
+window.DashboardCharts={load,parse,aggregate3h,indicators,intervalFor,routeFor,emaSeries,rsiSeries,atrSeries,macdSeries,macdComponents};
 })();
