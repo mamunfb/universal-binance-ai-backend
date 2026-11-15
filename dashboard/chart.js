@@ -116,6 +116,7 @@ function macdComponents(values){
 }
 function macdSeries(values){return macdComponents(values).line;}
 function bollingerSeries(values,n=20,multiplier=2){
+ if(!Array.isArray(values))return{upper:[],middle:[],lower:[]};
  const middle=Array(values.length).fill(null),upper=Array(values.length).fill(null),lower=Array(values.length).fill(null);
  if(!Number.isSafeInteger(n)||n<1||!Number.isFinite(multiplier)||multiplier<0)return{upper,middle,lower};
  for(let i=n-1;i<values.length;i++){const window=values.slice(i-n+1,i+1),mean=finiteMean(window),sd=scaledDeviation(window,mean);if(mean===null||sd===null)continue;const upperValue=mean+multiplier*sd,lowerValue=mean-multiplier*sd;if(!Number.isFinite(upperValue)||!Number.isFinite(lowerValue))continue;middle[i]=mean;upper[i]=upperValue;lower[i]=lowerValue;}
@@ -199,13 +200,14 @@ function render(c){
  const host=document.getElementById("chart-placeholder");host.replaceChildren();if(!c.length){host.textContent="No complete candle data returned.";return;}
  const a=c.slice(-120),w=1000,h=330,top=18,bottom=238,volTop=260,volBottom=310,closeAll=c.map(x=>x.close),bands=bollingerSeries(closeAll),bandValues=[...bands.upper.slice(-a.length),...bands.lower.slice(-a.length)].filter(Number.isFinite),hi=Math.max(...a.map(x=>x.high),...bandValues),lo=Math.min(...a.map(x=>x.low),...bandValues),priceScale=Math.max(Math.abs(hi),Math.abs(lo),1),scaledLo=lo/priceScale,scaledSpan=hi/priceScale-scaledLo||1,maxVol=Math.max(...a.map(x=>x.volume));
  const svg=document.createElementNS(ns,"svg");svg.setAttribute("viewBox","0 0 "+w+" "+h);svg.setAttribute("role","img");svg.setAttribute("aria-label","Candlestick and volume chart from verified backend OHLCV data");svg.style.width="100%";
- const add=(tag,attrs)=>{const e=document.createElementNS(ns,tag);Object.entries(attrs).forEach(([k,v])=>e.setAttribute(k,String(v)));svg.append(e);};
+ const svgContent=document.createDocumentFragment();const add=(tag,attrs)=>{const e=document.createElementNS(ns,tag);Object.entries(attrs).forEach(([k,v])=>e.setAttribute(k,String(v)));svgContent.append(e);};
  for(let i=0;i<5;i++){const y=top+i*(bottom-top)/4;add("line",{x1:20,y1:y,x2:980,y2:y,stroke:"#243650","stroke-width":1});}
  const step=960/a.length,cw=Math.max(2,step*.58),y=v=>bottom-(v/priceScale-scaledLo)/scaledSpan*(bottom-top);
  a.forEach((x,i)=>{const cx=20+i*step+step/2,color=x.close>=x.open?"#48c99a":"#ef737e";add("line",{x1:cx,y1:y(x.high),x2:cx,y2:y(x.low),stroke:color,"stroke-width":1.2});add("rect",{x:cx-cw/2,y:Math.min(y(x.open),y(x.close)),width:cw,height:Math.max(1,Math.abs(y(x.open)-y(x.close))),fill:color});const vh=maxVol>0?x.volume/maxVol*(volBottom-volTop):0;add("rect",{x:cx-cw/2,y:volBottom-vh,width:cw,height:vh,fill:color,opacity:.4});});
  const closes=closeAll,ema20=emaSeries(closes,20),offset=c.length-a.length;
  const linePoints=series=>{const segments=[];let segment=[];series.slice(offset).forEach((v,i)=>{if(!Number.isFinite(v)){if(segment.length>1)segments.push(segment);segment=[];return;}const point=(20+i*step+step/2)+","+y(v);if(point.includes("NaN")||point.includes("Infinity")){if(segment.length>1)segments.push(segment);segment=[];return;}segment.push(point);});if(segment.length>1)segments.push(segment);return segments;};
  for(const [series,color,width] of [[bands.upper,"#8b9db8",1.2],[bands.middle,"#8b9db8",1],[bands.lower,"#8b9db8",1],[ema20,"#f4c46a",2]]){for(const pts of linePoints(series))add("polyline",{points:pts.join(" "),fill:"none",stroke:color,"stroke-width":width,"stroke-linejoin":"round","stroke-dasharray":color==="#8b9db8"?"5 4":"none"});}
+ svg.append(svgContent);
  const caption=document.createElement("div");caption.className="chart-caption";caption.textContent=a.length+" candles · actual backend OHLCV · EMA20 + Bollinger(20,2) overlays · "+(c[0].time?new Date(c[0].time).toISOString():"");host.append(svg,caption);
  const valuesClose=c.map(x=>x.close);
  host.append(drawLinePanel("RSI (14) · Wilder",rsiSeries(valuesClose),{min:0,max:100}));
