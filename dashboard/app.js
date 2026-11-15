@@ -17,6 +17,7 @@
   let activeReadinessSequence=0;
   let activeReadinessController=null;
   let activeHealthSequence=0;
+  let activeHealthController=null;
   let activeMarketEvidenceController=null;
   const esc = (value) => String(value ?? "—").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const setText = (id, value) => { const el=$(id); if(el) el.textContent = value == null || value === "" ? "—" : String(value); };
@@ -100,11 +101,13 @@
     setText("scan-state",metadataText(data.status,metadataText(data.scan_status,"Response received",80),80));
     setText("overview-updated",scanTimestamp(data));
   }
+  function invalidateHealthRequests(){activeHealthSequence++;if(activeHealthController){activeHealthController.abort();activeHealthController=null;}}
   async function loadHealth() {
-    const requestSequence=++activeHealthSequence;
+    invalidateHealthRequests();const requestSequence=activeHealthSequence;const controller=new AbortController();activeHealthController=controller;
     setText("health-status","Checking backend health · previous status retained");
-    try { const result=await api("/health"); if(requestSequence!==activeHealthSequence)return{status:"SUPERSEDED"}; if(result===null||typeof result!=="object"||Array.isArray(result))throw new Error("Health endpoint returned an invalid response shape. Expected a JSON object."); state.lastHealth=result; setText("health-status",metadataText(result.status,"Healthy response",80)); setConnection(true,"Backend reachable"); return result; }
+    try { const result=await api("/health",{signal:controller.signal}); if(requestSequence!==activeHealthSequence)return{status:"SUPERSEDED"}; if(result===null||typeof result!=="object"||Array.isArray(result))throw new Error("Health endpoint returned an invalid response shape. Expected a JSON object."); state.lastHealth=result; setText("health-status",metadataText(result.status,"Healthy response",80)); setConnection(true,"Backend reachable"); return result; }
     catch(error){if(requestSequence!==activeHealthSequence)return{status:"SUPERSEDED"};setText("health-status","Unavailable");setConnection(false,"Backend unavailable: "+metadataText(error?.message,"Request failed",160));throw error;}
+    finally{if(activeHealthController===controller)activeHealthController=null;}
   }
   function invalidateScanRequests(){activeScanSequence++;if(activeScanController){activeScanController.abort();activeScanController=null;}}
   async function scanMarket(market) {
@@ -325,7 +328,7 @@
     const localHttp=parsed.protocol==="http:"&&(parsed.hostname==="localhost"||parsed.hostname==="127.0.0.1");
     if(parsed.protocol!=="https:"&&!localHttp)rejectUrl("Use HTTPS for remote backends. HTTP is allowed only for localhost or 127.0.0.1.");
     if(!parsed.hostname||parsed.username||parsed.password||parsed.search||parsed.hash)rejectUrl("Backend URL must include a host and must not contain embedded credentials, query parameters or a fragment.");
-    invalidateScanRequests();invalidateQualityRequest();invalidateReadinessRequests();cancelAnalysisRequests();activeHealthSequence++;state.base=url;state.token=$("backend-token").value.trim();clearConnectionScopedData("Connection settings changed · previous backend data cleared");setText("health-status","Not checked · test the new connection");setConnection(false,"Connection settings changed · test connection");setText("scan-state","Connection settings changed · run a new scan");setText("quality-state","Connection settings changed · run a new quality check");setText("settings-status","Connection details held in page memory only.");toast("Connection settings applied for this page session.","success");
+    invalidateScanRequests();invalidateQualityRequest();invalidateReadinessRequests();cancelAnalysisRequests();invalidateHealthRequests();state.base=url;state.token=$("backend-token").value.trim();clearConnectionScopedData("Connection settings changed · previous backend data cleared");setText("health-status","Not checked · test the new connection");setConnection(false,"Connection settings changed · test connection");setText("scan-state","Connection settings changed · run a new scan");setText("quality-state","Connection settings changed · run a new quality check");setText("settings-status","Connection details held in page memory only.");toast("Connection settings applied for this page session.","success");
   }
   function bind() {
     document.querySelectorAll(".nav-link").forEach(a=>a.addEventListener("click",e=>{e.preventDefault();const page=a.dataset.page; if(PAGE_TITLES[page] && document.getElementById("page-"+page)) navigate(page); else navigate(page); history.replaceState(null,"","#"+page);}));
@@ -357,7 +360,7 @@
     $("load-quality").addEventListener("click",()=>withButton("load-quality",loadQuality,"Checking…"));
     $("backend-url").addEventListener("input",()=> $("backend-url").setCustomValidity(""));
     $("test-connection").addEventListener("click",()=>withButton("test-connection",async()=>{connectSettings();const result=await loadHealth();if(result?.status==="SUPERSEDED")return result;setText("settings-status","Backend health endpoint responded successfully.");return result;},"Testing…"));
-    $("clear-credentials").addEventListener("click",()=>{invalidateScanRequests();invalidateQualityRequest();invalidateReadinessRequests();cancelAnalysisRequests();activeHealthSequence++;state.base="";state.token="";clearConnectionScopedData("Backend credentials cleared · previous backend data removed");$("backend-url").value="";$("backend-url").setCustomValidity("");$("backend-token").value="";setText("health-status","Not checked · backend credentials cleared");setText("scan-state","Backend credentials cleared · scan unavailable");setText("quality-state","Backend credentials cleared · quality check unavailable");setConnection(false,"Not connected");setText("settings-status","Credentials cleared from page memory.");toast("Connection credentials cleared.","success");});
+    $("clear-credentials").addEventListener("click",()=>{invalidateScanRequests();invalidateQualityRequest();invalidateReadinessRequests();cancelAnalysisRequests();invalidateHealthRequests();state.base="";state.token="";clearConnectionScopedData("Backend credentials cleared · previous backend data removed");$("backend-url").value="";$("backend-url").setCustomValidity("");$("backend-token").value="";setText("health-status","Not checked · backend credentials cleared");setText("scan-state","Backend credentials cleared · scan unavailable");setText("quality-state","Backend credentials cleared · quality check unavailable");setConnection(false,"Not connected");setText("settings-status","Credentials cleared from page memory.");toast("Connection credentials cleared.","success");});
     $("display-timezone").addEventListener("change",e=>{state.displayTimezone=e.target.value;refreshDisplayedTimestamps();setText("settings-status","Display timezone applied for this page session.");});
     $("default-market").addEventListener("change",e=>{invalidateScanRequests();setText("scan-state","Market selection changed · run a new scan");$("global-market").value=e.target.value;state.market=e.target.value;document.querySelectorAll(".market-tab").forEach(b=>b.classList.toggle("active",b.dataset.market===state.market));invalidateChartView();});
     $("default-timeframe").addEventListener("change",e=>{$("global-timeframe").value=e.target.value;state.timeframe=e.target.value;$("analysis-timeframes").querySelectorAll("button").forEach(b=>b.classList.toggle("active",b.textContent===state.timeframe));invalidateChartView();});
