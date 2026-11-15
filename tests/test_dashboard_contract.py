@@ -482,6 +482,14 @@ class DashboardContractTests(unittest.TestCase):
         scanner = self.js.split("function renderRows(target, rows, columns)", 1)[1].split("function syncAnalysisHeader()", 1)[0]
         self.assertIn("if(scannerSearchTimers[target]!==undefined){window.clearTimeout(scannerSearchTimers[target]);delete scannerSearchTimers[target];}", scanner)
         self.assertLess(scanner.index("window.clearTimeout(scannerSearchTimers[target])"), scanner.index("const body=$(target)"))
+    def test_scanner_search_and_sort_caches_invalidate_together_on_new_response_rows(self) -> None:
+        scanner = self.js.split("function renderRows(target, rows, columns)", 1)[1].split("function syncAnalysisHeader()", 1)[0]
+        replacement = scanner.split("if(incomingRows!==view.rows){", 1)[1].split("}", 1)[0]
+        self.assertIn("view.rows=incomingRows", replacement)
+        self.assertIn("view.sortedCache=null", replacement)
+        self.assertIn("scannerSearchTextCaches[target]=new WeakMap()", replacement)
+        self.assertLess(replacement.index("view.rows=incomingRows"), replacement.index("view.sortedCache=null"))
+        self.assertLess(replacement.index("view.sortedCache=null"), replacement.index("scannerSearchTextCaches[target]=new WeakMap()"))
     def test_scanner_search_text_is_weakly_cached_and_invalidated_with_rows(self) -> None:
         helper = self.js.split("function scannerSearchText", 1)[1].split("function scannerCellText", 1)[0]
         self.assertIn("const scannerSearchTextCaches = {}", self.js)
