@@ -437,7 +437,7 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn('setText("scan-state","Refresh failed · previous results retained")', scan_body)
         self.assertIn('setText("scan-state","Invalid response · previous results retained")', scan_body)
         self.assertLess(scan_body.index('setText("scan-state","Refreshing · previous results retained")'), scan_body.index("await api(path,{signal:controller.signal})"))
-        self.assertLess(scan_body.index("await api(path)"), scan_body.index("renderScanSummary(data)"))
+        self.assertLess(scan_body.index("await api(path,{signal:controller.signal})"), scan_body.index("renderScanSummary(data,market)"))
 
     def test_scanner_market_is_validated_before_request_state_changes(self) -> None:
         scan_body = self.js.split("async function scanMarket(market) {", 1)[1].split("function renderScannerMeta", 1)[0]
@@ -681,7 +681,7 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn('setText("chart-state","Loading market evidence · previous chart and evidence retained")', evidence_body)
         self.assertIn('window.DashboardCharts.invalidate();', evidence_body)
         self.assertNotIn('invalidateChartView("Market evidence endpoint does not provide candle chart data.")', evidence_body)
-        self.assertLess(evidence_body.index("await api(path)"), evidence_body.index('showJson("analysis-output",data)'))
+        self.assertLess(evidence_body.index("await api(path,{signal:controller.signal})"), evidence_body.index('showJson("analysis-output",data)'))
         self.assertIn('showJson("analysis-output",data)', evidence_body)
 
 
