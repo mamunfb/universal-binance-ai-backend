@@ -403,6 +403,76 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn('assert.equal(aggregated.length, 1000)', self.chart_test_js)
         self.assertIn('assert.equal(gapAggregated.length, 999)', self.chart_test_js)
 
+    def test_technical_chart_request_preserves_previous_view_on_refresh_and_failure(self) -> None:
+        technical_body = self.js.split("async function loadTechnical() {", 1)[1].split("function initTimeframes()", 1)[0]
+        self.assertIn('setText("chart-state","Loading candles · previous chart retained")', technical_body)
+        self.assertIn('setText("chart-state","Chart request failed · previous chart retained")', technical_body)
+        self.assertIn('metadataText(error?.message,"Unknown error",160)', technical_body)
+        self.assertLess(technical_body.index("await window.DashboardCharts.load"), technical_body.index('state.lastAnalysis=data'))
+        self.assertIn('if(requestSequence!==activeEvidenceSequence||data?.status==="SUPERSEDED")return{status:"SUPERSEDED"}', technical_body)
+
+    def test_recent_metadata_and_evidence_contracts_are_discoverable_before_main_guard(self) -> None:
+        source = Path(__file__).read_text(encoding="utf-8")
+        main_guard = source.index('if __name__ == "__main__":')
+        for method in (
+            "test_health_and_quality_status_metadata_is_bounded_and_type_safe",
+            "test_market_evidence_refresh_preserves_previous_payload_until_success",
+            "test_market_evidence_failure_keeps_previous_payload_and_shows_bounded_error",
+            "test_quality_failure_keeps_previous_report_and_shows_bounded_error",
+            "test_health_connection_error_label_is_length_bounded",
+        ):
+            self.assertLess(source.index(f"    def {method}"), main_guard, method)
+
+
+    def test_health_and_quality_status_metadata_is_bounded_and_type_safe(self) -> None:
+        self.assertIn('metadataText(result.status,"Healthy response",80)', self.js)
+        self.assertIn('metadataText(data.status,"Report received",80)', self.js)
+        self.assertIn('function metadataText(value,fallback="Not supplied",maxLength=160)', self.js)
+
+    def test_market_evidence_summary_metadata_is_bounded_and_type_safe(self) -> None:
+        self.assertIn('metadataText(data.summary,metadataText(data.status,"Market evidence returned. Inspect evidence payload.",120),120)', self.js)
+
+    def test_scanner_count_alias_conflicts_are_reported_without_merging(self) -> None:
+        self.assertIn("function scannerCountAliasConflicts(data,countNames)", self.js)
+        self.assertIn('const distinct=new Set(supplied.map(entry=>entry.value))', self.js)
+        self.assertIn('distinct.size>1?[label+": "+supplied.map', self.js)
+        self.assertIn('"Count alias conflicts: "+(scannerCountAliasConflicts(data,countNames).join("; ")||"None detected")', self.js)
+        self.assertIn('extractCount(data,countNames.eligible)', self.js)
+
+    def test_scanner_coverage_identifies_source_and_timestamp_alias_provenance(self) -> None:
+        self.assertIn("function metadataFieldName(data,names)", self.js)
+        self.assertIn('metadataFieldName(data,["source"])', self.js)
+        self.assertIn('metadataFieldName(data,["generated_at","timestamp","updated_at"])', self.js)
+        self.assertIn('"Timestamp field: "+', self.js)
+        self.assertIn('"Source field: "+', self.js)
+
+    def test_scanner_coverage_identifies_status_alias_provenance(self) -> None:
+        self.assertIn('metadataFieldName(data,["status","scan_status"])', self.js)
+        self.assertIn('"Status field: "+', self.js)
+
+    def test_market_evidence_refresh_preserves_previous_payload_until_success(self) -> None:
+        evidence_body = self.js.split("async function loadMarketEvidence() {", 1)[1].split("async function loadTechnical()", 1)[0]
+        self.assertIn('setText("chart-state","Loading market evidence · previous evidence retained")', evidence_body)
+        self.assertIn('window.DashboardCharts.invalidate();', evidence_body)
+        self.assertNotIn('invalidateChartView("Market evidence endpoint does not provide candle chart data.")', evidence_body)
+        self.assertLess(evidence_body.index("await api(path)"), evidence_body.index('showJson("analysis-output",data)'))
+        self.assertIn('showJson("analysis-output",data)', evidence_body)
+
+    def test_market_evidence_failure_keeps_previous_payload_and_shows_bounded_error(self) -> None:
+        self.assertIn('setText("chart-state","Evidence request failed · previous evidence retained")', self.js)
+        self.assertIn('setText("technical-summary","Request failed: "+metadataText(error?.message,"Unknown error",160))', self.js)
+        self.assertIn('if(requestSequence!==activeEvidenceSequence)return{status:"SUPERSEDED"};setText("chart-state"', self.js)
+
+    def test_quality_failure_keeps_previous_report_and_shows_bounded_error(self) -> None:
+        self.assertIn('setText("quality-state","Load failed · previous report retained · "+metadataText(error?.message,"Unknown error",120))', self.js)
+        self.assertIn('if(requestSequence!==activeQualitySequence)return{status:"SUPERSEDED"};setText("quality-state"', self.js)
+
+    def test_health_connection_error_label_is_length_bounded(self) -> None:
+        self.assertIn('setConnection(false,"Backend unavailable: "+metadataText(error?.message,"Request failed",160))', self.js)
+
+if __name__ == "__main__":
+    unittest.main()
+
 
 if __name__ == "__main__":
     unittest.main()
