@@ -433,6 +433,14 @@ if __name__ == "__main__":
         self.assertIn('metadataFieldName(data,["status","scan_status"])', self.js)
         self.assertIn('"Status field: "+', self.js)
 
+    def test_market_evidence_refresh_preserves_previous_payload_until_success(self) -> None:
+        evidence_body = self.js.split("async function loadMarketEvidence() {", 1)[1].split("async function loadTechnical()", 1)[0]
+        self.assertIn('setText("chart-state","Loading market evidence · previous evidence retained")', evidence_body)
+        self.assertIn('window.DashboardCharts.invalidate();', evidence_body)
+        self.assertNotIn('invalidateChartView("Market evidence endpoint does not provide candle chart data.")', evidence_body)
+        self.assertLess(evidence_body.index("await api(path)"), evidence_body.index('showJson("analysis-output",data)'))
+        self.assertIn('showJson("analysis-output",data)', evidence_body)
+
     def test_market_evidence_failure_keeps_previous_payload_and_shows_bounded_error(self) -> None:
         self.assertIn('setText("chart-state","Evidence request failed · previous evidence retained")', self.js)
         self.assertIn('setText("technical-summary","Request failed: "+metadataText(error?.message,"Unknown error",160))', self.js)
