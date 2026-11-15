@@ -314,6 +314,7 @@ class DashboardContractTests(unittest.TestCase):
 
     def test_scanner_distinguishes_missing_result_array_from_empty_array(self) -> None:
         self.assertIn("const hasRowsArray=rowKey!==undefined", self.js)
+        self.assertIn('const rowKey=["symbols","markets","results","data"].find(key=>Array.isArray(data[key]))', self.js)
         self.assertIn('const additionalRowKeys=["symbols","markets","results","data"].filter(key=>key!==rowKey&&Array.isArray(data[key]))', self.js)
         self.assertIn('"Additional array fields: "+(additionalRowKeys.length?additionalRowKeys.join(", "):"None")', self.js)
         self.assertIn("renderScannerMeta(market,data,rows,rejectedRows,rowKey,additionalRowKeys)", self.js)
