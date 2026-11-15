@@ -390,6 +390,11 @@ test("MACD series never exposes non-finite histogram values for extreme finite p
   }
 });
 
+test("Stochastic RSI safely rejects non-array input", () => {
+  assert.deepEqual(charts.stochRsiSeries(null),{k:[],d:[]});
+  assert.deepEqual(charts.stochRsiSeries({}),{k:[],d:[]});
+});
+
 test("Stochastic RSI rejects invalid periods without producing non-finite values", () => {
   const values = Array.from({length:80}, (_,i) => 100+i);
   for (const params of [[0,14,3,3],[14,0,3,3],[14,14,0,3],[14,14,3,0],[1.5,14,3,3],[Number.MAX_SAFE_INTEGER,2,3,3]]) {
