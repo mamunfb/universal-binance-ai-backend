@@ -490,3 +490,22 @@ Reviewed `dashboard/app.js` at the verified HEAD:
 - Existing two dependency/framework deprecation warnings should be reviewed separately; they did not fail the CI run.
 
 No backend code, database, secrets, billing, main branch, PR merge state, or deployment settings were changed in this audit.
+
+
+## 28. API and keyboard regression contract expansion
+
+**Source checkpoint tested:** `6806f7812898f9458d6a4f62d59eba90d5e4761f`
+
+Added three static regression checks to `tests/test_dashboard_accessibility.py`:
+- API wrapper contracts for finite timeout validation, AbortController/caller cancellation, JSON parsing, HTTP/non-JSON/empty-response errors, network errors and cleanup.
+- Backend URL validation for HTTPS-only remote URLs and rejection of embedded credentials, query strings and fragments.
+- Mobile navigation focus restoration, Escape exit and Tab/Shift+Tab boundary handling.
+
+Updated `.github/workflows/dashboard-frontend.yml` so pull-request path filters also run the accessibility test file. Previously the push path filter included it but the pull-request path filter did not.
+
+### CI evidence on this checkpoint
+
+- Dashboard Frontend run #? (run ID `43717409892`): **success**; 119 dashboard Python tests passed, chart fixtures and JavaScript syntax checks passed.
+- Backend + Dashboard run (run ID `43717409851`): **success**; **634 passed, 2 warnings**; dashboard document/script-reference and JavaScript syntax checks passed.
+
+These are static/source contract tests. They do not simulate a real browser, screen reader, live backend failure or measured rendering performance. Those remain pending.
