@@ -24,8 +24,9 @@ function atrWilder(c,n=14){
  return value;
 }
 function macd(a){
- const fast=ema(a,12),slow=ema(a,26);if(fast===null||slow===null)return null;
- const line=fast-slow;return{line,signal:null,histogram:null,method:"MACD line from EMA12 minus EMA26; signal and histogram unavailable without a full aligned MACD series"};
+ if(a.length<34)return null;
+ const series=macdComponents(a),i=a.length-1;
+ return{line:series.line[i],signal:series.signal[i],histogram:series.histogram[i],method:"EMA12 minus EMA26; signal is EMA9 of the aligned MACD line"};
 }
 function indicators(c){
  if(!Array.isArray(c)||!c.length)return{candle_count:0,method:"Insufficient candle data"};
