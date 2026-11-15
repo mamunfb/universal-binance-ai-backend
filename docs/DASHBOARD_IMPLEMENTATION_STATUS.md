@@ -322,3 +322,11 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Replaced both escaped sequences with actual newline characters, restoring the selectors as independent CSS rules.
 - Added a Python contract assertion that rejects literal backslash-`n` tokens and requires the chart-caption and indicator-pane selectors to begin on real new lines.
 - GitHub readback is the only verification performed. The browser stylesheet parser/rendering has not been exercised; no browser QA or runtime test is claimed.
+
+
+## Large-batch chart regression fixtures
+
+- Added deterministic Node fixtures that feed 10,000 reversed OHLCV rows through the candle parser, including a duplicated timestamp, and assert sorted unique output.
+- Added a 3,000-hour fixture covering 1,000 complete UTC-aligned 3h buckets, plus a missing-hour case that must discard only the incomplete bucket.
+- Extended the Python static contract suite to require both scale-oriented fixtures and load the Node fixture source explicitly.
+- These are large-input correctness/regression fixtures, not measured performance benchmarks. Node/Python tests have not been executed here; no runtime or speed result is claimed.
