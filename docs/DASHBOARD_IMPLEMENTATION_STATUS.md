@@ -259,3 +259,13 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Backend URL configuration now parses the URL and rejects embedded username/password, query parameters and fragments in addition to requiring HTTPS for remote hosts (HTTP remains limited to localhost/127.0.0.1).
 - Added static contract assertions for quality request invalidation and URL credential/query rejection.
 - Source/test readback verification is pending. Node.js/Python suites and browser testing have not been run; no runtime pass is claimed.
+
+
+## Health/evidence request races and mobile scanner usability
+
+- Health checks now have their own request sequence. A delayed health response or failure from a previously configured/cleared backend is ignored instead of changing the current connection status.
+- Market-evidence failures are suppressed when that evidence request has already been superseded by a newer selection or analysis action.
+- Editing the Spot quote-asset filter invalidates an in-flight Spot scan and labels the coverage area so results from the previous filter are not mistaken for current results.
+- Scanner table cells normalize null and empty values to the same unavailable marker rather than displaying literal "null" or an empty cell.
+- Mobile scanner pagination now wraps cleanly at narrow widths, provides touch-sized controls, and sortable headers expose a visible keyboard-focus outline.
+- Added static contract assertions for health/evidence/Spot-filter request races, null-cell normalization and responsive pager styles. Source/test/ledger readback verification is pending; no runtime test or browser QA has been performed.
