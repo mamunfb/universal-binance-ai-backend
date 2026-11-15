@@ -32,10 +32,10 @@
     $("mobile-menu").setAttribute("aria-expanded","false");
   }
   function apiHeaders() { const h={"Accept":"application/json"}; if(state.token) h.Authorization="Bearer "+state.token; return h; }
-  async function api(path, {method="GET", body, timeout=20000}={}) {
+  async function api(path, {method="GET", body, timeout=20000, signal:externalSignal}={}) {
     if(!state.base) throw new Error("Configure the private backend URL in Settings first.");
     if(!Number.isFinite(timeout)||timeout<=0)throw new Error("Request timeout must be a positive finite number.");
-    const hasBody=body!==undefined; const controller=new AbortController(); const timer=window.setTimeout(()=>controller.abort(),timeout);
+    const hasBody=body!==undefined; const controller=new AbortController(); const abortFromCaller=()=>controller.abort(); if(externalSignal?.aborted)controller.abort();else externalSignal?.addEventListener("abort",abortFromCaller,{once:true}); const timer=window.setTimeout(()=>controller.abort(),timeout);
     try {
       const response=await fetch(state.base.replace(/\/$/,"")+path,{method,headers:{...apiHeaders(),...(hasBody?{"Content-Type":"application/json"}:{})},body:hasBody?JSON.stringify(body):undefined,signal:controller.signal,credentials:"omit",cache:"no-store"});
       const raw=await response.text(); let data=null; try{data=raw?JSON.parse(raw):null;}catch{throw new Error("Backend returned a non-JSON response (HTTP "+response.status+").");}
@@ -43,11 +43,11 @@
       if(!response.ok){const detail=data?.detail??data?.message;const safeDetail=typeof detail==="string"?detail.replace(/[\x00-\x1f\x7f]/g," ").replace(/\s+/g," ").trim().slice(0,300):"";throw new Error(safeDetail||("Backend request failed (HTTP "+response.status+")."));}
       return data;
     } catch(error) {
-      if(error.name==="AbortError") throw new Error("Request timed out.");
+      if(error.name==="AbortError") throw new Error(externalSignal?.aborted?"Request cancelled.":"Request timed out.");
       if(error instanceof TypeError) throw new Error("Network connection failed. Check your connection and backend availability.");
       throw error;
     }
-    finally { window.clearTimeout(timer); }
+    finally { window.clearTimeout(timer); externalSignal?.removeEventListener("abort",abortFromCaller); }
   }
   async function withButton(button, task, busyText="Loading…") {
     const el=$(button); if(!el) return; const original=el.textContent; el.disabled=true; el.textContent=busyText;
