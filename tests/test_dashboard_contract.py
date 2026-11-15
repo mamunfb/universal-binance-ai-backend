@@ -810,7 +810,7 @@ class DashboardContractTests(unittest.TestCase):
 
     def test_scanner_invalid_numeric_values_remain_after_numeric_values_in_both_sort_directions(self) -> None:
         scanner = self.js.split("function renderRows(target, rows, columns)", 1)[1].split("function syncAnalysisHeader()", 1)[0]
-        comparator = scanner.split("sortedRows.sort((a,b)=>", 1)[1].split(");", 1)[0]
+        comparator = scanner.split("sortedRows.sort((a,b)=>", 1)[1].split("});", 1)[0]
         self.assertIn("if(aMissing!==bMissing)return aMissing?1:-1", comparator)
         self.assertIn("if((an!==null)!==(bn!==null))return an!==null?-1:1", comparator)
         self.assertLess(comparator.index("if((an!==null)!==(bn!==null))"), comparator.index("return cmp===0?0:cmp*direction"))
