@@ -509,3 +509,54 @@ Updated `.github/workflows/dashboard-frontend.yml` so pull-request path filters 
 - Backend + Dashboard run (run ID `43717409851`): **success**; **634 passed, 2 warnings**; dashboard document/script-reference and JavaScript syntax checks passed.
 
 These are static/source contract tests. They do not simulate a real browser, screen reader, live backend failure or measured rendering performance. Those remain pending.
+
+
+## 29. Real Chromium browser QA and tablet responsive correction
+
+**Verified feature-branch HEAD:** `96db94ccd87a88e5050e397f17527a6babda78c6`  
+**Browser workflow:** Dashboard browser QA run #9, run ID `43718964746`  
+**Runner:** Ubuntu 24.04, pinned Playwright 1.56.1, Chromium headless  
+**Verification date:** 2026-11-15
+
+### Browser test results
+
+The isolated browser workflow served the exact feature-branch dashboard files from a local test server. No production deployment or live backend was used.
+
+| Browser test | Result |
+|---|---|
+| Responsive layout at 360, 390, 480, 760, 768, 1100 and 1280 CSS px | **PASS** — no document/body horizontal overflow |
+| Mobile navigation open/close and ARIA state | **PASS** |
+| Shift+Tab / Tab focus boundary wrapping | **PASS** |
+| Escape closes navigation and restores focus to menu button | **PASS** |
+| Mocked backend health success | **PASS** |
+| Mocked HTTP 503 error handling | **PASS** |
+| Mocked malformed JSON response handling | **PASS** |
+| Browser page-level JavaScript exceptions in tested paths | **None observed** |
+
+Node test summary from the completed Actions log: **4 tests, 4 passed, 0 failed**.
+
+### Defect found and corrected
+
+The first real Chromium viewport pass detected horizontal overflow at **768px**: document width was 908px while the viewport was 768px. The tablet layout was still using the desktop sidebar/header arrangement.
+
+Correction:
+- Moved the responsive off-canvas navigation breakpoint from 760px to 900px in `dashboard/app.css`.
+- Aligned the JavaScript mobile-navigation media queries in `dashboard/app.js` to 900px.
+- Updated the static accessibility breakpoint assertion.
+- Re-ran the full viewport matrix; the completed run reports no horizontal overflow at all seven widths.
+
+The browser pass also verified the mobile keyboard focus correction: opening navigation now focuses the first keyboard-focusable sidebar item, matching the boundary-trap sequence.
+
+### CI evidence
+
+- Dashboard browser QA run #9, `43718964746`: **success**, 4/4 browser tests passed.
+- Backend + Dashboard run #1751, `43718964792`: **success**, **634 passed, 2 warnings**; HTML/script references and dashboard JavaScript syntax checks passed.
+- Dashboard Frontend run #31, `43718841160`: **success**, **119 dashboard Python tests**; chart fixtures and JavaScript syntax checks passed.
+
+### Scope and remaining limits
+
+- API fault tests use deterministic browser route mocks for HTTP 503 and malformed JSON; they do **not** contact the live backend or prove production API availability.
+- This run does not constitute a screen-reader/assistive-technology test, physical-device test, Lighthouse/Core Web Vitals run, memory profile or measured performance benchmark.
+- Render still serves a different deployment branch; no feature-branch deployment was made.
+
+No merge, production deployment, backend/database mutation, secret change or `main` branch update was performed.
