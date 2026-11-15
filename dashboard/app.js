@@ -123,21 +123,19 @@
     if(requestSequence!==activeScanSequence)return{status:"SUPERSEDED",market};
     if(data===null||typeof data!=="object"||Array.isArray(data)){setText("scan-state","Invalid response · previous results retained");throw new Error("Scanner endpoint returned an invalid response shape. Expected a JSON object; previous results were preserved.");}
     const rowKey=["symbols","markets","results","data"].find(key=>Array.isArray(data[key]));
-    const hasRowsArray=rowKey!==undefined;
+    if(rowKey===undefined){setText("scan-state","Incomplete response · previous results and coverage retained");toast(market+" scan response incomplete. No recognized result array was supplied; previous results and coverage were preserved.","info");return{status:"INCOMPLETE_RESPONSE",market};}
     const additionalRowKeys=["symbols","markets","results","data"].filter(key=>key!==rowKey&&Array.isArray(data[key]));
-    if(hasRowsArray)renderScanSummary(data);
-    else setText("scan-state","Incomplete response · previous results retained");
-    const responseRows=hasRowsArray?data[rowKey]:[];
+    const responseRows=data[rowKey];
     const rows=responseRows.filter(item=>item!==null&&typeof item==="object"&&!Array.isArray(item));
     const rejectedRows=responseRows.length-rows.length;
-    if(hasRowsArray){
-      if(market==="SPOT") renderRows("spot-rows",rows,6);
-      if(market==="USD_M") renderRows("usdm-rows",rows,5);
-      if(market==="COIN_M") renderRows("coinm-rows",rows,5);
-    }
+    if(responseRows.length>0&&rows.length===0){setText("scan-state","Invalid rows · previous results and coverage retained");throw new Error("Scanner response contained no valid row objects; previous results and coverage were preserved.");}
+    renderScanSummary(data);
+    if(market==="SPOT") renderRows("spot-rows",rows,6);
+    if(market==="USD_M") renderRows("usdm-rows",rows,5);
+    if(market==="COIN_M") renderRows("coinm-rows",rows,5);
     renderScannerMeta(market,data,rows,rejectedRows,rowKey,additionalRowKeys);
     state.lastScanDetails={market,data,rows,rejectedRows,rowKey,additionalRowKeys};
-    toast(market+" scan response received."+(!hasRowsArray?" No recognized result array was supplied.":rejectedRows?" "+rejectedRows+" malformed rows were excluded.":" Check coverage and failure counts."),!hasRowsArray||rejectedRows?"info":"success");
+    toast(market+" scan response received."+(rejectedRows?" "+rejectedRows+" malformed rows were excluded.":" Check coverage and failure counts."),rejectedRows?"info":"success");
     return data;
   }
   function scannerCountAliasConflicts(data,countNames) {
@@ -170,7 +168,8 @@
       "Source field: "+(metadataFieldName(data,["source"])||"Not supplied"),
       "Source: "+metadataText(data.source,"Not supplied",120),
       "Timestamp field: "+(metadataFieldName(data,["generated_at","timestamp","updated_at"])||"Not supplied"),
-      "Timestamp: "+scanTimestamp(data)
+      "Timestamp: "+scanTimestamp(data),
+      ...(market==="SPOT"?["Requested quote filter: "+metadataText(($("spot-quote")?.value||"").trim().toUpperCase(),"All quote assets",40)]:[])
     ];
     setText(prefix+"-coverage",details.join(" · "));
     if(market!=="SPOT") setText(prefix+"-count",rows.length.toLocaleString()+" returned");
