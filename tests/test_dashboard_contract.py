@@ -181,6 +181,14 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn("view.rows.filter", self.js)
         self.assertIn("filtered.slice(view.page*view.pageSize", self.js)
 
+    def test_quality_report_ignores_superseded_requests(self) -> None:
+        self.assertIn("let activeQualitySequence=0", self.js)
+        self.assertIn("function invalidateQualityRequest(){activeQualitySequence++;}", self.js)
+        self.assertIn('if(requestSequence!==activeQualitySequence)return{status:"SUPERSEDED"}', self.js)
+        self.assertIn('["quality-market","quality-symbol","quality-interval","quality-lookback"]', self.js)
+        self.assertIn('setText("quality-state","Selection changed · run a new quality check")', self.js)
+        self.assertIn("invalidateQualityRequest();activeEvidenceSequence++", self.js)
+
     def test_dark_dense_terminal_shell_exists(self) -> None:
         self.assertIn('class="sidebar"', self.html)
         self.assertIn('class="metric-grid"', self.html)
