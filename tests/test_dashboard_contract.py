@@ -101,6 +101,13 @@ class DashboardContractTests(unittest.TestCase):
     def test_primary_coin_analysis_action_loads_candles(self) -> None:
         self.assertIn('$("load-coin-analysis").addEventListener("click",()=>withButton("load-coin-analysis",loadTechnical', self.js)
 
+    def test_navigation_moves_keyboard_focus_and_hides_decorative_glyphs(self) -> None:
+        self.assertIn('target.setAttribute("tabindex","-1")', self.js)
+        self.assertIn('target.focus({preventScroll:true})', self.js)
+        self.assertRegex(self.html, r'<a class="nav-link[^"]*"[^>]*><span aria-hidden="true">')
+        self.assertIn("input:focus-visible,select:focus-visible,textarea:focus-visible", self.css)
+        self.assertIn(".page-view h1:focus{outline:none}", self.css)
+
     def test_navigation_cancels_stale_analysis_and_market_evidence_requests(self) -> None:
         self.assertIn("if(known!==\"coin-analysis\")cancelAnalysisRequests()", self.js)
         self.assertIn("function cancelAnalysisRequests()", self.js)
