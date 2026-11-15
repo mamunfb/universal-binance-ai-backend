@@ -145,6 +145,17 @@
       return distinct.size>1?[label+": "+supplied.map(entry=>entry.name+"="+entry.value).join(", ")]:[];
     });
   }
+  function scannerDuplicateSymbolStats(rows) {
+    const counts=new Map();
+    for(const row of Array.isArray(rows)?rows:[]){
+      const symbol=typeof row?.symbol==="string"?row.symbol.trim().toUpperCase():"";
+      if(!symbol)continue;
+      counts.set(symbol,(counts.get(symbol)||0)+1);
+    }
+    let duplicateSymbols=0,duplicateRows=0;
+    for(const count of counts.values())if(count>1){duplicateSymbols++;duplicateRows+=count-1;}
+    return{uniqueSymbols:counts.size,duplicateSymbols,duplicateRows};
+  }
   function renderScannerMeta(market,data,rows,rejectedRows=0,rowKey=null,additionalRowKeys=[],quoteFilter=null) {
     const prefix=market==="USD_M"?"usdm":market==="COIN_M"?"coinm":"spot";
     const countNames={
@@ -157,6 +168,9 @@
       "Result field: "+(rowKey||"Not supplied"),
       "Additional array fields: "+(additionalRowKeys.length?additionalRowKeys.join(", "):"None"),
       "Returned rows: "+rows.length,
+      "Unique symbols: "+scannerDuplicateSymbolStats(rows).uniqueSymbols,
+      "Duplicate symbols: "+scannerDuplicateSymbolStats(rows).duplicateSymbols,
+      "Duplicate rows: "+scannerDuplicateSymbolStats(rows).duplicateRows,
       "Rejected malformed rows: "+rejectedRows,
       "Status field: "+(metadataFieldName(data,["status","scan_status"])||"Not supplied"),
       "Status: "+metadataText(data.status,metadataText(data.scan_status,"Not supplied",80),80),
