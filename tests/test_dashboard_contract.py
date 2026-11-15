@@ -253,6 +253,13 @@ class DashboardContractTests(unittest.TestCase):
         for forbidden in ("/api/v1/orders", "/api/v1/order", "/api/v1/withdraw", "/api/v1/withdrawals"):
             self.assertNotIn(forbidden, self.html + self.js + self.chart_js)
 
+    def test_backend_url_validation_is_visible_and_cleared_after_edit(self) -> None:
+        self.assertIn("const rejectUrl=(message)=>{urlInput.setCustomValidity(message);urlInput.reportValidity();throw new Error(message);}", self.js)
+        self.assertIn('$("backend-url").addEventListener("input",()=> $("backend-url").setCustomValidity(""))', self.js)
+        self.assertIn('$("backend-url").setCustomValidity("")', self.js)
+        self.assertIn('rejectUrl("Use HTTPS for remote backends.', self.js)
+        self.assertIn('rejectUrl("Backend URL must include a host', self.js)
+
     def test_remote_backend_requires_https(self) -> None:
         self.assertIn("Use HTTPS for remote backends", self.js)
         self.assertIn("http://localhost", self.js)
