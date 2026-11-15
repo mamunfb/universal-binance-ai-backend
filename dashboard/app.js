@@ -190,6 +190,7 @@
     if(market!=="SPOT") setText(prefix+"-count",rows.length.toLocaleString()+" returned");
   }
   const tableViews = {};
+  const scannerSearchTimers = {};
   const scannerCollator = new Intl.Collator(undefined,{numeric:true,sensitivity:"base"});
   function focusPagerControl(table,label){
     const buttons=Array.from(table?.parentElement?.parentElement?.querySelectorAll(".table-pager button")||[]);
@@ -348,6 +349,7 @@
     const scanners=[["spot-rows","spot-search","spot-count","spot-coverage",6],["usdm-rows","usdm-search","usdm-count","usdm-coverage",5],["coinm-rows","coinm-search","coinm-count","coinm-coverage",5]];
     scanners.forEach(([target,searchId,countId,coverageId,columns])=>{
       const view=tableViews[target]||(tableViews[target]={page:0,pageSize:100,sortKey:"symbol",direction:1,rows:[],query:""});
+      if(scannerSearchTimers[target]!==undefined){window.clearTimeout(scannerSearchTimers[target]);delete scannerSearchTimers[target];}
       view.rows=[];view.page=0;view.query="";view.sortedCache=null;
       const search=$(searchId);if(search)search.value="";
       renderRows(target,[],columns);setText(countId,reason);setText(coverageId,reason);
@@ -395,7 +397,15 @@
     $("scan-coinm").addEventListener("click",()=>withButton("scan-coinm",()=>scanMarket("COIN_M"),"Scanning…"));
     $("spot-quote").addEventListener("input",()=>{invalidateScanRequests();setText("scan-state","Spot quote filter changed · previous results retained; run a new scan");setText("spot-coverage","Quote filter changed · run a new Spot scan");});
     [["spot-search","spot-rows",6],["usdm-search","usdm-rows",5],["coinm-search","coinm-rows",5]].forEach(([input,target,columns])=>{
-      $(input).addEventListener("input",e=>{const view=tableViews[target]||(tableViews[target]={page:0,pageSize:100,sortKey:"symbol",direction:1,rows:[],query:""});view.query=e.target.value.trim().toUpperCase();view.page=0;renderRows(target,view.rows,columns);});
+      $(input).addEventListener("input",e=>{
+        const view=tableViews[target]||(tableViews[target]={page:0,pageSize:100,sortKey:"symbol",direction:1,rows:[],query:""});
+        view.query=e.target.value.trim().toUpperCase();view.page=0;
+        if(scannerSearchTimers[target]!==undefined)window.clearTimeout(scannerSearchTimers[target]);
+        scannerSearchTimers[target]=window.setTimeout(()=>{
+          delete scannerSearchTimers[target];
+          renderRows(target,view.rows,columns);
+        },150);
+      });
     });
     $("load-preflight").addEventListener("click",()=>withButton("load-preflight",()=>loadReadiness("/api/v1/research/preflight"),"Checking…"));
     $("load-readiness").addEventListener("click",()=>withButton("load-readiness",()=>loadReadiness("/api/v1/research/phase-readiness"),"Checking…"));
