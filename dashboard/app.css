@@ -14,3 +14,7 @@
 /* Scanner pagination remains usable on narrow screens; sortable headers show keyboard focus. */
 .table-pager{flex-wrap:wrap}.table-pager>span:first-child{min-width:0;overflow-wrap:anywhere}.table-pager button{min-height:34px;padding:7px 12px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font:inherit}.table-pager button:disabled{opacity:.45;cursor:not-allowed}.table-scroll th:focus-visible{outline:2px solid var(--accent,#6ea8fe);outline-offset:-3px}
 @media(max-width:480px){.table-pager{align-items:flex-start!important;flex-direction:column}.table-pager>span:last-child{display:flex;gap:8px;width:100%}.table-pager button{flex:1}}
+
+/* Visible keyboard focus for primary navigation and compact controls. */
+.nav-link:focus-visible,.icon-btn:focus-visible,.primary-btn:focus-visible,.secondary-btn:focus-visible,.market-tab:focus-visible,.timeframe-btn:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+@media(max-width:480px){.topbar-controls{grid-template-columns:repeat(2,minmax(0,1fr))}.topbar-controls .compact-control{min-width:0}.topbar-controls .icon-btn{min-height:37px}.topbar-controls .primary-btn{width:100%}}
