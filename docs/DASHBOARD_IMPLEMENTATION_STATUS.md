@@ -2,7 +2,7 @@
 
 **Repository:** `mamunfb/universal-binance-ai-backend`  
 **Frontend branch:** `feat/institutional-dashboard-design`  
-**Current branch head at this checkpoint:** `c0b7ea0c5b15398d8b029683eed167c377c85f44`  
+**Current branch head at this checkpoint:** `b932adb2f5ed70a4938d52325846ff119c27bed1`  
 **Backend changes:** None in this branch.
 
 ## Completed in this work session
@@ -42,6 +42,23 @@
 - The new Python assertions have **not** yet been executed; they are test coverage added, not a passing test result.
 - No live scan payload, browser interaction, performance/virtualization or accessibility run was performed. Pagination limits DOM rows to 100 at a time, but the full response remains in browser memory.
 - No backend files, CI workflows, database files, secrets or deployment settings were changed. No PR, merge or deployment was performed.
+
+## Additional implementation — candle data and chart calculation hardening
+
+- Candle parsing now rejects null/empty/boolean numeric fields, non-finite values, invalid timestamps, negative volume and impossible OHLC relationships; valid rows are sorted chronologically.
+- Extracted explicit timeframe-to-exchange-interval and market-to-kline-route mappings, with unsupported markets rejected before a request is made.
+- Corrected flat-price RSI behaviour to return neutral 50 when average gains and losses are both zero.
+- Replaced the simple-average true-range label with a Wilder-smoothed ATR(14) calculation and named the output `atr_14_wilder`.
+- MACD is now explicitly represented as the EMA(12)-minus-EMA(26) line; signal and histogram are clearly unavailable rather than implied.
+- Added Node built-in test-runner fixtures covering malformed candle rejection, chronological parsing, complete/incomplete/duplicate/misaligned 3h buckets, timeframe/route mapping, flat RSI, Wilder ATR and insufficient indicator history.
+- Extended the Python static contract suite to assert the fixture suite and chart validation safeguards exist.
+
+## Verification status for chart hardening
+
+- Source and test files were committed through GitHub on the frontend branch.
+- The Node fixture suite and Python contract suite have **not** been executed. No test-pass claim is made.
+- No live Binance/backend candle payload or browser chart rendering was tested.
+- No backend or deployment configuration was changed.
 
 ## Not yet verified / remaining work
 
