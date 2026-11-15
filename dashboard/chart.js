@@ -27,8 +27,10 @@ function finiteBlend(previous,current,weight){
 }
 function finiteMean(values){
  if(!values.length||!values.every(Number.isFinite))return null;
- let mean=values[0];
- for(let i=1;i<values.length;i++){const weight=1/(i+1);mean=finiteBlend(mean,values[i],weight);if(mean===null)return null;}
+ const scale=Math.max(...values.map(Math.abs));if(!Number.isFinite(scale))return null;if(scale===0)return 0;
+ let sum=0,correction=0;
+ for(const value of values){const adjusted=value/scale-correction,next=sum+adjusted;correction=(next-sum)-adjusted;sum=next;}
+ const mean=(sum/values.length)*scale;
  return Number.isFinite(mean)?mean:null;
 }
 function ema(a,n){if(a.length<n||!a.every(Number.isFinite))return null;const k=2/(n+1);let v=finiteMean(a.slice(0,n));if(v===null)return null;for(let i=n;i<a.length;i++){v=finiteBlend(v,a[i],k);if(v===null)return null;}return v;}
