@@ -55,9 +55,9 @@ const {chromium}=require("playwright");
    const cycleStart=Date.now();
    for(let cycle=0;cycle<5;cycle++){
     await page.locator("#spot-search").fill("COIN0999USDT");
-    await page.waitForFunction(()=>document.querySelector("#spot-count")?.textContent.includes("1 matching / 1000 returned"));
+    await page.waitForFunction(()=>document.querySelector("#spot-count")?.textContent.replace(/,/g,"").includes("1 matching / 1000 returned"));
     await page.locator("#spot-search").fill("");
-    await page.waitForFunction(()=>document.querySelector("#spot-count")?.textContent.includes("1000 matching / 1000 returned"));
+    await page.waitForFunction(()=>document.querySelector("#spot-count")?.textContent.replace(/,/g,"").includes("1000 matching / 1000 returned"));
     await page.locator('table[aria-label="Spot market scan results"] thead th').nth(4).click();
     await page.locator('.table-pager button[aria-label="Next scanner page"]').click();
     await page.getByText(/page 2\/10/).waitFor();
