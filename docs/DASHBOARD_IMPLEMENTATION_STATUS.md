@@ -469,7 +469,7 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 
 ## Scanner metadata alias provenance
 
-- Scanner coverage now identifies which recognized source/timestamp field supplied the displayed metadata. Timestamp precedence remains `generated_at`, then `timestamp`, then `updated_at`; source currently reports the supplied `source` field.
+- Scanner coverage now identifies which recognized status, source and timestamp field supplied the displayed metadata. Status precedence remains `status` then `scan_status`; timestamp precedence remains `generated_at`, then `timestamp`, then `updated_at`; source currently reports the supplied `source` field.
 - Provenance is determined using the same primitive-only metadata acceptance rule as the displayed value. Invalid or blank higher-priority aliases do not appear as the selected field.
 - Timestamp values are deliberately displayed as supplied (with the existing length bound); the dashboard does not guess whether numeric values represent seconds, milliseconds or another unit, and does not reinterpret timezone-less strings.
 - Added a Python static contract assertion for the selected source and timestamp field labels. GitHub source readback is the verification performed; runtime tests and browser QA have not been run.
