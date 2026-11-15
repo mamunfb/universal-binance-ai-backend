@@ -77,6 +77,12 @@
 - Chart overlays/panes are client-side descriptive calculations, not validated backend signals. ADX, Stochastic RSI, Volume Profile, support/resistance and backend-derived levels are still not implemented in this chart workspace.
 - No backend, CI workflow, database, secret, deployment or production hosting files were changed.
 
+## Follow-up refinement — MACD pane consistency
+
+- The Coin Analysis technical summary now reports the latest computed MACD line, EMA9 signal line and histogram values, matching the separate chart panes.
+- Extended the MACD fixture to assert that all three latest values are finite when sufficient history is present.
+- The chart test suite now contains eight named Node test cases; execution is still pending.
+
 ## Not yet verified / remaining work
 
 - The Python dashboard contract test file has been added but has not yet been executed in CI or a repository test runner.
