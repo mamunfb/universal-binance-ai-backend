@@ -972,3 +972,12 @@ Verified feature-branch HEAD: `ff39adc7d9d013215d5e1af3e79e3913a7560f8a`.
 - Source-level API error handling and rendering safeguards are documented in Section 27 of `docs/DASHBOARD_QA_AUDIT.md`.
 - Real-browser viewport, keyboard/screen-reader, live API fault-injection and performance profiling remain pending. CI success must not be interpreted as completion of those manual/runtime checks.
 - No merge, deployment, backend/database change or main-branch update was performed.
+
+
+## API and keyboard regression coverage expansion — 2026-11-15
+
+- Added three static regression tests covering API timeout/cancellation/response error paths, secure backend URL validation, and mobile navigation focus restoration/keyboard boundaries.
+- Fixed the dashboard frontend workflow pull-request path filter so changes to `tests/test_dashboard_accessibility.py` trigger the frontend regression suite for PRs as well as branch pushes.
+- Dashboard Frontend run ID `43717409892`: **success**, 119 dashboard Python tests plus chart fixtures and JavaScript syntax checks passed.
+- Backend + Dashboard run ID `43717409851`: **success**, **634 passed, 2 warnings**.
+- Browser/mobile viewport, live API fault injection, screen-reader and performance profiling remain pending. No merge, deployment, backend/database change or main-branch update was performed.
