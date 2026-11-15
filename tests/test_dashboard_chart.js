@@ -542,3 +542,15 @@ test("volume bars scale tiny positive volumes correctly and keep all-zero volume
   } finally { global.document=originalDocument; }
 });
 
+test("chart invalidation actively aborts the in-flight API request and ignores its response", async () => {
+  let resolvePending, receivedSignal;
+  const pending = new Promise(resolve => { resolvePending=resolve; });
+  const request = charts.load((_url,options={}) => { receivedSignal=options.signal; return pending; },"SPOT","BTCUSDT","1h");
+  assert.ok(receivedSignal);
+  assert.equal(receivedSignal.aborted,false);
+  charts.invalidate();
+  assert.equal(receivedSignal.aborted,true);
+  resolvePending({klines:[]});
+  assert.deepEqual(await request,{status:"SUPERSEDED",market:"SPOT",symbol:"BTCUSDT",requested_timeframe:"1h"});
+});
+
