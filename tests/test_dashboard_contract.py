@@ -138,3 +138,14 @@ class DashboardContractTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+    def test_usdm_and_coinm_scanners_have_full_result_search_and_coverage(self) -> None:
+        for market in ("usdm", "coinm"):
+            self.assertIn(f'id="{market}-search"', self.html)
+            self.assertIn(f'id="{market}-count"', self.html)
+            self.assertIn(f'id="{market}-coverage"', self.html)
+            self.assertIn(f'["{market}-search","{market}-rows",5]', self.js)
+        self.assertIn("function renderScannerMeta", self.js)
+        self.assertIn('"Failed: "+(extractCount(data,countNames.failed)', self.js)
+        self.assertIn('"Returned rows: "+rows.length', self.js)
+
