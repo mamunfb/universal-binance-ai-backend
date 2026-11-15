@@ -107,5 +107,35 @@ class DashboardAccessibilityContractTests(unittest.TestCase):
         self.assertIn(".table-scroll[role=\"region\"]:focus-visible", self.css)
 
 
+    def test_api_wrapper_has_explicit_timeout_abort_and_response_error_paths(self) -> None:
+        api = self.js.split("async function api(path,", 1)[1].split("async function withButton", 1)[0]
+        for expected in (
+            "Number.isFinite(timeout)", "new AbortController()",
+            "externalSignal?.addEventListener", "window.setTimeout",
+            "response.text()", "JSON.parse(raw)", "non-JSON response",
+            "empty JSON response", "Backend request failed (HTTP ",
+            "Request timed out.", "Request cancelled.",
+            "Network connection failed.", "window.clearTimeout(timer)",
+            "removeEventListener",
+        ):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, api)
+
+    def test_backend_connection_rejects_insecure_remote_urls_and_embedded_credentials(self) -> None:
+        connect = self.js.split("function connectSettings()", 1)[1].split("function bind()", 1)[0]
+        self.assertIn('parsed.protocol!=="https:"&&!localHttp', connect)
+        self.assertIn("parsed.username||parsed.password||parsed.search||parsed.hash", connect)
+        self.assertIn('state.token=$("backend-token").value.trim()', connect)
+        self.assertIn("clearConnectionScopedData", connect)
+
+    def test_mobile_navigation_restores_focus_and_closes_on_escape(self) -> None:
+        sidebar = self.js.split("function setSidebarOpen(open)", 1)[1].split("function navigate", 1)[0]
+        self.assertIn("if(!open&&mobile&&sidebar.contains(document.activeElement))menu.focus()", sidebar)
+        self.assertIn('if(open&&mobile)sidebar.querySelector(".nav-link")?.focus()', sidebar)
+        self.assertIn('if(event.key==="Escape"){event.preventDefault();setSidebarOpen(false);return;}', self.js)
+        self.assertIn("if(event.shiftKey&&(active===first||!sidebar.contains(active)))", self.js)
+        self.assertIn("else if(!event.shiftKey&&(active===last||!sidebar.contains(active)))", self.js)
+
+
 if __name__ == "__main__":
     unittest.main()
