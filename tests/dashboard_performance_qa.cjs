@@ -9,7 +9,7 @@ const {chromium}=require("playwright");
   for(const rate of [1,4]){
    const context=await browser.newContext({viewport:{width:390,height:844}}),page=await context.newPage();
    const cdp=await context.newCDPSession(page);await cdp.send("Performance.enable");await cdp.send("HeapProfiler.enable");await cdp.send("Emulation.setCPUThrottlingRate",{rate});
-   const errors=[];page.on("pageerror",e=>errors.push(e.message));
+   const errors=[],apiEvents=[];page.on("pageerror",e=>errors.push(e.message));page.on("requestfailed",r=>apiEvents.push({type:"requestfailed",url:r.url(),error:r.failure()?.errorText}));page.on("response",r=>{if(r.url().startsWith("https://qa.invalid/"))apiEvents.push({type:"response",url:r.url(),status:r.status()});});
    const fixtureRows=Array.from({length:1000},(_,i)=>({symbol:"COIN"+String(i).padStart(4,"0")+"USDT",base_asset:"COIN"+String(i).padStart(4,"0"),quote_asset:"USDT",last_price:(i+1).toFixed(4),quote_volume_24h:String((1000-i)*1250),price_change_percent_24h:String((i%21)-10),status:"TRADING"}));
    await page.route("https://qa.invalid/**",async route=>{
     const url=new URL(route.request().url());
@@ -35,7 +35,7 @@ const {chromium}=require("playwright");
    await page.locator("#mobile-menu").click();
    await page.locator('#main-nav .nav-link[data-page="spot-scanner"]').click();
    const scanStart=Date.now();await page.locator("#scan-spot").click();
-   await page.waitForFunction(()=>document.querySelector("#spot-count")?.textContent.includes("1000 matching / 1000 returned"));
+   try{await page.waitForFunction(()=>document.querySelector("#spot-count")?.textContent.includes("1000 matching / 1000 returned"),{timeout:10000});}catch(error){const diagnostic=await page.evaluate(()=>({scanState:document.querySelector("#scan-state")?.textContent,spotCount:document.querySelector("#spot-count")?.textContent,coverage:document.querySelector("#spot-coverage")?.textContent,toast:document.querySelector("#toast-container")?.textContent,buttonDisabled:document.querySelector("#scan-spot")?.disabled,settingsStatus:document.querySelector("#settings-status")?.textContent,hash:location.hash}));throw new Error("1000-row scanner fixture did not render. UI="+JSON.stringify(diagnostic)+" API="+JSON.stringify(apiEvents)+" pageErrors="+JSON.stringify(errors)+"; "+error.message);}
    const scanRenderMs=Date.now()-scanStart,visibleRows=await page.locator("#spot-rows tr").count();
    const sortStart=Date.now();await page.locator('table[aria-label="Spot market scan results"] thead th').nth(4).click();
    await page.waitForFunction(()=>document.querySelector('table[aria-label="Spot market scan results"] thead th:nth-child(5)')?.getAttribute("aria-sort")==="ascending");
