@@ -286,3 +286,16 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Fetch failures surfaced as browser/network TypeErrors now receive a clear connection message, distinct from AbortController timeout errors. Non-idempotent requests are not automatically retried; the current dashboard API helper has no retry loop. A future retry policy should be limited to explicitly idempotent requests and transient failures, with a bounded attempt count and backoff.
 - Added static contract assertions for scanner cache reuse, mobile menu state/Escape behavior and distinct timeout/network error messaging.
 - Validation status: source changes and test/documentation updates have been written to the feature branch. Runtime Node/Python suites, synthetic scanner benchmark, browser keyboard audit and responsive viewport QA have not yet been run. The local repository clone could not be obtained because this execution environment could not resolve github.com; no CI workflow was triggered.
+
+
+## Local test environment preparation notes
+
+- Repository dependency metadata was reviewed: Python requires 3.11 or newer; development extras include pytest, pytest-asyncio and Ruff. The root requirements file lists the application runtime dependencies.
+- Recommended local setup from a clean clone:
+  `python -m venv .venv`
+  `source .venv/bin/activate` (Windows PowerShell: `.venv\\Scripts\\Activate.ps1`)
+  `python -m pip install --upgrade pip`
+  `python -m pip install -e ".[dev]"`
+  `python -m pytest`
+- The dashboard chart fixture suite uses Node's built-in test runner and can be invoked with `node --test tests/test_dashboard_chart.js`; the dashboard contract checks are included in the Python pytest suite.
+- This execution session has Node.js 22 and Python 3.13 available, but a GitHub clone attempt failed at DNS resolution for github.com. Therefore dependencies were not installed and neither suite was executed. These commands are setup guidance, not a claim of passing tests.
