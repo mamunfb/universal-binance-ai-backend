@@ -124,7 +124,7 @@
     const keys=columns===6?["symbol","base_asset","quote_asset","last_price","quote_volume_24h","status"]:["symbol","last_price","quote_volume_24h","price_change_percent_24h","status"];
     const view=tableViews[target]||(tableViews[target]={page:0,pageSize:100,sortKey:"symbol",direction:1,rows:[],query:""});
     const incomingRows=Array.isArray(rows)?rows:[];
-    if(incomingRows!==view.rows){view.rows=incomingRows.slice();view.sortedCache=null;}
+    if(incomingRows!==view.rows){view.rows=incomingRows.slice();view.page=0;view.sortedCache=null;}
     const cached=view.sortedCache;
     let filteredCount,sortedRows;
     if(cached&&cached.rows===view.rows&&cached.query===view.query&&cached.sortKey===view.sortKey&&cached.direction===view.direction){
