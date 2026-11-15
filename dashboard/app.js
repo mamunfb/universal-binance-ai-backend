@@ -107,6 +107,13 @@
     toast(market+" scan response received."+(!hasRowsArray?" No recognized result array was supplied.":rejectedRows?" "+rejectedRows+" malformed rows were excluded.":" Check coverage and failure counts."),!hasRowsArray||rejectedRows?"info":"success");
     return data;
   }
+  function scannerCountAliasConflicts(data,countNames) {
+    return Object.entries(countNames).flatMap(([label,names])=>{
+      const supplied=names.map(name=>({name,value:extractCount(data,[name])})).filter(entry=>entry.value!==null);
+      const distinct=new Set(supplied.map(entry=>entry.value));
+      return distinct.size>1?[label+": "+supplied.map(entry=>entry.name+"="+entry.value).join(", ")]:[];
+    });
+  }
   function renderScannerMeta(market,data,rows,rejectedRows=0,rowKey=null,additionalRowKeys=[]) {
     const prefix=market==="USD_M"?"usdm":market==="COIN_M"?"coinm":"spot";
     const countNames={
@@ -125,6 +132,7 @@
       "Scanned: "+(extractCount(data,countNames.scanned)??"Not supplied"),
       "Failed: "+(extractCount(data,countNames.failed)??"Not supplied"),
       "Matched: "+(extractCount(data,countNames.matched)??"Not supplied"),
+      "Count alias conflicts: "+(scannerCountAliasConflicts(data,countNames).join("; ")||"None detected"),
       "Source: "+metadataText(data.source,"Not supplied",120),
       "Timestamp: "+metadataText(data.generated_at,metadataText(data.timestamp,metadataText(data.updated_at,"Not supplied",80),80),80)
     ];
