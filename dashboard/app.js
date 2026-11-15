@@ -131,7 +131,7 @@
       filteredCount=cached.filteredCount;sortedRows=cached.sortedRows;
     }else{
       const filtered=view.rows.filter(item=>!view.query||keys.some(key=>String(item?.[key]??"").toUpperCase().includes(view.query)));
-      const numericValue=value=>value!==null&&value!==undefined&&!(typeof value==="string"&&value.trim()==="")&&typeof value!=="boolean"&&Number.isFinite(Number(value))?Number(value):null;
+      const numericValue=value=>{if(typeof value==="number")return Number.isFinite(value)?value:null;if(typeof value!==="string"||value.trim()==="")return null;const parsed=Number(value);return Number.isFinite(parsed)?parsed:null;};
       const sortable=filtered.map(item=>{const value=item?.[view.sortKey];return{item,value,numeric:numericValue(value),missing:value===null||value===undefined||(typeof value==="string"&&value.trim()===""),symbol:String(item?.symbol??"")};});
       sortable.sort((a,b)=>{if(a.missing!==b.missing)return a.missing?1:-1;let cmp;if(a.numeric!==null&&b.numeric!==null)cmp=a.numeric-b.numeric;else if((a.numeric!==null)!==(b.numeric!==null))cmp=a.numeric!==null?-1:1;else cmp=scannerCollator.compare(String(a.value??""),String(b.value??""));if(cmp===0)cmp=scannerCollator.compare(a.symbol,b.symbol);return cmp===0?0:cmp*view.direction;});
       filteredCount=filtered.length;sortedRows=sortable.map(entry=>entry.item);
