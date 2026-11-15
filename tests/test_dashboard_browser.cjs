@@ -623,8 +623,7 @@ test("a newer market scan wins when an older scan response arrives late", async 
   await started;
   await page.locator('.nav-link[data-page="usdm-scanner"]').click();
   await page.locator("#scan-usdm").click();
-  await page.locator("#usdm-rows tr").first().waitFor();
-  assert.equal(await page.locator("#usdm-rows tr").first().locator("td").first().innerText(), "CURRENTUSDT");
+  await page.locator("#usdm-rows tr").first().getByText("CURRENTUSDT").waitFor();
   await settled;
 
   assert.equal(await page.locator("#usdm-rows tr").first().locator("td").first().innerText(), "CURRENTUSDT",
@@ -728,6 +727,7 @@ test("the latest research-readiness request wins when an older endpoint responds
     body: JSON.stringify({status: "current-readiness", marker: "new"})
   }));
 
+  await page.locator('.nav-link[data-page="overview"]').click();
   await page.locator("#load-preflight").click();
   await started;
   await page.locator("#load-readiness").click();
