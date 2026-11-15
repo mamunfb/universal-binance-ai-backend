@@ -304,3 +304,10 @@ A further read-only source pass compared the current dashboard files and existin
 4. Page lifecycle cleanup hooks (`pagehide` / `beforeunload`) were not found in the inspected app source; no leak or stuck-request behavior has been demonstrated.
 
 **Disposition:** no application code change is justified from static inspection alone. Do not introduce arbitrary response caps or alter scanner pagination/API contracts without representative payload measurements and backend compatibility tests. The above 110 Python and 54 Node cases remain source-defined only; none is marked passed because the GitHub Actions billing restriction has prevented runner startup. No production, staging, main branch, PR merge, or billing setting was modified.
+
+
+## 20. CI status after expanded source audit (2026-11-15)
+
+The push of the prior billing recheck report commit `2ebcc33f2b320af85dbcb22e32a9dd1b11657dad` triggered **Run #1706** (run ID `43706114829`). Its job ID is `132787442341`; the Jobs API reports conclusion `failure`, `steps: null`, and `logs_url: null`. This is consistent with the previously browser-confirmed billing block, but no separate browser annotation was captured for Run #1706. It supplies no evidence that the Python or Node test steps ran.
+
+The expanded source/coverage review in Section 19 is documentation-only. It does not change the application or workflow and does not resolve the account restriction. The latest source-level conclusions therefore remain unchanged: test cases are defined but not executed; runtime/browser/performance results are pending; arbitrary payload caps or API pagination changes remain deferred until measured.
