@@ -282,6 +282,13 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn('typeof value!=="boolean"', self.js)
         self.assertIn('Number(value)>=0', self.js)
 
+    def test_scanner_rejects_non_object_response_rows_and_reports_count(self) -> None:
+        self.assertIn('const responseRows=safeArray(data,["symbols","markets","results","data"])', self.js)
+        self.assertIn('responseRows.filter(item=>item!==null&&typeof item==="object"&&!Array.isArray(item))', self.js)
+        self.assertIn("const rejectedRows=responseRows.length-rows.length", self.js)
+        self.assertIn('"Rejected malformed rows: "+rejectedRows', self.js)
+        self.assertIn("malformed rows were excluded", self.js)
+
     def test_spot_scanner_exposes_backend_reported_coverage(self) -> None:
         self.assertIn('id="spot-coverage"', self.html)
         self.assertIn('id="spot-count"', self.html)
