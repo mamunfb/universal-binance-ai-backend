@@ -770,5 +770,14 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn(".text-btn:focus-visible", self.css)
         self.assertIn('role="region" aria-label="Spot market scan results" tabindex="0"', self.html)
 
+    def test_market_evidence_preserves_previous_chart_until_valid_response(self) -> None:
+        evidence = self.js.split("async function loadMarketEvidence()", 1)[1].split("async function loadTechnical()", 1)[0]
+        self.assertIn('setText("chart-state","Loading market evidence · previous chart and evidence retained")', evidence)
+        self.assertNotIn('setText("technical-summary","Loading evidence for the current selection.")', evidence)
+        self.assertIn('if(data===null||typeof data!=="object"||Array.isArray(data))', evidence)
+        self.assertIn('previous evidence was preserved.', evidence)
+        self.assertLess(evidence.index('if(data===null||typeof data!=="object"||Array.isArray(data))'), evidence.index('chartHost.replaceChildren'))
+        self.assertIn('Evidence request failed · previous chart and evidence retained', evidence)
+
 if __name__ == "__main__":
     unittest.main()
