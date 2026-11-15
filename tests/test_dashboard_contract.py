@@ -869,5 +869,13 @@ class DashboardContractTests(unittest.TestCase):
         self.assertNotIn("sortedEntries", rows)
         self.assertNotIn("view.rows.filter(", rows)
 
+    def test_scanner_search_rendering_is_debounced_and_cancelled_on_clear(self) -> None:
+        self.assertIn("const scannerSearchTimers = {}", self.js)
+        self.assertIn("window.clearTimeout(scannerSearchTimers[target])", self.js)
+        self.assertIn("window.setTimeout(()=>", self.js)
+        self.assertIn("},150);", self.js)
+        clear = self.js.split("function clearConnectionScopedData", 1)[1].split("function refreshDisplayedTimestamps", 1)[0]
+        self.assertIn("delete scannerSearchTimers[target]", clear)
+
 if __name__ == "__main__":
     unittest.main()
