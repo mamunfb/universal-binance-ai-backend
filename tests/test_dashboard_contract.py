@@ -89,6 +89,9 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn("function invalidate(){activeLoadSequence++;}", self.chart_js)
         self.assertIn("window.DashboardCharts.invalidate()", self.js)
         self.assertIn("invalidateChartView();", self.js)
+        self.assertIn("catch(error){if(requestSequence!==activeLoadSequence)return{status:\"SUPERSEDED\"", self.chart_js)
+        self.assertIn("activeEvidenceSequence=0", self.js)
+        self.assertIn("if(requestSequence!==activeEvidenceSequence)return{status:\"SUPERSEDED\"}", self.js)
 
     def test_primary_coin_analysis_action_loads_candles(self) -> None:
         self.assertIn('$("load-coin-analysis").addEventListener("click",()=>withButton("load-coin-analysis",loadTechnical', self.js)
@@ -152,6 +155,10 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn('textContent="Previous"', self.js)
         self.assertIn('textContent="Next"', self.js)
         self.assertIn("matching / ", self.js)
+        self.assertIn("let activeScanSequence=0", self.js)
+        self.assertIn("function invalidateScanRequests(){activeScanSequence++;}", self.js)
+        self.assertIn("if(requestSequence!==activeScanSequence)return{status:\"SUPERSEDED\",market}", self.js)
+        self.assertIn("const numericValue=v=>", self.js)
 
     def test_spot_filter_uses_full_returned_dataset_before_pagination(self) -> None:
         self.assertIn('view.query=e.target.value.trim().toUpperCase()', self.js)
