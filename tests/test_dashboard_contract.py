@@ -701,5 +701,20 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn('$("default-market").addEventListener("change"', self.js)
         self.assertIn('$("default-timeframe").addEventListener("change"', self.js)
 
+
+
+    def test_readiness_requests_are_aborted_and_ignored_after_backend_reconfiguration(self) -> None:
+        readiness = self.js.split("async function loadReadiness(path)", 1)[1].split("function clearConnectionScopedData", 1)[0]
+        self.assertIn("const requestSequence=++activeReadinessSequence", readiness)
+        self.assertIn("activeReadinessController.abort()", readiness)
+        self.assertIn("api(path,{signal:controller.signal})", readiness)
+        self.assertIn('if(requestSequence!==activeReadinessSequence)return{status:"SUPERSEDED"}', readiness)
+        connect_body = self.js.split("function connectSettings()", 1)[1].split("function bind()", 1)[0]
+        self.assertIn("invalidateReadinessRequests()", connect_body)
+        clear_handler = self.js.split('$("clear-credentials").addEventListener', 1)[1].split('$("display-timezone")', 1)[0]
+        self.assertIn("invalidateReadinessRequests()", clear_handler)
+        self.assertIn('()=>loadReadiness("/api/v1/research/preflight")', self.js)
+        self.assertIn('()=>loadReadiness("/api/v1/research/phase-readiness")', self.js)
+
 if __name__ == "__main__":
     unittest.main()
