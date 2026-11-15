@@ -816,5 +816,22 @@ class DashboardContractTests(unittest.TestCase):
         self.assertLess(comparator.index("if((a.numeric!==null)!==(b.numeric!==null))"), comparator.index("return cmp===0?0:cmp*view.direction"))
         self.assertIn("return cmp===0?0:cmp*view.direction", comparator)
 
+
+    def test_scanner_reports_duplicate_symbols_without_dropping_rows(self) -> None:
+        helper = self.js.split("function scannerDuplicateSymbolStats(rows)", 1)[1].split("function renderScannerMeta", 1)[0]
+        self.assertIn('row?.symbol==="string"?row.symbol.trim().toUpperCase():""', helper)
+        self.assertIn("counts.set(symbol,(counts.get(symbol)||0)+1)", helper)
+        self.assertIn("duplicateRows+=count-1", helper)
+        self.assertIn("const duplicateStats=scannerDuplicateSymbolStats(rows)", self.js)
+        meta = self.js.split("function renderScannerMeta", 1)[1].split("const tableViews", 1)[0]
+        self.assertIn('"Unique symbols: "+duplicateStats.uniqueSymbols', meta)
+        self.assertIn('"Duplicate symbols: "+duplicateStats.duplicateSymbols', meta)
+        self.assertIn('"Duplicate rows: "+duplicateStats.duplicateRows', meta)
+        scan = self.js.split("async function scanMarket(market)", 1)[1].split("function scannerDuplicateSymbolStats", 1)[0]
+        self.assertIn("renderRows(\"spot-rows\",rows,6)", scan)
+        self.assertIn("renderRows(\"usdm-rows\",rows,5)", scan)
+        self.assertIn("renderRows(\"coinm-rows\",rows,5)", scan)
+        self.assertNotIn("new Map(", scan)
+
 if __name__ == "__main__":
     unittest.main()
