@@ -795,3 +795,12 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Successful Spot scan coverage now includes the requested quote-asset filter so the displayed coverage is easier to reconcile with the visible query.
 - Added static regression contracts for incomplete payload preservation, all-malformed-row rejection, and quote-filter coverage labeling. These tests have not been executed; runtime behavior remains unverified.
 - Frontend-only change. No backend source, CI, PR, merge, or deployment changes.
+
+
+## Scanner query-provenance stability
+
+- The last successful scan now retains its requested Spot quote filter as part of the cached scan metadata, rather than re-reading the current input control during display refresh.
+- Timezone/display-preference refresh now renders the scan summary with the market that produced the cached response, not the currently selected market.
+- Scanner coverage refresh reuses the quote-filter value captured when that successful request was made. Changing the selected filter or market therefore cannot relabel the previous successful scan during a timestamp refresh.
+- Added a static regression contract for market and quote-filter provenance across display refreshes. The test has not been executed; browser behavior remains unverified.
+- Frontend-only. No backend source, CI, PR, merge, or deployment changes.
