@@ -29,7 +29,8 @@
     setText("page-crumb",title);
     if(!document.getElementById("page-"+known)) { setText("placeholder-title",title); setText("placeholder-description", "This research area is included in the approved dashboard scope. Its API capability must be verified before live data is shown."); }
     if(known==="coin-analysis") syncAnalysisHeader();
-    document.querySelector(".sidebar").classList.remove("open");
+    $("sidebar").classList.remove("open");
+    $("mobile-menu").setAttribute("aria-expanded","false");
   }
   function apiHeaders() { const h={"Accept":"application/json"}; if(state.token) h.Authorization="Bearer "+state.token; return h; }
   async function api(path, {method="GET", body, timeout=20000}={}) {
@@ -42,7 +43,11 @@
       if(response.ok&&data===null)throw new Error("Backend returned an empty JSON response (HTTP "+response.status+").");
       if(!response.ok){const detail=data?.detail??data?.message;const safeDetail=typeof detail==="string"?detail.replace(/[\x00-\x1f\x7f]/g," ").replace(/\s+/g," ").trim().slice(0,300):"";throw new Error(safeDetail||("Backend request failed (HTTP "+response.status+")."));}
       return data;
-    } catch(error) { if(error.name==="AbortError") throw new Error("Request timed out."); throw error; }
+    } catch(error) {
+      if(error.name==="AbortError") throw new Error("Request timed out.");
+      if(error instanceof TypeError) throw new Error("Network connection failed. Check your connection and backend availability.");
+      throw error;
+    }
     finally { window.clearTimeout(timer); }
   }
   async function withButton(button, task, busyText="Loading…") {
@@ -118,12 +123,20 @@
     const body=$(target); if(!body) return;
     const keys=columns===6?["symbol","base_asset","quote_asset","last_price","quote_volume_24h","status"]:["symbol","last_price","quote_volume_24h","price_change_percent_24h","status"];
     const view=tableViews[target]||(tableViews[target]={page:0,pageSize:100,sortKey:"symbol",direction:1,rows:[],query:""});
-    view.rows=Array.isArray(rows)?rows.slice():[];
-    const filtered=view.rows.filter(item=>!view.query||keys.some(key=>String(item?.[key]??"").toUpperCase().includes(view.query)));
-    const numericValue=value=>value!==null&&value!==undefined&&!(typeof value==="string"&&value.trim()==="")&&typeof value!=="boolean"&&Number.isFinite(Number(value))?Number(value):null;
-    const sortable=filtered.map(item=>{const value=item?.[view.sortKey];return{item,value,numeric:numericValue(value),missing:value===null||value===undefined||(typeof value==="string"&&value.trim()===""),symbol:String(item?.symbol??"")};});
-    sortable.sort((a,b)=>{if(a.missing!==b.missing)return a.missing?1:-1;let cmp;if(a.numeric!==null&&b.numeric!==null)cmp=a.numeric-b.numeric;else if((a.numeric!==null)!==(b.numeric!==null))cmp=a.numeric!==null?-1:1;else cmp=scannerCollator.compare(String(a.value??""),String(b.value??""));if(cmp===0)cmp=scannerCollator.compare(a.symbol,b.symbol);return cmp===0?0:cmp*view.direction;});
-    const sortedRows=sortable.map(entry=>entry.item);
+    const incomingRows=Array.isArray(rows)?rows:[];
+    if(incomingRows!==view.rows){view.rows=incomingRows.slice();view.sortedCache=null;}
+    const cached=view.sortedCache;
+    let filteredCount,sortedRows;
+    if(cached&&cached.rows===view.rows&&cached.query===view.query&&cached.sortKey===view.sortKey&&cached.direction===view.direction){
+      filteredCount=cached.filteredCount;sortedRows=cached.sortedRows;
+    }else{
+      const filtered=view.rows.filter(item=>!view.query||keys.some(key=>String(item?.[key]??"").toUpperCase().includes(view.query)));
+      const numericValue=value=>value!==null&&value!==undefined&&!(typeof value==="string"&&value.trim()==="")&&typeof value!=="boolean"&&Number.isFinite(Number(value))?Number(value):null;
+      const sortable=filtered.map(item=>{const value=item?.[view.sortKey];return{item,value,numeric:numericValue(value),missing:value===null||value===undefined||(typeof value==="string"&&value.trim()===""),symbol:String(item?.symbol??"")};});
+      sortable.sort((a,b)=>{if(a.missing!==b.missing)return a.missing?1:-1;let cmp;if(a.numeric!==null&&b.numeric!==null)cmp=a.numeric-b.numeric;else if((a.numeric!==null)!==(b.numeric!==null))cmp=a.numeric!==null?-1:1;else cmp=scannerCollator.compare(String(a.value??""),String(b.value??""));if(cmp===0)cmp=scannerCollator.compare(a.symbol,b.symbol);return cmp===0?0:cmp*view.direction;});
+      filteredCount=filtered.length;sortedRows=sortable.map(entry=>entry.item);
+      view.sortedCache={rows:view.rows,query:view.query,sortKey:view.sortKey,direction:view.direction,filteredCount,sortedRows};
+    }
     const pages=Math.max(1,Math.ceil(sortedRows.length/view.pageSize));view.page=Math.min(view.page,pages-1);
     body.replaceChildren();
     const visible=sortedRows.slice(view.page*view.pageSize,(view.page+1)*view.pageSize);
@@ -133,8 +146,8 @@
     headers.forEach((th,index)=>{th.title="Sort by "+keys[index];th.setAttribute("aria-sort",keys[index]===view.sortKey?(view.direction===1?"ascending":"descending"):"none");th.style.cursor="pointer";});
     let pager=table?.parentElement?.parentElement?.querySelector(".table-pager");
     if(table&&!pager){pager=document.createElement("div");pager.className="table-pager";pager.style.cssText="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;color:var(--muted,#9aa);font-size:12px";table.parentElement.parentElement.append(pager);}
-    if(pager){pager.replaceChildren();const info=document.createElement("span");info.setAttribute("aria-live","polite");info.textContent=sortedRows.length.toLocaleString()+" matching / "+view.rows.length.toLocaleString()+" returned · page "+(view.page+1)+"/"+pages+" · "+view.pageSize+" per page";const controls=document.createElement("span");const prev=document.createElement("button"),next=document.createElement("button");prev.type=next.type="button";prev.textContent="Previous";next.textContent="Next";prev.setAttribute("aria-label","Previous scanner page");next.setAttribute("aria-label","Next scanner page");prev.disabled=view.page===0;next.disabled=view.page>=pages-1;prev.addEventListener("click",()=>{view.page--;renderRows(target,view.rows,columns);});next.addEventListener("click",()=>{view.page++;renderRows(target,view.rows,columns);});controls.append(prev,next);pager.append(info,controls);}
-    if(target==="spot-rows")setText("spot-count",filtered.length.toLocaleString()+" matching / "+view.rows.length.toLocaleString()+" returned");
+    if(pager){pager.replaceChildren();const info=document.createElement("span");info.setAttribute("aria-live","polite");info.textContent=filteredCount.toLocaleString()+" matching / "+view.rows.length.toLocaleString()+" returned · page "+(view.page+1)+"/"+pages+" · "+view.pageSize+" per page";const controls=document.createElement("span");const prev=document.createElement("button"),next=document.createElement("button");prev.type=next.type="button";prev.textContent="Previous";next.textContent="Next";prev.setAttribute("aria-label","Previous scanner page");next.setAttribute("aria-label","Next scanner page");prev.disabled=view.page===0;next.disabled=view.page>=pages-1;prev.addEventListener("click",()=>{view.page--;renderRows(target,view.rows,columns);});next.addEventListener("click",()=>{view.page++;renderRows(target,view.rows,columns);});controls.append(prev,next);pager.append(info,controls);}
+    if(target==="spot-rows")setText("spot-count",filteredCount.toLocaleString()+" matching / "+view.rows.length.toLocaleString()+" returned");
     if(!view.headersBound&&table){view.headersBound=true;headers.forEach((th,index)=>{const sort=()=>{const key=keys[index];view.direction=view.sortKey===key?-view.direction:1;view.sortKey=key;view.page=0;renderRows(target,view.rows,columns);};th.tabIndex=0;th.setAttribute("aria-keyshortcuts","Enter Space");th.setAttribute("aria-label","Sort by "+keys[index]);th.addEventListener("click",sort);th.addEventListener("keydown",event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();sort();}});});}
   }
   function syncAnalysisHeader(){state.symbol=$("global-symbol").value.trim().toUpperCase()||"BTCUSDT";state.market=$("global-market").value;state.timeframe=$("global-timeframe").value;setText("analysis-title",state.symbol+" · "+state.market);setText("analysis-subtitle","Timeframe "+state.timeframe+" · "+state.market+" · Research-only analysis");}
@@ -179,7 +192,8 @@
   }
   function bind() {
     document.querySelectorAll(".nav-link").forEach(a=>a.addEventListener("click",e=>{e.preventDefault();const page=a.dataset.page; if(PAGE_TITLES[page] && document.getElementById("page-"+page)) navigate(page); else navigate(page); history.replaceState(null,"","#"+page);}));
-    $("mobile-menu").addEventListener("click",()=>$("sidebar").classList.toggle("open"));
+    $("mobile-menu").addEventListener("click",()=>{const open=$("sidebar").classList.toggle("open");$("mobile-menu").setAttribute("aria-expanded",String(open));if(open)$("sidebar").querySelector(".nav-link")?.focus();});
+    document.addEventListener("keydown",event=>{if(event.key==="Escape"&&$("sidebar").classList.contains("open")){$("sidebar").classList.remove("open");$("mobile-menu").setAttribute("aria-expanded","false");$("mobile-menu").focus();}});
     $("open-settings").addEventListener("click",()=>{navigate("settings");history.replaceState(null,"","#settings");});
     $("banner-settings").addEventListener("click",()=>navigate("settings"));
     $("refresh-page").addEventListener("click",()=>{const page=location.hash.slice(1)||"overview";if(page==="overview")withButton("refresh-page",async()=>{await loadHealth();await scanMarket(state.market);},"Refreshing");else if(page==="reliability")withButton("refresh-page",loadQuality,"Refreshing");else if(page==="coin-analysis")withButton("refresh-page",loadTechnical,"Refreshing");else toast("No verified refresh action is mapped for this page yet.");});
