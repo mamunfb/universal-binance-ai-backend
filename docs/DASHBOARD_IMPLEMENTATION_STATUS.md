@@ -379,3 +379,11 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Count extraction now accepts only non-negative safe integers supplied as number primitives or non-empty numeric strings. Fractional values, booleans, arrays, objects, blank strings, negative values, NaN, infinities and integers outside JavaScript's safe-integer range are rejected as missing metadata.
 - Updated the Python static contract to require the primitive-type guard and finite/non-negative check.
 - GitHub source readback is the only verification performed; Python/Node runtime tests and browser QA remain unexecuted.
+
+
+## Scanner top-level response shape validation
+
+- Scanner endpoints now require a non-null JSON object at the top level. Arrays and primitive JSON values are rejected before scan summaries, metrics, coverage metadata or result tables are updated.
+- The validation error explicitly notes that previously displayed results are preserved, avoiding a misleading empty scan view when the backend returns the wrong payload shape.
+- Added a Python static contract assertion that verifies validation occurs before summary rendering.
+- This does not define or fully validate every backend field; it protects the frontend boundary while retaining the existing flexible response-field mapping. GitHub readback is the only verification performed; runtime tests and browser QA remain unexecuted.
