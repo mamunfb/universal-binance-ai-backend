@@ -314,3 +314,11 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Added static checks that superseded candle-chart requests ignore both late successful responses and late failures.
 - These checks improve regression coverage but remain source-level assertions. The Python and Node test suites have not been executed in this session; no passing result is claimed.
 - No retry loop was introduced: scanner and analysis endpoints have not been proven safe for automatic retries, and repeated scans could create unnecessary backend load. No CI, PR, merge or deployment was triggered.
+
+
+## Responsive stylesheet integrity correction
+
+- A source-level review found two literal backslash-`n` sequences embedded in `dashboard/app.css` before the chart-caption and indicator-pane rules. These are not CSS line breaks and can cause the following selector token to be parsed incorrectly.
+- Replaced both escaped sequences with actual newline characters, restoring the selectors as independent CSS rules.
+- Added a Python contract assertion that rejects literal backslash-`n` tokens and requires the chart-caption and indicator-pane selectors to begin on real new lines.
+- GitHub readback is the only verification performed. The browser stylesheet parser/rendering has not been exercised; no browser QA or runtime test is claimed.
