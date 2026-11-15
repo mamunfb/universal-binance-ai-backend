@@ -489,3 +489,12 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - While a new evidence request is pending, the prior evidence payload remains visible and the status explicitly says it is retained. A successful current response replaces the payload; a current failure leaves it intact and reports a bounded error. Superseded requests remain unable to update the view.
 - Added a static contract assertion for the loading state, chart-only invalidation and success-only payload replacement ordering.
 - GitHub readback is the verification performed; Python/Node runtime suites and browser QA have not been run.
+
+
+## Technical chart request lifecycle and contract-test discovery correction
+
+- Technical chart refreshes now expose a loading state that explicitly retains the previous chart. A current request failure reports a bounded error and says the previous chart is retained; the chart, raw analysis output and last successful analysis are not cleared by the failure path.
+- The application-level request sequence now guards both late successful responses and late failures. A superseded chart request returns without changing the newer selection's status or stored analysis.
+- During a follow-up audit, several recently added dashboard contract test methods were found below the module's `unittest.main()` guard. They were therefore not part of the `DashboardContractTests` class and would not be discovered as intended. The methods have been moved back into the test class before the single main guard, and a source-level regression check now verifies their placement.
+- Added a static contract assertion for the technical chart loading, retained-result failure and superseded-request paths.
+- GitHub source readback is the verification performed. Python/Node runtime suites and browser QA have not been run; no test-pass claim is made.
