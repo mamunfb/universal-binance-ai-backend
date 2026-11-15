@@ -587,7 +587,9 @@ Existing browser tests continue to cover the seven viewport widths, mobile keybo
 
 The API cases use browser route mocks and a local static dashboard server; they do not exercise a live backend. No production endpoint, credentials, trading action, database, deployment, or main-branch state is touched by these tests.
 
-**Additional accessibility assertions:** browser-test commit `3f9e1a4a87faa5dc9cd570660712ad24a1b3e645` now also checks the mobile menu's accessible name across open/closed states and verifies the primary navigation landmark and active-page `aria-current` state. These are follow-up assertions beyond the verified baseline and await their own CI result.
+**Additional accessibility assertions verified:** browser-test commit `3f9e1a4a87faa5dc9cd570660712ad24a1b3e645` checks the mobile menu's accessible name across open/closed states and verifies the primary navigation landmark and active-page `aria-current` state. GitHub Actions Run #22 (`43720574539`) passed these assertions; the log records **8 passed, 0 failed**. The job completed successfully in 38 seconds. It emitted one non-blocking Node.js 20 deprecation warning because the workflow still referenced `actions/checkout@v4` and `actions/setup-node@v4`.
+
+**Workflow runtime maintenance:** all three dashboard/backend workflows have now been updated to `actions/checkout@v7` and `actions/setup-node@v7`; setup-node package-manager auto-caching is explicitly disabled because these workflows do not require it. This change is committed but awaits CI validation.
 
 Next verification is to broaden the accessibility and performance regression checks while preserving the verified eight-test baseline.
 
