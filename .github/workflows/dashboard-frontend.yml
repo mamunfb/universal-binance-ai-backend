@@ -1,0 +1,55 @@
+name: Dashboard frontend checks
+
+on:
+  push:
+    branches:
+      - feat/institutional-dashboard-design
+    paths:
+      - "dashboard/**"
+      - "tests/test_dashboard_contract.py"
+      - "tests/test_dashboard_chart.js"
+      - ".github/workflows/dashboard-frontend.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "dashboard/**"
+      - "tests/test_dashboard_contract.py"
+      - "tests/test_dashboard_chart.js"
+      - ".github/workflows/dashboard-frontend.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dashboard-frontend-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dashboard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Check dashboard JavaScript syntax
+        run: |
+          node --check dashboard/app.js
+          node --check dashboard/chart.js
+
+      - name: Run dashboard chart fixtures
+        run: node --test tests/test_dashboard_chart.js
+
+      - name: Run dashboard Python contract tests
+        run: python -m unittest discover -s tests -p "test_dashboard_contract.py" -v
