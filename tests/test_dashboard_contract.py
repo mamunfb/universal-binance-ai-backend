@@ -114,6 +114,12 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn("if(!Array.isArray(values))return{upper:[],middle:[],lower:[]}", bollinger_body)
         self.assertIn("Bollinger bands safely reject non-array input", self.chart_test_js)
 
+    def test_ema_and_finite_mean_use_scaled_convex_blending(self) -> None:
+        self.assertIn("function finiteBlend(previous,current,weight)", self.chart_js)
+        self.assertIn("previous/scale*(1-weight)+current/scale*weight", self.chart_js)
+        self.assertIn("value=finiteBlend(value,values[i],k)", self.chart_js)
+        self.assertIn("EMA and incremental means remain finite for repeated values", self.chart_test_js)
+
     def test_wilder_smoothing_uses_overflow_safe_convex_updates(self) -> None:
         self.assertIn("g=g*((n-1)/n)+Math.max(d,0)/n", self.chart_js)
         self.assertIn("averageGain=averageGain*((n-1)/n)+gain/n", self.chart_js)
