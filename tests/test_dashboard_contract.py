@@ -406,3 +406,11 @@ class DashboardContractTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+    def test_health_and_quality_status_metadata_is_bounded_and_type_safe(self) -> None:
+        self.assertIn('metadataText(result.status,"Healthy response",80)', self.js)
+        self.assertIn('metadataText(data.status,"Report received",80)', self.js)
+        self.assertIn('function metadataText(value,fallback="Not supplied",maxLength=160)', self.js)
+
+    def test_market_evidence_summary_metadata_is_bounded_and_type_safe(self) -> None:
+        self.assertIn('metadataText(data.summary,metadataText(data.status,"Market evidence returned. Inspect evidence payload.",120),120)', self.js)
