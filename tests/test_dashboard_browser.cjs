@@ -76,8 +76,10 @@ test("mobile sidebar opens, traps keyboard focus, closes with Escape and restore
   const sidebar = page.locator("#sidebar");
   assert.equal(await sidebar.evaluate(el => el.inert), true,
     "closed mobile navigation must be removed from keyboard interaction");
+  assert.equal(await menu.getAttribute("aria-label"), "Open navigation");
   await menu.click();
   assert.equal(await menu.getAttribute("aria-expanded"), "true");
+  assert.equal(await menu.getAttribute("aria-label"), "Close navigation");
   assert.equal(await sidebar.evaluate(el => el.inert), false);
 
   const focusableCount = await sidebar.locator('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])').count();
@@ -93,6 +95,7 @@ test("mobile sidebar opens, traps keyboard focus, closes with Escape and restore
 
   await page.keyboard.press("Escape");
   assert.equal(await menu.getAttribute("aria-expanded"), "false");
+  assert.equal(await menu.getAttribute("aria-label"), "Open navigation");
   assert.equal(await sidebar.evaluate(el => el.inert), true);
   assert.equal(await page.evaluate(() => document.activeElement.id), "mobile-menu");
   await context.close();
@@ -178,9 +181,11 @@ test("network failure, empty JSON success and invalid health shape are handled s
 
 test("document landmarks and reduced-motion preference are honored", async () => {
   const {context, page, pageErrors} = await newPage(1280);
-  assert.equal(await page.locator("main").count(), 1);
-  assert.equal(await page.locator("header").count(), 1);
-  assert.equal(await page.locator('nav[aria-label="Primary navigation"]').count(), 1);
+  assert.equal(await page.getByRole("main").count(), 1);
+  assert.equal(await page.getByRole("banner").count(), 1);
+  const navigation = page.getByRole("navigation", {name: "Primary navigation"});
+  assert.equal(await navigation.count(), 1);
+  assert.equal(await navigation.locator(".nav-link.active").getAttribute("aria-current"), "page");
   await page.emulateMedia({reducedMotion: "reduce"});
   const transitionDuration = await page.locator("#sidebar").evaluate(el => getComputedStyle(el).transitionDuration);
   assert.match(transitionDuration, /^(0s|0ms)$/);
