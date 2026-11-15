@@ -638,3 +638,9 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - The chart result reports both `source_rows_received` and `source_rows_processed`, alongside `candle_count` (which may be lower for 3h aggregation or invalid rows), so truncation and aggregation are distinguishable.
 - Added regression coverage using an oversized 1,200-row payload and verifying that only the latest 1,000 source rows are processed. Tests have not been executed; no performance benchmark is claimed.
 
+## Cancellation contract regression coverage
+
+- Updated the dashboard's static contract checks to match the active AbortController lifecycle rather than the former sequence-only invalidation implementation.
+- Added source-contract checks for caller-signal forwarding, abort-listener cleanup, cancellation-vs-timeout messaging, active transport abort and retention of the stale-response sequence guard.
+- These are source-level assertions only. The Python contract suite and JavaScript chart tests have not been run in this work session.
+
