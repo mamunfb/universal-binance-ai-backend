@@ -206,6 +206,12 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn('setText("quality-state","Selection changed · run a new quality check")', self.js)
         self.assertIn("invalidateQualityRequest();activeEvidenceSequence++", self.js)
 
+    def test_mobile_scanner_pagination_and_keyboard_focus_styles_exist(self) -> None:
+        self.assertIn(".table-pager{flex-wrap:wrap}", self.css)
+        self.assertIn("@media(max-width:480px){.table-pager", self.css)
+        self.assertIn(".table-scroll th:focus-visible", self.css)
+        self.assertIn(".table-pager button:disabled", self.css)
+
     def test_dark_dense_terminal_shell_exists(self) -> None:
         self.assertIn('class="sidebar"', self.html)
         self.assertIn('class="metric-grid"', self.html)
