@@ -716,5 +716,29 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn('()=>loadReadiness("/api/v1/research/preflight")', self.js)
         self.assertIn('()=>loadReadiness("/api/v1/research/phase-readiness")', self.js)
 
+
+
+    def test_scanner_requests_are_aborted_when_superseded_or_credentials_change(self) -> None:
+        self.assertIn("let activeScanController=null", self.js)
+        invalidate = self.js.split("function invalidateScanRequests()", 1)[1].split("async function scanMarket", 1)[0]
+        self.assertIn("activeScanSequence++", invalidate)
+        self.assertIn("activeScanController.abort()", invalidate)
+        scan = self.js.split("async function scanMarket(market)", 1)[1].split("function scannerCountAliasConflicts", 1)[0]
+        self.assertIn("const controller=new AbortController()", scan)
+        self.assertIn("api(path,{signal:controller.signal})", scan)
+        self.assertIn("if(activeScanController===controller)activeScanController=null", scan)
+        self.assertIn("invalidateScanRequests()", self.js.split("function connectSettings()", 1)[1].split("function bind()", 1)[0])
+
+    def test_quality_requests_are_aborted_when_superseded_or_credentials_change(self) -> None:
+        self.assertIn("let activeQualityController=null", self.js)
+        invalidate = self.js.split("function invalidateQualityRequest()", 1)[1].split("async function loadQuality()", 1)[0]
+        self.assertIn("activeQualitySequence++", invalidate)
+        self.assertIn("activeQualityController.abort()", invalidate)
+        quality = self.js.split("async function loadQuality()", 1)[1].split("function invalidateReadinessRequests()", 1)[0]
+        self.assertIn("const controller=new AbortController()", quality)
+        self.assertIn("{signal:controller.signal}", quality)
+        self.assertIn("if(activeQualityController===controller)activeQualityController=null", quality)
+        self.assertIn("invalidateQualityRequest()", self.js.split("function connectSettings()", 1)[1].split("function bind()", 1)[0])
+
 if __name__ == "__main__":
     unittest.main()
