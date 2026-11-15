@@ -182,7 +182,7 @@ test("network failure, empty JSON success and invalid health shape are handled s
 test("document landmarks and reduced-motion preference are honored", async () => {
   const {context, page, pageErrors} = await newPage(1280);
   assert.equal(await page.getByRole("main").count(), 1);
-  assert.equal(await page.getByRole("banner").count(), 1);
+  assert.equal(await page.locator("header.topbar").count(), 1);
   const navigation = page.getByRole("navigation", {name: "Primary navigation"});
   assert.equal(await navigation.count(), 1);
   assert.equal(await navigation.locator(".nav-link.active").getAttribute("aria-current"), "page");
