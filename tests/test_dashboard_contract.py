@@ -53,7 +53,7 @@ class DashboardContractTests(unittest.TestCase):
 
     def test_custom_three_hour_aggregation_requires_complete_aligned_bars(self) -> None:
         self.assertIn("function aggregate3h", self.chart_js)
-        self.assertIn("items.length!==3", self.chart_js)
+        self.assertIn("a.length!==3", self.chart_js)
         self.assertIn("start+3600000", self.chart_js)
         self.assertIn("start+7200000", self.chart_js)
 
