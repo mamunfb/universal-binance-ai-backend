@@ -680,3 +680,9 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Updated the oversized-payload chart-rendering test double to provide `document.createDocumentFragment()`, matching the SVG batching API used by the production renderer. Added a static contract assertion so both chart-rendering DOM shims retain fragment support.
 - This closes a test-fixture compatibility gap introduced by the SVG batching refactor; the test suite remains unexecuted under the current work restrictions.
 
+## EMA and incremental-mean extreme-value safety
+
+- Added a scaled convex blend helper for finite weighted averages. It normalizes both inputs by their largest absolute magnitude before combining them, clamps the normalized convex result to the mathematically valid [-1, 1] interval, then restores the original scale. Invalid operands or weights return null.
+- Reused the helper in incremental `finiteMean`, scalar EMA and EMA series updates. This avoids avoidable intermediate overflow when averaging same-sign finite values close to `Number.MAX_VALUE`, while preserving the intended weighted-average/EMA recurrence.
+- Added regression coverage for constant and alternating values near the numeric limit and for the compact dashboard indicator snapshot. Tests have not been executed; no benchmark or runtime result is claimed.
+
