@@ -102,6 +102,9 @@ function adxSeries(c,n=14){
   tr.push(Math.max(cur.high-cur.low,Math.abs(cur.high-prev.close),Math.abs(cur.low-prev.close)));
   plus.push(up>down&&up>0?up:0);minus.push(down>up&&down>0?down:0);
  }
+ let scale=1;for(let i=0;i<tr.length;i++){scale=Math.max(scale,tr[i],plus[i],minus[i]);}
+ if(!Number.isFinite(scale))return out;
+ for(let i=0;i<tr.length;i++){tr[i]/=scale;plus[i]/=scale;minus[i]/=scale;}
  let trSm=tr.slice(0,n).reduce((s,x)=>s+x,0),pSm=plus.slice(0,n).reduce((s,x)=>s+x,0),mSm=minus.slice(0,n).reduce((s,x)=>s+x,0);
  const dx=[];
  for(let i=n-1;i<tr.length;i++){
@@ -143,8 +146,8 @@ function render(c){
  const step=960/a.length,cw=Math.max(2,step*.58),y=v=>bottom-(v/priceScale-scaledLo)/scaledSpan*(bottom-top);
  a.forEach((x,i)=>{const cx=20+i*step+step/2,color=x.close>=x.open?"#48c99a":"#ef737e";add("line",{x1:cx,y1:y(x.high),x2:cx,y2:y(x.low),stroke:color,"stroke-width":1.2});add("rect",{x:cx-cw/2,y:Math.min(y(x.open),y(x.close)),width:cw,height:Math.max(1,Math.abs(y(x.open)-y(x.close))),fill:color});const vh=x.volume/maxVol*(volBottom-volTop);add("rect",{x:cx-cw/2,y:volBottom-vh,width:cw,height:vh,fill:color,opacity:.4});});
  const closes=closeAll,ema20=emaSeries(closes,20),offset=c.length-a.length;
- const linePoints=series=>series.slice(offset).map((v,i)=>v===null?null:(20+i*step+step/2)+","+y(v)).filter(Boolean);
- for(const [series,color,width] of [[bands.upper,"#8b9db8",1.2],[bands.middle,"#8b9db8",1],[bands.lower,"#8b9db8",1],[ema20,"#f4c46a",2]]){const pts=linePoints(series);if(pts.length>1)add("polyline",{points:pts.join(" "),fill:"none",stroke:color,"stroke-width":width,"stroke-linejoin":"round","stroke-dasharray":color==="#8b9db8"?"5 4":"none"});}
+ const linePoints=series=>{const segments=[];let segment=[];series.slice(offset).forEach((v,i)=>{if(!Number.isFinite(v)){if(segment.length>1)segments.push(segment);segment=[];return;}const point=(20+i*step+step/2)+","+y(v);if(point.includes("NaN")||point.includes("Infinity")){if(segment.length>1)segments.push(segment);segment=[];return;}segment.push(point);});if(segment.length>1)segments.push(segment);return segments;};
+ for(const [series,color,width] of [[bands.upper,"#8b9db8",1.2],[bands.middle,"#8b9db8",1],[bands.lower,"#8b9db8",1],[ema20,"#f4c46a",2]]){for(const pts of linePoints(series))add("polyline",{points:pts.join(" "),fill:"none",stroke:color,"stroke-width":width,"stroke-linejoin":"round","stroke-dasharray":color==="#8b9db8"?"5 4":"none"});}
  const caption=document.createElement("div");caption.className="chart-caption";caption.textContent=a.length+" candles · actual backend OHLCV · EMA20 + Bollinger(20,2) overlays · "+(c[0].time?new Date(c[0].time).toISOString():"");host.append(svg,caption);
  const valuesClose=c.map(x=>x.close);
  host.append(drawLinePanel("RSI (14) · Wilder",rsiSeries(valuesClose),{min:0,max:100}));
