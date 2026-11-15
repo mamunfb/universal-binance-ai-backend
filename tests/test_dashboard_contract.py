@@ -71,6 +71,22 @@ class DashboardContractTests(unittest.TestCase):
         ):
             self.assertIn(case, source)
 
+    def test_chart_exposes_separate_indicator_panes(self) -> None:
+        for token in (
+            'drawLinePanel("RSI (14) · Wilder"',
+            'drawLinePanel("MACD line · EMA12 − EMA26"',
+            'drawLinePanel("MACD signal · EMA9 of MACD"',
+            'drawLinePanel("MACD histogram · line − signal"',
+            'drawLinePanel("ATR (14) · Wilder"',
+        ):
+            self.assertIn(token, self.chart_js)
+        self.assertIn(".indicator-pane", self.css)
+
+    def test_indicator_series_fixture_coverage_exists(self) -> None:
+        source = (ROOT / "tests" / "test_dashboard_chart.js").read_text(encoding="utf-8")
+        self.assertIn("indicator series align to candles", source)
+        self.assertIn("macdComponents", source)
+
     def test_chart_parser_rejects_invalid_values_and_uses_wilder_atr(self) -> None:
         self.assertIn("Object.values(c).every(Number.isFinite)", self.chart_js)
         self.assertIn("c.volume>=0", self.chart_js)
