@@ -75,6 +75,7 @@
   }
   async function loadHealth() {
     const requestSequence=++activeHealthSequence;
+    setText("health-status","Checking backend health · previous status retained");
     try { const result=await api("/health"); if(requestSequence!==activeHealthSequence)return{status:"SUPERSEDED"}; state.lastHealth=result; setText("health-status",metadataText(result.status,"Healthy response",80)); setConnection(true,"Backend reachable"); return result; }
     catch(error){if(requestSequence!==activeHealthSequence)return{status:"SUPERSEDED"};setText("health-status","Unavailable");setConnection(false,"Backend unavailable: "+metadataText(error?.message,"Request failed",160));throw error;}
   }
@@ -207,7 +208,7 @@
     const market=$("quality-market").value,symbol=$("quality-symbol").value.trim().toUpperCase(),interval=$("quality-interval").value,lookback=Number($("quality-lookback").value);
     if(!symbol) throw new Error("Enter a symbol.");if(!Number.isInteger(lookback)||lookback<1||lookback>2160)throw new Error("Lookback must be 1–2160 hours.");
     const q=new URLSearchParams({interval,lookback_hours:String(lookback)});
-    setText("quality-state","Loading "+symbol+" · "+interval);
+    setText("quality-state","Loading "+symbol+" · "+interval+" · previous report retained");
     let data;try{data=await api("/api/v1/quality/market-data/"+encodeURIComponent(market)+"/"+encodeURIComponent(symbol)+"?"+q);}catch(error){if(requestSequence!==activeQualitySequence)return{status:"SUPERSEDED"};setText("quality-state","Load failed · previous report retained · "+metadataText(error?.message,"Unknown error",120));throw error;}
     if(requestSequence!==activeQualitySequence)return{status:"SUPERSEDED"};
     showJson("quality-output",data);setText("quality-state",metadataText(data.status,"Report received",80));toast("Data quality report loaded.","success");return data;
@@ -234,7 +235,7 @@
     $("scan-spot").addEventListener("click",()=>withButton("scan-spot",()=>scanMarket("SPOT"),"Scanning…"));
     $("scan-usdm").addEventListener("click",()=>withButton("scan-usdm",()=>scanMarket("USD_M"),"Scanning…"));
     $("scan-coinm").addEventListener("click",()=>withButton("scan-coinm",()=>scanMarket("COIN_M"),"Scanning…"));
-    $("spot-quote").addEventListener("input",()=>{invalidateScanRequests();setText("spot-coverage","Quote filter changed · run a new Spot scan");});
+    $("spot-quote").addEventListener("input",()=>{invalidateScanRequests();setText("scan-state","Spot quote filter changed · previous results retained; run a new scan");setText("spot-coverage","Quote filter changed · run a new Spot scan");});
     [["spot-search","spot-rows",6],["usdm-search","usdm-rows",5],["coinm-search","coinm-rows",5]].forEach(([input,target,columns])=>{
       $(input).addEventListener("input",e=>{const view=tableViews[target]||(tableViews[target]={page:0,pageSize:100,sortKey:"symbol",direction:1,rows:[],query:""});view.query=e.target.value.trim().toUpperCase();view.page=0;renderRows(target,view.rows,columns);});
     });
