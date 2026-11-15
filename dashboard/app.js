@@ -85,7 +85,7 @@
     catch{return metadataText(raw,"Not supplied",80);}
   }
   function scanTimestamp(data) { return formatTimestamp(data.generated_at??data.timestamp??data.updated_at??"Not supplied"); }
-  function renderScanSummary(data) {
+  function renderScanSummary(data,market=state.market) {
     state.lastScan=data;
     const eligible=extractCount(data,["eligible_count","eligible_symbols","eligible","total_eligible","total_symbols"]);
     const scanned=extractCount(data,["scanned_count","scanned_symbols","scanned","attempted_count"]);
@@ -115,8 +115,8 @@
     invalidateScanRequests();const requestSequence=activeScanSequence;const controller=new AbortController();activeScanController=controller;
     setText("scan-state","Refreshing · previous results retained");
     const marketChanged=state.market!==market; state.market=market; $("global-market").value=market; if(marketChanged) invalidateChartView(); document.querySelectorAll(".market-tab").forEach(b=>b.classList.toggle("active",b.dataset.market===market));
-    let path;
-    if(market==="SPOT") { const quote=($("spot-quote")?.value||"").trim().toUpperCase(); path="/api/v1/markets/spot/scan"+(quote?"?quote_asset="+encodeURIComponent(quote):""); }
+    let path,quoteFilter=null;
+    if(market==="SPOT") { quoteFilter=($("spot-quote")?.value||"").trim().toUpperCase(); path="/api/v1/markets/spot/scan"+(quoteFilter?"?quote_asset="+encodeURIComponent(quoteFilter):""); }
     else if(market==="USD_M") path="/api/v1/markets/futures/usdm/scan";
     else path="/api/v1/markets/futures/coinm/scan";
     let data; try{data=await api(path,{signal:controller.signal});}catch(error){if(requestSequence!==activeScanSequence)return{status:"SUPERSEDED",market};setText("scan-state","Refresh failed · previous results retained");throw error;}finally{if(activeScanController===controller)activeScanController=null;}
@@ -129,12 +129,12 @@
     const rows=responseRows.filter(item=>item!==null&&typeof item==="object"&&!Array.isArray(item));
     const rejectedRows=responseRows.length-rows.length;
     if(responseRows.length>0&&rows.length===0){setText("scan-state","Invalid rows · previous results and coverage retained");throw new Error("Scanner response contained no valid row objects; previous results and coverage were preserved.");}
-    renderScanSummary(data);
+    renderScanSummary(data,market);
     if(market==="SPOT") renderRows("spot-rows",rows,6);
     if(market==="USD_M") renderRows("usdm-rows",rows,5);
     if(market==="COIN_M") renderRows("coinm-rows",rows,5);
-    renderScannerMeta(market,data,rows,rejectedRows,rowKey,additionalRowKeys);
-    state.lastScanDetails={market,data,rows,rejectedRows,rowKey,additionalRowKeys};
+    renderScannerMeta(market,data,rows,rejectedRows,rowKey,additionalRowKeys,quoteFilter);
+    state.lastScanDetails={market,data,rows,rejectedRows,rowKey,additionalRowKeys,quoteFilter};
     toast(market+" scan response received."+(rejectedRows?" "+rejectedRows+" malformed rows were excluded.":" Check coverage and failure counts."),rejectedRows?"info":"success");
     return data;
   }
@@ -145,7 +145,7 @@
       return distinct.size>1?[label+": "+supplied.map(entry=>entry.name+"="+entry.value).join(", ")]:[];
     });
   }
-  function renderScannerMeta(market,data,rows,rejectedRows=0,rowKey=null,additionalRowKeys=[]) {
+  function renderScannerMeta(market,data,rows,rejectedRows=0,rowKey=null,additionalRowKeys=[],quoteFilter=null) {
     const prefix=market==="USD_M"?"usdm":market==="COIN_M"?"coinm":"spot";
     const countNames={
       eligible:["eligible_count","eligible_symbols","eligible","total_eligible","total_symbols"],
@@ -169,7 +169,7 @@
       "Source: "+metadataText(data.source,"Not supplied",120),
       "Timestamp field: "+(metadataFieldName(data,["generated_at","timestamp","updated_at"])||"Not supplied"),
       "Timestamp: "+scanTimestamp(data),
-      ...(market==="SPOT"?["Requested quote filter: "+metadataText(($("spot-quote")?.value||"").trim().toUpperCase(),"All quote assets",40)]:[])
+      ...(market==="SPOT"?["Requested quote filter: "+metadataText(quoteFilter,"All quote assets",40)]:[])
     ];
     setText(prefix+"-coverage",details.join(" · "));
     if(market!=="SPOT") setText(prefix+"-count",rows.length.toLocaleString()+" returned");
@@ -316,9 +316,9 @@
   }
   function refreshDisplayedTimestamps() {
     if(!state.lastScan)return;
-    renderScanSummary(state.lastScan);
     const cached=state.lastScanDetails;
-    if(cached)renderScannerMeta(cached.market,cached.data,cached.rows,cached.rejectedRows,cached.rowKey,cached.additionalRowKeys);
+    renderScanSummary(cached?.data??state.lastScan,cached?.market??state.market);
+    if(cached)renderScannerMeta(cached.market,cached.data,cached.rows,cached.rejectedRows,cached.rowKey,cached.additionalRowKeys,cached.quoteFilter);
   }
   function connectSettings() {
     const urlInput=$("backend-url"),rawUrl=urlInput.value.trim(),url=rawUrl.replace(/\/$/,"");
