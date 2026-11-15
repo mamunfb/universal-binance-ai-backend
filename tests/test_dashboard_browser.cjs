@@ -241,8 +241,9 @@ test("changing market cancels an in-flight scan without an uncaught error", asyn
   await page.locator("#test-connection").click();
   await page.getByText("Backend health endpoint responded successfully.").waitFor();
 
-  let scanStarted;
+  let scanStarted, routeSettled;
   const started = new Promise(resolve => { scanStarted = resolve; });
+  const routeFinished = new Promise(resolve => { routeSettled = resolve; });
   await page.route("https://backend.test/api/v1/markets/spot/scan", async route => {
     scanStarted();
     await new Promise(resolve => setTimeout(resolve, 500));
@@ -254,12 +255,14 @@ test("changing market cancels an in-flight scan without an uncaught error", asyn
         body: JSON.stringify({symbols: []})
       });
     } catch { /* The client intentionally aborted this mocked request. */ }
+    finally { routeSettled(); }
   });
   await page.locator("#run-market-scan").click();
   await started;
   await page.locator("#global-market").selectOption("USD_M");
   await page.waitForFunction(() => window.__scanAbortObserved === true);
+  await routeFinished;
   assert.match(await page.locator("#scan-state").innerText(), /Market selection changed/i);
   assert.deepEqual(pageErrors, []);
   await context.close();
-})
+});
