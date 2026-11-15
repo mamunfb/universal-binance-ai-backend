@@ -481,3 +481,11 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Superseded request failures remain ignored and cannot replace the status for a newer selection/request.
 - Health connection error labels are now length-bounded before display. Error strings remain rendered as text, not HTML.
 - Added Python static contract assertions for the evidence, quality and health error paths. GitHub source readback is the verification performed; runtime suites and browser QA have not been run.
+
+
+## Market evidence refresh preserves the previous report
+
+- Corrected the Market Evidence loading path so it invalidates stale candle-chart state without calling the broader view reset that cleared the evidence JSON output.
+- While a new evidence request is pending, the prior evidence payload remains visible and the status explicitly says it is retained. A successful current response replaces the payload; a current failure leaves it intact and reports a bounded error. Superseded requests remain unable to update the view.
+- Added a static contract assertion for the loading state, chart-only invalidation and success-only payload replacement ordering.
+- GitHub readback is the verification performed; Python/Node runtime suites and browser QA have not been run.
