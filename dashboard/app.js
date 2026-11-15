@@ -189,9 +189,11 @@
     toast("Market evidence loaded.","success");return data;
   }
   async function loadTechnical() {
-    syncAnalysisHeader(); activeEvidenceSequence++;
-    const data=await window.DashboardCharts.load(api,state.market,state.symbol,state.timeframe);
-    if(data?.status==="SUPERSEDED")return data;
+    syncAnalysisHeader(); const requestSequence=++activeEvidenceSequence;
+    setText("chart-state","Loading candles · previous chart retained");
+    let data;try{data=await window.DashboardCharts.load(api,state.market,state.symbol,state.timeframe);}
+    catch(error){if(requestSequence!==activeEvidenceSequence)return{status:"SUPERSEDED"};setText("chart-state","Chart request failed · previous chart retained");setText("technical-summary","Request failed: "+metadataText(error?.message,"Unknown error",160));throw error;}
+    if(requestSequence!==activeEvidenceSequence||data?.status==="SUPERSEDED")return{status:"SUPERSEDED"};
     state.lastAnalysis=data;toast("Verified candle chart and descriptive indicators loaded.","success");return data;
   }
   function initTimeframes() {
