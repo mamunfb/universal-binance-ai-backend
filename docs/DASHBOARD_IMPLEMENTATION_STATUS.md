@@ -338,3 +338,12 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Added a Node regression case that corrupts one source candle's close timestamp and requires the entire 3h bucket to be discarded.
 - Added a Python static contract assertion for both the production guard and its regression fixture.
 - This closes a malformed-source-row acceptance gap; it does not validate exchange connectivity or replace runtime tests. Node/Python suites remain unexecuted in this session, and no test-pass claim is made.
+
+
+## Deterministic EMA, Wilder RSI and ATR reference fixtures
+
+- Added a short EMA reference sequence that checks the initial simple-average seed and each subsequent recursive smoothing step.
+- Added a compact Wilder RSI fixture with hand-calculated gain/loss averages, covering the initial overbought result and subsequent smoothed updates.
+- Added an OHLC fixture with true ranges of 2, 4 and 6, checking the ATR seed of 3 and next Wilder-smoothed value of 4.5.
+- Extended the Python static contract suite to require these independent numeric fixtures.
+- These fixtures are authored but not executed in this environment. The numerical values were derived directly from the test inputs and formulas; runtime test status remains unverified.
