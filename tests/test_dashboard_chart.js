@@ -564,7 +564,7 @@ test("chart load bounds oversized backend candle payloads to the latest 1000 sou
   });
   const nodes = {"chart-placeholder":makeElement("host"),"technical-summary":makeElement("summary"),"analysis-output":makeElement("output"),"chart-state":makeElement("state")};
   const originalDocument=global.document;
-  global.document={getElementById(id){return nodes[id];},createElement:makeElement,createElementNS(_ns,tag){return makeElement(tag);}};
+  global.document={getElementById(id){return nodes[id];},createElement:makeElement,createElementNS(_ns,tag){return makeElement(tag);},createDocumentFragment:()=>makeElement("fragment")};
   const rows=Array.from({length:1200},(_,i)=>{const close=100+i/10;return [i*3600000,close,close+1,close-1,close,1,i*3600000+3599999];});
   try {
     const result=await charts.load(async()=>({klines:rows}),"SPOT","BTCUSDT","1h");
