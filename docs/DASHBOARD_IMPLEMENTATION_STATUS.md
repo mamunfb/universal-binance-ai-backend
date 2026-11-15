@@ -395,3 +395,11 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Scanner handling now identifies which recognized result field (symbols, markets, results or data) actually contains an array. An explicitly empty array remains a valid empty result; a missing array is called out in the coverage metadata and produces an informational notice.
 - The coverage panel records the selected result field, while malformed row filtering and rejected-row counts remain in place.
 - Updated Python static contract checks cover the missing-versus-empty distinction. GitHub readback is the only verification performed; runtime tests and browser QA remain unexecuted.
+
+
+## Scanner market selection validation
+
+- Scanner requests now accept only the three supported market identifiers: SPOT, USD_M and COIN_M.
+- Unsupported values are rejected before the request sequence or selected market state is changed, preventing accidental fallback to the COIN-M endpoint for an unknown market value.
+- Added a Python static contract check that requires validation to precede request-sequence mutation.
+- This is source-level validation only. GitHub readback is the verification performed; runtime tests and browser QA remain unexecuted.
