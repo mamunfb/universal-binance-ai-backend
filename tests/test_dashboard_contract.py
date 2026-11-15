@@ -283,6 +283,12 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn('Number.isSafeInteger(parsed)&&parsed>=0', self.js)
         self.assertNotIn('Number.isFinite(Number(value))', self.js)
 
+    def test_scanner_rejects_invalid_top_level_payload_before_rendering(self) -> None:
+        validation = 'if(data===null||typeof data!=="object"||Array.isArray(data))throw new Error("Scanner endpoint returned an invalid response shape.'
+        self.assertIn(validation, self.js)
+        self.assertIn("previous results were preserved.", self.js)
+        self.assertLess(self.js.index(validation), self.js.index("renderScanSummary(data)"))
+
     def test_scanner_rejects_non_object_response_rows_and_reports_count(self) -> None:
         self.assertIn('const responseRows=safeArray(data,["symbols","markets","results","data"])', self.js)
         self.assertIn('responseRows.filter(item=>item!==null&&typeof item==="object"&&!Array.isArray(item))', self.js)
