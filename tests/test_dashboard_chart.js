@@ -26,6 +26,16 @@ test("parse sorts valid OHLCV rows and rejects null, malformed and impossible ca
   assert.equal(parsed[0].close, 100);
 });
 
+test("parse rejects whitespace-only numeric fields and all duplicate candle timestamps", () => {
+  const parsed = charts.parse([
+    candle(0, 100),
+    candle(0, 101),
+    candle(3600000, 102),
+    [7200000, 100, 101, 99, 100, "   ", 10799999]
+  ]);
+  assert.deepEqual(parsed.map(row => row.time), [3600000]);
+});
+
 test("3h aggregation combines exactly three UTC-aligned consecutive hourly candles", () => {
   const rows = [candle(0, 101, {open:100, high:103, low:99, volume:2}),
     candle(3600000, 102, {open:101, high:104, low:100, volume:3}),
@@ -132,6 +142,15 @@ test("Wilder ADX and Stochastic RSI expose aligned bounded series with warm-up g
   assert.ok(stoch.k.slice(0,30).some(v=>v===null));
   assert.ok(stoch.k.filter(Number.isFinite).every(v=>v>=0&&v<=100));
   assert.ok(stoch.d.filter(Number.isFinite).every(v=>v>=0&&v<=100));
+});
+
+test("flat candles produce neutral Stochastic RSI and zero ADX", () => {
+  const candles = Array.from({length:80}, (_,i) => ({time:i*3600000,open:100,high:101,low:99,close:100,volume:1,closeTime:i*3600000+3599999}));
+  const adx = charts.adxSeries(candles);
+  const stoch = charts.stochRsiSeries(candles.map(x=>x.close));
+  assert.ok(adx.slice(27).every(value => value === 0));
+  assert.ok(stoch.k.slice(29).every(value => value === 50));
+  assert.ok(stoch.d.slice(31).every(value => value === 50));
 });
 
 test("ADX and Stochastic RSI remain unavailable with insufficient history", () => {
