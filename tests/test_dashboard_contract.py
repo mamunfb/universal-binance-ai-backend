@@ -403,6 +403,12 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn('assert.equal(aggregated.length, 1000)', self.chart_test_js)
         self.assertIn('assert.equal(gapAggregated.length, 999)', self.chart_test_js)
 
+    def test_connection_test_does_not_report_success_for_superseded_health(self) -> None:
+        handler = self.js.split('$("test-connection").addEventListener', 1)[1].split('$("clear-credentials").addEventListener', 1)[0]
+        self.assertIn("const result=await loadHealth()", handler)
+        self.assertIn('if(result?.status==="SUPERSEDED")return result', handler)
+        self.assertLess(handler.index('if(result?.status==="SUPERSEDED")return result'), handler.index('setText("settings-status","Backend health endpoint responded successfully.")'))
+
     def test_overview_refresh_attempts_health_and_scanner_independently(self) -> None:
         refresh_body = self.js.split('$("refresh-page").addEventListener', 1)[1].split('$("global-market").addEventListener', 1)[0]
         self.assertIn("Promise.allSettled([loadHealth(),scanMarket(state.market)])", refresh_body)
