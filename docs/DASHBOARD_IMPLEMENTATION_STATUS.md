@@ -692,3 +692,10 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Market-evidence requests now receive an AbortSignal and own a tracked controller. Starting a chart request, changing analysis selections, clearing credentials, or navigating away aborts the pending evidence request; sequence checks remain as a fallback if the transport does not honor cancellation.
 - Added static contract checks for navigation invalidation, caller-signal forwarding and controller cancellation. Tests have not been executed.
 
+## Keyboard navigation and accessible page transitions
+
+- Navigating between dashboard sections now moves keyboard focus to the destination page's primary heading when navigation was initiated from an existing focused control. The heading receives `tabindex=-1` so it can receive programmatic focus without entering the normal Tab sequence; initial page startup does not steal focus from the document body.
+- Decorative glyphs inside sidebar navigation links are marked `aria-hidden=true`, keeping accessible link names focused on their text labels.
+- Added explicit visible focus styling for input, select and textarea controls, while suppressing the default outline on the programmatically focused page heading.
+- Added source-level contract checks for focus movement, decorative icon hiding and focus-visible styles. No browser or screen-reader QA has been performed; tests have not been executed.
+
