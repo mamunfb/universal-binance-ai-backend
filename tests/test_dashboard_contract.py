@@ -655,5 +655,51 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn('setConnection(false,"Backend unavailable: "+metadataText(error?.message,"Request failed",160))', self.js)
 
 
+
+
+    def test_backend_credential_changes_clear_all_connection_scoped_dashboard_data(self) -> None:
+        clear_body = self.js.split("function clearConnectionScopedData(", 1)[1].split("function refreshDisplayedTimestamps()", 1)[0]
+        for token in (
+            "state.lastScan=null",
+            "state.lastScanDetails=null",
+            "state.lastHealth=null",
+            "state.lastAnalysis=null",
+            'setText("readiness-output",reason)',
+            'setText("quality-output",reason)',
+            'setText("analysis-output",reason)',
+            'setText("technical-summary",reason)',
+            "view.rows=[]",
+            "renderRows(target,[],columns)",
+            'chartHost.replaceChildren(document.createTextNode(reason))',
+        ):
+            self.assertIn(token, clear_body)
+        connect_body = self.js.split("function connectSettings()", 1)[1].split("function bind()", 1)[0]
+        self.assertIn('clearConnectionScopedData("Connection settings changed · previous backend data cleared")', connect_body)
+        clear_handler = self.js.split('$("clear-credentials").addEventListener', 1)[1].split('$("default-market")', 1)[0]
+        self.assertIn('clearConnectionScopedData("Backend credentials cleared · previous backend data removed")', clear_handler)
+
+    def test_display_timezone_is_applied_to_cached_scan_timestamps(self) -> None:
+        self.assertIn('timeZone:state.displayTimezone', self.js)
+        self.assertIn("function scanTimestamp(data)", self.js)
+        self.assertIn('["Updated",scanTimestamp(data)]', self.js)
+        self.assertIn('setText("overview-updated",scanTimestamp(data))', self.js)
+        self.assertIn('$("display-timezone").addEventListener("change"', self.js)
+        refresh_body = self.js.split("function refreshDisplayedTimestamps()", 1)[1].split("function connectSettings()", 1)[0]
+        self.assertIn("renderScanSummary(state.lastScan)", refresh_body)
+        self.assertIn("renderScannerMeta(cached.market,cached.data,cached.rows,cached.rejectedRows,cached.rowKey,cached.additionalRowKeys)", refresh_body)
+
+    def test_display_preferences_initialize_dashboard_market_and_timeframe(self) -> None:
+        prefs = self.js.split("function applyDisplayPreferences()", 1)[1].split("function invalidateQualityRequest()", 1)[0]
+        self.assertIn('state.displayTimezone=$("display-timezone").value', prefs)
+        self.assertIn('state.market=$("default-market").value', prefs)
+        self.assertIn('state.timeframe=$("default-timeframe").value', prefs)
+        self.assertIn('$("global-market").value=state.market', prefs)
+        self.assertIn('$("global-timeframe").value=state.timeframe', prefs)
+        self.assertIn('b.dataset.market===state.market', prefs)
+        self.assertIn('b.textContent===state.timeframe', prefs)
+        self.assertIn("initTimeframes();applyDisplayPreferences();bind();", self.js)
+        self.assertIn('$("default-market").addEventListener("change"', self.js)
+        self.assertIn('$("default-timeframe").addEventListener("change"', self.js)
+
 if __name__ == "__main__":
     unittest.main()
