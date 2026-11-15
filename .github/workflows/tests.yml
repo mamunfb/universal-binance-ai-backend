@@ -34,14 +34,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: npm
-          cache-dependency-path: package-lock.json
 
       - name: Verify runner toolchain
         run: |
           python --version
           node --version
-          npm --version
           python -m pip --version
 
       - name: Install Python test dependencies
@@ -57,14 +54,14 @@ jobs:
 
           html = Path("dashboard/index.html").read_text(encoding="utf-8")
           assert "<!doctype html>" in html.lower(), "Dashboard HTML doctype is missing"
-          assert 'id="app-shell"' in html or 'class="app-shell"' in html, "Dashboard shell is missing"
-          scripts = re.findall(r'<script\\b[^>]*src=["\\']([^"\\']+)["\\'][^>]*>', html, flags=re.I)
+          assert 'class="app-shell"' in html, "Dashboard shell is missing"
+          scripts = re.findall(r'<script\b[^>]*src=["\']([^"\']+)["\'][^>]*>', html, flags=re.I)
           assert "./chart.js" in scripts, "dashboard/chart.js is not referenced"
           assert "./app.js" in scripts, "dashboard/app.js is not referenced"
           for script in scripts:
               if script.startswith(("http://", "https://")):
                   continue
-              path = (Path("dashboard") / script).resolve()
+              path = Path("dashboard") / script
               assert path.is_file(), f"Referenced dashboard script is missing: {script}"
           print(f"Validated dashboard HTML and {len(scripts)} script references")
           PY
