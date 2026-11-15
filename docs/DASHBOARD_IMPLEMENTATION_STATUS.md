@@ -436,3 +436,11 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - If the response also contains other recognized array fields, their names are now listed separately in the coverage metadata as `Additional array fields`. This makes alias overlap visible without silently merging potentially duplicated datasets or changing the selected rows.
 - Added static contract assertions for secondary-field discovery, metadata display and argument wiring.
 - GitHub source readback is the verification performed; runtime tests and browser QA remain unexecuted.
+
+
+## Scanner display metadata primitive validation
+
+- Scanner status, source and timestamp labels now accept only non-empty strings or finite numeric values. Objects, arrays, booleans, empty strings and non-finite numbers fall back to an explicit `Not supplied`/contextual fallback label rather than rendering generic object text or misleading values.
+- Status and timestamp aliases continue to use the existing precedence, while invalid primary aliases can fall back to a valid secondary alias.
+- Count fields retain their separate non-negative safe-integer validation.
+- Added static contract assertions for the metadata formatter and its use in summary and coverage output. GitHub readback is the verification performed; runtime tests and browser QA remain unexecuted.
