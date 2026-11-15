@@ -8,6 +8,7 @@ http.createServer((req,res)=>{
  if(target!==root&&!target.startsWith(root+path.sep)){res.writeHead(403).end("Forbidden");return;}
  fs.readFile(pathname==="/" ? path.join(root,"index.html"):target,(err,data)=>{
   if(err){res.writeHead(404).end("Not found");return;}
-  const contentPath=pathname==="/" ? path.join(root,"index.html") : target;\n  res.writeHead(200,{"content-type":types[path.extname(contentPath)]||"application/octet-stream","cache-control":"no-store","x-content-type-options":"nosniff"});res.end(data);
+  const contentPath=pathname==="/" ? path.join(root,"index.html") : target;
+  res.writeHead(200,{"content-type":types[path.extname(contentPath)]||"application/octet-stream","cache-control":"no-store","x-content-type-options":"nosniff"});res.end(data);
  });
 }).listen(4173,"127.0.0.1",()=>process.stdout.write("Dashboard QA server listening on 4173\n"));
