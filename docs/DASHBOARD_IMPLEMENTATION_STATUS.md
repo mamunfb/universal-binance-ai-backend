@@ -866,7 +866,7 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Source review found that the compact row-reference cache avoided retained decorated row objects, but numeric strings were reparsed with Number() on every comparator invocation. For numeric sorting this repeated conversion work can occur O(M log M) times for M matching rows.
 - Added a per-sort-pass WeakMap keyed by the original row object. Each row selected sort-key numeric interpretation is computed at most once during that sort pass and reused by later comparisons. The cache is local to the sort operation and does not add persistent per-row metadata to view.sortedCache.
 - The comparator still applies missing/non-numeric ordering and direction rules as before. This is a source-level reduction in repeated numeric parsing, not a measured speedup; WeakMap overhead and actual browser performance remain unbenchmarked.
-- Replaced the obsolete static test that expected a decorated array with assertions for the WeakMap-based row-reference strategy. The dashboard static contract file now contains 108 test methods; the test suite has not been executed.
+- Replaced the obsolete static test that expected a decorated array with assertions for the WeakMap-based row-reference strategy. The dashboard static contract file now contains 109 test methods; the test suite has not been executed.
 - Frontend-only. Backend source, CI workflow, PR state, merge and deployment remain unchanged.
 
 
@@ -884,3 +884,9 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - renderRows now cancels and removes that table pending search timer before performing its own render. The debounced callback removes its timer before calling renderRows, so it does not cancel itself. Each table remains independently scheduled.
 - Added a static contract for cancellation ordering and updated the documented static test-method count to 108. The Python test suite has not been executed; browser interaction timing has not been tested.
 - Frontend-only. Backend source, CI workflow, PR state, merge and deployment remain unchanged.
+
+## Scanner cache invalidation contract
+
+- Strengthened the static contract to verify that each new response-row array updates the active row reference, clears the sorted-result cache, and replaces that table's WeakMap search-text cache in the same invalidation branch.
+- This protects against stale cached search/sort results when a later scan returns a new dataset. The scanner currently filters the response into a new row array before rendering; row-object mutation in place is not part of the observed response path.
+- Static test-method count is now 109. This is a source-contract update only; tests and browser behavior have not been executed.
