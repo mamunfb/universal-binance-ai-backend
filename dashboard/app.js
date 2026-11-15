@@ -10,8 +10,10 @@
   };
   const state = {base:"", token:"", market:"SPOT", symbol:"BTCUSDT", timeframe:"1h", displayTimezone:"Asia/Dhaka", lastScan:null, lastScanDetails:null, lastHealth:null, lastAnalysis:null};
   let activeScanSequence=0;
+  let activeScanController=null;
   let activeEvidenceSequence=0;
   let activeQualitySequence=0;
+  let activeQualityController=null;
   let activeReadinessSequence=0;
   let activeReadinessController=null;
   let activeHealthSequence=0;
@@ -104,17 +106,17 @@
     try { const result=await api("/health"); if(requestSequence!==activeHealthSequence)return{status:"SUPERSEDED"}; if(result===null||typeof result!=="object"||Array.isArray(result))throw new Error("Health endpoint returned an invalid response shape. Expected a JSON object."); state.lastHealth=result; setText("health-status",metadataText(result.status,"Healthy response",80)); setConnection(true,"Backend reachable"); return result; }
     catch(error){if(requestSequence!==activeHealthSequence)return{status:"SUPERSEDED"};setText("health-status","Unavailable");setConnection(false,"Backend unavailable: "+metadataText(error?.message,"Request failed",160));throw error;}
   }
-  function invalidateScanRequests(){activeScanSequence++;}
+  function invalidateScanRequests(){activeScanSequence++;if(activeScanController){activeScanController.abort();activeScanController=null;}}
   async function scanMarket(market) {
     if(!["SPOT","USD_M","COIN_M"].includes(market))throw new Error("Unsupported scanner market selection.");
-    const requestSequence=++activeScanSequence;
+    invalidateScanRequests();const requestSequence=activeScanSequence;const controller=new AbortController();activeScanController=controller;
     setText("scan-state","Refreshing · previous results retained");
     const marketChanged=state.market!==market; state.market=market; $("global-market").value=market; if(marketChanged) invalidateChartView(); document.querySelectorAll(".market-tab").forEach(b=>b.classList.toggle("active",b.dataset.market===market));
     let path;
     if(market==="SPOT") { const quote=($("spot-quote")?.value||"").trim().toUpperCase(); path="/api/v1/markets/spot/scan"+(quote?"?quote_asset="+encodeURIComponent(quote):""); }
     else if(market==="USD_M") path="/api/v1/markets/futures/usdm/scan";
     else path="/api/v1/markets/futures/coinm/scan";
-    let data; try{data=await api(path);}catch(error){if(requestSequence!==activeScanSequence)return{status:"SUPERSEDED",market};setText("scan-state","Refresh failed · previous results retained");throw error;}
+    let data; try{data=await api(path,{signal:controller.signal});}catch(error){if(requestSequence!==activeScanSequence)return{status:"SUPERSEDED",market};setText("scan-state","Refresh failed · previous results retained");throw error;}finally{if(activeScanController===controller)activeScanController=null;}
     if(requestSequence!==activeScanSequence)return{status:"SUPERSEDED",market};
     if(data===null||typeof data!=="object"||Array.isArray(data)){setText("scan-state","Invalid response · previous results retained");throw new Error("Scanner endpoint returned an invalid response shape. Expected a JSON object; previous results were preserved.");}
     const rowKey=["symbols","markets","results","data"].find(key=>Array.isArray(data[key]));
@@ -255,9 +257,9 @@
     $("analysis-timeframes").querySelectorAll("button").forEach(b=>b.classList.toggle("active",b.textContent===state.timeframe));
     syncAnalysisHeader();
   }
-  function invalidateQualityRequest(){activeQualitySequence++;}
+  function invalidateQualityRequest(){activeQualitySequence++;if(activeQualityController){activeQualityController.abort();activeQualityController=null;}}
   async function loadQuality() {
-    const requestSequence=++activeQualitySequence;
+    invalidateQualityRequest();const requestSequence=activeQualitySequence;const controller=new AbortController();activeQualityController=controller;
     const market=$("quality-market").value,symbolInput=$("quality-symbol"),symbol=symbolInput.value.trim().toUpperCase(),interval=$("quality-interval").value,lookbackInput=$("quality-lookback"),lookback=Number(lookbackInput.value);
     symbolInput.setCustomValidity("");lookbackInput.setCustomValidity("");
     if(!symbol){symbolInput.setCustomValidity("Enter a market symbol.");symbolInput.reportValidity();throw new Error("Enter a market symbol.");}
@@ -265,7 +267,7 @@
     if(!Number.isInteger(lookback)||lookback<1||lookback>2160){lookbackInput.setCustomValidity("Enter a whole number from 1 to 2160.");lookbackInput.reportValidity();throw new Error("Lookback must be a whole number from 1–2160 hours.");}
     const q=new URLSearchParams({interval,lookback_hours:String(lookback)});
     setText("quality-state","Loading "+symbol+" · "+interval+" · previous report retained");
-    let data;try{data=await api("/api/v1/quality/market-data/"+encodeURIComponent(market)+"/"+encodeURIComponent(symbol)+"?"+q);}catch(error){if(requestSequence!==activeQualitySequence)return{status:"SUPERSEDED"};setText("quality-state","Load failed · previous report retained · "+metadataText(error?.message,"Unknown error",120));throw error;}
+    let data;try{data=await api("/api/v1/quality/market-data/"+encodeURIComponent(market)+"/"+encodeURIComponent(symbol)+"?"+q,{signal:controller.signal});}catch(error){if(requestSequence!==activeQualitySequence)return{status:"SUPERSEDED"};setText("quality-state","Load failed · previous report retained · "+metadataText(error?.message,"Unknown error",120));throw error;}finally{if(activeQualityController===controller)activeQualityController=null;}
     if(requestSequence!==activeQualitySequence)return{status:"SUPERSEDED"};
     if(data===null||typeof data!=="object"||Array.isArray(data)){setText("quality-state","Invalid response · previous report retained");throw new Error("Data quality endpoint returned an invalid response shape. Expected a JSON object; previous report was preserved.");}
     showJson("quality-output",data);setText("quality-state",metadataText(data.status,"Report received",80));toast("Data quality report loaded.","success");return data;
