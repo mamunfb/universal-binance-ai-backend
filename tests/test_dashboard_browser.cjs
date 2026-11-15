@@ -124,7 +124,7 @@ test("API HTTP 503 and malformed JSON failures are visible and do not crash the 
   }));
   await page.locator("#backend-url").fill("https://backend.test");
   await page.locator("#test-connection").click();
-  await page.getByText("service unavailable", {exact: false}).waitFor();
+  await page.locator(".toast.error").filter({hasText: "service unavailable"}).waitFor();
   assert.match(await page.locator("#health-status").innerText(), /unavailable/i);
 
   await page.unrouteAll();
