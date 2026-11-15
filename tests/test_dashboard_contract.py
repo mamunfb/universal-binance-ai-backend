@@ -101,6 +101,12 @@ class DashboardContractTests(unittest.TestCase):
     def test_primary_coin_analysis_action_loads_candles(self) -> None:
         self.assertIn('$("load-coin-analysis").addEventListener("click",()=>withButton("load-coin-analysis",loadTechnical', self.js)
 
+    def test_adx_breaks_segments_on_structurally_invalid_ohlc(self) -> None:
+        adx_body = self.chart_js.split("function adxSeries(", 1)[1].split("\\nfunction stochRsiSeries", 1)[0]
+        self.assertIn("candle.high>=Math.max(candle.low,candle.close)", adx_body)
+        self.assertIn("candle.low<=Math.min(candle.high,candle.close)", adx_body)
+        self.assertIn("ADX treats structurally invalid OHLC bounds as a segment break", self.chart_test_js)
+
     def test_stochastic_rsi_uses_linear_rolling_extrema_and_smoothing(self) -> None:
         stoch_body = self.chart_js.split("function stochRsiSeries(", 1)[1].split("\\nfunction drawLinePanel", 1)[0]
         self.assertIn("const minDeque=[],maxDeque=[]", stoch_body)
