@@ -86,6 +86,9 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn("let activeLoadSequence=0", self.chart_js)
         self.assertIn("const requestSequence=++activeLoadSequence", self.chart_js)
         self.assertIn('status:"SUPERSEDED"', self.chart_js)
+        self.assertIn("function invalidate(){activeLoadSequence++;}", self.chart_js)
+        self.assertIn("window.DashboardCharts.invalidate()", self.js)
+        self.assertIn("invalidateChartView();", self.js)
 
     def test_primary_coin_analysis_action_loads_candles(self) -> None:
         self.assertIn('$("load-coin-analysis").addEventListener("click",()=>withButton("load-coin-analysis",loadTechnical', self.js)
