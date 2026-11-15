@@ -24,4 +24,6 @@
 /* Keyboard navigation: clearly identify focused fields and avoid a distracting outline on the programmatically focused page heading. */
 input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
 .page-view h1:focus{outline:none}
+/* Scanner result regions can receive keyboard focus for horizontal scrolling on narrow screens. */
+.table-scroll[role="region"]:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
 
