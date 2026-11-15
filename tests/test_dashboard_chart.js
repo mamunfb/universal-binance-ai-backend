@@ -15,11 +15,11 @@ function candle(time, close, options = {}) {
 
 test("VWAP remains finite when individually finite candle volumes overflow their raw sum", () => {
   const candles = [
-    {time:1,open:10,high:12,low:9,close:11,volume:Number.MAX_VALUE,closeTime:2},
-    {time:3,open:20,high:22,low:19,close:21,volume:Number.MAX_VALUE,closeTime:4}
+    {time:1,open:10,high:12,low:9,close:12,volume:Number.MAX_VALUE,closeTime:2},
+    {time:3,open:22,high:24,low:21,close:24,volume:Number.MAX_VALUE,closeTime:4}
   ];
   const result = charts.indicators(candles);
-  assert.equal(result.vwap, 16);
+  assert.equal(result.vwap, 17);
   assert.ok(Number.isFinite(result.vwap));
 });
 
