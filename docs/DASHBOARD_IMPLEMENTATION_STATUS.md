@@ -305,3 +305,12 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 
 - The active sidebar link now exposes `aria-current="page"`; inactive links have the attribute removed on each navigation change. This complements the mobile menu's expanded/collapsed state and Escape-key focus restoration.
 - Added a static contract assertion for current-page semantics. Browser screen-reader verification remains pending.
+
+
+## Follow-up regression coverage — scanner search and request boundaries
+
+- Extended the dashboard contract suite to assert that scanner search resets pagination and that the sorted-row cache is keyed by the active search query.
+- Added static checks that API requests omit ambient browser credentials, disable response caching, and preserve valid falsy request bodies by checking body presence against `undefined`.
+- Added static checks that superseded candle-chart requests ignore both late successful responses and late failures.
+- These checks improve regression coverage but remain source-level assertions. The Python and Node test suites have not been executed in this session; no passing result is claimed.
+- No retry loop was introduced: scanner and analysis endpoints have not been proven safe for automatic retries, and repeated scans could create unnecessary backend load. No CI, PR, merge or deployment was triggered.
