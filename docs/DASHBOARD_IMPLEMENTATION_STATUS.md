@@ -589,3 +589,9 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Stochastic RSI now validates all four period/smoothing arguments as positive safe integers and rejects unsafe combined lookback lengths. Invalid or non-array input returns correctly sized empty/unavailable series instead of throwing or producing invalid values.
 - Added regression fixtures for extreme finite MACD input, invalid/unsafe Stochastic RSI periods and non-array Stochastic RSI input. These tests were added but have not been executed; runtime and browser verification remain outstanding.
 
+## Indicator input and period validation
+
+- EMA, RSI, ATR and ADX series now reject non-array inputs without throwing and require positive safe-integer periods before allocating or calculating series. Invalid periods return an unavailable (`null`) series of the input length.
+- Stochastic RSI also validates the combined K/D smoothing lookback, in addition to its individual periods, preventing unsafe integer arithmetic in its index calculations.
+- Added regression tests for non-array inputs and invalid, fractional, negative and unsafe period values across the indicator series APIs. Tests have not been executed; source readback is not a substitute for runtime verification.
+
