@@ -583,3 +583,9 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Updated the indicator-pane zero reference line to use the same normalized coordinate transform as the plotted series. This avoids relying on an unscaled range span that can overflow for finite values of opposite signs.
 - Added a chart-load regression fixture that exercises rendering with signed MACD values and its zero baseline. The test was added but not executed; no runtime or browser verification is claimed.
 
+## MACD and Stochastic RSI boundary hardening
+
+- MACD line, signal and histogram outputs now explicitly reject non-finite intermediate results. An unrepresentable histogram point is emitted as unavailable (`null`) rather than allowing Infinity or NaN into the chart series.
+- Stochastic RSI now validates all four period/smoothing arguments as positive safe integers and rejects unsafe combined lookback lengths. Invalid or non-array input returns correctly sized empty/unavailable series instead of throwing or producing invalid values.
+- Added regression fixtures for extreme finite MACD input, invalid/unsafe Stochastic RSI periods and non-array Stochastic RSI input. These tests were added but have not been executed; runtime and browser verification remain outstanding.
+
