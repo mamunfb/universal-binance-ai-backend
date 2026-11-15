@@ -299,3 +299,9 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
   `python -m pytest`
 - The dashboard chart fixture suite uses Node's built-in test runner and can be invoked with `node --test tests/test_dashboard_chart.js`; the dashboard contract checks are included in the Python pytest suite.
 - This execution session has Node.js 22 and Python 3.13 available, but a GitHub clone attempt failed at DNS resolution for github.com. Therefore dependencies were not installed and neither suite was executed. These commands are setup guidance, not a claim of passing tests.
+
+
+## Navigation current-page semantics
+
+- The active sidebar link now exposes `aria-current="page"`; inactive links have the attribute removed on each navigation change. This complements the mobile menu's expanded/collapsed state and Escape-key focus restoration.
+- Added a static contract assertion for current-page semantics. Browser screen-reader verification remains pending.
