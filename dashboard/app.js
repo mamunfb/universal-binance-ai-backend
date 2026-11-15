@@ -131,7 +131,7 @@
     $("mobile-menu").addEventListener("click",()=>$("sidebar").classList.toggle("open"));
     $("open-settings").addEventListener("click",()=>{navigate("settings");history.replaceState(null,"","#settings");});
     $("banner-settings").addEventListener("click",()=>navigate("settings"));
-    $("refresh-page").addEventListener("click",()=>{const page=location.hash.slice(1)||"overview";if(page==="overview")withButton("refresh-page",async()=>{await loadHealth();await scanMarket(state.market);},"Refreshing");else if(page==="reliability")withButton("refresh-page",loadQuality,"Refreshing");else if(page==="coin-analysis")withButton("refresh-page",loadMarketEvidence,"Refreshing");else toast("No verified refresh action is mapped for this page yet.");});
+    $("refresh-page").addEventListener("click",()=>{const page=location.hash.slice(1)||"overview";if(page==="overview")withButton("refresh-page",async()=>{await loadHealth();await scanMarket(state.market);},"Refreshing");else if(page==="reliability")withButton("refresh-page",loadQuality,"Refreshing");else if(page==="coin-analysis")withButton("refresh-page",loadTechnical,"Refreshing");else toast("No verified refresh action is mapped for this page yet.");});
     $("global-market").addEventListener("change",e=>{state.market=e.target.value;document.querySelectorAll(".market-tab").forEach(b=>b.classList.toggle("active",b.dataset.market===state.market));});
     $("global-symbol").addEventListener("change",()=>{state.symbol=$("global-symbol").value.trim().toUpperCase();syncAnalysisHeader();});
     $("global-timeframe").addEventListener("change",()=>{state.timeframe=$("global-timeframe").value;syncAnalysisHeader();});
@@ -143,7 +143,7 @@
     $("spot-search").addEventListener("input",e=>{const view=tableViews["spot-rows"]||(tableViews["spot-rows"]={page:0,pageSize:100,sortKey:"symbol",direction:1,rows:[],query:""});view.query=e.target.value.trim().toUpperCase();view.page=0;renderRows("spot-rows",view.rows,6);});
     $("load-preflight").addEventListener("click",()=>withButton("load-preflight",async()=>showJson("readiness-output",await api("/api/v1/research/preflight")),"Checking…"));
     $("load-readiness").addEventListener("click",()=>withButton("load-readiness",async()=>showJson("readiness-output",await api("/api/v1/research/phase-readiness")),"Checking…"));
-    $("load-coin-analysis").addEventListener("click",()=>withButton("load-coin-analysis",loadMarketEvidence,"Loading…"));
+    $("load-coin-analysis").addEventListener("click",()=>withButton("load-coin-analysis",loadTechnical,"Loading…"));
     $("load-technical").addEventListener("click",()=>withButton("load-technical",loadTechnical,"Loading…"));
     $("load-market-evidence").addEventListener("click",()=>withButton("load-market-evidence",loadMarketEvidence,"Loading…"));
     $("load-quality").addEventListener("click",()=>withButton("load-quality",loadQuality,"Checking…"));
