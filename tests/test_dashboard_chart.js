@@ -478,3 +478,35 @@ test("EMA, RSI and ATR series resume after finite-data gaps with fresh warmup wi
   assert.ok(Number.isFinite(atr[6]));
 });
 
+test("ADX restarts after invalid candle gaps without carrying directional state across them", () => {
+  const candles = Array.from({length:90}, (_,i) => {
+    const close = 100+i;
+    return {time:i,open:close,high:close+1,low:close-1,close,volume:1,closeTime:i+1};
+  });
+  candles[40].high = NaN;
+  const adx = charts.adxSeries(candles,14);
+  assert.ok(Number.isFinite(adx[39]));
+  assert.equal(adx[40],null);
+  assert.equal(adx[67],null);
+  assert.ok(Number.isFinite(adx[68]));
+  assert.ok(Math.abs(adx[68]-100)<1e-10);
+});
+
+test("Bollinger and MACD series retain candle alignment and restart after gaps", () => {
+  const values = Array.from({length:110}, (_,i) => 100 + Math.sin(i/4)*5 + i*0.1);
+  values[50] = NaN;
+  const bands = charts.bollingerSeries(values,20,2);
+  assert.equal(bands.middle[50],null);
+  assert.equal(bands.middle[68],null);
+  assert.ok(Number.isFinite(bands.middle[69]));
+
+  const macd = charts.macdComponents(values);
+  assert.equal(macd.line[50],null);
+  assert.equal(macd.signal[50],null);
+  assert.ok(Number.isFinite(macd.line[75]));
+  assert.equal(macd.signal[75],null);
+  assert.ok(Number.isFinite(macd.signal[83]));
+  assert.equal(macd.histogram.length,values.length);
+  assert.ok(macd.histogram.every(value=>value===null||Number.isFinite(value)));
+});
+
