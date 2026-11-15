@@ -650,3 +650,9 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - The rolling extrema and smoothing passes are linear in the number of observations rather than repeatedly rescanning each configured window. Missing RSI observations reset the active window and smoothing warm-up, preserving gap alignment and null behavior. Raw %K and smoothed %K/%D are clamped to their documented 0–100 range against floating-point boundary drift.
 - Added regression coverage for gap recovery, bounded 0–100 output, existing warm-up indices and equivalence with a straightforward reference implementation. These tests have not been executed; no measured benchmark is claimed.
 
+## ADX input structure validation
+
+- ADX segment detection now requires positive finite high, low and close values with internally consistent high/low bounds around the close. A structurally malformed candle breaks the segment just like a missing or non-finite candle.
+- The next valid segment starts a fresh directional-movement and Wilder ADX warm-up; values are not carried across malformed candle boundaries.
+- Added regression coverage for an internally inconsistent high/close relationship, including the null gap and exact restart warm-up index. Tests have not been executed.
+
