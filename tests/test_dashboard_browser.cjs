@@ -457,6 +457,21 @@ test("mobile dashboard accessibility is checked with navigation both closed and 
 
 test("backend requests never send browser cookies and use no-store caching", async () => {
   const {context, page, pageErrors} = await newPage(1280);
+  await page.addInitScript(() => {
+    const originalFetch = window.fetch.bind(window);
+    window.__backendFetchOptions = [];
+    window.fetch = (input, init = {}) => {
+      const url = typeof input === "string" ? input : input.url;
+      if (url.startsWith("https://backend.test/")) {
+        window.__backendFetchOptions.push({
+          cache: init.cache,
+          credentials: init.credentials
+        });
+      }
+      return originalFetch(input, init);
+    };
+  });
+  await page.reload({waitUntil: "networkidle"});
   await page.locator('.nav-link[data-page="settings"]').click();
   await page.locator("#backend-url").fill("https://backend.test");
   await context.addCookies([{
@@ -465,12 +480,9 @@ test("backend requests never send browser cookies and use no-store caching", asy
     url: "https://backend.test"
   }]);
 
-  let observedRequest = null;
+  let observedCookieHeader = null;
   await page.route("https://backend.test/health", async route => {
-    observedRequest = {
-      headers: await route.request().allHeaders(),
-      credentials: route.request().headers()["cookie"] ?? null
-    };
+    observedCookieHeader = route.request().headers()["cookie"] ?? null;
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -480,9 +492,10 @@ test("backend requests never send browser cookies and use no-store caching", asy
   });
   await page.locator("#test-connection").click();
   await page.getByText("Backend health endpoint responded successfully.").waitFor();
-  assert.ok(observedRequest, "health request should reach the mocked backend");
-  assert.equal(observedRequest.credentials, null, "browser cookies must not accompany API requests");
-  assert.equal(observedRequest.headers["cache-control"], "no-store");
+  const options = await page.evaluate(() => window.__backendFetchOptions.at(-1));
+  assert.equal(observedCookieHeader, null, "browser cookies must not accompany API requests");
+  assert.equal(options?.credentials, "omit");
+  assert.equal(options?.cache, "no-store");
   assert.deepEqual(pageErrors, []);
   await context.close();
 });
