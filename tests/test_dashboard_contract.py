@@ -101,6 +101,10 @@ class DashboardContractTests(unittest.TestCase):
     def test_primary_coin_analysis_action_loads_candles(self) -> None:
         self.assertIn('$("load-coin-analysis").addEventListener("click",()=>withButton("load-coin-analysis",loadTechnical', self.js)
 
+    def test_chart_render_test_doubles_support_document_fragments(self) -> None:
+        self.assertGreaterEqual(self.chart_test_js.count("createDocumentFragment"), 2)
+        self.assertIn("createDocumentFragment:()=>makeElement", self.chart_test_js)
+
     def test_chart_svg_nodes_are_batched_and_bollinger_inputs_are_guarded(self) -> None:
         render_body = self.chart_js.split("function render(c)", 1)[1].split("\\nfunction invalidate", 1)[0]
         bollinger_body = self.chart_js.split("function bollingerSeries(", 1)[1].split("\\nfunction adxSegment", 1)[0]
