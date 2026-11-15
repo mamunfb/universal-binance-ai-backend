@@ -310,5 +310,13 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn(chr(10) + ".indicator-pane{", self.css)
 
 
+    def test_chart_large_dataset_regression_fixtures_are_present(self) -> None:
+        self.assertIn('parse handles a large reversed candle batch', self.chart_test_js)
+        self.assertIn('Array.from({length:10000}', self.chart_test_js)
+        self.assertIn('3h aggregation scales across many complete buckets', self.chart_test_js)
+        self.assertIn('assert.equal(aggregated.length, 1000)', self.chart_test_js)
+        self.assertIn('assert.equal(gapAggregated.length, 999)', self.chart_test_js)
+
+
 if __name__ == "__main__":
     unittest.main()
