@@ -63,23 +63,46 @@ function intervalFor(tf){return tf==="3h"?"1h":({"1D":"1d","3D":"3d","1W":"1w"}[
 function routeFor(market){return market==="SPOT"?"/api/v1/markets/spot/klines/":market==="USD_M"?"/api/v1/markets/futures/usdm/klines/":market==="COIN_M"?"/api/v1/markets/futures/coinm/klines/":null;}
 function emaSeries(values,n){
  if(!Array.isArray(values))return[];const out=Array(values.length).fill(null);if(!Number.isSafeInteger(n)||n<1||values.length<n)return out;
- let value=finiteMean(values.slice(0,n));if(value===null)return out;out[n-1]=value;
- const k=2/(n+1);
- for(let i=n;i<values.length;i++){if(!Number.isFinite(values[i])){value=null;continue;}if(value===null){out[i]=null;continue;}value=values[i]*k+value*(1-k);if(!Number.isFinite(value)){value=null;continue;}out[i]=value;}return out;
+ const k=2/(n+1);let runLength=0,value=null;
+ for(let i=0;i<values.length;i++){
+  if(!Number.isFinite(values[i])){runLength=0;value=null;continue;}
+  runLength++;
+  if(runLength<n)continue;
+  if(runLength===n){value=finiteMean(values.slice(i-n+1,i+1));if(value!==null)out[i]=value;continue;}
+  value=values[i]*k+value*(1-k);if(!Number.isFinite(value)){runLength=0;value=null;continue;}out[i]=value;
+ }
+ return out;
 }
 function rsiSeries(values,n=14){
  if(!Array.isArray(values))return[];const out=Array(values.length).fill(null);if(!Number.isSafeInteger(n)||n<1||values.length<=n)return out;
- const gains=[],losses=[];for(let i=1;i<=n;i++){const delta=values[i]-values[i-1];if(!Number.isFinite(delta))return out;gains.push(Math.max(delta,0));losses.push(Math.max(-delta,0));}
- let averageGain=finiteMean(gains),averageLoss=finiteMean(losses);if(averageGain===null||averageLoss===null)return out;
+ let gains=[],losses=[],averageGain=null,averageLoss=null;
  const value=()=>averageGain===0&&averageLoss===0?50:averageLoss===0?100:averageGain===0?0:100-100/(1+averageGain/averageLoss);
- out[n]=value();
- for(let i=n+1;i<values.length;i++){const delta=values[i]-values[i-1];if(!Number.isFinite(delta)){averageGain=null;averageLoss=null;continue;}if(averageGain===null||averageLoss===null)continue;averageGain=(averageGain*(n-1)+Math.max(delta,0))/n;averageLoss=(averageLoss*(n-1)+Math.max(-delta,0))/n;if(!Number.isFinite(averageGain)||!Number.isFinite(averageLoss)){averageGain=null;averageLoss=null;continue;}out[i]=value();}
+ for(let i=1;i<values.length;i++){
+  const delta=values[i]-values[i-1];
+  if(!Number.isFinite(delta)){gains=[];losses=[];averageGain=null;averageLoss=null;continue;}
+  const gain=Math.max(delta,0),loss=Math.max(-delta,0);
+  if(averageGain===null||averageLoss===null){
+   gains.push(gain);losses.push(loss);
+   if(gains.length===n){averageGain=finiteMean(gains);averageLoss=finiteMean(losses);gains=[];losses=[];if(averageGain!==null&&averageLoss!==null)out[i]=value();else{averageGain=null;averageLoss=null;}}
+   continue;
+  }
+  averageGain=(averageGain*(n-1)+gain)/n;averageLoss=(averageLoss*(n-1)+loss)/n;
+  if(!Number.isFinite(averageGain)||!Number.isFinite(averageLoss)){gains=[];losses=[];averageGain=null;averageLoss=null;continue;}
+  out[i]=value();
+ }
  return out;
 }
 function atrSeries(c,n=14){
- if(!Array.isArray(c))return[];const out=Array(c.length).fill(null);if(!Number.isSafeInteger(n)||n<1)return out;const tr=c.slice(1).map((x,i)=>Math.max(x.high-x.low,Math.abs(x.high-c[i].close),Math.abs(x.low-c[i].close)));
- if(tr.length<n)return out;let value=finiteMean(tr.slice(0,n));if(value===null)return out;out[n]=value;
- for(let i=n+1;i<c.length;i++){value=(value*(n-1)+tr[i-1])/n;if(!Number.isFinite(value))break;out[i]=value;}return out;
+ if(!Array.isArray(c))return[];const out=Array(c.length).fill(null);if(!Number.isSafeInteger(n)||n<1)return out;
+ let seed=[],value=null;
+ for(let i=1;i<c.length;i++){
+  const cur=c[i],prev=c[i-1];
+  const tr=cur&&prev&&[cur.high,cur.low,prev.close].every(Number.isFinite)?Math.max(cur.high-cur.low,Math.abs(cur.high-prev.close),Math.abs(cur.low-prev.close)):null;
+  if(!Number.isFinite(tr)){seed=[];value=null;continue;}
+  if(value===null){seed.push(tr);if(seed.length===n){value=finiteMean(seed);seed=[];if(value!==null)out[i]=value;else value=null;}continue;}
+  value=(value*(n-1)+tr)/n;if(!Number.isFinite(value)){seed=[];value=null;continue;}out[i]=value;
+ }
+ return out;
 }
 function macdComponents(values){
  const fast=emaSeries(values,12),slow=emaSeries(values,26);
