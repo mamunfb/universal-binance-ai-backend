@@ -158,6 +158,7 @@
   }
   function renderScannerMeta(market,data,rows,rejectedRows=0,rowKey=null,additionalRowKeys=[],quoteFilter=null) {
     const prefix=market==="USD_M"?"usdm":market==="COIN_M"?"coinm":"spot";
+    const duplicateStats=scannerDuplicateSymbolStats(rows);
     const countNames={
       eligible:["eligible_count","eligible_symbols","eligible","total_eligible","total_symbols"],
       scanned:["scanned_count","scanned_symbols","scanned","attempted_count"],
@@ -168,9 +169,9 @@
       "Result field: "+(rowKey||"Not supplied"),
       "Additional array fields: "+(additionalRowKeys.length?additionalRowKeys.join(", "):"None"),
       "Returned rows: "+rows.length,
-      "Unique symbols: "+scannerDuplicateSymbolStats(rows).uniqueSymbols,
-      "Duplicate symbols: "+scannerDuplicateSymbolStats(rows).duplicateSymbols,
-      "Duplicate rows: "+scannerDuplicateSymbolStats(rows).duplicateRows,
+      "Unique symbols: "+duplicateStats.uniqueSymbols,
+      "Duplicate symbols: "+duplicateStats.duplicateSymbols,
+      "Duplicate rows: "+duplicateStats.duplicateRows,
       "Rejected malformed rows: "+rejectedRows,
       "Status field: "+(metadataFieldName(data,["status","scan_status"])||"Not supplied"),
       "Status: "+metadataText(data.status,metadataText(data.scan_status,"Not supplied",80),80),
