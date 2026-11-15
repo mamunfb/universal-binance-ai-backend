@@ -369,7 +369,8 @@ test("chart rendering handles signed indicator ranges and normalized zero baseli
   global.document = {
     getElementById(id) { return id === "chart-placeholder" ? host : id === "technical-summary" ? summary : id === "analysis-output" ? output : state; },
     createElement: element,
-    createElementNS: element
+    createElementNS: element,
+    createDocumentFragment: element
   };
   const rows = Array.from({length:80}, (_,i) => {
     const close = 100 + Math.sin(i/3)*10;
@@ -650,5 +651,17 @@ test("Wilder RSI and ATR smoothing remain finite for very large representable ga
   const snapshot=charts.indicators(candles);
   assert.equal(snapshot.rsi_14_wilder,100);
   assert.ok(Number.isFinite(snapshot.atr_14_wilder));
+});
+
+test("Bollinger bands safely reject non-array input and invalid window parameters", () => {
+  assert.deepEqual(charts.bollingerSeries(null),{upper:[],middle:[],lower:[]});
+  assert.deepEqual(charts.bollingerSeries({}),{upper:[],middle:[],lower:[]});
+  const values=Array.from({length:40},(_,i)=>100+i);
+  for(const [period,multiplier] of [[0,2],[1.5,2],[20,-1],[20,Infinity]]) {
+    const result=charts.bollingerSeries(values,period,multiplier);
+    assert.ok(result.upper.every(value=>value===null||Number.isFinite(value)));
+    assert.ok(result.middle.every(value=>value===null||Number.isFinite(value)));
+    assert.ok(result.lower.every(value=>value===null||Number.isFinite(value)));
+  }
 });
 
