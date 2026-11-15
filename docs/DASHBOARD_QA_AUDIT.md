@@ -564,7 +564,7 @@ No merge, production deployment, backend/database mutation, secret change or `ma
 
 ## 30. Expanded Chromium API-failure and accessibility regression suite
 
-**Browser-test source checkpoint:** `5e73bbbbcc88cc92d0335cae848eab446be689dd`  
+**Browser-test source checkpoint:** `4fd349330c5b00197ddd044b55cdb8c648fed531`  
 **Verification date:** 2026-11-15
 
 Expanded `tests/test_dashboard_browser.cjs` from four to eight independent Node/Playwright tests. New browser coverage includes:
@@ -579,7 +579,9 @@ Expanded `tests/test_dashboard_browser.cjs` from four to eight independent Node/
 
 Existing browser tests continue to cover the seven viewport widths, mobile keyboard focus wrapping, Escape/focus restoration, mocked health success, HTTP 503 and malformed JSON.
 
-**Important evidence boundary:** the new test file is committed, but no completed GitHub Actions job log has yet been retrieved for this expanded eight-test checkpoint. Therefore none of the newly added cases is recorded as passed here. The previous 4/4 browser result applies only to the earlier source checkpoint in Section 29.
+**CI execution evidence:** GitHub Actions browser QA Run #16 (`43719647421`) executed the prior eight-test checkpoint (`5e73bbbbcc88cc92d0335cae848eab446be689dd`). The runner completed tests 1–7 successfully and failed test 8 after a 30-second wait for Playwright's `requestfailed` event timed out. The log reports **7 passed, 1 failed**. This is a browser-test synchronization/assertion failure; the log does not establish a dashboard application regression.
+
+**Harness correction:** the cancellation regression now instruments the browser fetch signal and waits for the actual `AbortSignal` event, rather than relying on Playwright's routed-request `requestfailed` event. It also waits for the mocked route handler to settle before closing the page. This updated source checkpoint is committed, but its CI result is pending; no pass claim is made for the revised test.
 
 The API cases use browser route mocks and a local static dashboard server; they do not exercise a live backend. No production endpoint, credentials, trading action, database, deployment, or main-branch state is touched by these tests.
 
