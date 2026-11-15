@@ -101,6 +101,22 @@ class DashboardContractTests(unittest.TestCase):
     def test_primary_coin_analysis_action_loads_candles(self) -> None:
         self.assertIn('$("load-coin-analysis").addEventListener("click",()=>withButton("load-coin-analysis",loadTechnical', self.js)
 
+    def test_closed_mobile_sidebar_is_removed_from_keyboard_navigation(self) -> None:
+        self.assertIn("function setSidebarOpen(open)", self.js)
+        self.assertIn("sidebar.inert=mobile&&!open", self.js)
+        self.assertIn('setSidebarOpen(false);', self.js)
+        self.assertIn('window.addEventListener("resize"', self.js)
+        self.assertIn('event.key==="Escape"&&$("sidebar").classList.contains("open")', self.js)
+
+    def test_quality_and_backend_inputs_have_explicit_validation(self) -> None:
+        self.assertIn('required maxlength="40" pattern="[A-Za-z0-9]{1,40}"', self.html)
+        self.assertIn('type="number" min="1" max="2160" step="1" value="168" required', self.html)
+        self.assertIn('type="url" placeholder="https://your-private-backend.example" required', self.html)
+        self.assertIn('!/^[A-Z0-9]{1,40}$/.test(symbol)', self.js)
+        self.assertIn('lookbackInput.setCustomValidity("Enter a whole number from 1 to 2160.")', self.js)
+        self.assertIn('const localHttp=parsed.protocol==="http:"&&(parsed.hostname==="localhost"||parsed.hostname==="127.0.0.1")', self.js)
+        self.assertIn('parsed.protocol!=="https:"&&!localHttp', self.js)
+
     def test_dynamic_dashboard_status_regions_are_announced(self) -> None:
         for element_id in ("connection-label", "scan-state", "health-status", "chart-state", "technical-summary", "quality-state", "settings-status"):
             self.assertRegex(self.html, rf'<[^>]+id="{element_id}"[^>]*role="status" aria-live="polite" aria-atomic="true"')
