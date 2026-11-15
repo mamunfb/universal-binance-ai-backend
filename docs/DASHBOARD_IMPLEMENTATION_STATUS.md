@@ -612,3 +612,16 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Output arrays retain the same index alignment and length as their input series; no values are shifted across missing observations. This allows later valid chart segments to render without connecting or carrying calculations through invalid data.
 - Added regression coverage for EMA, RSI and ATR recovery after gaps. Tests have not been executed; runtime/browser verification remains outstanding.
 
+## ADX, Bollinger and MACD gap alignment
+
+- ADX now calculates independently over contiguous valid candle segments. An invalid OHLC candle breaks the directional-movement history; ADX resumes only after a fresh segment has enough candles for its full Wilder warm-up. Output indices remain aligned with the original candle array.
+- Bollinger rolling windows remain unavailable whenever their complete lookback crosses a missing/non-finite observation, then naturally become available again after a full valid window.
+- MACD's fast/slow EMA components and signal EMA now inherit the gap-aware EMA behavior. Signal warm-up restarts from the next valid aligned MACD segment, and histogram values remain null unless both aligned components are finite.
+- Added regression fixtures for ADX restart, Bollinger rolling-window recovery and MACD signal/histogram alignment after gaps. Tests have not been executed.
+
+## Volume chart scaling edge cases
+
+- Volume bars now scale against the actual maximum volume in the visible candle window. This keeps sub-unit and very small positive volumes visually proportional instead of effectively suppressing them with a hard-coded minimum scale.
+- When every visible candle has zero volume, bar heights are explicitly zero; the chart does not divide by zero or emit non-finite SVG attributes.
+- Added rendering regression coverage for tiny positive volume values and an all-zero-volume window. Tests have not been executed; browser QA remains outstanding.
+
