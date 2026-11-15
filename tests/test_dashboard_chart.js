@@ -635,3 +635,19 @@ test("ATR rejects malformed current and previous OHLC candles and restarts its W
   assert.ok(Number.isFinite(atr[60]));
 });
 
+test("Wilder RSI and ATR smoothing remain finite for very large representable gains and ranges", () => {
+  const step=Number.MAX_VALUE*0.003;
+  const range=Number.MAX_VALUE*0.01;
+  const closes=Array.from({length:80},(_,i)=>Number.MAX_VALUE*0.5+step*i);
+  const candles=closes.map((close,i)=>({
+    time:i*3600000,open:close,high:close+range,low:close-range,
+    close,volume:1,closeTime:i*3600000+3599999
+  }));
+  const rsi=charts.rsiSeries(closes,14);
+  const atr=charts.atrSeries(candles,14);
+  assert.equal(rsi.at(-1),100);
+  assert.ok(Number.isFinite(atr.at(-1)));
+  assert.equal(charts.rsi(closes,14),100);
+  assert.ok(Number.isFinite(charts.atrWilder(candles,14)));
+});
+
