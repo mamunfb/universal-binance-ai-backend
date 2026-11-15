@@ -60,13 +60,13 @@ function indicators(c){
 function intervalFor(tf){return tf==="3h"?"1h":({"1D":"1d","3D":"3d","1W":"1w"}[tf]||tf);}
 function routeFor(market){return market==="SPOT"?"/api/v1/markets/spot/klines/":market==="USD_M"?"/api/v1/markets/futures/usdm/klines/":market==="COIN_M"?"/api/v1/markets/futures/coinm/klines/":null;}
 function emaSeries(values,n){
- const out=Array(values.length).fill(null);if(values.length<n)return out;
+ if(!Array.isArray(values))return[];const out=Array(values.length).fill(null);if(!Number.isSafeInteger(n)||n<1||values.length<n)return out;
  let value=finiteMean(values.slice(0,n));if(value===null)return out;out[n-1]=value;
  const k=2/(n+1);
  for(let i=n;i<values.length;i++){if(!Number.isFinite(values[i])){value=null;continue;}if(value===null){out[i]=null;continue;}value=values[i]*k+value*(1-k);if(!Number.isFinite(value)){value=null;continue;}out[i]=value;}return out;
 }
 function rsiSeries(values,n=14){
- const out=Array(values.length).fill(null);if(values.length<=n)return out;
+ if(!Array.isArray(values))return[];const out=Array(values.length).fill(null);if(!Number.isSafeInteger(n)||n<1||values.length<=n)return out;
  const gains=[],losses=[];for(let i=1;i<=n;i++){const delta=values[i]-values[i-1];if(!Number.isFinite(delta))return out;gains.push(Math.max(delta,0));losses.push(Math.max(-delta,0));}
  let averageGain=finiteMean(gains),averageLoss=finiteMean(losses);if(averageGain===null||averageLoss===null)return out;
  const value=()=>averageGain===0&&averageLoss===0?50:averageLoss===0?100:averageGain===0?0:100-100/(1+averageGain/averageLoss);
@@ -75,7 +75,7 @@ function rsiSeries(values,n=14){
  return out;
 }
 function atrSeries(c,n=14){
- const out=Array(c.length).fill(null),tr=c.slice(1).map((x,i)=>Math.max(x.high-x.low,Math.abs(x.high-c[i].close),Math.abs(x.low-c[i].close)));
+ if(!Array.isArray(c))return[];const out=Array(c.length).fill(null);if(!Number.isSafeInteger(n)||n<1)return out;const tr=c.slice(1).map((x,i)=>Math.max(x.high-x.low,Math.abs(x.high-c[i].close),Math.abs(x.low-c[i].close)));
  if(tr.length<n)return out;let value=finiteMean(tr.slice(0,n));if(value===null)return out;out[n]=value;
  for(let i=n+1;i<c.length;i++){value=(value*(n-1)+tr[i-1])/n;if(!Number.isFinite(value))break;out[i]=value;}return out;
 }
@@ -96,7 +96,7 @@ function bollingerSeries(values,n=20,multiplier=2){
  return{upper,middle,lower};
 }
 function adxSeries(c,n=14){
- const out=Array(c.length).fill(null);if(c.length<2*n)return out;
+ if(!Array.isArray(c))return[];const out=Array(c.length).fill(null);if(!Number.isSafeInteger(n)||n<1||c.length<2*n)return out;
  const tr=[],plus=[],minus=[];
  for(let i=1;i<c.length;i++){const cur=c[i],prev=c[i-1],up=cur.high-prev.high,down=prev.low-cur.low;
   tr.push(Math.max(cur.high-cur.low,Math.abs(cur.high-prev.close),Math.abs(cur.low-prev.close)));
@@ -119,7 +119,7 @@ function adxSeries(c,n=14){
 }
 function stochRsiSeries(values,rsiPeriod=14,stochPeriod=14,smoothK=3,smoothD=3){
  const length=Array.isArray(values)?values.length:0,raw=Array(length).fill(null),k=Array(length).fill(null),d=Array(length).fill(null);
- if(!Array.isArray(values)||![rsiPeriod,stochPeriod,smoothK,smoothD].every(Number.isSafeInteger)||rsiPeriod<1||stochPeriod<1||smoothK<1||smoothD<1||!Number.isSafeInteger(rsiPeriod+stochPeriod))return{k,d};
+ if(!Array.isArray(values)||![rsiPeriod,stochPeriod,smoothK,smoothD].every(Number.isSafeInteger)||rsiPeriod<1||stochPeriod<1||smoothK<1||smoothD<1||!Number.isSafeInteger(rsiPeriod+stochPeriod)||!Number.isSafeInteger(smoothK+smoothD))return{k,d};
  const rsi=rsiSeries(values,rsiPeriod);
  for(let i=0;i<rsi.length;i++){if(i<rsiPeriod+stochPeriod-1||!Number.isFinite(rsi[i]))continue;const w=rsi.slice(i-stochPeriod+1,i+1);if(!w.every(Number.isFinite))continue;const lo=Math.min(...w),hi=Math.max(...w);raw[i]=hi===lo?50:(rsi[i]-lo)/(hi-lo)*100;}
  for(let i=0;i<raw.length;i++){if(i>=smoothK-1&&raw.slice(i-smoothK+1,i+1).every(Number.isFinite))k[i]=raw.slice(i-smoothK+1,i+1).reduce((s,x)=>s+x,0)/smoothK;
