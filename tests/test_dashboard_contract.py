@@ -170,6 +170,8 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn('String(a?.symbol??"").localeCompare(String(b?.symbol??""),undefined,{numeric:true,sensitivity:"base"})', self.js)
         self.assertIn('th.addEventListener("keydown",event=>{if(event.key==="Enter"||event.key===" ")', self.js)
         self.assertIn('th.setAttribute("aria-label","Sort by "+keys[index])', self.js)
+        self.assertIn('th.setAttribute("aria-keyshortcuts","Enter Space")', self.js)
+        self.assertNotIn('th.setAttribute("role","button")', self.js)
         self.assertIn('info.setAttribute("aria-live","polite")', self.js)
         self.assertIn('prev.setAttribute("aria-label","Previous scanner page")', self.js)
         self.assertIn('next.setAttribute("aria-label","Next scanner page")', self.js)
