@@ -1237,3 +1237,18 @@ Test commit: `7f8dee0863eb7fe82059f2522a99c99fb3ac161d` on `feat/institutional-d
 **Validation status:** committed, but the two new browser cases have not yet been verified by a completed GitHub Actions run or local Chromium execution. They remain pending execution; prior green workflows do not validate these additions. The tests exercise mocked browser/API behavior and do not establish backend endpoint correctness.
 
 Only the browser regression test file and this audit document were changed in this pass. No dashboard application source, backend business logic, database, migrations, secrets, `main`, PR metadata, merge state, or deployment configuration was changed. No merge or deployment was performed. Physical Android/iPhone testing and manual TalkBack/VoiceOver verification remain outstanding.
+
+
+## 65. CI findings and browser-test synchronization corrections (2026-11-15)
+
+The first CI execution of the Section 64 additions exposed two test-harness issues; it did not pass:
+
+- Browser QA Run [43736841910](https://github.com/mamunfb/universal-binance-ai-backend/actions/runs/43736841910) completed with **17 passed, 2 failed**. The market-scan test asserted that a table row existed before the asynchronous newer scan had populated it. The readiness test attempted to click a control while its Overview page was hidden behind Settings.
+- The failure log showed the two newly added cases themselves behaved as expected: the data-quality stale-response case passed; the readiness case timed out before it could start because the Overview page was not active.
+- Full Backend and dashboard tests Run [43736853625](https://github.com/mamunfb/universal-binance-ai-backend/actions/runs/43736853625) completed successfully. This run validates the Python suite and JavaScript/document checks, not the browser suite.
+
+Corrected the browser test synchronization in commit `bd327a74778fdf1d4ca9f573656e01f1ce9e8bd7`:
+- Wait for the actual `CURRENTUSDT` content rather than the pre-existing empty-state table row.
+- Navigate back to Overview before clicking the research-preflight control.
+
+**Validation status:** these corrections are committed but have not yet been confirmed by a subsequent completed browser QA run. The next CI result is required before calling the browser suite green. No dashboard application source was changed.
