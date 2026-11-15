@@ -60,14 +60,31 @@
 - No live Binance/backend candle payload or browser chart rendering was tested.
 - No backend or deployment configuration was changed.
 
+## Additional implementation — advanced Coin Analysis chart workspace
+
+- Expanded the price chart to show an EMA20 overlay over actual OHLCV candlesticks and volume bars.
+- Added separate responsive indicator panes for Wilder RSI(14), MACD line, MACD signal (EMA9 of the MACD line), MACD histogram and Wilder ATR(14).
+- Indicator series are aligned to the loaded candle array; unavailable warm-up periods remain gaps rather than fabricated zero values.
+- Updated the primary **Run Analysis** and Coin Analysis refresh actions to load the selected market/symbol/timeframe candle workspace. Market Evidence remains a separate explicit action.
+- Added a monotonically increasing chart request sequence so a slower response from an earlier timeframe selection cannot overwrite a newer selection.
+- Added Node fixtures for indicator-series alignment and MACD histogram arithmetic, plus Python static assertions for pane rendering, stale-response protection and primary action wiring.
+
+## Verification status for this pass
+
+- Chart, app, CSS and test updates were committed to the frontend branch.
+- Eight Node fixture cases are present in the chart test file; neither the Node nor Python test suite has been executed.
+- No live backend data, real browser rendering, cross-device layout or accessibility run has been performed.
+- Chart overlays/panes are client-side descriptive calculations, not validated backend signals. ADX, Stochastic RSI, Volume Profile, support/resistance and backend-derived levels are still not implemented in this chart workspace.
+- No backend, CI workflow, database, secret, deployment or production hosting files were changed.
+
 ## Not yet verified / remaining work
 
 - The Python dashboard contract test file has been added but has not yet been executed in CI or a repository test runner.
 - No browser-based visual, keyboard, mobile, accessibility or cross-browser test has been run.
 - No live backend connection or real authenticated API response has been tested from this frontend.
 - Scanner sorting and 100-row client-side pagination are implemented; server-side pagination/virtualization is not available, and dedicated search/filter controls for USDⓈ-M and COIN-M plus richer coverage metadata remain outstanding.
-- Coin Analysis currently renders OHLCV candlesticks and a limited descriptive indicator set. It is not yet a full TradingView-equivalent chart, nor does it yet display every requested indicator/overlay/pane.
-- The 3h frontend aggregation requires exactly three consecutive 1h candles aligned to UTC bucket starts; incomplete buckets are discarded. This has syntax/static review only, not a live data fixture test yet.
+- Coin Analysis now renders OHLCV candlesticks, volume, EMA20 overlay and separate RSI/MACD/ATR panes. It is still not a full TradingView-equivalent chart; ADX, Stochastic RSI, Volume Profile, support/resistance and backend-derived structure levels remain outstanding.
+- The 3h frontend aggregation requires exactly three consecutive 1h candles aligned to UTC bucket starts; incomplete buckets are discarded. Fixture cases exist but have not been executed.
 - Daily scheduler, 96 scans/day, AI selection/research reports, three historical modes, Neon+R2 archive query, comparison, full news/on-chain views, signal evaluation and complete risk pages remain unintegrated or capability-unverified.
 - API auth/CORS behaviour and production frontend hosting are not verified.
 - No PR was opened, no merge was performed and no deployment was triggered.
