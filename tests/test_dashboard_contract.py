@@ -183,6 +183,20 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn("view.rows.filter", self.js)
         self.assertIn("filtered.slice(view.page*view.pageSize", self.js)
 
+    def test_health_and_market_evidence_ignore_superseded_responses(self) -> None:
+        self.assertIn("let activeHealthSequence=0", self.js)
+        self.assertIn("const requestSequence=++activeHealthSequence", self.js)
+        self.assertIn('if(requestSequence!==activeHealthSequence)return{status:"SUPERSEDED"}', self.js)
+        self.assertIn("activeHealthSequence++;window.DashboardCharts.invalidate()", self.js)
+        self.assertIn('catch(error){if(requestSequence!==activeEvidenceSequence)return{status:"SUPERSEDED"}', self.js)
+
+    def test_spot_quote_filter_invalidates_pending_scan(self) -> None:
+        self.assertIn('$("spot-quote").addEventListener("input",()=>{invalidateScanRequests();', self.js)
+        self.assertIn('setText("spot-coverage","Quote filter changed · run a new Spot scan")', self.js)
+
+    def test_scanner_cells_normalize_null_and_empty_values(self) -> None:
+        self.assertIn('item?.[key]===undefined||item?.[key]===null||item?.[key]===""?"—"', self.js)
+
     def test_quality_report_ignores_superseded_requests(self) -> None:
         self.assertIn("let activeQualitySequence=0", self.js)
         self.assertIn("function invalidateQualityRequest(){activeQualitySequence++;}", self.js)
