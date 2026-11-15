@@ -859,3 +859,12 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Each scanner table has its own pending timer, so typing in one market does not delay searches in another market. Clearing backend credentials cancels pending scanner search renders while clearing the query and cached rows.
 - Added a static source-contract test for debounce scheduling, timer replacement and credential-clear cancellation. The test has not been executed; the delay and responsiveness have not been measured in a browser.
 - This is a frontend interaction change only. No backend source, CI workflow, PR state, merge, or deployment was changed.
+
+
+## Scanner numeric sort comparison-cost review
+
+- Source review found that the compact row-reference cache avoided retained decorated row objects, but numeric strings were reparsed with Number() on every comparator invocation. For numeric sorting this repeated conversion work can occur O(M log M) times for M matching rows.
+- Added a per-sort-pass WeakMap keyed by the original row object. Each row selected sort-key numeric interpretation is computed at most once during that sort pass and reused by later comparisons. The cache is local to the sort operation and does not add persistent per-row metadata to view.sortedCache.
+- The comparator still applies missing/non-numeric ordering and direction rules as before. This is a source-level reduction in repeated numeric parsing, not a measured speedup; WeakMap overhead and actual browser performance remain unbenchmarked.
+- Replaced the obsolete static test that expected a decorated array with assertions for the WeakMap-based row-reference strategy. The test suite has not been executed.
+- Frontend-only. Backend source, CI workflow, PR state, merge and deployment remain unchanged.
