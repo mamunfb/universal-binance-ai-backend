@@ -371,3 +371,11 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - The coverage metadata reports the number of malformed rows excluded, and an informational scan notification calls attention to that count without treating a partially usable response as a complete scan failure.
 - Added a Python static contract assertion for the filter, rejected-row count and user-visible reporting.
 - This is defensive frontend response handling, not a claim that the backend response schema has been fully validated. GitHub readback is the only verification performed; runtime tests and browser QA remain unexecuted.
+
+
+## Scanner count metadata type hardening
+
+- Source review found that JavaScript numeric coercion could treat non-numeric container values (such as empty arrays or single-element arrays) as numbers when extracting eligible, scanned, failed or matched counts.
+- Count extraction now accepts only finite, non-negative number primitives and non-empty numeric strings. Booleans, arrays, objects, blank strings, negative values, NaN and infinities are rejected as missing metadata.
+- Updated the Python static contract to require the primitive-type guard and finite/non-negative check.
+- GitHub source readback is the only verification performed; Python/Node runtime tests and browser QA remain unexecuted.
