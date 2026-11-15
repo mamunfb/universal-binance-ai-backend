@@ -163,6 +163,17 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn("--sidebar:264px", self.css)
 
 
+    def test_duplicate_candle_filter_is_reachable_after_parse(self) -> None:
+        parse_body = self.chart_js.split("function parse(rows){", 1)[1].split("\\nfunction aggregate3h", 1)[0]
+        self.assertIn("const parsed=rows.filter", parse_body)
+        self.assertIn("return parsed.filter(candle=>counts.get(candle.time)===1)", parse_body)
+        self.assertLess(parse_body.index("const parsed="), parse_body.index("return parsed.filter"))
+
+    def test_scanner_count_metadata_rejects_blank_boolean_and_negative_values(self) -> None:
+        self.assertIn('value.trim()===""', self.js)
+        self.assertIn('typeof value!=="boolean"', self.js)
+        self.assertIn('Number(value)>=0', self.js)
+
     def test_spot_scanner_exposes_backend_reported_coverage(self) -> None:
         self.assertIn('id="spot-coverage"', self.html)
         self.assertIn('id="spot-count"', self.html)
