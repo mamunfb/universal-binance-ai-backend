@@ -13,6 +13,16 @@ function candle(time, close, options = {}) {
   return [time, open, high, low, close, options.volume ?? 10, time + 3599999];
 }
 
+test("VWAP remains finite when individually finite candle volumes overflow their raw sum", () => {
+  const candles = [
+    {time:1,open:10,high:12,low:9,close:11,volume:Number.MAX_VALUE,closeTime:2},
+    {time:3,open:20,high:22,low:19,close:21,volume:Number.MAX_VALUE,closeTime:4}
+  ];
+  const result = charts.indicators(candles);
+  assert.equal(result.vwap, 16);
+  assert.ok(Number.isFinite(result.vwap));
+});
+
 test("parse sorts valid OHLCV rows and rejects null, malformed and impossible candles", () => {
   const parsed = charts.parse([
     candle(3600000, 102),
