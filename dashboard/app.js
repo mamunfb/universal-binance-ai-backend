@@ -13,6 +13,7 @@
   let activeEvidenceSequence=0;
   let activeQualitySequence=0;
   let activeHealthSequence=0;
+  let activeMarketEvidenceController=null;
   const esc = (value) => String(value ?? "—").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const setText = (id, value) => { const el=$(id); if(el) el.textContent = value == null || value === "" ? "—" : String(value); };
   const toast = (message, type="info") => { const el=document.createElement("div"); el.className="toast "+(type==="error"?"error":type==="success"?"success":""); el.textContent=message; $("toast-region").append(el); window.setTimeout(()=>el.remove(),4500); };
@@ -22,6 +23,7 @@
   const setConnection = (ok, label) => { const dot=$("connection-dot"); dot.className="status-dot "+(ok?"good":"bad"); setText("connection-label",label); $("connection-banner").querySelector(".status-dot").className="status-dot "+(ok?"good":"bad"); $("connection-banner").querySelector("span:nth-child(2)").textContent=label; };
   function navigate(page) {
     const known = PAGE_TITLES[page] ? page : "overview";
+    if(known!=="coin-analysis")cancelAnalysisRequests();
     document.querySelectorAll(".page-view").forEach(p=>p.classList.toggle("active",p.id==="page-"+known || (known!=="overview" && !document.getElementById("page-"+known) && p.id==="page-placeholder")));
     document.querySelectorAll(".nav-link").forEach(a=>{const active=a.dataset.page===known;a.classList.toggle("active",active);if(active)a.setAttribute("aria-current","page");else a.removeAttribute("aria-current");});
     const title=PAGE_TITLES[known] || known;
@@ -178,19 +180,32 @@
     if(!view.headersBound&&table){view.headersBound=true;headers.forEach((th,index)=>{const sort=()=>{const key=keys[index];view.direction=view.sortKey===key?-view.direction:1;view.sortKey=key;view.page=0;renderRows(target,view.rows,columns);};th.tabIndex=0;th.setAttribute("aria-keyshortcuts","Enter Space");th.setAttribute("aria-label","Sort by "+keys[index]);th.addEventListener("click",sort);th.addEventListener("keydown",event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();sort();}});});}
   }
   function syncAnalysisHeader(){state.symbol=$("global-symbol").value.trim().toUpperCase()||"BTCUSDT";state.market=$("global-market").value;state.timeframe=$("global-timeframe").value;setText("analysis-title",state.symbol+" · "+state.market);setText("analysis-subtitle","Timeframe "+state.timeframe+" · "+state.market+" · Research-only analysis");}
+  function cancelAnalysisRequests(){
+    activeEvidenceSequence++;window.DashboardCharts.invalidate();
+    if(activeMarketEvidenceController){activeMarketEvidenceController.abort();activeMarketEvidenceController=null;}
+  }
   function invalidateChartView(message="Selection changed. Run analysis to load matching candles.") {
-    activeEvidenceSequence++; window.DashboardCharts.invalidate();
+    cancelAnalysisRequests();
     const host=$("chart-placeholder"); if(host) host.replaceChildren(document.createTextNode(message));
     setText("chart-state","Awaiting analysis"); setText("technical-summary","Run analysis to load indicators for the current selection.");
     setText("analysis-output","No chart response for the current selection.");
   }
   async function loadMarketEvidence() {
-    syncAnalysisHeader(); const requestSequence=++activeEvidenceSequence; window.DashboardCharts.invalidate(); const chartHost=$("chart-placeholder"); if(chartHost)chartHost.replaceChildren(document.createTextNode("Market evidence endpoint does not provide candle chart data.")); setText("chart-state","Loading market evidence · previous evidence retained"); setText("technical-summary","Loading evidence for the current selection."); const path="/api/v1/analysis/market-evidence/"+encodeURIComponent(state.symbol);
-    let data;try{data=await api(path);}catch(error){if(requestSequence!==activeEvidenceSequence)return{status:"SUPERSEDED"};setText("chart-state","Evidence request failed · previous evidence retained");setText("technical-summary","Request failed: "+metadataText(error?.message,"Unknown error",160));throw error;}if(requestSequence!==activeEvidenceSequence)return{status:"SUPERSEDED"};state.lastAnalysis=data;showJson("analysis-output",data);setText("chart-state","Evidence loaded; candle chart not provided by this endpoint");setText("technical-summary",metadataText(data.summary,metadataText(data.status,"Market evidence returned. Inspect evidence payload.",120),120));
+    syncAnalysisHeader();const requestSequence=++activeEvidenceSequence;window.DashboardCharts.invalidate();
+    if(activeMarketEvidenceController)activeMarketEvidenceController.abort();
+    const controller=new AbortController();activeMarketEvidenceController=controller;
+    const chartHost=$("chart-placeholder");if(chartHost)chartHost.replaceChildren(document.createTextNode("Market evidence endpoint does not provide candle chart data."));
+    setText("chart-state","Loading market evidence · previous evidence retained");setText("technical-summary","Loading evidence for the current selection.");
+    const path="/api/v1/analysis/market-evidence/"+encodeURIComponent(state.symbol);let data;
+    try{data=await api(path,{signal:controller.signal});}
+    catch(error){if(requestSequence!==activeEvidenceSequence)return{status:"SUPERSEDED"};setText("chart-state","Evidence request failed · previous evidence retained");setText("technical-summary","Request failed: "+metadataText(error?.message,"Unknown error",160));throw error;}
+    finally{if(activeMarketEvidenceController===controller)activeMarketEvidenceController=null;}
+    if(requestSequence!==activeEvidenceSequence)return{status:"SUPERSEDED"};state.lastAnalysis=data;showJson("analysis-output",data);setText("chart-state","Evidence loaded; candle chart not provided by this endpoint");setText("technical-summary",metadataText(data.summary,metadataText(data.status,"Market evidence returned. Inspect evidence payload.",120),120));
     toast("Market evidence loaded.","success");return data;
   }
   async function loadTechnical() {
-    syncAnalysisHeader(); const requestSequence=++activeEvidenceSequence;
+    syncAnalysisHeader();const requestSequence=++activeEvidenceSequence;
+    if(activeMarketEvidenceController){activeMarketEvidenceController.abort();activeMarketEvidenceController=null;}
     setText("chart-state","Loading candles · previous chart retained");
     let data;try{data=await window.DashboardCharts.load(api,state.market,state.symbol,state.timeframe);}
     catch(error){if(requestSequence!==activeEvidenceSequence)return{status:"SUPERSEDED"};setText("chart-state","Chart request failed · previous chart retained");setText("technical-summary","Request failed: "+metadataText(error?.message,"Unknown error",160));throw error;}
