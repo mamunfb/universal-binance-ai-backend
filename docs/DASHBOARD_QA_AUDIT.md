@@ -759,3 +759,52 @@ Corrected the line breaks in:
 - `tests/dashboard_performance_qa.cjs` — commits `1fdd0effef6d48f10d0b68064d1a171a8fcd336e` and `68b10164b6440960e21370a4a28afb3d3bce28d4` (final profiler correction).
 
 The latest commit should trigger a fresh workflow run. The scripts were re-read from the feature branch after correction. No runtime pass is claimed until the new Actions run executes.
+
+
+## 39. First successful Lighthouse + CPU/heap profiling run (2026-11-15)
+
+**Run #12 succeeded:** [GitHub Actions run 43724640678](https://github.com/mamunfb/universal-binance-ai-backend/actions/runs/43724640678), commit `68b10164b6440960e21370a4a28afb3d3bce28d4`. All workflow steps passed: dependency setup, Chromium install, three Lighthouse cold loads, CPU-throttled browser/heap profiling, and artifact upload.
+
+Artifact: `dashboard-performance-68b10164b6440960e21370a4a28afb3d3bce28d4` (1,762,647 bytes; retained until 2026-11-29). It contains three Lighthouse JSON reports, a browser profile JSON, and 1x/4x V8 heap snapshots.
+
+### Lighthouse mobile results
+
+Test configuration: isolated static feature-branch dashboard, Chromium 141, 390 × 844 CSS-pixel viewport, Lighthouse mobile simulated throttling, three cold-load samples.
+
+| Metric | Sample 1 | Sample 2 | Sample 3 | Median |
+|---|---:|---:|---:|---:|
+| Performance score | 97 | 100 | 100 | 100 |
+| FCP | 907 ms | 903 ms | 902 ms | 903 ms |
+| LCP | 1,785 ms | 1,653 ms | 1,502 ms | 1,653 ms |
+| Speed Index | 907 ms | 903 ms | 902 ms | 903 ms |
+| Total Blocking Time | 191 ms | 0 ms | 0 ms | 0 ms |
+| CLS | 0.0000238 | 0.0000238 | 0.0000238 | 0.0000238 |
+
+TBT varied between the first and later samples; retain all three samples rather than treating the median as a guarantee. CLS is very close to zero in this lab run. INP is not established by these Lighthouse cold-load samples and is not claimed.
+
+### CPU-throttled browser navigation + heap observations
+
+Test configuration: Chromium 141, 390 × 844 viewport, 12 in-app navigation clicks per run, CPU throttle set to 1x and 4x.
+
+| Observation | 1x | 4x |
+|---|---:|---:|
+| Initial DOMContentLoaded navigation | 54 ms | 59 ms |
+| In-app navigation median | 151 ms | 306 ms |
+| In-app navigation p95 (12 samples, nearest rank) | 295 ms | 333 ms |
+| Heap used after forced GC | 1,921,260 bytes | 1,921,340 bytes |
+| Heap total | 2,957,312 bytes | 2,957,312 bytes |
+| DOM nodes | 1,243 | 1,243 |
+| Browser page errors | 0 | 0 |
+| Mobile sidebar closed after each click | 12/12 | 12/12 |
+
+Heap snapshots were captured after the navigation sequence and forced garbage collection. The nearly identical post-GC heap observations are encouraging but do **not** establish absence of memory leaks: there is no before/after repeated-cycle retained-heap comparison yet. The 12-navigation run is a navigation smoke benchmark, not the 1,000-row scanner stress benchmark.
+
+### Scope and limitations
+
+- These are CI lab measurements for the isolated static dashboard, not production field Core Web Vitals or real-user INP.
+- The browser profiler did not populate 1,000 scanner rows; no 1,000-row render timing is claimed here.
+- No repeated-cycle heap-growth trend or detached-DOM leak certification is claimed.
+- Screen-reader/manual assistive-technology QA and physical-device mobile QA remain outstanding.
+- No live backend fault testing was performed; the harness intentionally runs without backend credentials or external services.
+
+This is the first accepted performance evidence in this audit. Continue with deterministic 1,000-row scanner fixture timing, repeated interaction/cleanup heap comparisons, and manual accessibility/mobile verification before declaring the dashboard fully performance- or accessibility-certified.
