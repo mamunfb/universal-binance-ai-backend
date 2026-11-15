@@ -574,3 +574,65 @@ test("asynchronous dashboard status outputs retain polite atomic live-region sem
   assert.deepEqual(pageErrors, []);
   await context.close();
 });
+
+test("a newer market scan wins when an older scan response arrives late", async () => {
+  const {context, page, pageErrors} = await newPage(1280);
+  await page.locator('.nav-link[data-page="settings"]').click();
+  await page.route("https://backend.test/health", route => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    headers: {"access-control-allow-origin": "*"},
+    body: JSON.stringify({status: "ok"})
+  }));
+  await page.locator("#backend-url").fill("https://backend.test");
+  await page.locator("#test-connection").click();
+  await page.getByText("Backend health endpoint responded successfully.").waitFor();
+
+  let oldScanStarted;
+  let oldScanSettled;
+  const started = new Promise(resolve => { oldScanStarted = resolve; });
+  const settled = new Promise(resolve => { oldScanSettled = resolve; });
+  await page.route("https://backend.test/api/v1/markets/spot/scan", async route => {
+    oldScanStarted();
+    await new Promise(resolve => setTimeout(resolve, 400));
+    try {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        headers: {"access-control-allow-origin": "*"},
+        body: JSON.stringify({symbols: [{
+          symbol: "STALESPOTUSDT", base_asset: "STALESPOT", quote_asset: "USDT",
+          last_price: 1, quote_volume_24h: 10, status: "TRADING"
+        }]})
+      });
+    } catch { /* The newer market selection intentionally supersedes this request. */ }
+    finally { oldScanSettled(); }
+  });
+  await page.route("https://backend.test/api/v1/markets/futures/usdm/scan", route => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    headers: {"access-control-allow-origin": "*"},
+    body: JSON.stringify({symbols: [{
+      symbol: "CURRENTUSDT", base_asset: "CURRENT", quote_asset: "USDT",
+      last_price: 2, quote_volume_24h: 20, status: "TRADING"
+    }]})
+  }));
+
+  await page.locator('.nav-link[data-page="overview"]').click();
+  await page.locator("#run-market-scan").click();
+  await started;
+  await page.locator('.nav-link[data-page="usdm-scanner"]').click();
+  await page.locator("#scan-usdm").click();
+  await page.locator("#usdm-rows tr").first().waitFor();
+  assert.equal(await page.locator("#usdm-rows tr").first().locator("td").first().innerText(), "CURRENTUSDT");
+  await settled;
+
+  assert.equal(await page.locator("#usdm-rows tr").first().locator("td").first().innerText(), "CURRENTUSDT",
+    "the late Spot response must not replace the latest USDⓈ-M results");
+  assert.equal(await page.locator("#spot-rows tr").count(), 0,
+    "the superseded Spot response must not render stale rows");
+  assert.equal(await page.locator("#global-market").inputValue(), "USD_M");
+  assert.equal(await page.locator("#scan-state").innerText(), "Response received");
+  assert.deepEqual(pageErrors, []);
+  await context.close();
+});
