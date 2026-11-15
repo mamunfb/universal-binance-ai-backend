@@ -387,3 +387,11 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - The validation error explicitly notes that previously displayed results are preserved, avoiding a misleading empty scan view when the backend returns the wrong payload shape.
 - Added a Python static contract assertion that verifies validation occurs before summary rendering.
 - This does not define or fully validate every backend field; it protects the frontend boundary while retaining the existing flexible response-field mapping. GitHub readback is the only verification performed; runtime tests and browser QA remain unexecuted.
+
+
+## Scanner missing-result-array observability
+
+- Source review found that the previous array helper returned an empty list both when the backend explicitly supplied an empty result array and when no recognized result-array field existed. Those cases were indistinguishable in the UI and both could appear as a successful empty scan.
+- Scanner handling now identifies which recognized result field (symbols, markets, results or data) actually contains an array. An explicitly empty array remains a valid empty result; a missing array is called out in the coverage metadata and produces an informational notice.
+- The coverage panel records the selected result field, while malformed row filtering and rejected-row counts remain in place.
+- Updated Python static contract checks cover the missing-versus-empty distinction. GitHub readback is the only verification performed; runtime tests and browser QA remain unexecuted.
