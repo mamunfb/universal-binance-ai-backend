@@ -412,3 +412,11 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - A successful response replaces the previous summary and rows through the existing render path. Superseded requests do not overwrite the status for a newer request.
 - This is a user-visible lifecycle indicator, not a measured data-age guarantee. Backend timestamps remain displayed only when supplied by the backend.
 - Added a static contract test for refresh-state ordering and retained-result messaging. Runtime tests and browser QA remain unexecuted.
+
+
+## Missing scanner result array preserves previously rendered rows
+
+- A response object that omits all recognized result-array fields (`symbols`, `markets`, `results`, `data`) no longer clears the currently rendered scanner table. The UI still reports that no recognized result array was supplied and records the response metadata.
+- An explicitly supplied array, including an empty array, remains authoritative and replaces the table contents. This keeps a valid empty scan distinct from an incomplete response shape.
+- Added static contract assertions that all three market tables are rendered only when a recognized result array is present.
+- GitHub source readback is the verification performed; runtime tests and browser QA remain unexecuted.
