@@ -928,3 +928,12 @@ Heap snapshots were captured at baseline and after the five interaction cycles f
 - Contents inspected: three Lighthouse JSON reports, browser profile JSON, and four baseline/after-cycle V8 heap snapshots.
 - No dashboard application source, backend logic, database, secrets, `main`, PR merge state, staging, or production deployment was changed by this benchmark/audit update.
 - Physical-device mobile testing, manual keyboard/screen-reader verification, and a longer memory soak/leak investigation remain outstanding. Do not describe the dashboard as fully production-certified on the basis of this CI lab run.
+
+
+## 47. Heap benchmark DOM-settling guard (2026-11-15)
+
+Review of the Run #17 V8 heap snapshots found that the baseline snapshot was taken after the scanner count label returned to 1,000 matching rows, but the harness did not separately wait for all 100 visible table rows to be restored before taking that snapshot. The after-cycle snapshot followed pagination waits and contained the expected full 100-row page. This means the Run #17 heap deltas (+92,260 bytes at 1x and +57,432 bytes at 4x) may include DOM row restoration/lazy rendering rather than only retained growth across repeated cycles; they must be treated as provisional and not as a memory-leak signal or a clean like-for-like comparison.
+
+Updated `tests/dashboard_performance_qa.cjs` on the feature branch to wait explicitly for exactly 100 visible `#spot-rows tr` elements after clearing the search before baseline garbage collection/snapshot, and after each repeated-cycle search clear. The final cycle already waits for page 1/10; the explicit row-count guard makes the intended DOM state measurable at both comparison points.
+
+This is a test-harness reliability correction only. It does not alter dashboard application code or backend behavior. A fresh Run #18 is required before publishing a corrected heap delta. Until that run completes, the Run #17 scanner timings remain valid as recorded, but its heap delta remains provisional. No claim of leak absence is made.
