@@ -356,10 +356,14 @@ The Jobs API reports:
 - `steps: null`
 - `logs_url: null`
 
-A separate job-step lookup returned an empty array (`[]`). Thus no executed workflow step or downloadable job log is available in the API evidence for Run #1710. This is consistent with the established pre-run runner/billing restriction, but the exact billing annotation for Run #1710 was not independently captured in this pass. Do not classify it as a Python, Node, dashboard, or application test failure.
+A separate job-step lookup returned an empty array (`[]`). A read-only authenticated GitHub Actions UI inspection then confirmed the exact annotation:
+
+> The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings.
+
+The UI also confirmed that no runner was assigned, no workflow steps ran, and logs are unavailable. This directly confirms the account payment / spending-limit gate for Run #1710. Do not classify it as a Python, Node, dashboard, or application test failure.
 
 For comparison, Run #1709 (run ID `43706390914`, job ID `132788286526`) also returned `steps: null`, `logs_url: null`, and an empty step lookup. Its exact GitHub UI billing annotation is documented in Section 22.
 
-**Current CI gate:** Runs #1708 and #1709 have direct UI confirmation of the account payment/spending-limit block. Run #1710 has API evidence of no steps/logs, but its specific UI annotation remains unverified. The owner must resolve the account-level Actions restriction, then obtain a new run with a non-zero runner ID, populated step records, and retrievable logs before interpreting test outcomes.
+**Current CI gate:** Runs #1708, #1709, and #1710 have direct UI confirmation of the account payment/spending-limit block. The owner must resolve the account-level Actions restriction, then obtain a new run with a non-zero runner ID, populated step records, and retrievable logs before interpreting test outcomes.
 
 No workflow, application source, `main`, PR merge state, staging service, production service, or billing configuration was changed during this inspection.
