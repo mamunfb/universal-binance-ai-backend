@@ -258,7 +258,7 @@ class DashboardContractTests(unittest.TestCase):
     def test_api_network_failures_are_distinguished_from_timeouts(self) -> None:
         self.assertIn('Request timed out.', self.js)
         self.assertIn('Network connection failed. Check your connection and backend availability.', self.js)
-        self.assertIn('finally { window.clearTimeout(timer); }', self.js)
+        self.assertIn('finally { window.clearTimeout(timer); externalSignal?.removeEventListener("abort",abortFromCaller); }', self.js)
 
     def test_scanner_sort_precomputes_values_and_reuses_collator(self) -> None:
         self.assertIn("const scannerCollator = new Intl.Collator", self.js)
@@ -382,13 +382,13 @@ class DashboardContractTests(unittest.TestCase):
 
     def test_api_wrapper_composes_caller_cancellation_with_timeout(self) -> None:
         self.assertIn("signal:externalSignal", self.js)
-        self.assertIn("externalSignal?.addEventListener(\\\"abort\\\",abortFromCaller", self.js)
+        self.assertIn('externalSignal?.addEventListener("abort",abortFromCaller', self.js)
         self.assertIn('externalSignal?.aborted?"Request cancelled.":"Request timed out."', self.js)
-        self.assertIn("externalSignal?.removeEventListener(\\\"abort\\\",abortFromCaller)", self.js)
+        self.assertIn('externalSignal?.removeEventListener("abort",abortFromCaller)', self.js)
 
     def test_chart_requests_ignore_superseded_responses_and_failures(self) -> None:
         self.assertIn('let activeLoadSequence=0', self.chart_js)
-        self.assertIn('function invalidate(){activeLoadSequence++;}', self.chart_js)
+        self.assertIn('function invalidate(){activeLoadSequence++;if(activeLoadController)', self.chart_js)
         self.assertIn('if(requestSequence!==activeLoadSequence)return{status:"SUPERSEDED"', self.chart_js)
         self.assertIn('catch(error){if(requestSequence!==activeLoadSequence)return{status:"SUPERSEDED"', self.chart_js)
 
