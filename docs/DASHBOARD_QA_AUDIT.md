@@ -200,3 +200,19 @@ A further read-only comparison was made between the feature-branch frontend and 
 - All 22 static buttons have visible text or an explicit `aria-label`.
 
 This cross-check confirms static contract alignment only. It does not establish successful requests against a running backend or assistive-technology behavior in a real browser. No application code was changed in this pass.
+
+
+## 14. Billing gate and latest feature-branch CI confirmation (2026-11-15)
+
+A fresh read-only inspection of the authenticated GitHub **Settings → Billing → Budgets and alerts** page reconfirmed the GitHub Actions budget state:
+
+- Budget amount: **$0.00**
+- Amount spent: **$0.00**
+- Displayed utilization: **100%**
+- Usage blocked: **Yes**
+
+The page also displayed the same zero-budget / usage-blocked state for Git LFS, All AI Credit SKUs, Packages, and Codespaces. No billing, payment, spending-limit, or budget setting was changed.
+
+The feature branch currently points to commit `32d26662e9b3c0bca013372b4b2529265b9585c5`. Its push-triggered **Backend and dashboard tests Run #1701** (run ID `43705469974`) completed with conclusion `failure`. The Jobs API returned job ID `132785482166`, status `completed`, conclusion `failure`, but `steps: null` and `logs_url: null`. Therefore this run does not provide evidence that Python tests or dashboard JavaScript checks actually executed; it remains consistent with the billing/runner gate, but its specific failure annotation was not independently re-read in this pass.
+
+**Current gate:** the account owner must decide whether to allow GitHub Actions usage by changing the Actions budget / usage-block setting. Once authorized and resolved, rerun the existing workflow and verify an assigned non-zero runner ID, populated step records, and retrievable logs before interpreting CI results. No application code, workflow configuration, deployment configuration, main branch, PR, staging service, or production service was changed in this pass.
