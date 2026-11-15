@@ -72,11 +72,34 @@
     else if(market==="USD_M") path="/api/v1/markets/futures/usdm/scan";
     else path="/api/v1/markets/futures/coinm/scan";
     const data=await api(path); renderScanSummary(data);
-    if(market==="SPOT") renderRows("spot-rows",safeArray(data,["symbols","markets","results","data"]),6);
-    if(market==="USD_M") renderRows("usdm-rows",safeArray(data,["symbols","markets","results","data"]),5);
-    if(market==="COIN_M") renderRows("coinm-rows",safeArray(data,["symbols","markets","results","data"]),5);
+    const rows=safeArray(data,["symbols","markets","results","data"]);
+    if(market==="SPOT") renderRows("spot-rows",rows,6);
+    if(market==="USD_M") renderRows("usdm-rows",rows,5);
+    if(market==="COIN_M") renderRows("coinm-rows",rows,5);
+    renderScannerMeta(market,data,rows);
     toast(market+" scan response received. Check coverage and failure counts.","success");
     return data;
+  }
+  function renderScannerMeta(market,data,rows) {
+    const prefix=market==="USD_M"?"usdm":market==="COIN_M"?"coinm":"spot";
+    const countNames={
+      eligible:["eligible_count","eligible_symbols","eligible","total_eligible","total_symbols"],
+      scanned:["scanned_count","scanned_symbols","scanned","attempted_count"],
+      failed:["failed_count","failed_symbols","failed"],
+      matched:["matched_count","match_count","qualified_count","candidate_count"]
+    };
+    const details=[
+      "Returned rows: "+rows.length,
+      "Status: "+(data.status||data.scan_status||"Not supplied"),
+      "Eligible: "+(extractCount(data,countNames.eligible)??"Not supplied"),
+      "Scanned: "+(extractCount(data,countNames.scanned)??"Not supplied"),
+      "Failed: "+(extractCount(data,countNames.failed)??"Not supplied"),
+      "Matched: "+(extractCount(data,countNames.matched)??"Not supplied"),
+      "Source: "+(data.source||"Not supplied"),
+      "Timestamp: "+(data.generated_at||data.timestamp||data.updated_at||"Not supplied")
+    ];
+    setText(prefix+"-coverage",details.join(" · "));
+    setText(prefix+"-count",rows.length.toLocaleString()+" returned");
   }
   const tableViews = {};
   function renderRows(target, rows, columns) {
@@ -140,7 +163,9 @@
     $("scan-spot").addEventListener("click",()=>withButton("scan-spot",()=>scanMarket("SPOT"),"Scanning…"));
     $("scan-usdm").addEventListener("click",()=>withButton("scan-usdm",()=>scanMarket("USD_M"),"Scanning…"));
     $("scan-coinm").addEventListener("click",()=>withButton("scan-coinm",()=>scanMarket("COIN_M"),"Scanning…"));
-    $("spot-search").addEventListener("input",e=>{const view=tableViews["spot-rows"]||(tableViews["spot-rows"]={page:0,pageSize:100,sortKey:"symbol",direction:1,rows:[],query:""});view.query=e.target.value.trim().toUpperCase();view.page=0;renderRows("spot-rows",view.rows,6);});
+    [["spot-search","spot-rows",6],["usdm-search","usdm-rows",5],["coinm-search","coinm-rows",5]].forEach(([input,target,columns])=>{
+      $(input).addEventListener("input",e=>{const view=tableViews[target]||(tableViews[target]={page:0,pageSize:100,sortKey:"symbol",direction:1,rows:[],query:""});view.query=e.target.value.trim().toUpperCase();view.page=0;renderRows(target,view.rows,columns);});
+    });
     $("load-preflight").addEventListener("click",()=>withButton("load-preflight",async()=>showJson("readiness-output",await api("/api/v1/research/preflight")),"Checking…"));
     $("load-readiness").addEventListener("click",()=>withButton("load-readiness",async()=>showJson("readiness-output",await api("/api/v1/research/phase-readiness")),"Checking…"));
     $("load-coin-analysis").addEventListener("click",()=>withButton("load-coin-analysis",loadTechnical,"Loading…"));
