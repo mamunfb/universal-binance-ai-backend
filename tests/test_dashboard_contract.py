@@ -135,6 +135,11 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn('prev.setAttribute("aria-controls",target)', self.js)
         self.assertIn('next.setAttribute("aria-controls",target)', self.js)
 
+    def test_mobile_sidebar_state_stays_accessible_across_viewport_changes(self) -> None:
+        self.assertIn('menu.setAttribute("aria-label",open&&mobile?"Close navigation":"Open navigation")', self.js)
+        self.assertIn('sidebar.inert=mobile&&!open', self.js)
+        self.assertIn('window.addEventListener("resize",()=>setSidebarOpen(false))', self.js)
+
     def test_navigation_moves_keyboard_focus_and_hides_decorative_glyphs(self) -> None:
         self.assertIn('target.setAttribute("tabindex","-1")', self.js)
         self.assertIn('target.focus({preventScroll:true})', self.js)
