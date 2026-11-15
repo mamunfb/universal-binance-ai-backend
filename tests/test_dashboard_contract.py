@@ -277,10 +277,11 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn('Backend request failed (HTTP "+response.status+")', self.js)
         self.assertNotIn('throw new Error(typeof detail==="string"?detail:json(detail))', self.js)
 
-    def test_scanner_count_metadata_rejects_blank_boolean_and_negative_values(self) -> None:
-        self.assertIn('value.trim()===""', self.js)
-        self.assertIn('typeof value!=="boolean"', self.js)
-        self.assertIn('Number(value)>=0', self.js)
+    def test_scanner_count_metadata_accepts_only_nonnegative_numeric_primitives(self) -> None:
+        self.assertIn('typeof value!=="number" && typeof value!=="string"', self.js)
+        self.assertIn('typeof value==="string" && value.trim()===""', self.js)
+        self.assertIn('Number.isFinite(parsed)&&parsed>=0', self.js)
+        self.assertNotIn('Number.isFinite(Number(value))', self.js)
 
     def test_scanner_rejects_non_object_response_rows_and_reports_count(self) -> None:
         self.assertIn('const responseRows=safeArray(data,["symbols","markets","results","data"])', self.js)
