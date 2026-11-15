@@ -12,7 +12,9 @@ function parse(rows){
  return parsed.filter(candle=>counts.get(candle.time)===1);
 }
 function aggregate3h(rows){
- const map=new Map();rows.forEach(c=>{const start=Math.floor(c.time/10800000)*10800000;if(!map.has(start))map.set(start,[]);map.get(start).push(c);});
+ if(!Array.isArray(rows))return[];
+ const valid=rows.filter(c=>c&&typeof c==="object"&&[c.time,c.open,c.high,c.low,c.close,c.volume,c.closeTime].every(Number.isFinite)&&Number.isSafeInteger(c.time)&&Number.isSafeInteger(c.closeTime)&&c.time>=0&&c.closeTime>=c.time&&c.time<=8640000000000000&&c.closeTime<=8640000000000000&&c.open>0&&c.high>0&&c.low>0&&c.close>0&&c.volume>=0&&c.high>=Math.max(c.open,c.close,c.low)&&c.low<=Math.min(c.open,c.close,c.high));
+ const map=new Map();valid.forEach(c=>{const start=Math.floor(c.time/10800000)*10800000;if(!map.has(start))map.set(start,[]);map.get(start).push(c);});
  return [...map.entries()].sort((a,b)=>a[0]-b[0]).flatMap(([start,a])=>{a.sort((x,y)=>x.time-y.time);if(a.length!==3||a[0].time!==start||a[1].time!==start+3600000||a[2].time!==start+7200000||a.some(x=>x.closeTime!==x.time+3599999))return[];const volume=a.reduce((sum,x)=>sum+x.volume,0);if(!Number.isFinite(volume))return[];return[{time:start,open:a[0].open,high:Math.max(...a.map(x=>x.high)),low:Math.min(...a.map(x=>x.low)),close:a[2].close,volume,closeTime:a[2].closeTime}];});
 }
 function finiteMean(values){
