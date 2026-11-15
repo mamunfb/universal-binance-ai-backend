@@ -120,26 +120,38 @@ function bollingerSeries(values,n=20,multiplier=2){
  for(let i=n-1;i<values.length;i++){const window=values.slice(i-n+1,i+1),mean=finiteMean(window),sd=scaledDeviation(window,mean);if(mean===null||sd===null)continue;const upperValue=mean+multiplier*sd,lowerValue=mean-multiplier*sd;if(!Number.isFinite(upperValue)||!Number.isFinite(lowerValue))continue;middle[i]=mean;upper[i]=upperValue;lower[i]=lowerValue;}
  return{upper,middle,lower};
 }
-function adxSeries(c,n=14){
- if(!Array.isArray(c))return[];const out=Array(c.length).fill(null);if(!Number.isSafeInteger(n)||n<1||c.length<2*n)return out;
+function adxSegment(c,n,out,offset){
+ if(c.length<2*n)return;
  const tr=[],plus=[],minus=[];
  for(let i=1;i<c.length;i++){const cur=c[i],prev=c[i-1],up=cur.high-prev.high,down=prev.low-cur.low;
   tr.push(Math.max(cur.high-cur.low,Math.abs(cur.high-prev.close),Math.abs(cur.low-prev.close)));
   plus.push(up>down&&up>0?up:0);minus.push(down>up&&down>0?down:0);
  }
- let scale=1;for(let i=0;i<tr.length;i++){scale=Math.max(scale,tr[i],plus[i],minus[i]);}
- if(!Number.isFinite(scale))return out;
+ let scale=1;for(let i=0;i<tr.length;i++)scale=Math.max(scale,tr[i],plus[i],minus[i]);
+ if(!Number.isFinite(scale))return;
  for(let i=0;i<tr.length;i++){tr[i]/=scale;plus[i]/=scale;minus[i]/=scale;}
- let trSm=tr.slice(0,n).reduce((s,x)=>s+x,0),pSm=plus.slice(0,n).reduce((s,x)=>s+x,0),mSm=minus.slice(0,n).reduce((s,x)=>s+x,0);
+ let trSm=tr.slice(0,n).reduce((sum,x)=>sum+x,0),pSm=plus.slice(0,n).reduce((sum,x)=>sum+x,0),mSm=minus.slice(0,n).reduce((sum,x)=>sum+x,0);
  const dx=[];
  for(let i=n-1;i<tr.length;i++){
   if(i>=n){trSm=trSm-trSm/n+tr[i];pSm=pSm-pSm/n+plus[i];mSm=mSm-mSm/n+minus[i];}
   const pdi=trSm?pSm/trSm*100:0,mdi=trSm?mSm/trSm*100:0,den=pdi+mdi;
   dx.push(den?Math.abs(pdi-mdi)/den*100:0);
-  if(dx.length===n){let value=dx.reduce((s,x)=>s+x,0)/n;out[i+1]=value;
-   for(let j=i+1;j<tr.length;j++){trSm=trSm-trSm/n+tr[j];pSm=pSm-pSm/n+plus[j];mSm=mSm-mSm/n+minus[j];const pp=trSm?pSm/trSm*100:0,mm=trSm?mSm/trSm*100:0,d=pp+mm?Math.abs(pp-mm)/(pp+mm)*100:0;value=(value*(n-1)+d)/n;out[j+1]=value;}break;
+  if(dx.length===n){let value=dx.reduce((sum,x)=>sum+x,0)/n;out[offset+i+1]=value;
+   for(let j=i+1;j<tr.length;j++){trSm=trSm-trSm/n+tr[j];pSm=pSm-pSm/n+plus[j];mSm=mSm-mSm/n+minus[j];const pp=trSm?pSm/trSm*100:0,mm=trSm?mSm/trSm*100:0,d=pp+mm?Math.abs(pp-mm)/(pp+mm)*100:0;value=(value*(n-1)+d)/n;out[offset+j+1]=Number.isFinite(value)?value:null;}break;
   }
  }
+}
+function adxSeries(c,n=14){
+ if(!Array.isArray(c))return[];const out=Array(c.length).fill(null);if(!Number.isSafeInteger(n)||n<1)return out;
+ let segment=[],segmentStart=0;
+ const flush=()=>{if(segment.length>=2*n)adxSegment(segment,n,out,segmentStart);segment=[];};
+ for(let i=0;i<c.length;i++){
+  const candle=c[i],valid=candle&&typeof candle==="object"&&[candle.high,candle.low,candle.close].every(Number.isFinite)&&candle.high>=candle.low;
+  if(!valid){flush();segmentStart=i+1;continue;}
+  if(!segment.length)segmentStart=i;
+  segment.push(candle);
+ }
+ flush();
  return out;
 }
 function stochRsiSeries(values,rsiPeriod=14,stochPeriod=14,smoothK=3,smoothD=3){
