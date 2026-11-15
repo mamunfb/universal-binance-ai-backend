@@ -686,3 +686,9 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Reused the helper in incremental `finiteMean`, scalar EMA and EMA series updates. This avoids avoidable intermediate overflow when averaging same-sign finite values close to `Number.MAX_VALUE`, while preserving the intended weighted-average/EMA recurrence.
 - Added regression coverage for constant and alternating values near the numeric limit and for the compact dashboard indicator snapshot. Tests have not been executed; no benchmark or runtime result is claimed.
 
+## Analysis request cancellation on navigation
+
+- Leaving the Coin Analysis page now invalidates its active evidence sequence and aborts in-flight chart and market-evidence requests. Returning to the page cannot allow a response from the previous visit to overwrite the current analysis state.
+- Market-evidence requests now receive an AbortSignal and own a tracked controller. Starting a chart request, changing analysis selections, clearing credentials, or navigating away aborts the pending evidence request; sequence checks remain as a fallback if the transport does not honor cancellation.
+- Added static contract checks for navigation invalidation, caller-signal forwarding and controller cancellation. Tests have not been executed.
+
