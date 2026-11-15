@@ -63,6 +63,37 @@ function macdComponents(values){
  return{line,signal,histogram};
 }
 function macdSeries(values){return macdComponents(values).line;}
+function bollingerSeries(values,n=20,multiplier=2){
+ const middle=Array(values.length).fill(null),upper=Array(values.length).fill(null),lower=Array(values.length).fill(null);
+ for(let i=n-1;i<values.length;i++){const window=values.slice(i-n+1,i+1),mean=window.reduce((s,x)=>s+x,0)/n,sd=Math.sqrt(window.reduce((s,x)=>s+(x-mean)**2,0)/n);middle[i]=mean;upper[i]=mean+multiplier*sd;lower[i]=mean-multiplier*sd;}
+ return{upper,middle,lower};
+}
+function adxSeries(c,n=14){
+ const out=Array(c.length).fill(null);if(c.length<2*n+1)return out;
+ const tr=[],plus=[],minus=[];
+ for(let i=1;i<c.length;i++){const cur=c[i],prev=c[i-1],up=cur.high-prev.high,down=prev.low-cur.low;
+  tr.push(Math.max(cur.high-cur.low,Math.abs(cur.high-prev.close),Math.abs(cur.low-prev.close)));
+  plus.push(up>down&&up>0?up:0);minus.push(down>up&&down>0?down:0);
+ }
+ let trSm=tr.slice(0,n).reduce((s,x)=>s+x,0),pSm=plus.slice(0,n).reduce((s,x)=>s+x,0),mSm=minus.slice(0,n).reduce((s,x)=>s+x,0);
+ const dx=[];
+ for(let i=n-1;i<tr.length;i++){
+  if(i>=n){trSm=trSm-trSm/n+tr[i];pSm=pSm-pSm/n+plus[i];mSm=mSm-mSm/n+minus[i];}
+  const pdi=trSm?pSm/trSm*100:0,mdi=trSm?mSm/trSm*100:0,den=pdi+mdi;
+  dx.push(den?Math.abs(pdi-mdi)/den*100:0);
+  if(dx.length===n){let value=dx.reduce((s,x)=>s+x,0)/n;out[i+1]=value;
+   for(let j=i+1;j<tr.length;j++){trSm=trSm-trSm/n+tr[j];pSm=pSm-pSm/n+plus[j];mSm=mSm-mSm/n+minus[j];const pp=trSm?pSm/trSm*100:0,mm=trSm?mSm/trSm*100:0,d=pp+mm?Math.abs(pp-mm)/(pp+mm)*100:0;value=(value*(n-1)+d)/n;out[j+1]=value;}break;
+  }
+ }
+ return out;
+}
+function stochRsiSeries(values,rsiPeriod=14,stochPeriod=14,smoothK=3,smoothD=3){
+ const rsi=rsiSeries(values,rsiPeriod),raw=Array(values.length).fill(null),k=Array(values.length).fill(null),d=Array(values.length).fill(null);
+ for(let i=0;i<rsi.length;i++){if(i<rsiPeriod+stochPeriod-1||!Number.isFinite(rsi[i]))continue;const w=rsi.slice(i-stochPeriod+1,i+1);if(!w.every(Number.isFinite))continue;const lo=Math.min(...w),hi=Math.max(...w);raw[i]=hi===lo?50:(rsi[i]-lo)/(hi-lo)*100;}
+ for(let i=0;i<raw.length;i++){if(i>=smoothK-1&&raw.slice(i-smoothK+1,i+1).every(Number.isFinite))k[i]=raw.slice(i-smoothK+1,i+1).reduce((s,x)=>s+x,0)/smoothK;
+  if(i>=smoothK+smoothD-2&&k.slice(i-smoothD+1,i+1).every(Number.isFinite))d[i]=k.slice(i-smoothD+1,i+1).reduce((s,x)=>s+x,0)/smoothD;}
+ return{k,d};
+}
 function drawLinePanel(title,values,{min=null,max=null,zero=false}={}){
  const valid=values.filter(Number.isFinite);const panel=document.createElement("section");panel.className="indicator-pane";
  const heading=document.createElement("div");heading.className="indicator-pane-heading";const label=document.createElement("strong");label.textContent=title;const latest=document.createElement("span");latest.textContent=valid.length?new Intl.NumberFormat(undefined,{maximumFractionDigits:4}).format(valid[valid.length-1]):"Insufficient history";heading.append(label,latest);panel.append(heading);
@@ -84,11 +115,14 @@ function render(c){
  for(let i=0;i<5;i++){const y=top+i*(bottom-top)/4;add("line",{x1:20,y1:y,x2:980,y2:y,stroke:"#243650","stroke-width":1});}
  const step=960/a.length,cw=Math.max(2,step*.58),y=v=>bottom-(v-lo)/span*(bottom-top);
  a.forEach((x,i)=>{const cx=20+i*step+step/2,color=x.close>=x.open?"#48c99a":"#ef737e";add("line",{x1:cx,y1:y(x.high),x2:cx,y2:y(x.low),stroke:color,"stroke-width":1.2});add("rect",{x:cx-cw/2,y:Math.min(y(x.open),y(x.close)),width:cw,height:Math.max(1,Math.abs(y(x.open)-y(x.close))),fill:color});const vh=x.volume/maxVol*(volBottom-volTop);add("rect",{x:cx-cw/2,y:volBottom-vh,width:cw,height:vh,fill:color,opacity:.4});});
- const closes=c.map(x=>x.close),ema20=emaSeries(closes,20).slice(-a.length),emaPoints=ema20.map((v,i)=>v===null?null:(20+i*step+step/2)+","+y(v)).filter(Boolean);
- if(emaPoints.length>1)add("polyline",{points:emaPoints.join(" "),fill:"none",stroke:"#f4c46a","stroke-width":2,"stroke-linejoin":"round"});
- const caption=document.createElement("div");caption.className="chart-caption";caption.textContent=a.length+" candles · actual backend OHLCV · EMA20 overlay · "+(c[0].time?new Date(c[0].time).toISOString():"");host.append(svg,caption);
+ const closes=c.map(x=>x.close),ema20=emaSeries(closes,20),bands=bollingerSeries(closes),offset=c.length-a.length;
+ const linePoints=series=>series.slice(offset).map((v,i)=>v===null?null:(20+i*step+step/2)+","+y(v)).filter(Boolean);
+ for(const [series,color,width] of [[bands.upper,"#8b9db8",1.2],[bands.middle,"#8b9db8",1],[bands.lower,"#8b9db8",1],[ema20,"#f4c46a",2]]){const pts=linePoints(series);if(pts.length>1)add("polyline",{points:pts.join(" "),fill:"none",stroke:color,"stroke-width":width,"stroke-linejoin":"round","stroke-dasharray":color==="#8b9db8"?"5 4":"none"});}
+ const caption=document.createElement("div");caption.className="chart-caption";caption.textContent=a.length+" candles · actual backend OHLCV · EMA20 + Bollinger(20,2) overlays · "+(c[0].time?new Date(c[0].time).toISOString():"");host.append(svg,caption);
  const valuesClose=c.map(x=>x.close);
  host.append(drawLinePanel("RSI (14) · Wilder",rsiSeries(valuesClose),{min:0,max:100}));
+ const stoch=stochRsiSeries(valuesClose);host.append(drawLinePanel("Stochastic RSI · %K",stoch.k,{min:0,max:100}));host.append(drawLinePanel("Stochastic RSI · %D",stoch.d,{min:0,max:100}));
+ host.append(drawLinePanel("ADX (14) · Wilder",adxSeries(c),{min:0,max:100}));
  const macd=macdComponents(valuesClose);host.append(drawLinePanel("MACD line · EMA12 − EMA26",macd.line,{zero:true}));host.append(drawLinePanel("MACD signal · EMA9 of MACD",macd.signal,{zero:true}));host.append(drawLinePanel("MACD histogram · line − signal",macd.histogram,{zero:true}));
  host.append(drawLinePanel("ATR (14) · Wilder",atrSeries(c)));
 }
@@ -106,5 +140,5 @@ async function load(api,market,symbol,timeframe){
  document.getElementById("chart-state").textContent=tf==="3h"?"3h aggregated from complete 1h candles":candles.length+" candles loaded";
  return result;
 }
-window.DashboardCharts={load,parse,aggregate3h,indicators,intervalFor,routeFor,emaSeries,rsiSeries,atrSeries,macdSeries,macdComponents};
+window.DashboardCharts={load,parse,aggregate3h,indicators,intervalFor,routeFor,emaSeries,rsiSeries,atrSeries,macdSeries,macdComponents,bollingerSeries,adxSeries,stochRsiSeries};
 })();
