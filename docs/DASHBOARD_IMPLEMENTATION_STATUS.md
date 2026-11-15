@@ -347,3 +347,11 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Added an OHLC fixture with true ranges of 2, 4 and 6, checking the ATR seed of 3 and next Wilder-smoothed value of 4.5.
 - Extended the Python static contract suite to require these independent numeric fixtures.
 - These fixtures are authored but not executed in this environment. The numerical values were derived directly from the test inputs and formulas; runtime test status remains unverified.
+
+
+## Scanner refresh pagination consistency
+
+- Source review found that replacing a scanner dataset invalidated the cached filtered/sorted rows but retained the previous page index. When a new scan returned fewer rows, the page was merely clamped to the last available page, which could leave the user on a later page rather than showing the refreshed dataset from its beginning.
+- New row-array identity now resets the page index to zero while invalidating the sorted-row cache.
+- Added a Python contract assertion for the reset and for the comparator's missing-value ordering branch. The missing-value branch returns before applying ascending/descending direction, preserving missing values at the end in either sort direction.
+- GitHub source readback is the verification performed. Runtime Python/Node tests and browser interaction tests remain unexecuted; no passing test claim is made.
