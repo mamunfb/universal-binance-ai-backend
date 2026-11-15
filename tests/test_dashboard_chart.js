@@ -126,8 +126,9 @@ test("Wilder ADX and Stochastic RSI expose aligned bounded series with warm-up g
   assert.equal(adx.length,candles.length);
   assert.equal(stoch.k.length,candles.length);
   assert.equal(stoch.d.length,candles.length);
-  assert.equal(adx.slice(0,28).every(v=>v===null),true);
-  assert.ok(adx.slice(28).every(v=>Number.isFinite(v)&&v>=0&&v<=100));
+  assert.equal(adx.slice(0,27).every(v=>v===null),true);
+  assert.ok(Number.isFinite(adx[27]) && adx[27]>=0 && adx[27]<=100);
+  assert.ok(adx.slice(27).every(v=>Number.isFinite(v)&&v>=0&&v<=100));
   assert.ok(stoch.k.slice(0,30).some(v=>v===null));
   assert.ok(stoch.k.filter(Number.isFinite).every(v=>v>=0&&v<=100));
   assert.ok(stoch.d.filter(Number.isFinite).every(v=>v>=0&&v<=100));
