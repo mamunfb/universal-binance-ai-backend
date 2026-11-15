@@ -946,3 +946,12 @@ After Run #18 passed with the 100-row count guard, direct inspection of the V8 s
 Strengthened `tests/dashboard_performance_qa.cjs` again in commit `d6b28aae08b5ea9c5f3fa8fba03f75a8ec4774ff`: before the baseline snapshot and after each search-clear cycle, the harness now explicitly traverses every visible table cell, reads its text, forces layout with `getBoundingClientRect()`, and asserts exactly 100 rows / 600 cells. This aims to make wrapper materialization consistent before comparing snapshots.
 
 Run #18 remains a successful execution of the earlier row-count guard, but its heap delta is still provisional because of the wrapper-count discrepancy found in the downloaded artifact. The new cell-materialization guard requires a fresh CI run before any updated heap interpretation. This is QA harness-only; no dashboard application, backend, database, secrets, `main`, merge state, or deployment was changed.
+
+
+## 49. Heap snapshot strong-reference normalization (2026-11-15)
+
+Run #19 ([workflow 43727872396](https://github.com/mamunfb/universal-binance-ai-backend/actions/runs/43727872396)) passed with the explicit 100-row / 600-cell traversal guard. However, after downloading and inspecting its V8 snapshots, the baseline still contained only 24 `HTMLTableCellElement` JS wrappers while the post-cycle snapshot contained 624. The page had 100 rows and the traversal accessed all 600 cells, but wrappers created during traversal were not strongly retained after the evaluation returned. Thus the baseline/post-cycle snapshot wrapper populations were still not comparable.
+
+Updated the test-only `settleScannerDom` helper in commit `0d740892d1463bc1fd125fc25992d4edd782cbde` to keep the current 600 cell wrapper references in `window.__qaHeapKeepAlive` through each snapshot and assert all 600 remain connected. The helper refreshes this reference array after each clear/search cycle, so references to replaced rows are not intentionally retained between cycles. This should produce equivalent wrapper populations in the baseline and final snapshots; the next CI artifact must be inspected to confirm rather than assumed.
+
+Run #19 scanner interaction timings remain valid as observations: 1x render/sort/search/pagination 66/38/170/69 ms, five cycles 2,406 ms; 4x 86/79/171/128 ms, five cycles 3,349 ms. The measured heap deltas (+61,636 / +49,752 bytes) remain provisional until snapshot wrapper counts are verified as comparable. No dashboard application or backend source changed.
