@@ -168,3 +168,18 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Moved both methods into `DashboardContractTests` before the main guard. GitHub readback confirms both methods now precede the guard.
 - This is a test-discovery/source correction only. The Python and Node test suites have still **not** been executed; no passing test result is claimed.
 - No backend, CI workflow, migration, secret, deployment, PR or merge action was performed.
+
+
+## Batched chart data-quality and indicator regression pass
+
+- Hardened numeric parsing so whitespace-only strings are rejected instead of being coerced to numeric zero.
+- Candle parsing now removes every row associated with a duplicated open timestamp. This avoids silently treating duplicate exchange rows as separate sequential candles and prevents duplicate rows from contaminating indicator calculations.
+- Added Node regression fixtures for whitespace-only numeric values, duplicate timestamps and flat-market behaviour (neutral Stochastic RSI %K/%D and zero ADX after warm-up).
+- Extended the Python static contract suite to assert the new parser guards and regression fixtures exist.
+- The Python contract test file's scanner coverage tests were also moved before the `unittest.main()` guard in the preceding correction, so direct execution can discover them.
+
+## Verification status for batched chart pass
+
+- All changes were committed on `feat/institutional-dashboard-design` and are limited to dashboard chart source, dashboard tests and this progress ledger.
+- GitHub source readback is the verification performed so far. Node and Python test suites have **not** been executed in a repository runtime; no test-pass claim is made.
+- No live exchange payload, browser rendering, mobile/accessibility test, CI workflow, PR, merge or deployment was performed.
