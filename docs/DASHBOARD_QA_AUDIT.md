@@ -367,3 +367,35 @@ For comparison, Run #1709 (run ID `43706390914`, job ID `132788286526`) also ret
 **Current CI gate:** Runs #1708, #1709, and #1710 have direct UI confirmation of the account payment/spending-limit block. The owner must resolve the account-level Actions restriction, then obtain a new run with a non-zero runner ID, populated step records, and retrievable logs before interpreting test outcomes.
 
 No workflow, application source, `main`, PR merge state, staging service, production service, or billing configuration was changed during this inspection.
+
+
+## 24. First actual feature-branch CI execution after Public visibility (2026-11-15)
+
+After the repository became public, failed job `132788476726` from Run #1710 was re-run as **Attempt 2**. GitHub allocated a hosted runner and the workflow executed, establishing that the previous account-level runner-start block no longer prevented this attempt from starting.
+
+**Run:** [#1710 Attempt 2](https://github.com/mamunfb/universal-binance-ai-backend/actions/runs/43706451197)  
+**Commit tested:** `7c0eed163fcc53ec622c0ecc7657eb7969cf127c`  
+**Job ID:** `132807793811`
+
+Step evidence:
+- Set up job — success
+- Checkout — success
+- Python 3.12 setup — success
+- Node.js 22 setup — success
+- Runner toolchain verification — success
+- Python dependency installation — success
+- Dashboard HTML/script-reference validation — success
+- Dashboard JavaScript syntax validation — success
+- Python test suite — **failure**
+- Final job conclusion — **failure**
+
+The retained job log reports **31 failed, 609 passed, 2 warnings** in the Python test suite (3.77 seconds). This is the first verified test execution in this sequence; unlike Runs #1708–#1710 Attempt 1, this result includes an actual application test outcome.
+
+Failure inventory from the log:
+- 10 failures in `tests/test_dashboard_contract.py`, predominantly exact source-string / substring expectations that no longer match the current dashboard implementation (for example older Escape-key handling expression, scanner helper extraction boundaries, timezone refresh expression and Stochastic RSI declaration spelling).
+- 20 failures in `tests/test_dashboard_quality_markup.py`, whose assertions expect the previous dashboard's camelCase element IDs and inline HTML JavaScript/renderers. The current feature branch uses the split `dashboard/index.html`, `dashboard/app.js`, and `dashboard/chart.js` architecture with kebab-case IDs and generic JSON display for the Data Reliability response. These failures show test/source contract mismatch; they do not by themselves establish that the equivalent user-visible capability is correct or incorrect.
+- 1 failure in `tests/test_news_intelligence.py::test_collect_news_marks_items_unverified_and_reports_coverage`. The RSS fixture is dated 2026-11-10 while the CI run occurred 2026-11-15 and the service default window is 72 hours. The fixture item is filtered as stale, then the test indexes an empty `items` list. This is a time-dependent test-fixture defect; the production freshness filter should not be weakened to make the old fixture pass.
+
+**Disposition:** CI is now genuinely executing. The Python suite is not green. Do not change production logic or weaken assertions blindly. Next work should (1) modernize static contract tests to assert current behavior rather than brittle old source snippets, (2) decide whether the advanced Data Reliability metrics need dedicated structured UI rendering or whether raw JSON is the accepted design, and (3) make the news test fixture deterministic relative to the 72-hour window. Re-run the full suite after reviewed corrections.
+
+No backend application logic, production deployment, staging service, `main`, PR merge state, or billing settings were changed during this diagnostic rerun.
