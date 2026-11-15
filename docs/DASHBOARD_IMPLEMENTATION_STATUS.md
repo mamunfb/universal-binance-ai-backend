@@ -562,7 +562,7 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 ## VWAP volume-overflow safety
 
 - Replaced direct total-volume and price-volume accumulation with a normalized, incremental weighted mean. This avoids overflowing the raw sum when individual finite candle volumes are very large while retaining volume-weighted typical-price semantics.
-- Added a regression test with two maximum-range finite volumes and distinct typical prices; the corrected fixture uses typical prices 12 and 24, so the expected VWAP is 18. The test was added but not executed.
+- Added a regression test with two maximum-range finite volumes and distinct typical prices; the corrected fixture uses typical prices 11 and 23, so the expected VWAP is 17. The test was added but not executed.
 
 ## Indicator-series and chart-rendering extreme-value safety
 
