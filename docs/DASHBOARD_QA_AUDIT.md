@@ -261,3 +261,19 @@ A fresh Actions run-list query after the latest audit commit found **Backend and
 **Required owner action remains:** review GitHub **Billing & plans** and **Settings → Billing → Budgets and alerts**, resolve any failed-payment or spending-limit restriction, and ensure Actions usage is permitted. No payment method, billing budget, spending limit, or account setting was changed during this audit.
 
 No source code, workflow, branch protection, deployment configuration, PR, staging service, or production service was changed in this pass.
+
+
+## 18. Account billing restriction recheck and latest CI confirmation (2026-11-15)
+
+A second read-only inspection of GitHub Settings → Billing → Budgets and the latest Actions Run #1705 confirmed the restriction is still active.
+
+All five displayed account budgets are blocked at 100% utilization with a displayed allowance/spend of **$0.00 / $0.00**:
+- Actions — usage blocked
+- Git LFS — usage blocked
+- All AI Credit SKUs — usage blocked
+- Packages — usage blocked
+- Codespaces — usage blocked
+
+The latest Run #1705 UI displayed the pre-start failure message: **“The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check your billing settings.”** The Jobs API for Run #1705 independently reports the job as failed with `steps: null` and `logs_url: null`. This is a confirmed account billing / spending restriction, not an executed test failure.
+
+No billing settings, payment methods, spending limits, CI reruns, workflows, application files, PRs, staging, or production were changed. The repository owner must resolve the payment or spending restriction in GitHub billing settings before genuine CI execution can be assessed.
