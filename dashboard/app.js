@@ -191,11 +191,18 @@
   }
   const tableViews = {};
   const scannerSearchTimers = {};
+  const scannerSearchTextCaches = {};
   const scannerCollator = new Intl.Collator(undefined,{numeric:true,sensitivity:"base"});
   function focusPagerControl(table,label){
     const buttons=Array.from(table?.parentElement?.parentElement?.querySelectorAll(".table-pager button")||[]);
     const preferred=buttons.find(button=>button.getAttribute("aria-label")===label&&!button.disabled);
     (preferred||buttons.find(button=>!button.disabled))?.focus();
+  }
+  function scannerSearchText(target,item,keys){
+    let cache=scannerSearchTextCaches[target];
+    if(!cache)cache=scannerSearchTextCaches[target]=new WeakMap();
+    if(!cache.has(item))cache.set(item,keys.map(key=>String(item?.[key]??"").toUpperCase()).join("\u0000"));
+    return cache.get(item);
   }
   function scannerCellText(key,value) {
     if(value===null||value===undefined||value==="")return"—";
@@ -215,7 +222,7 @@
     const keys=columns===6?["symbol","base_asset","quote_asset","last_price","quote_volume_24h","status"]:["symbol","last_price","quote_volume_24h","price_change_percent_24h","status"];
     const view=tableViews[target]||(tableViews[target]={page:0,pageSize:100,sortKey:"symbol",direction:1,rows:[],query:""});
     const incomingRows=Array.isArray(rows)?rows:[];
-    if(incomingRows!==view.rows){view.rows=incomingRows;view.page=0;view.sortedCache=null;}
+    if(incomingRows!==view.rows){view.rows=incomingRows;view.page=0;view.sortedCache=null;scannerSearchTextCaches[target]=new WeakMap();}
     const cached=view.sortedCache;
     let filteredCount,sortedRows;
     if(cached&&cached.rows===view.rows&&cached.query===view.query&&cached.sortKey===view.sortKey&&cached.direction===view.direction){
@@ -224,7 +231,7 @@
       const numericValue=value=>{if(typeof value==="number")return Number.isFinite(value)?value:null;if(typeof value!=="string"||value.trim()==="")return null;const parsed=Number(value);return Number.isFinite(parsed)?parsed:null;};
       sortedRows=[];
       for(const item of view.rows){
-        if(view.query&&!keys.some(key=>String(item?.[key]??"").toUpperCase().includes(view.query)))continue;
+        if(view.query&&!scannerSearchText(target,item,keys).includes(view.query))continue;
         sortedRows.push(item);
       }
       const sortKey=view.sortKey,direction=view.direction;
@@ -355,7 +362,7 @@
     scanners.forEach(([target,searchId,countId,coverageId,columns])=>{
       const view=tableViews[target]||(tableViews[target]={page:0,pageSize:100,sortKey:"symbol",direction:1,rows:[],query:""});
       if(scannerSearchTimers[target]!==undefined){window.clearTimeout(scannerSearchTimers[target]);delete scannerSearchTimers[target];}
-      view.rows=[];view.page=0;view.query="";view.sortedCache=null;
+      view.rows=[];view.page=0;view.query="";view.sortedCache=null;scannerSearchTextCaches[target]=new WeakMap();
       const search=$(searchId);if(search)search.value="";
       renderRows(target,[],columns);setText(countId,reason);setText(coverageId,reason);
     });
