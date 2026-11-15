@@ -73,6 +73,9 @@ test("3h aggregation discards incomplete, duplicated and misaligned buckets", ()
   assert.equal(charts.aggregate3h(incomplete).length, 0);
   assert.equal(charts.aggregate3h(duplicate).length, 0);
   assert.equal(charts.aggregate3h(misaligned).length, 0);
+  const invalidCloseTime = [candle(0, 101), candle(3600000, 102), candle(7200000, 103)].map(row => ({time:row[0],open:row[1],high:row[2],low:row[3],close:row[4],volume:row[5],closeTime:row[6]}));
+  invalidCloseTime[1].closeTime += 1;
+  assert.equal(charts.aggregate3h(invalidCloseTime).length, 0);
 });
 
 test("timeframe and market route mapping stays explicit", () => {
