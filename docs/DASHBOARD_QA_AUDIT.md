@@ -1005,3 +1005,18 @@ Inspected all four V8 heap snapshots from Run #20 (artifact `14167611050`) direc
 Corrected `tests/dashboard_performance_qa.cjs` in commit `4be281754c38d38003705e357a7d55fa917be6a1` to call `settleScannerDom()` again after the Previous-page action returns to page 1 at the end of every repeated cycle. This refreshes the strong references to the final live page rows, replacing references to the rows detached by sort/pagination before the final garbage collection and snapshot.
 
 This is a profiler-harness correction, not evidence of a dashboard application memory leak. Run #20 heap deltas remain invalid for leak interpretation. A new CI artifact must be downloaded and its baseline/after-cycle row and cell wrapper counts compared before any heap conclusion is published.
+
+
+## 52. Replace unstable V8 snapshot comparison with matched post-GC metrics (2026-11-15)
+
+Run #21 ([workflow 43731845974](https://github.com/mamunfb/universal-binance-ai-backend/actions/runs/43731845974)) passed on commit `4be281754c38d38003705e357a7d55fa917be6a1`, but direct inspection of its artifact showed the baseline and after-cycle V8 snapshots still did not contain comparable JavaScript DOM-wrapper populations. In both baseline snapshots, 600 native `<td>` elements were present, but only 24 `HTMLTableCellElement` JS wrappers were represented; after five cycles, 624 wrappers were represented. The keep-alive array itself retained the current native cells, but snapshot wrapper materialization still differed. This makes V8 object-count comparisons and their heap deltas unsuitable as leak evidence.
+
+To avoid manufacturing misleading snapshot evidence, commit `ebf7e8849bd0ef71a1ff510b34f64884af839ce7` removes the baseline/after-cycle V8 snapshot captures and the global DOM keep-alive array. The harness now:
+- asserts a stable 100-row / 600-cell scanner DOM before GC metrics;
+- records `Performance.getMetrics` after explicit garbage collection at the baseline and after five interaction cycles;
+- restores the same quote-volume ascending sort and page-1 state before the final GC metric;
+- labels the difference `gc_heap_delta_bytes`, not a leak measurement.
+
+This is a coarse post-GC heap/DOM trend for the deterministic mock fixture only. It does not prove absence or presence of a leak; no numerical leak threshold is asserted. The next CI artifact must be checked to confirm the final state and metrics. The workflow should no longer emit V8 heap snapshots. Scanner interaction timing remains independently measured.
+
+Run #21 results from its profiler output: 1x scan render/sort/search/pagination 67/38/170/68 ms; 4x 86/79/171/130 ms; five cycles 2,350 ms at 1x and 3,127 ms at 4x. These timing observations are from a deterministic 1,000-row mocked response, not production traffic.
