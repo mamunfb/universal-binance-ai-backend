@@ -826,7 +826,7 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 
 ## Scanner malformed cell-value rendering
 
-- Scanner table cells now render null, undefined and empty values as an em dash; non-finite numeric values and malformed numeric strings in price/volume/change columns are shown as "Invalid number".
+- Scanner table cells now render null, undefined and empty values as an em dash; non-finite numeric values, malformed numeric strings, and non-string/non-number types in price/volume/change columns are shown as "Invalid number".
 - Object and array values are shown as "Invalid value" rather than the unhelpful JavaScript string "[object Object]". Boolean and ordinary text values remain readable.
 - Cell content continues to be assigned through `textContent`; no backend payload is inserted as HTML.
 - Added a source-contract regression test for malformed numeric and structured values. The Python test suite has not been executed; browser/runtime rendering remains unverified.
