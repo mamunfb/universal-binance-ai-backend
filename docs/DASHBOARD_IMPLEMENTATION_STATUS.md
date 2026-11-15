@@ -748,3 +748,12 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - The display timezone preference now formats recognized ISO-style scan timestamps through Intl.DateTimeFormat; changing timezone re-renders the cached scan summary and coverage timestamp. Preferences remain page-session-only; no browser storage or backend persistence was introduced.
 - Added static regression contracts for connection-scoped data clearing, cached timestamp timezone formatting, and startup/default preference wiring.
 - Source readback is the only verification performed for this pass. Runtime tests, browser QA, keyboard/screen-reader testing and responsive viewport testing have **not** been run. No test pass is claimed. No backend source, CI workflow, PR, merge or deployment was changed.
+
+
+## Research-readiness request race protection
+
+- A final API call-site audit found that the two Research Preflight/Phase Readiness buttons used the shared API helper but did not have request-sequence protection. A response started with old credentials could therefore repopulate the readiness panel after connection data was cleared.
+- Added a dedicated readiness request sequence and AbortController. Starting a newer readiness request cancels the previous one; applying or clearing backend credentials aborts and invalidates readiness requests before clearing their displayed output.
+- Both readiness actions now use the guarded loader, validate the response as a JSON object, and ignore superseded success/failure results.
+- Added a static regression contract for readiness request cancellation, sequence checks and both button handlers.
+- Source readback only. Runtime tests and browser QA remain unrun; no pass is claimed. Backend files, CI, PR, merge and deployment remain untouched.
