@@ -625,3 +625,10 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - When every visible candle has zero volume, bar heights are explicitly zero; the chart does not divide by zero or emit non-finite SVG attributes.
 - Added rendering regression coverage for tiny positive volume values and an all-zero-volume window. Tests have not been executed; browser QA remains outstanding.
 
+## Chart request cancellation and stale-response lifecycle
+
+- The chart module now owns an AbortController for its active candle request. Starting a newer valid chart request aborts the previous request; explicit chart invalidation (for example, a market/symbol/timeframe or backend-connection change) also aborts the active request and advances the sequence guard.
+- The dashboard API wrapper accepts an optional caller-provided AbortSignal while retaining its existing request timeout. It removes the external abort listener in `finally` and distinguishes caller cancellation from timeout errors.
+- Superseded chart responses remain ignored even if a transport/API implementation does not honor AbortSignal; cancellation is an efficiency improvement, while the sequence check remains the correctness guard.
+- Added a regression test that verifies chart invalidation aborts the supplied signal and returns a superseded result. Tests have not been executed; browser/network cancellation behavior remains unverified at runtime.
+
