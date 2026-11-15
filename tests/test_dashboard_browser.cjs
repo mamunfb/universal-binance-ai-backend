@@ -195,6 +195,7 @@ test("API timeout is reported without an uncaught browser exception", async () =
     window.setTimeout = (callback, delay, ...args) =>
       originalSetTimeout(callback, delay === 20000 ? 40 : delay, ...args);
   });
+  await page.reload({waitUntil: "networkidle"});
   await page.locator('.nav-link[data-page="settings"]').click();
   await page.route("https://backend.test/health", route =>
     new Promise(resolve => setTimeout(() => resolve(route.fulfill({
