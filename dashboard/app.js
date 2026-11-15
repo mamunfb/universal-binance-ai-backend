@@ -76,7 +76,7 @@
   async function loadHealth() {
     const requestSequence=++activeHealthSequence;
     try { const result=await api("/health"); if(requestSequence!==activeHealthSequence)return{status:"SUPERSEDED"}; state.lastHealth=result; setText("health-status",metadataText(result.status,"Healthy response",80)); setConnection(true,"Backend reachable"); return result; }
-    catch(error){if(requestSequence!==activeHealthSequence)return{status:"SUPERSEDED"};setText("health-status","Unavailable");setConnection(false,"Backend unavailable: "+error.message);throw error;}
+    catch(error){if(requestSequence!==activeHealthSequence)return{status:"SUPERSEDED"};setText("health-status","Unavailable");setConnection(false,"Backend unavailable: "+metadataText(error?.message,"Request failed",160));throw error;}
   }
   function invalidateScanRequests(){activeScanSequence++;}
   async function scanMarket(market) {
@@ -185,7 +185,7 @@
   }
   async function loadMarketEvidence() {
     syncAnalysisHeader(); invalidateChartView("Market evidence endpoint does not provide candle chart data."); const requestSequence=++activeEvidenceSequence; const path="/api/v1/analysis/market-evidence/"+encodeURIComponent(state.symbol);
-    let data;try{data=await api(path);}catch(error){if(requestSequence!==activeEvidenceSequence)return{status:"SUPERSEDED"};throw error;}if(requestSequence!==activeEvidenceSequence)return{status:"SUPERSEDED"};state.lastAnalysis=data;showJson("analysis-output",data);setText("chart-state","Evidence loaded; candle chart not provided by this endpoint");setText("technical-summary",metadataText(data.summary,metadataText(data.status,"Market evidence returned. Inspect evidence payload.",120),120));
+    let data;try{data=await api(path);}catch(error){if(requestSequence!==activeEvidenceSequence)return{status:"SUPERSEDED"};setText("chart-state","Evidence request failed · previous evidence retained");setText("technical-summary","Request failed: "+metadataText(error?.message,"Unknown error",160));throw error;}if(requestSequence!==activeEvidenceSequence)return{status:"SUPERSEDED"};state.lastAnalysis=data;showJson("analysis-output",data);setText("chart-state","Evidence loaded; candle chart not provided by this endpoint");setText("technical-summary",metadataText(data.summary,metadataText(data.status,"Market evidence returned. Inspect evidence payload.",120),120));
     toast("Market evidence loaded.","success");return data;
   }
   async function loadTechnical() {
@@ -206,7 +206,7 @@
     if(!symbol) throw new Error("Enter a symbol.");if(!Number.isInteger(lookback)||lookback<1||lookback>2160)throw new Error("Lookback must be 1–2160 hours.");
     const q=new URLSearchParams({interval,lookback_hours:String(lookback)});
     setText("quality-state","Loading "+symbol+" · "+interval);
-    let data;try{data=await api("/api/v1/quality/market-data/"+encodeURIComponent(market)+"/"+encodeURIComponent(symbol)+"?"+q);}catch(error){if(requestSequence!==activeQualitySequence)return{status:"SUPERSEDED"};throw error;}
+    let data;try{data=await api("/api/v1/quality/market-data/"+encodeURIComponent(market)+"/"+encodeURIComponent(symbol)+"?"+q);}catch(error){if(requestSequence!==activeQualitySequence)return{status:"SUPERSEDED"};setText("quality-state","Load failed · previous report retained · "+metadataText(error?.message,"Unknown error",120));throw error;}
     if(requestSequence!==activeQualitySequence)return{status:"SUPERSEDED"};
     showJson("quality-output",data);setText("quality-state",metadataText(data.status,"Report received",80));toast("Data quality report loaded.","success");return data;
   }
