@@ -164,7 +164,7 @@ class DashboardContractTests(unittest.TestCase):
 
 
     def test_duplicate_candle_filter_is_reachable_after_parse(self) -> None:
-        parse_body = self.chart_js.split("function parse(rows){", 1)[1].split("\\nfunction aggregate3h", 1)[0]
+        parse_body = self.chart_js.split("function parse(rows){", 1)[1].split("\nfunction aggregate3h", 1)[0]
         self.assertIn("const parsed=rows.filter", parse_body)
         self.assertIn("return parsed.filter(candle=>counts.get(candle.time)===1)", parse_body)
         self.assertLess(parse_body.index("const parsed="), parse_body.index("return parsed.filter"))
