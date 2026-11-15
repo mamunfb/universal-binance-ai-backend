@@ -191,3 +191,11 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Added a regression assertion that the HTML contains no duplicate IDs and that the chart module is loaded before the application module.
 - This strengthens static structural checks for DOM binding stability and script dependency order; it does not replace browser QA.
 - Test execution remains pending because no repository-local runtime or authorized CI run has been used in this session.
+
+
+## Follow-up correctness and scanner metadata pass
+
+- A deeper source review caught a control-flow defect in the duplicate-candle hardening: the parser returned the sorted array before executing its duplicate-timestamp count/filter block. Reworked the parser to assign the validated/sorted rows to `parsed`, then execute and return the unique-timestamp filter. This makes the prior duplicate-timestamp regression fixture exercise the intended behavior.
+- Hardened scanner count extraction: whitespace-only strings, booleans, non-finite values and negative counts are no longer treated as valid coverage counts. Missing/invalid metadata remains explicitly unavailable rather than being shown as zero.
+- Added Python static contract tests asserting duplicate filtering is reachable in the parser and scanner count parsing rejects invalid metadata.
+- These are source and static-test changes only. Node/Python suites remain unexecuted in a repository runtime; no pass result is claimed.
