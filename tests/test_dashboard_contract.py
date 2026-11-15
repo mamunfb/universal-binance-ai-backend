@@ -403,6 +403,13 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn('assert.equal(aggregated.length, 1000)', self.chart_test_js)
         self.assertIn('assert.equal(gapAggregated.length, 999)', self.chart_test_js)
 
+    def test_overview_refresh_attempts_health_and_scanner_independently(self) -> None:
+        refresh_body = self.js.split('$("refresh-page").addEventListener', 1)[1].split('$("global-market").addEventListener', 1)[0]
+        self.assertIn("Promise.allSettled([loadHealth(),scanMarket(state.market)])", refresh_body)
+        self.assertIn('result.status==="rejected"', refresh_body)
+        self.assertIn('metadataText(result.reason?.message,"Request failed",120)', refresh_body)
+        self.assertIn('Overview refresh partially failed: ', refresh_body)
+
     def test_technical_chart_request_preserves_previous_view_on_refresh_and_failure(self) -> None:
         technical_body = self.js.split("async function loadTechnical() {", 1)[1].split("function initTimeframes()", 1)[0]
         self.assertIn('setText("chart-state","Loading candles · previous chart retained")', technical_body)
