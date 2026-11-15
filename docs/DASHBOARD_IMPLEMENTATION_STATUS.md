@@ -403,3 +403,12 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Unsupported values are rejected before the request sequence or selected market state is changed, preventing accidental fallback to the COIN-M endpoint for an unknown market value.
 - Added a Python static contract check that requires validation to precede request-sequence mutation.
 - This is source-level validation only. GitHub readback is the verification performed; runtime tests and browser QA remain unexecuted.
+
+
+## Scanner refresh freshness and retained-result states
+
+- When a scan begins, the overview status indicates that a refresh is in progress and that previously rendered results are being retained.
+- A current-request network/API failure changes the status to `Refresh failed · previous results retained`; an invalid top-level payload uses `Invalid response · previous results retained`.
+- A successful response replaces the previous summary and rows through the existing render path. Superseded requests do not overwrite the status for a newer request.
+- This is a user-visible lifecycle indicator, not a measured data-age guarantee. Backend timestamps remain displayed only when supplied by the backend.
+- Added a static contract test for refresh-state ordering and retained-result messaging. Runtime tests and browser QA remain unexecuted.
