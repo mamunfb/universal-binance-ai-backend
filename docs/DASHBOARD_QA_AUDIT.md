@@ -104,3 +104,31 @@ No Lighthouse run, Performance trace, memory profile, large-market dataset bench
 ## Change-control confirmation
 
 No changes were made to `main`. No PR was merged, no production deployment was initiated, and no staging deployment was initiated during this audit.
+
+
+## 7. Follow-up CI runner investigation (2026-11-15)
+
+The Actions run list was queried directly for `feat/institutional-dashboard-design` after the prior audit.
+
+| Workflow | Run | Commit | Attempt result | Job result |
+|---|---:|---|---|---|
+| Dashboard frontend checks | #9 / 43686597276 | `3fab6c7a7f4d47bffa8981c71a7366789dec8256` | Attempt 2 completed | Failure |
+| Backend and dashboard tests | #1695 / 43692723553 | `4eeb7b9ba3b8fdc5925851ec3112169baad9a7ac` | Attempt 2 completed | Failure |
+
+Both failed jobs were explicitly re-run. The rerun requests were accepted and produced new job IDs:
+- Dashboard: `132782882178`
+- Backend/dashboard: `132782892223`
+
+Follow-up job inspection returned an empty `steps` array for both jobs. The job-log download endpoint returned an Azure `BlobNotFound` response for both. The observed job intervals were approximately three seconds, but this alone does not establish whether a runner was allocated or which setup stage failed. Runner name/ID and step-level output therefore remain unverified.
+
+**Interpretation:** CI is confirmed failing at the workflow/job level, but the root cause is not diagnosable from the available Actions metadata because step details and logs are unavailable. Do not classify the dashboard tests themselves as failing; no test-step evidence was returned.
+
+**Next diagnostic actions:**
+1. Inspect the run in GitHub Actions UI and confirm whether a runner was assigned; capture the job's raw logs if GitHub retains them.
+2. Check repository Actions settings, runner availability/permissions, and workflow execution restrictions without changing repository security settings.
+3. If the run still has no steps/logs, trigger a controlled diagnostic workflow only after preserving the existing workflow behavior and confirming it cannot deploy.
+4. Keep runtime/browser QA blocked until the feature-branch build is available in an isolated QA target. Do not repoint or deploy the existing staging service as part of this investigation.
+
+## 8. Follow-up change-control confirmation
+
+No changes were made to `main`. No PR was created or merged. No production or staging deployment was initiated. The CI rerun requests above did not modify application source or deployment configuration.
