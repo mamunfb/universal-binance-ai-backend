@@ -315,3 +315,33 @@ test("ADX and Stochastic RSI remain unavailable with insufficient history", () =
   assert.equal(stoch.k.every(v=>v===null),true);
   assert.equal(stoch.d.every(v=>v===null),true);
 });
+
+test("indicator averages remain finite for large but finite OHLCV values", () => {
+  const close = Number.MAX_VALUE * 0.75;
+  const candles = Array.from({length:40}, (_,i) => ({
+    time:i*3600000,open:close,high:Number.MAX_VALUE*0.8,low:Number.MAX_VALUE*0.7,
+    close,volume:Number.MAX_VALUE,closeTime:i*3600000+3599999
+  }));
+  const ema = charts.emaSeries(candles.map(x=>x.close),20);
+  const rsi = charts.rsiSeries(candles.map(x=>x.close));
+  const atr = charts.atrSeries(candles);
+  const bands = charts.bollingerSeries(candles.map(x=>x.close),20,2);
+  assert.ok(Number.isFinite(ema.at(-1)));
+  assert.equal(rsi.at(-1),50);
+  assert.ok(Number.isFinite(atr.at(-1)));
+  assert.ok(Number.isFinite(bands.middle.at(-1)));
+  assert.ok(Number.isFinite(bands.upper.at(-1)));
+  assert.ok(Number.isFinite(bands.lower.at(-1)));
+  const snapshot = charts.indicators(candles);
+  assert.ok(Number.isFinite(snapshot.vwap));
+  assert.ok(Number.isFinite(snapshot.atr_14_wilder));
+});
+
+test("Bollinger bands leave unrepresentable extreme bounds unavailable instead of Infinity", () => {
+  const values = Array.from({length:20}, (_,i) => i%2 ? Number.MAX_VALUE : -Number.MAX_VALUE);
+  const bands = charts.bollingerSeries(values,20,2);
+  assert.equal(bands.middle[19],0);
+  assert.equal(bands.upper[19],null);
+  assert.equal(bands.lower[19],null);
+});
+
