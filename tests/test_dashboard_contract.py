@@ -413,9 +413,10 @@ class DashboardContractTests(unittest.TestCase):
 
     def test_recent_metadata_and_evidence_contracts_are_discoverable_before_main_guard(self) -> None:
         source = Path(__file__).read_text(encoding="utf-8")
-        main_guard = source.index('if __name__ == "__main__":')
+        main_guard = source.index("if " + '__name__ == "__main__":')
         for method in (
             "test_health_and_quality_status_metadata_is_bounded_and_type_safe",
+            "test_market_evidence_summary_metadata_is_bounded_and_type_safe",
             "test_market_evidence_refresh_preserves_previous_payload_until_success",
             "test_market_evidence_failure_keeps_previous_payload_and_shows_bounded_error",
             "test_quality_failure_keeps_previous_report_and_shows_bounded_error",
