@@ -95,7 +95,7 @@ class DashboardAccessibilityContractTests(unittest.TestCase):
         self.assertIn('if(event.key==="Escape"){event.preventDefault();setSidebarOpen(false);return;}', self.js)
 
     def test_responsive_breakpoints_and_reduced_motion_are_declared(self) -> None:
-        for breakpoint in ("1100px", "760px", "480px", "360px"):
+        for breakpoint in ("1100px", "900px", "480px", "360px"):
             self.assertIn(f"@media(max-width:{breakpoint})", self.css)
         self.assertIn("@media(prefers-reduced-motion:reduce)", self.css)
         self.assertIn("transition:none!important", self.css)
