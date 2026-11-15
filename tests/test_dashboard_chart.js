@@ -359,3 +359,26 @@ test("ADX remains finite when directional-movement accumulators would overflow",
   assert.ok(adx.slice(27).every(value => Math.abs(value-100)<1e-10));
 });
 
+test("chart rendering handles signed indicator ranges and normalized zero baselines", async () => {
+  const host = { replaceChildren() {}, append() {} };
+  const summary = { textContent: "" };
+  const output = { textContent: "" };
+  const state = { textContent: "" };
+  const originalDocument = global.document;
+  const element = () => ({ setAttribute() {}, append() {}, appendChild() {}, style: {} });
+  global.document = {
+    getElementById(id) { return id === "chart-placeholder" ? host : id === "technical-summary" ? summary : id === "analysis-output" ? output : state; },
+    createElement: element,
+    createElementNS: element
+  };
+  const rows = Array.from({length:80}, (_,i) => {
+    const close = 100 + Math.sin(i/3)*10;
+    return [i*3600000,close,close+1,close-1,close,10,i*3600000+3599999];
+  });
+  try {
+    const result = await charts.load(async () => ({klines:rows}), "SPOT", "BTCUSDT", "1h");
+    assert.equal(result.candle_count,80);
+    assert.ok(output.textContent.includes("MACD"));
+  } finally { global.document = originalDocument; }
+});
+
