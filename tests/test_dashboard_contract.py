@@ -428,3 +428,7 @@ if __name__ == "__main__":
         self.assertIn('metadataFieldName(data,["generated_at","timestamp","updated_at"])', self.js)
         self.assertIn('"Timestamp field: "+', self.js)
         self.assertIn('"Source field: "+', self.js)
+
+    def test_scanner_coverage_identifies_status_alias_provenance(self) -> None:
+        self.assertIn('metadataFieldName(data,["status","scan_status"])', self.js)
+        self.assertIn('"Status field: "+', self.js)
