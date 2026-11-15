@@ -130,8 +130,12 @@ function render(c){
 }
 function invalidate(){activeLoadSequence++;}
 async function load(api,market,symbol,timeframe){
- const requestSequence=++activeLoadSequence;
- const tf=timeframe,interval=intervalFor(tf),route=routeFor(market);if(!route)throw new Error("Unsupported market type: "+market);
+ const tf=timeframe,route=routeFor(market);
+ if(!route)throw new Error("Unsupported market type: "+market);
+ const supportedTimeframes=["1m","3m","5m","15m","30m","1h","2h","3h","4h","6h","8h","12h","1D","3D","1W","1M"];
+ if(!supportedTimeframes.includes(tf))throw new Error("Unsupported chart timeframe: "+tf);
+ if(typeof symbol!=="string"||!symbol.trim())throw new Error("Enter a valid trading symbol.");
+ const interval=intervalFor(tf),requestSequence=++activeLoadSequence;
  let response;try{response=await api(route+encodeURIComponent(symbol)+"?interval="+encodeURIComponent(interval)+"&limit=1000");}catch(error){if(requestSequence!==activeLoadSequence)return{status:"SUPERSEDED",market,symbol,requested_timeframe:tf};throw error;}
  if(requestSequence!==activeLoadSequence)return{status:"SUPERSEDED",market,symbol,requested_timeframe:tf};
  if(response===null||typeof response!=="object"||Array.isArray(response))throw new Error("Candle endpoint returned an invalid response shape. Expected a JSON object; previous chart was preserved.");
