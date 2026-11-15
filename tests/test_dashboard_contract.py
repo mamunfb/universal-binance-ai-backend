@@ -311,6 +311,12 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn(chr(10) + ".indicator-pane{", self.css)
 
 
+    def test_three_hour_aggregation_requires_exact_hourly_close_times(self) -> None:
+        aggregation_body = self.chart_js.split("function aggregate3h(rows){", 1)[1].split("\\nfunction ema", 1)[0]
+        self.assertIn("x.closeTime!==x.time+3599999", aggregation_body)
+        self.assertIn("invalidCloseTime[1].closeTime += 1", self.chart_test_js)
+        self.assertIn("aggregate3h(invalidCloseTime).length, 0", self.chart_test_js)
+
     def test_chart_large_dataset_regression_fixtures_are_present(self) -> None:
         self.assertIn('parse handles a large reversed candle batch', self.chart_test_js)
         self.assertIn('Array.from({length:10000}', self.chart_test_js)
