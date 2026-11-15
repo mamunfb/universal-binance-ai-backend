@@ -180,7 +180,7 @@
     $("global-market").addEventListener("change",e=>{invalidateScanRequests();state.market=e.target.value;document.querySelectorAll(".market-tab").forEach(b=>b.classList.toggle("active",b.dataset.market===state.market));invalidateChartView();});
     $("global-symbol").addEventListener("change",()=>{state.symbol=$("global-symbol").value.trim().toUpperCase();syncAnalysisHeader();invalidateChartView();});
     $("global-timeframe").addEventListener("change",()=>{state.timeframe=$("global-timeframe").value;syncAnalysisHeader();invalidateChartView();});
-    ["quality-market","quality-symbol","quality-interval","quality-lookback"].forEach(id=>$(id).addEventListener("change",()=>{invalidateQualityRequest();setText("quality-state","Selection changed · run a new quality check");}));
+    ["quality-market","quality-symbol","quality-interval","quality-lookback"].forEach(id=>{const invalidate=()=>{invalidateQualityRequest();setText("quality-state","Selection changed · run a new quality check");};$(id).addEventListener("change",invalidate);if(id==="quality-symbol"||id==="quality-lookback")$(id).addEventListener("input",invalidate);});
     document.querySelectorAll(".market-tab").forEach(b=>b.addEventListener("click",()=>{invalidateScanRequests();state.market=b.dataset.market;document.querySelectorAll(".market-tab").forEach(x=>x.classList.toggle("active",x===b));$("global-market").value=state.market;invalidateChartView();}));
     $("run-market-scan").addEventListener("click",()=>withButton("run-market-scan",()=>scanMarket(state.market),"Scanning…"));
     $("scan-spot").addEventListener("click",()=>withButton("scan-spot",()=>scanMarket("SPOT"),"Scanning…"));
