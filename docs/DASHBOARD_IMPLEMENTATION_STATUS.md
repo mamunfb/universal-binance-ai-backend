@@ -578,3 +578,8 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Candlestick overlays now render separate SVG polylines across contiguous finite runs. Unavailable Bollinger/EMA points are treated as gaps instead of being filtered out and accidentally joined across missing intervals.
 - Added an ADX regression fixture with maximum-range finite price values whose unnormalized directional-movement sums would overflow. The test was added but has not been executed. GitHub source readback remains the only verification performed.
 
+## Signed indicator-axis rendering regression coverage
+
+- Updated the indicator-pane zero reference line to use the same normalized coordinate transform as the plotted series. This avoids relying on an unscaled range span that can overflow for finite values of opposite signs.
+- Added a chart-load regression fixture that exercises rendering with signed MACD values and its zero baseline. The test was added but not executed; no runtime or browser verification is claimed.
+
