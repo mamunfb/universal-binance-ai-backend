@@ -152,6 +152,11 @@
   }
   const tableViews = {};
   const scannerCollator = new Intl.Collator(undefined,{numeric:true,sensitivity:"base"});
+  function focusPagerControl(table,label){
+    const buttons=Array.from(table?.parentElement?.parentElement?.querySelectorAll(".table-pager button")||[]);
+    const preferred=buttons.find(button=>button.getAttribute("aria-label")===label&&!button.disabled);
+    (preferred||buttons.find(button=>!button.disabled))?.focus();
+  }
   function renderRows(target, rows, columns) {
     const body=$(target); if(!body) return;
     const keys=columns===6?["symbol","base_asset","quote_asset","last_price","quote_volume_24h","status"]:["symbol","last_price","quote_volume_24h","price_change_percent_24h","status"];
@@ -179,7 +184,7 @@
     headers.forEach((th,index)=>{th.title="Sort by "+keys[index];th.setAttribute("aria-sort",keys[index]===view.sortKey?(view.direction===1?"ascending":"descending"):"none");th.style.cursor="pointer";});
     let pager=table?.parentElement?.parentElement?.querySelector(".table-pager");
     if(table&&!pager){pager=document.createElement("div");pager.className="table-pager";pager.style.cssText="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;color:var(--muted,#9aa);font-size:12px";table.parentElement.parentElement.append(pager);}
-    if(pager){pager.replaceChildren();const info=document.createElement("span");info.setAttribute("aria-live","polite");info.textContent=filteredCount.toLocaleString()+" matching / "+view.rows.length.toLocaleString()+" returned · page "+(view.page+1)+"/"+pages+" · "+view.pageSize+" per page";const controls=document.createElement("span");const prev=document.createElement("button"),next=document.createElement("button");prev.type=next.type="button";prev.textContent="Previous";next.textContent="Next";prev.setAttribute("aria-label","Previous scanner page");next.setAttribute("aria-label","Next scanner page");prev.disabled=view.page===0;next.disabled=view.page>=pages-1;prev.addEventListener("click",()=>{view.page--;renderRows(target,view.rows,columns);});next.addEventListener("click",()=>{view.page++;renderRows(target,view.rows,columns);});controls.append(prev,next);pager.append(info,controls);}
+    if(pager){pager.replaceChildren();const info=document.createElement("span");info.setAttribute("aria-live","polite");info.textContent=filteredCount.toLocaleString()+" matching / "+view.rows.length.toLocaleString()+" returned · page "+(view.page+1)+"/"+pages+" · "+view.pageSize+" per page";const controls=document.createElement("span");const prev=document.createElement("button"),next=document.createElement("button");prev.type=next.type="button";prev.textContent="Previous";next.textContent="Next";prev.setAttribute("aria-label","Previous scanner page");next.setAttribute("aria-label","Next scanner page");prev.setAttribute("aria-controls",target);next.setAttribute("aria-controls",target);prev.disabled=view.page===0;next.disabled=view.page>=pages-1;prev.addEventListener("click",()=>{view.page--;renderRows(target,view.rows,columns);focusPagerControl(table,"Previous scanner page");});next.addEventListener("click",()=>{view.page++;renderRows(target,view.rows,columns);focusPagerControl(table,"Next scanner page");});controls.append(prev,next);pager.append(info,controls);}
     if(target==="spot-rows")setText("spot-count",filteredCount.toLocaleString()+" matching / "+view.rows.length.toLocaleString()+" returned");
     if(!view.headersBound&&table){view.headersBound=true;headers.forEach((th,index)=>{const sort=()=>{const key=keys[index];view.direction=view.sortKey===key?-view.direction:1;view.sortKey=key;view.page=0;renderRows(target,view.rows,columns);};th.tabIndex=0;th.setAttribute("aria-keyshortcuts","Enter Space");th.setAttribute("aria-label","Sort by "+keys[index]);th.addEventListener("click",sort);th.addEventListener("keydown",event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();sort();}});});}
   }
