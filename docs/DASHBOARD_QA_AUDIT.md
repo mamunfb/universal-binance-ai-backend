@@ -188,3 +188,15 @@ Checks observed:
 - No `eval`, `new Function`, or localStorage use was detected in `dashboard/app.js`.
 
 These are source-level observations only. They do not prove responsive layout correctness, focus order, screen-reader behavior, actual API behavior, performance, or memory stability. The next QA tasks remain blocked on a working execution environment: (1) owner resolves the Actions budget restriction, then obtain real CI runner/step/log evidence; and (2) provision an explicitly separate feature-branch QA preview before browser tests. Existing Render services must not be repointed or used for this purpose.
+
+
+## 13. Dashboard-to-backend contract and accessible-name cross-check (2026-11-15)
+
+A further read-only comparison was made between the feature-branch frontend and backend source:
+
+- The Data Reliability selector offers exactly `1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d`. The backend `GET /api/v1/quality/market-data/{market}/{symbol}` route declares the same interval Literal values. No unsupported interval is exposed by that selector.
+- The UI quality market options (`SPOT`, `USD_M`, `COIN_M`) match the route's market Literal values. The UI lookback validation (integer 1–2160 hours) matches the backend query bounds (`ge=1, le=2160`).
+- All 16 static input/select controls have a programmatic accessible name through a wrapping label, a `for` label, or an explicit `aria-label`.
+- All 22 static buttons have visible text or an explicit `aria-label`.
+
+This cross-check confirms static contract alignment only. It does not establish successful requests against a running backend or assistive-technology behavior in a real browser. No application code was changed in this pass.
