@@ -1,0 +1,63 @@
+name: Dashboard performance QA
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feat/institutional-dashboard-design
+    paths:
+      - "dashboard/**"
+      - "tests/dashboard_performance_qa.cjs"
+      - "tests/serve_dashboard_qa.cjs"
+      - ".github/workflows/dashboard-performance-qa.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dashboard-performance-qa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  performance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          package-manager-cache: false
+      - name: Install pinned browser tooling
+        run: npm install --no-save --no-package-lock playwright@1.56.1 lighthouse@12.8.2
+      - name: Install Chromium
+        run: npx --no-install playwright install --with-deps chromium
+      - name: Start isolated feature-branch dashboard
+        run: |
+          node tests/serve_dashboard_qa.cjs > /tmp/dashboard-qa-server.log 2>&1 &
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:4173/ > /dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/dashboard-qa-server.log
+          exit 1
+      - name: Run mobile Lighthouse cold-load audits
+        run: |
+          mkdir -p artifacts/performance
+          for sample in 1 2 3; do
+            npx --no-install lighthouse http://127.0.0.1:4173/ --preset=perf --form-factor=mobile --screenEmulation.mobile=true --screenEmulation.width=390 --screenEmulation.height=844 --screenEmulation.deviceScaleFactor=1 --throttling-method=simulate --chrome-flags="--headless --no-sandbox" --output=json --output-path="artifacts/performance/lighthouse-mobile-$sample.json"
+          done
+      - name: Run CPU-throttled browser and heap profiling
+        run: node tests/dashboard_performance_qa.cjs
+      - name: Upload raw performance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-performance-${{ github.sha }}
+          path: artifacts/performance/
+          if-no-files-found: warn
+          retention-days: 14
