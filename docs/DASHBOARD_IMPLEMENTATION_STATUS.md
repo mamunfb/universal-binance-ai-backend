@@ -767,3 +767,13 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - API abort classification now records whether the timeout fired, so a later caller cancellation cannot mislabel an already-triggered timeout (and caller cancellation remains distinct from timeout).
 - Added static regression contracts for scanner cancellation, quality cancellation, credential-change invalidation, and timeout/caller-abort classification.
 - Source readback only. No runtime tests, browser QA, keyboard/screen-reader checks or responsive device checks were run. No test pass is claimed. Backend source, CI workflows, PR state, merge and deployment were not changed.
+
+
+## Health request cancellation and compact viewport safeguards
+
+- Health checks now own an AbortController. Starting a replacement health check aborts the previous request; applying a new backend URL/token or clearing credentials aborts the active health request and invalidates its sequence before the connection state is reset.
+- The sequence guard remains in place so a late response cannot overwrite the current connection state even if a fetch implementation does not honor cancellation.
+- Narrow-screen CSS now constrains flex/grid children and filter controls to their available width, gives filter labels fluid sizing, and adds compact-viewport wrapping rules for screens at or below 360px.
+- Added explicit keyboard focus styling for brand/text links and dynamically generated table pager buttons, alongside existing input, navigation, and table-region focus states.
+- Added static contract checks for health cancellation on superseding requests and credential changes, plus responsive sizing and focus selectors. These checks have **not** been executed. No browser, mobile-device, screen-reader, or runtime network QA is claimed.
+- Frontend-only change: no backend files, CI workflows, PR state, merge, or deployment were changed.
