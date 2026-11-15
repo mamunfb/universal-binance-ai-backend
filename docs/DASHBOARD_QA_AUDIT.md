@@ -564,7 +564,7 @@ No merge, production deployment, backend/database mutation, secret change or `ma
 
 ## 30. Expanded Chromium API-failure and accessibility regression suite
 
-**Browser-test source checkpoint:** `4c74fe4dda019d68ffc8e6b7155150d41f048594`  
+**Browser-test source checkpoint:** `5e73bbbbcc88cc92d0335cae848eab446be689dd`  
 **Verification date:** 2026-11-15
 
 Expanded `tests/test_dashboard_browser.cjs` from four to eight independent Node/Playwright tests. New browser coverage includes:
@@ -573,7 +573,7 @@ Expanded `tests/test_dashboard_browser.cjs` from four to eight independent Node/
 - a JSON array where the health endpoint contract requires an object;
 - request timeout handling (the test shortens only the browser timer in its isolated page context and delays a mocked route);\n- changing the selected market while a scan is in flight cancels the stale request and prevents stale rendering;
 - initially closed mobile sidebar is inert;
-- document main/header/navigation landmarks;
+- document main/header landmarks and a navigation landmark with an explicit accessible name;
 - reduced-motion CSS behavior.
 
 Existing browser tests continue to cover the seven viewport widths, mobile keyboard focus wrapping, Escape/focus restoration, mocked health success, HTTP 503 and malformed JSON.
