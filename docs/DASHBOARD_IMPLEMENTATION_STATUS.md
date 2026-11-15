@@ -786,3 +786,12 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Invalid response shapes (null, arrays, and primitives) are rejected before the UI's previous evidence is replaced.
 - Added a static regression contract for the preservation and validation ordering. It has not been executed; browser/runtime behavior remains unverified.
 - Frontend-only. No backend, CI, PR, merge, or deployment changes.
+
+
+## Scanner incomplete-response and stale-coverage safeguards
+
+- Scanner responses without a recognized result array (symbols, markets, results, or data) now return an explicit incomplete-response status and leave the last successful table, summary, and coverage metadata untouched.
+- If a non-empty result array contains no valid object rows, the response is rejected before replacing the prior successful scan. A genuinely empty array remains a valid empty scan result; mixed valid/malformed arrays render valid rows and report the rejected-row count.
+- Successful Spot scan coverage now includes the requested quote-asset filter so the displayed coverage is easier to reconcile with the visible query.
+- Added static regression contracts for incomplete payload preservation, all-malformed-row rejection, and quote-filter coverage labeling. These tests have not been executed; runtime behavior remains unverified.
+- Frontend-only change. No backend source, CI, PR, merge, or deployment changes.
