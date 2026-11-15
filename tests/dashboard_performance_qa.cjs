@@ -63,7 +63,7 @@ const {chromium}=require("playwright");
     await page.locator('#page-spot-scanner .table-pager button[aria-label="Next scanner page"]').click();
     await page.getByText(/page 2\/10/).waitFor();
     await page.locator('#page-spot-scanner .table-pager button[aria-label="Previous scanner page"]').click();
-    await page.getByText(/page 1\/10/).waitFor();
+    await page.getByText(/page 1\/10/).waitFor();await settleScannerDom();
    }
    const repeatedCyclesMs=Date.now()-cycleStart;
    await cdp.send("HeapProfiler.collectGarbage");
