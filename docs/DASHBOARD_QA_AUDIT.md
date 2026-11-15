@@ -701,3 +701,19 @@ Commits:
 **Verification limit:** these are source-level harness corrections only. The profiler and GitHub Actions workflow have not yet produced a verified completed run or raw artifact in this audit. No navigation timing, Lighthouse score, heap result, or CPU benchmark is claimed.
 
 No application code, backend, database, secrets, `main`, PR merge state, staging or production deployment was changed.
+
+
+## 35. Performance workflow server-lifecycle fix (2026-11-15)
+
+The first real GitHub Actions execution exposed a workflow orchestration defect. Run #3 (`43723154352`, commit `f981683c31527a566c2ed2985b43eaa9b05fa86f`) successfully installed Playwright/Lighthouse, installed Chromium, and passed the initial static-server readiness step. Lighthouse then failed navigation to `http://127.0.0.1:4173/` with `net::ERR_ABORTED` / `FAILED_DOCUMENT_REQUEST`; the CPU/heap profiling step was skipped. The artifact-upload step did succeed, but its 17,131-byte archive contains only the partial first Lighthouse JSON output and is not valid performance evidence.
+
+**Root cause:** the workflow launched the static server in a separate GitHub Actions step. The runner cleans up background/orphan processes at step boundaries, so the server was no longer available to the following Lighthouse step. This was a workflow process-lifetime error, not an application defect.
+
+Corrected `.github/workflows/dashboard-performance-qa.yml` in commit `12d20a1e083fb631a9ea352d9ba0745b849faf91`:
+- Lighthouse step now starts its own loopback-only static server, checks readiness, runs all three samples while the server remains alive, then terminates it with an EXIT trap.
+- CPU/heap profiling step independently starts and checks its own static server, runs the profiler within the same shell step, then cleans up.
+- No server process is expected to persist across Actions step boundaries.
+
+Run #5 (`43723376649`) for the prior mobile-navigation correction was observed in progress at the time of inspection; its final result is not assumed. The workflow change above triggers a new feature-branch push run. That new run must complete and its logs/artifact must be inspected before any benchmark is considered measured.
+
+No Lighthouse score, Core Web Vitals, CPU timing or heap result is claimed from the failed run. No dashboard application, backend, database, secrets, `main`, PR merge state, staging or production deployment was changed.
