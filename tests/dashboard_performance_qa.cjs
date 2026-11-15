@@ -10,7 +10,8 @@ const {chromium}=require("playwright");
    const context=await browser.newContext({viewport:{width:390,height:844}}),page=await context.newPage();
    const cdp=await context.newCDPSession(page);await cdp.send("Performance.enable");await cdp.send("HeapProfiler.enable");await cdp.send("Emulation.setCPUThrottlingRate",{rate});
    const errors=[];page.on("pageerror",e=>errors.push(e.message));
-   const start=Date.now();const response=await page.goto("http://127.0.0.1:4173/",{waitUntil:"domcontentloaded"});const loadMs=Date.now()-start;\n   const contentType=response&&response.headers()["content-type"];if(!response||!response.ok()||!contentType||!contentType.includes("text/html"))throw new Error("Dashboard root did not return successful HTML (status="+(response&&response.status())+", content-type="+contentType+")");\n   await page.locator(".app-shell").waitFor({state:"visible"});
+   const start=Date.now();const response=await page.goto("http://127.0.0.1:4173/",{waitUntil:"domcontentloaded"});const loadMs=Date.now()-start;
+   const contentType=response&&response.headers()["content-type"];if(!response||!response.ok()||!contentType||!contentType.includes("text/html"))throw new Error("Dashboard root did not return successful HTML (status="+(response&&response.status())+", content-type="+contentType+")");\n   await page.locator(".app-shell").waitFor({state:"visible"});
    const nav=page.locator("#main-nav .nav-link"),count=await nav.count(),navSamples=[];
    for(let i=0;i<Math.min(count,12);i++){
     const link=nav.nth(i),pageName=await link.getAttribute("data-page");
