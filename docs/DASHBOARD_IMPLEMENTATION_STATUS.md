@@ -595,3 +595,8 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Stochastic RSI also validates the combined K/D smoothing lookback, in addition to its individual periods, preventing unsafe integer arithmetic in its index calculations.
 - Added regression tests for non-array inputs and invalid, fractional, negative and unsafe period values across the indicator series APIs. Tests have not been executed; source readback is not a substitute for runtime verification.
 
+## Defensive 3h aggregation input handling
+
+- The exported 3h aggregation helper now safely returns an empty result for non-array input and filters malformed candle objects before grouping. It validates finite OHLCV fields, safe integer timestamps, positive prices, non-negative volume and consistent OHLC bounds before aggregation.
+- Added regression coverage for non-array input, malformed candle objects, and a valid three-candle hourly group. These tests have not been executed; runtime verification remains outstanding.
+
