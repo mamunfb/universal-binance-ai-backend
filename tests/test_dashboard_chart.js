@@ -382,3 +382,22 @@ test("chart rendering handles signed indicator ranges and normalized zero baseli
   } finally { global.document = originalDocument; }
 });
 
+test("MACD series never exposes non-finite histogram values for extreme finite prices", () => {
+  const values = Array.from({length:160}, (_,i) => i%2 ? Number.MAX_VALUE*0.9 : Number.MAX_VALUE*0.01);
+  const result = charts.macdComponents(values);
+  for (const series of [result.line,result.signal,result.histogram]) {
+    assert.ok(series.every(value => value === null || Number.isFinite(value)));
+  }
+});
+
+test("Stochastic RSI rejects invalid periods without producing non-finite values", () => {
+  const values = Array.from({length:80}, (_,i) => 100+i);
+  for (const params of [[0,14,3,3],[14,0,3,3],[14,14,0,3],[14,14,3,0],[1.5,14,3,3],[Number.MAX_SAFE_INTEGER,2,3,3]]) {
+    const result = charts.stochRsiSeries(values,...params);
+    assert.ok(result.k.every(value => value === null || Number.isFinite(value)));
+    assert.ok(result.d.every(value => value === null || Number.isFinite(value)));
+    assert.equal(result.k.every(value => value === null),true);
+    assert.equal(result.d.every(value => value === null),true);
+  }
+});
+
