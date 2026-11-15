@@ -267,6 +267,11 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn("const sortedRows=sortable.map(entry=>entry.item)", self.js)
         self.assertNotIn('localeCompare(String(b?.symbol', self.js)
 
+    def test_scanner_numeric_sort_rejects_coercible_non_primitive_values(self) -> None:
+        self.assertIn("if(typeof value===\\\"number\\\")return Number.isFinite(value)?value:null", self.js)
+        self.assertIn("if(typeof value!==\\\"string\\\"||value.trim()===\\\"\\\")return null", self.js)
+        self.assertIn("const parsed=Number(value);return Number.isFinite(parsed)?parsed:null", self.js)
+
     def test_backend_error_details_are_sanitized_and_bounded(self) -> None:
         self.assertIn(r'detail.replace(/[\x00-\x1f\x7f]/g," ").replace(/\s+/g," ").trim().slice(0,300)', self.js)
         self.assertIn('Backend request failed (HTTP "+response.status+")', self.js)
