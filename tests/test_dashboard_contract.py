@@ -101,6 +101,12 @@ class DashboardContractTests(unittest.TestCase):
     def test_primary_coin_analysis_action_loads_candles(self) -> None:
         self.assertIn('$("load-coin-analysis").addEventListener("click",()=>withButton("load-coin-analysis",loadTechnical', self.js)
 
+    def test_atr_breaks_wilder_state_on_structurally_invalid_ohlc(self) -> None:
+        atr_body = self.chart_js.split("function atrSeries(", 1)[1].split("\\nfunction macdComponents", 1)[0]
+        self.assertIn("cur.high>=Math.max(cur.low,cur.close)", atr_body)
+        self.assertIn("prev.high>=Math.max(prev.low,prev.close)", atr_body)
+        self.assertIn("ATR rejects malformed current and previous OHLC candles", self.chart_test_js)
+
     def test_adx_breaks_segments_on_structurally_invalid_ohlc(self) -> None:
         adx_body = self.chart_js.split("function adxSeries(", 1)[1].split("\\nfunction stochRsiSeries", 1)[0]
         self.assertIn("candle.high>=Math.max(candle.low,candle.close)", adx_body)
