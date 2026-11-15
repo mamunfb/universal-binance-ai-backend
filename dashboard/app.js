@@ -27,7 +27,7 @@
   const showJson = (id, value) => { const el=$(id); if(el) el.textContent=json(value); };
   const setConnection = (ok, label) => { const dot=$("connection-dot"); dot.className="status-dot "+(ok?"good":"bad"); setText("connection-label",label); $("connection-banner").querySelector(".status-dot").className="status-dot "+(ok?"good":"bad"); $("connection-banner").querySelector("span:nth-child(2)").textContent=label; };
   function setSidebarOpen(open){
-    const sidebar=$("sidebar"),menu=$("mobile-menu"),mobile=window.matchMedia("(max-width:760px)").matches;
+    const sidebar=$("sidebar"),menu=$("mobile-menu"),mobile=window.matchMedia("(max-width:900px)").matches;
     if(!open&&mobile&&sidebar.contains(document.activeElement))menu.focus();
     sidebar.classList.toggle("open",Boolean(open&&mobile));
     menu.setAttribute("aria-expanded",String(Boolean(open&&mobile)));
@@ -396,7 +396,7 @@
     $("mobile-menu").addEventListener("click",()=>setSidebarOpen(!$("sidebar").classList.contains("open")));
     document.addEventListener("keydown",event=>{
       const sidebar=$("sidebar"),menu=$("mobile-menu");
-      if(!sidebar.classList.contains("open")||!window.matchMedia("(max-width:760px)").matches)return;
+      if(!sidebar.classList.contains("open")||!window.matchMedia("(max-width:900px)").matches)return;
       if(event.key==="Escape"){event.preventDefault();setSidebarOpen(false);return;}
       if(event.key!=="Tab")return;
       const focusable=Array.from(sidebar.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'))
