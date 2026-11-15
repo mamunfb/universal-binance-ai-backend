@@ -21,6 +21,14 @@
   const json = (value) => JSON.stringify(value,null,2);
   const showJson = (id, value) => { const el=$(id); if(el) el.textContent=json(value); };
   const setConnection = (ok, label) => { const dot=$("connection-dot"); dot.className="status-dot "+(ok?"good":"bad"); setText("connection-label",label); $("connection-banner").querySelector(".status-dot").className="status-dot "+(ok?"good":"bad"); $("connection-banner").querySelector("span:nth-child(2)").textContent=label; };
+  function setSidebarOpen(open){
+    const sidebar=$("sidebar"),menu=$("mobile-menu"),mobile=window.matchMedia("(max-width:760px)").matches;
+    if(!open&&mobile&&sidebar.contains(document.activeElement))menu.focus();
+    sidebar.classList.toggle("open",Boolean(open&&mobile));
+    menu.setAttribute("aria-expanded",String(Boolean(open&&mobile)));
+    sidebar.inert=mobile&&!open;
+    if(open&&mobile)sidebar.querySelector(".nav-link")?.focus();
+  }
   function navigate(page) {
     const known = PAGE_TITLES[page] ? page : "overview";
     if(known!=="coin-analysis")cancelAnalysisRequests();
@@ -30,8 +38,7 @@
     setText("page-crumb",title);
     if(!document.getElementById("page-"+known)) { setText("placeholder-title",title); setText("placeholder-description", "This research area is included in the approved dashboard scope. Its API capability must be verified before live data is shown."); }
     if(known==="coin-analysis") syncAnalysisHeader();
-    $("sidebar").classList.remove("open");
-    $("mobile-menu").setAttribute("aria-expanded","false");
+    setSidebarOpen(false);
     if(document.activeElement!==document.body){
       const target=(document.getElementById("page-"+known)||$("page-placeholder"))?.querySelector("h1");
       if(target){target.setAttribute("tabindex","-1");target.focus({preventScroll:true});}
@@ -246,8 +253,10 @@
   }
   function bind() {
     document.querySelectorAll(".nav-link").forEach(a=>a.addEventListener("click",e=>{e.preventDefault();const page=a.dataset.page; if(PAGE_TITLES[page] && document.getElementById("page-"+page)) navigate(page); else navigate(page); history.replaceState(null,"","#"+page);}));
-    $("mobile-menu").addEventListener("click",()=>{const open=$("sidebar").classList.toggle("open");$("mobile-menu").setAttribute("aria-expanded",String(open));if(open)$("sidebar").querySelector(".nav-link")?.focus();});
-    document.addEventListener("keydown",event=>{if(event.key==="Escape"&&$("sidebar").classList.contains("open")){$("sidebar").classList.remove("open");$("mobile-menu").setAttribute("aria-expanded","false");$("mobile-menu").focus();}});
+    setSidebarOpen(false);
+    $("mobile-menu").addEventListener("click",()=>setSidebarOpen(!$("sidebar").classList.contains("open")));
+    document.addEventListener("keydown",event=>{if(event.key==="Escape"&&$("sidebar").classList.contains("open"))setSidebarOpen(false);});
+    window.addEventListener("resize",()=>{if(!window.matchMedia("(max-width:760px)").matches)setSidebarOpen(false);});
     $("open-settings").addEventListener("click",()=>{navigate("settings");history.replaceState(null,"","#settings");});
     $("banner-settings").addEventListener("click",()=>navigate("settings"));
     $("refresh-page").addEventListener("click",()=>{const page=location.hash.slice(1)||"overview";if(page==="overview")withButton("refresh-page",async()=>{const results=await Promise.allSettled([loadHealth(),scanMarket(state.market)]);const failures=results.filter(result=>result.status==="rejected").map(result=>metadataText(result.reason?.message,"Request failed",120));if(failures.length)throw new Error("Overview refresh partially failed: "+failures.join(" · "));},"Refreshing");else if(page==="reliability")withButton("refresh-page",loadQuality,"Refreshing");else if(page==="coin-analysis")withButton("refresh-page",loadTechnical,"Refreshing");else toast("No verified refresh action is mapped for this page yet.");});
