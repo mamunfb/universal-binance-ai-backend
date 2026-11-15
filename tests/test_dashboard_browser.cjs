@@ -551,3 +551,26 @@ test("clearing backend credentials cancels an in-flight health check without sta
   assert.deepEqual(pageErrors, []);
   await context.close();
 });
+
+test("asynchronous dashboard status outputs retain polite atomic live-region semantics", async () => {
+  const {context, page, pageErrors} = await newPage(1280);
+  const statusIds = [
+    "connection-label",
+    "scan-state",
+    "health-status",
+    "chart-state",
+    "technical-summary",
+    "settings-status",
+    "quality-state"
+  ];
+  for (const id of statusIds) {
+    const status = page.locator("#" + id);
+    assert.equal(await status.getAttribute("role"), "status", id + " must expose status semantics");
+    assert.equal(await status.getAttribute("aria-live"), "polite", id + " must announce updates politely");
+    assert.equal(await status.getAttribute("aria-atomic"), "true", id + " must announce the complete status");
+  }
+  assert.equal(await page.locator("#toast-region").getAttribute("aria-live"), "polite",
+    "transient toast feedback must be exposed through a polite live region");
+  assert.deepEqual(pageErrors, []);
+  await context.close();
+});
