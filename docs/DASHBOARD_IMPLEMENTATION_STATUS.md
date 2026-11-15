@@ -726,3 +726,9 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Backend URL input is required and validated as an absolute URL. Remote backends must use HTTPS; HTTP is limited to localhost and 127.0.0.1. Embedded credentials, query parameters and fragments remain rejected.
 - Added static source-contract checks for inert sidebar behavior, resize/Escape handling and the validation rules. Runtime tests and browser/mobile QA have not been executed.
 
+
+## Responsive mobile navigation accessibility
+
+- The mobile sidebar now synchronizes its `inert` state on every viewport resize, not only when resizing to desktop. This prevents off-canvas navigation links from remaining keyboard-focusable after switching from desktop to a narrow viewport.
+- The menu control now announces “Open navigation” or “Close navigation” in step with its expanded state. Resizing closes the mobile drawer and restores the closed-state semantics.
+- Added a source-contract test for resize synchronization, sidebar inertness and the changing accessible label. Tests and browser/device accessibility checks have not been executed.
