@@ -285,6 +285,10 @@ class DashboardContractTests(unittest.TestCase):
 
     def test_scanner_display_metadata_accepts_only_safe_primitives(self) -> None:
         self.assertIn('function metadataText(value,fallback="Not supplied")', self.js)
+        self.assertIn("maxLength=160", self.js)
+        self.assertIn('textValue.length>maxLength?textValue.slice(0,maxLength-1)+"…":textValue', self.js)
+        self.assertIn('metadataText(data.source,"Backend response",120)', self.js)
+        self.assertIn('metadataText(data.status,metadataText(data.scan_status,"Returned",80),80)', self.js)
         self.assertIn('typeof value==="string"&&value.trim()!==""', self.js)
         self.assertIn('typeof value==="number"&&Number.isFinite(value)', self.js)
         self.assertIn('return fallback;', self.js)
