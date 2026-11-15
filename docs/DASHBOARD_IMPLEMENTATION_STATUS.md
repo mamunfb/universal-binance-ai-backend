@@ -466,3 +466,10 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - The established primary-alias precedence and displayed metric values are unchanged; conflicting aliases are not added together, averaged or silently substituted. Invalid count values remain excluded by the existing count validator.
 - This is a diagnostic for inconsistent response metadata, not an assertion that different count groups must satisfy a particular arithmetic relationship.
 - Added a Python static contract assertion for conflict detection and preservation of the existing count extraction path. GitHub source readback is the verification performed; runtime tests and browser QA have not been run.
+
+## Scanner metadata alias provenance
+
+- Scanner coverage now identifies which recognized source/timestamp field supplied the displayed metadata. Timestamp precedence remains `generated_at`, then `timestamp`, then `updated_at`; source currently reports the supplied `source` field.
+- Provenance is determined using the same primitive-only metadata acceptance rule as the displayed value. Invalid or blank higher-priority aliases do not appear as the selected field.
+- Timestamp values are deliberately displayed as supplied (with the existing length bound); the dashboard does not guess whether numeric values represent seconds, milliseconds or another unit, and does not reinterpret timezone-less strings.
+- Added a Python static contract assertion for the selected source and timestamp field labels. GitHub source readback is the verification performed; runtime tests and browser QA have not been run.
