@@ -230,3 +230,12 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Added a numerical fixture comparing the latest RSI and ATR series values against the compact indicator snapshot, plus static contract assertions for scanner/evidence/chart request invalidation and safe sorting.
 - Changes and tests were written to the frontend branch and source readback remains required. Node.js and Python suites have **not** been executed; no test-pass claim is made. Browser QA and live API integration remain outstanding.
 - No backend runtime, migrations, workflows, secrets, database or deployment configuration changed. No PR, merge, CI trigger or deployment was performed.
+
+
+## Technical-indicator deterministic reference fixtures
+
+- Added a monotonic one-directional OHLCV fixture that checks Wilder ADX warm-up alignment and the expected 100 reading once the directional-movement ratio is fully directional.
+- Added exact Stochastic RSI %K/%D warm-up-index assertions for the configured 14/14/3/3 periods.
+- Added a reproducible 20-value Bollinger population-standard-deviation reference fixture (mean 10.5; population variance 33.25) and checks for both bands.
+- Extended the static dashboard contract suite so these numerical fixtures cannot silently disappear.
+- These are test additions only; they have not been executed in this environment. Numerical correctness beyond these deterministic invariants remains subject to runtime test execution and independent reference comparison.
