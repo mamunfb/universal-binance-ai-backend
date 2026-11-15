@@ -32,6 +32,10 @@
     if(known==="coin-analysis") syncAnalysisHeader();
     $("sidebar").classList.remove("open");
     $("mobile-menu").setAttribute("aria-expanded","false");
+    if(document.activeElement!==document.body){
+      const target=(document.getElementById("page-"+known)||$("page-placeholder"))?.querySelector("h1");
+      if(target){target.setAttribute("tabindex","-1");target.focus({preventScroll:true});}
+    }
   }
   function apiHeaders() { const h={"Accept":"application/json"}; if(state.token) h.Authorization="Bearer "+state.token; return h; }
   async function api(path, {method="GET", body, timeout=20000, signal:externalSignal}={}) {
