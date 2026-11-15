@@ -1191,3 +1191,13 @@ Latest test commit: `49a0d374de2513537d292d183635e10ad63bd598`.
 **Validation status:** the changes are committed on the feature branch. No completed CI run or local Chromium execution has yet been verified for this commit; these new tests remain pending execution. Earlier CI success does not validate these newly added cases. Physical Android/iPhone testing and manual TalkBack/VoiceOver checks remain outstanding.
 
 No dashboard application source, backend business logic, database, secrets, `main`, PR metadata, or deployment configuration was changed.
+
+## 61. Health-request cancellation and stale-response regression coverage (2026-11-15)
+
+Added a Chromium browser regression case in `tests/test_dashboard_browser.cjs` for clearing backend credentials while a health request is in flight. The test observes the request's AbortSignal, waits for the mocked late response path to settle, and verifies that the cleared-credentials health message, disconnected status, and settings confirmation remain intact rather than being overwritten by stale request state.
+
+Test commit: `b6a203c315331531c16d537b8a570c3e0804802c` on `feat/institutional-dashboard-design`.
+
+**Validation status:** committed to the feature branch. This test has not yet been verified by a completed CI run or local Chromium execution; it remains pending execution. Earlier passing CI runs do not validate this new case. The automated case does not replace physical Android/iPhone testing or manual TalkBack/VoiceOver review.
+
+No dashboard application source, backend business logic, database, secrets, `main`, PR metadata, merge state, or deployment configuration was changed. No merge or deployment was performed.
