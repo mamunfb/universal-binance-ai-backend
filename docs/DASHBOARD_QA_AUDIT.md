@@ -560,3 +560,28 @@ The browser pass also verified the mobile keyboard focus correction: opening nav
 - Render still serves a different deployment branch; no feature-branch deployment was made.
 
 No merge, production deployment, backend/database mutation, secret change or `main` branch update was performed.
+
+
+## 30. Expanded Chromium API-failure and accessibility regression suite
+
+**Browser-test source checkpoint:** `da987a384c55ac257c7ebecaa077fd88f60dba33`  
+**Verification date:** 2026-11-15
+
+Expanded `tests/test_dashboard_browser.cjs` from four to seven independent Node/Playwright tests. New browser coverage includes:
+- network-level request failure;
+- successful HTTP status with an empty response body;
+- a JSON array where the health endpoint contract requires an object;
+- request timeout handling (the test shortens only the browser timer in its isolated page context and delays a mocked route);
+- initially closed mobile sidebar is inert;
+- document main/header/navigation landmarks;
+- reduced-motion CSS behavior.
+
+Existing browser tests continue to cover the seven viewport widths, mobile keyboard focus wrapping, Escape/focus restoration, mocked health success, HTTP 503 and malformed JSON.
+
+**Important evidence boundary:** the new test file is committed, but no completed GitHub Actions job log has yet been retrieved for this expanded seven-test checkpoint. Therefore none of the newly added cases is recorded as passed here. The previous 4/4 browser result applies only to the earlier source checkpoint in Section 29.
+
+The API cases use browser route mocks and a local static dashboard server; they do not exercise a live backend. No production endpoint, credentials, trading action, database, deployment, or main-branch state is touched by these tests.
+
+Next verification is to inspect the browser workflow's actual runner allocation, step records, and test log for this checkpoint. Only after the log shows all seven tests passing should this section be upgraded to a pass result.
+
+No merge, production deployment, backend/database mutation, secret change, or `main` branch update was performed.
