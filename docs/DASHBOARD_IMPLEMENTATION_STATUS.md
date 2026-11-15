@@ -521,3 +521,11 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Quality refresh now explicitly says the previous report is retained while the requested symbol and interval are loading. The prior report output is only replaced after a current successful response.
 - Changing the Spot quote filter invalidates any in-flight scanner request and now updates the scanner status as well as coverage text, making clear that previous results remain and a new scan is required.
 - Added static contract assertions for these three lifecycle states. GitHub source readback is the verification performed; runtime tests and browser QA have not been run.
+
+
+## Backend and market changes clear stale loading indicators
+
+- Applying new backend connection details invalidates in-flight work and resets the health indicator to Not checked; the connection indicator no longer carries forward a success state from the previously configured backend.
+- Clearing credentials resets health, scanner and quality states so an invalidated request cannot leave a misleading loading label or an old backend status on screen.
+- Changing the scanner market through either market tabs or the default-market setting now replaces an invalidated scan loading state with an explicit instruction to run a new scan.
+- Added static contract coverage for backend reconfiguration, credential clearing and market-selection invalidation. These checks are source-level assertions; runtime tests and browser QA remain outstanding.
