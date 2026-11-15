@@ -131,7 +131,8 @@ class DashboardAccessibilityContractTests(unittest.TestCase):
     def test_mobile_navigation_restores_focus_and_closes_on_escape(self) -> None:
         sidebar = self.js.split("function setSidebarOpen(open)", 1)[1].split("function navigate", 1)[0]
         self.assertIn("if(!open&&mobile&&sidebar.contains(document.activeElement))menu.focus()", sidebar)
-        self.assertIn('if(open&&mobile)sidebar.querySelector(".nav-link")?.focus()', sidebar)
+        self.assertIn("if(open&&mobile)sidebar.querySelector(", sidebar)
+        self.assertIn('[tabindex]:not([tabindex="-1"])', sidebar)
         self.assertIn('if(event.key==="Escape"){event.preventDefault();setSidebarOpen(false);return;}', self.js)
         self.assertIn("if(event.shiftKey&&(active===first||!sidebar.contains(active)))", self.js)
         self.assertIn("else if(!event.shiftKey&&(active===last||!sidebar.contains(active)))", self.js)
