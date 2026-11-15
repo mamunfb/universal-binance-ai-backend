@@ -808,3 +808,17 @@ Heap snapshots were captured after the navigation sequence and forced garbage co
 - No live backend fault testing was performed; the harness intentionally runs without backend credentials or external services.
 
 This is the first accepted performance evidence in this audit. Continue with deterministic 1,000-row scanner fixture timing, repeated interaction/cleanup heap comparisons, and manual accessibility/mobile verification before declaring the dashboard fully performance- or accessibility-certified.
+
+
+## 40. Deterministic 1,000-row scanner benchmark harness (2026-11-15)
+
+Extended `tests/dashboard_performance_qa.cjs` in commit `6bee57edfe9f4d11ef77ff389d9afb43025330df` to exercise the real dashboard scanner UI with a deterministic, browser-intercepted 1,000-row fixture. The fixture is isolated to `https://qa.invalid` routes intercepted by Playwright; no live backend, API credentials, Binance endpoint, or production service is contacted.
+
+For each CPU setting (1x and 4x), the harness now:
+- Applies the mock backend URL through the dashboard Settings UI and verifies the mocked health response.
+- Runs the real Spot Scanner UI against 1,000 synthetic row objects.
+- Records scan-to-visible-rows, sort, search, and pagination timings and visible row counts.
+- Repeats five search/clear/sort/page-forward/page-back cycles.
+- Forces garbage collection and captures baseline and post-cycle heap metrics/snapshots for comparison.
+
+Run #13 (`43725367464`, commit `6bee57edfe9f4d11ef77ff389d9afb43025330df`) was still in progress at the latest inspection; Chromium installation was ongoing and no fixture benchmark result is available yet. Do not infer a pass from the earlier Run #12, which predates this expanded fixture.
