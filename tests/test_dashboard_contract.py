@@ -106,6 +106,13 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn("indicator series align to candles", source)
         self.assertIn("macdComponents", source)
 
+    def test_chart_parser_rejects_blank_numbers_and_duplicate_timestamps(self) -> None:
+        self.assertIn('v.trim()===""', self.chart_js)
+        self.assertIn("counts.get(candle.time)===1", self.chart_js)
+        source = (ROOT / "tests" / "test_dashboard_chart.js").read_text(encoding="utf-8")
+        self.assertIn("whitespace-only numeric fields and all duplicate candle timestamps", source)
+        self.assertIn("flat candles produce neutral Stochastic RSI and zero ADX", source)
+
     def test_chart_parser_rejects_invalid_values_and_uses_wilder_atr(self) -> None:
         self.assertIn("Object.values(c).every(Number.isFinite)", self.chart_js)
         self.assertIn("c.volume>=0", self.chart_js)
