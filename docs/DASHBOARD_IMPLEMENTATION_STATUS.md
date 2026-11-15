@@ -706,3 +706,9 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Pagination now restores focus to the corresponding enabled Previous/Next control after rerendering the pager, and each control identifies the table body it controls. If the requested direction becomes unavailable at a boundary, focus falls back to the remaining enabled pager control.
 - Added static source-contract coverage for the three named tables, 16 column headers, keyboard-scroll focus styling and pager focus restoration. No browser/screen-reader QA has been performed; tests have not been executed.
 
+## Credential-change cancellation hardening
+
+- Applying a new backend connection or clearing stored-in-memory credentials now calls the shared analysis cancellation path. This invalidates the active analysis sequence, aborts an in-flight chart load, and aborts an in-flight market-evidence fetch instead of merely ignoring its eventual response.
+- Health request sequence invalidation remains separate, and scanner/quality invalidation continues to run as before.
+- Added a static contract test covering both credential-change paths and the market-evidence abort controller. Tests have not been executed.
+
