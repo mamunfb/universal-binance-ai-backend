@@ -444,3 +444,11 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Status and timestamp aliases continue to use the existing precedence, while invalid primary aliases can fall back to a valid secondary alias.
 - Count fields retain their separate non-negative safe-integer validation.
 - Added static contract assertions for the metadata formatter and its use in summary and coverage output. GitHub readback is the verification performed; runtime tests and browser QA remain unexecuted.
+
+
+## Scanner metadata display length bounds
+
+- Backend-provided status, source and timestamp labels are now length-bounded before display, in addition to the existing primitive-type checks.
+- Status text is capped at 80 characters, source text at 120 characters and timestamp text at 80 characters; longer values are visibly truncated with an ellipsis. This prevents unexpectedly large metadata strings from overwhelming compact summary and coverage areas.
+- Numeric metadata remains limited to finite numbers, and invalid types continue to use the configured fallback. Raw API payloads remain available in the existing response inspection paths where applicable.
+- Added static contract assertions for truncation behavior and field-specific limits. GitHub source readback is the verification performed; runtime tests and browser QA remain unexecuted.
