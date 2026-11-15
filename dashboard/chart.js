@@ -167,17 +167,17 @@ function stochRsiSeries(values,rsiPeriod=14,stochPeriod=14,smoothK=3,smoothD=3){
   while(minDeque.length>minHead&&rsi[minDeque[minDeque.length-1]]>=current)minDeque.pop();
   while(maxDeque.length>maxHead&&rsi[maxDeque[maxDeque.length-1]]<=current)maxDeque.pop();
   minDeque.push(i);maxDeque.push(i);
-  if(validRun>=stochPeriod){const lo=rsi[minDeque[minHead]],hi=rsi[maxDeque[maxHead]];raw[i]=hi===lo?50:(current-lo)/(hi-lo)*100;}
+  if(validRun>=stochPeriod){const lo=rsi[minDeque[minHead]],hi=rsi[maxDeque[maxHead]];raw[i]=hi===lo?50:Math.min(100,Math.max(0,(current-lo)/(hi-lo)*100));}
  }
  let kRun=0,kSum=0,dRun=0,dSum=0;
  for(let i=0;i<length;i++){
   if(Number.isFinite(raw[i])){
    kRun++;kSum+=raw[i];if(kRun>smoothK)kSum-=raw[i-smoothK];
-   if(kRun>=smoothK)k[i]=kSum/smoothK;
+   if(kRun>=smoothK)k[i]=Math.min(100,Math.max(0,kSum/smoothK));
   }else{kRun=0;kSum=0;}
   if(Number.isFinite(k[i])){
    dRun++;dSum+=k[i];if(dRun>smoothD)dSum-=k[i-smoothD];
-   if(dRun>=smoothD)d[i]=dSum/smoothD;
+   if(dRun>=smoothD)d[i]=Math.min(100,Math.max(0,dSum/smoothD));
   }else{dRun=0;dSum=0;}
  }
  return{k,d};
