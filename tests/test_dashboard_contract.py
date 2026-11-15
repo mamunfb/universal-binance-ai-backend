@@ -14,10 +14,13 @@ class _Ids(HTMLParser):
     def __init__(self) -> None:
         super().__init__()
         self.ids: set[str] = set()
+        self.duplicates: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         for key, value in attrs:
             if key == "id" and value:
+                if value in self.ids:
+                    self.duplicates.append(value)
                 self.ids.add(value)
 
 
@@ -42,6 +45,12 @@ class DashboardContractTests(unittest.TestCase):
     def test_javascript_dom_id_references_exist(self) -> None:
         references = set(re.findall(r'\$\("([^"]+)"\)', self.js))
         self.assertFalse(references - self.ids, sorted(references - self.ids))
+
+    def test_html_ids_are_unique_and_chart_script_loads_before_app(self) -> None:
+        parser = _Ids()
+        parser.feed(self.html)
+        self.assertEqual(parser.duplicates, [])
+        self.assertLess(self.html.index('src="./chart.js"'), self.html.index('src="./app.js"'))
 
     def test_complete_timeframe_set_is_present(self) -> None:
         expected = {"1m", "3m", "5m", "15m", "30m", "1h", "2h", "3h", "4h", "6h", "8h", "12h", "1D", "3D", "1W", "1M"}
