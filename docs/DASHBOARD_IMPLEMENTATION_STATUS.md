@@ -831,3 +831,11 @@ This branch is frontend-only. Do not add backend changes here. Do not add tradin
 - Cell content continues to be assigned through `textContent`; no backend payload is inserted as HTML.
 - Added a source-contract regression test for malformed numeric and structured values. The Python test suite has not been executed; browser/runtime rendering remains unverified.
 - Frontend-only. No backend source, CI workflow, PR state, merge, or deployment was changed.
+
+
+## Scanner table DOM insertion batching
+
+- Scanner pagination still renders only the current page (100 rows), and row/cell content remains created with DOM APIs and assigned through `textContent`.
+- The current page's rows are now assembled in a detached `DocumentFragment` and appended to the table body once, including the empty-state row. This avoids one live table-body append per row; no measured performance improvement is claimed because browser profiling has not been run.
+- Added a source-contract regression check for fragment construction, row accumulation and the single body append. The Python suite has not been executed and large-market browser profiling remains outstanding.
+- Frontend-only. No backend source, CI workflow, PR state, merge, or deployment was changed.
