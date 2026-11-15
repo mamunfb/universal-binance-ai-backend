@@ -1149,3 +1149,18 @@ The final documentation commit `13245e7a18609413519683b122a565bd0f740e0a` was al
 - Dashboard markup/script checks and both JavaScript syntax checks passed.
 
 This confirms that the latest branch-head commit at the time of this entry passed the full test workflow. The warnings are the same two non-fatal deprecation warnings described in section 55. No application code was changed by the documentation-only commits.
+
+
+
+## 58. Narrow-mobile responsive viewport regression coverage (2026-11-15)
+
+Expanded the automated responsive-layout test in `tests/test_dashboard_browser.cjs` from seven viewport widths to ten: **320, 344, 360, 390, 480, 760, 768, 900, 1100, and 1280 CSS pixels**. The test checks both document and body scroll widths against the viewport and asserts there are no uncaught browser page errors. This specifically exercises the existing narrow-screen CSS rules below 360px without changing dashboard application CSS or behavior.
+
+The test-only commit is `b2334a35f2c07730ae01ffc3970c2997b482526e` on `feat/institutional-dashboard-design`.
+
+Two independent GitHub Actions workflows completed successfully on that exact commit:
+
+- [Dashboard browser QA Run 43735279472](https://github.com/mamunfb/universal-binance-ai-backend/actions/runs/43735279472): **10 passed, 0 failed, 0 cancelled, 0 skipped**. The responsive viewport test passed at all ten widths; the existing mobile sidebar keyboard/focus, API error/timeout/cancellation, 1,000-row scanner keyboard/pagination, and axe WCAG 2.1 A/AA checks also passed.
+- [Backend and dashboard tests Run 43735279349](https://github.com/mamunfb/universal-binance-ai-backend/actions/runs/43735279349): **634 passed, 0 failed, 2 warnings in 4.46 seconds**. Dashboard document/script reference validation and JavaScript syntax checks also passed. The two warnings are the previously documented non-fatal deprecations.
+
+This is Chromium automation on the CI runner, not a physical-device test. Manual screen-reader/assistive-technology verification and production-user performance monitoring remain outstanding. Only the browser test viewport list and this audit document were changed; no dashboard application source, backend logic, database, secrets, `main`, PR merge state, staging, or production deployment was changed.
