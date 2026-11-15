@@ -26,6 +26,16 @@ test("parse sorts valid OHLCV rows and rejects null, malformed and impossible ca
   assert.equal(parsed[0].close, 100);
 });
 
+test("parse rejects unsafe and out-of-range JavaScript date timestamps", () => {
+  const parsed = charts.parse([
+    candle(Number.MAX_SAFE_INTEGER + 1, 100),
+    [8640000000000001, 100, 101, 99, 100, 1, 8640000000000001],
+    [0, 100, 101, 99, 100, 1, Number.MAX_SAFE_INTEGER + 1],
+    candle(3600000, 102)
+  ]);
+  assert.deepEqual(parsed.map(row => row.time), [3600000]);
+});
+
 test("parse rejects whitespace-only numeric fields and all duplicate candle timestamps", () => {
   const parsed = charts.parse([
     candle(0, 100),
@@ -152,6 +162,20 @@ test("MACD signal and histogram are derived from the aligned MACD line", () => {
   assert.ok(Number.isFinite(latest.histogram));
 });
 
+
+test("chart load rejects non-object payloads and missing klines without replacing the prior chart", async () => {
+  const host = { replaceChildren() {}, append() {} };
+  const summary = { textContent: "" };
+  const output = { textContent: "" };
+  const state = { textContent: "" };
+  const originalDocument = global.document;
+  global.document = { getElementById(id) { return id === "chart-placeholder" ? host : id === "technical-summary" ? summary : id === "analysis-output" ? output : state; }, createElement() { return { setAttribute() {}, append() {}, appendChild() {}, style: {} }; }, createElementNS() { return { setAttribute() {}, append() {}, appendChild() {}, style: {} }; } };
+  try {
+    await assert.rejects(charts.load(async () => [], "SPOT", "BTCUSDT", "1h"), /invalid response shape/);
+    await assert.rejects(charts.load(async () => ({ candles: [] }), "SPOT", "BTCUSDT", "1h"), /klines array/);
+    assert.equal(output.textContent, "");
+  } finally { global.document = originalDocument; }
+});
 
 test("latest RSI and ATR series values match the compact indicator snapshot", () => {
   const values = Array.from({length:80}, (_,i) => 120 + Math.sin(i/4)*3 + i*0.12);
