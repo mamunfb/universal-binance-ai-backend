@@ -2,7 +2,7 @@
 
 **Repository:** `mamunfb/universal-binance-ai-backend`  
 **Frontend branch:** `feat/institutional-dashboard-design`  
-**Current branch head at this checkpoint:** `67f2e68b512a20bfc1b49c79ff2dc64e40d8c966`  
+**Current branch head at this checkpoint:** `c0b7ea0c5b15398d8b029683eed167c377c85f44`  
 **Backend changes:** None in this branch.
 
 ## Completed in this work session
@@ -27,6 +27,21 @@
 - Branch comparison against `main`: frontend/dashboard docs/test files only; no backend Python, migrations, workflows, secrets or deployment files changed.
 - Spot scan route and response fields checked against the backend source at the inspected `main` baseline.
 - Spot, USDⓈ-M and COIN-M kline route signatures checked against the backend source.
+
+## Additional implementation — scanner interaction pass
+
+- Added client-side sorting to the Spot, USDⓈ-M and COIN-M result tables. Numeric-looking values sort numerically; other fields sort case-insensitively with numeric-aware text ordering.
+- Added bounded 100-row pagination to each scanner table, with Previous/Next controls and an explicit matching-versus-returned row count.
+- Changed Spot search to filter the complete returned in-memory result set before pagination, rather than hiding only currently rendered DOM rows.
+- Added accessible `aria-sort` state to sortable column headers.
+- Extended the static contract tests to assert scanner sorting, pagination and full-result filtering hooks.
+
+## Verification status for this pass
+
+- GitHub Contents API confirmed both file updates were committed on `feat/institutional-dashboard-design`.
+- The new Python assertions have **not** yet been executed; they are test coverage added, not a passing test result.
+- No live scan payload, browser interaction, performance/virtualization or accessibility run was performed. Pagination limits DOM rows to 100 at a time, but the full response remains in browser memory.
+- No backend files, CI workflows, database files, secrets or deployment settings were changed. No PR, merge or deployment was performed.
 
 ## Not yet verified / remaining work
 
