@@ -1310,3 +1310,31 @@ Validation:
 - The live integration workflow has not yet completed a live run because the exact Cloudflare Pages Preview URL and repository Actions variables are not yet configured. Therefore no live Render/Cloudflare browser pass is claimed.
 
 Outstanding: configure the exact Preview and Render URLs as repository Actions variables, then push a relevant feature-branch change to trigger the live workflow, test authenticated endpoints and preflight only after confirming safe CORS/API-key configuration, then perform physical Android/iOS and manual TalkBack/VoiceOver checks. No `main` update, PR creation/merge, deployment, Render setting change, CORS allowlist change, secret change, or backend/database logic change was performed.
+
+## 32. Latest feature-branch CI and live-integration gate (2026-11-16)
+
+Latest verified feature-branch head at this checkpoint: `78a277bcb0e1cd219f3b665ba806bb5e5986d82d`.
+
+Backend + Dashboard workflow Run #43791191613 completed successfully on that exact commit:
+- Job `133049802099` completed successfully on the GitHub-hosted Ubuntu runner.
+- Dashboard HTML structure and both local script references were validated.
+- `node --check dashboard/app.js` and `node --check dashboard/chart.js` passed.
+- The full Python suite completed: **640 passed, 2 warnings** in 10.18 seconds.
+- Warnings are deprecation warnings from Starlette/httpx TestClient usage and a FastAPI `example` parameter.
+- The generic Python test step was skipped by its workflow condition; the full Python + Chromium feature-branch QA step ran and passed.
+
+Run evidence: https://github.com/mamunfb/universal-binance-ai-backend/actions/runs/43791191613
+
+The separate Dashboard Live Integration QA workflow Run #43791165393 completed its configuration-check job, but the actual cross-origin Chromium job was **skipped** because the repository Actions variables `DASHBOARD_PREVIEW_URL` and `RENDER_BACKEND_URL` were not configured. This is not a live Render/Cloudflare integration pass.
+
+The live smoke test currently checks a 390x844 Chromium viewport, opens the supplied dashboard URL, configures the supplied backend origin without an API token, and verifies the public health endpoint's success state. It does not test authenticated endpoints or OPTIONS preflight. The exact Cloudflare Pages preview URL remains unverified.
+
+Run evidence: https://github.com/mamunfb/universal-binance-ai-backend/actions/runs/43791165393
+
+### Remaining live verification
+1. Set exact HTTPS repository Actions variables `DASHBOARD_PREVIEW_URL` and `RENDER_BACKEND_URL` after confirming the real Pages preview URL.
+2. Allow the feature-branch push workflow to run the live Chromium smoke test; inspect its job log, not only the overall run conclusion.
+3. Separately verify authenticated API calls and CORS preflight with an approved test credential in GitHub Actions secrets; never put credentials in repository variables or logs.
+4. Keep physical Android/TalkBack and iOS/VoiceOver checks marked pending until performed on real devices.
+
+No production deployment, staging deployment, PR creation/merge, main-branch update, Render configuration change, or wildcard CORS allowance was performed.
