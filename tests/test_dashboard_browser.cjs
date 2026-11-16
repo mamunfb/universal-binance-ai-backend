@@ -628,8 +628,8 @@ test("a newer market scan wins when an older scan response arrives late", async 
 
   assert.equal(await page.locator("#usdm-rows tr").first().locator("td").first().innerText(), "CURRENTUSDT",
     "the late Spot response must not replace the latest USDⓈ-M results");
-  assert.equal(await page.locator("#spot-rows tr").first().locator("td").first().innerText(), "No scan data loaded.",
-    "the superseded Spot response must not replace the initial empty state with stale rows");
+  assert.equal(await page.locator("#spot-rows").getByText("STALESPOTUSDT").count(), 0,
+    "the superseded Spot response must not render stale market rows");
   assert.equal(await page.locator("#global-market").inputValue(), "USD_M");
   assert.equal(await page.locator("#scan-state").innerText(), "Response received");
   assert.deepEqual(pageErrors, []);
