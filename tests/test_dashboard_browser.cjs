@@ -70,6 +70,32 @@ test("responsive layout has no horizontal overflow at supported viewport widths"
   }
 });
 
+test("keyboard Tab navigation exposes a visible focus indicator on the first dashboard link", async () => {
+  const {context, page, pageErrors} = await newPage(390, 844);
+  await page.keyboard.press("Tab");
+
+  const focus = await page.evaluate(() => {
+    const element = document.activeElement;
+    const style = element ? getComputedStyle(element) : null;
+    return {
+      tag: element?.tagName,
+      className: element?.className,
+      outlineStyle: style?.outlineStyle,
+      outlineWidth: style?.outlineWidth,
+      outlineColor: style?.outlineColor
+    };
+  });
+
+  assert.equal(focus.tag, "A", "the first Tab stop should be the dashboard brand link");
+  assert.match(String(focus.className), /brand/);
+  assert.equal(focus.outlineStyle, "solid", "keyboard focus must have a visible outline");
+  assert.equal(focus.outlineWidth, "2px", "keyboard focus outline must be at least 2 CSS pixels");
+  assert.notEqual(focus.outlineColor, "rgba(0, 0, 0, 0)",
+    "keyboard focus outline must not be transparent");
+  assert.deepEqual(pageErrors, []);
+  await context.close();
+});
+
 test("mobile sidebar opens, traps keyboard focus, closes with Escape and restores focus", async () => {
   const {context, page} = await newPage(390);
   const menu = page.locator("#mobile-menu");
