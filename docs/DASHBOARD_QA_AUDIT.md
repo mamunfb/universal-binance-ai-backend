@@ -1556,3 +1556,23 @@ The two warnings remain dependency deprecations (Starlette TestClient/httpx inte
 Audit heading reconciliation: the earlier two additions had been appended after historical Section 69 but mistakenly reused the labels 41 and 42. Their headings are now corrected to Sections 70 and 71, preserving the existing historical sections and restoring a continuous sequence.
 
 No production deployment, Render configuration change, secret change, PR merge, or `main` update occurred.
+
+
+## 73. Latest audit-head CI verification (2026-11-16)
+
+Backend and Dashboard workflow Run #1919 verified the current feature-branch head:
+- Run ID: `43795187369`
+- Commit: `1938a82d15d4edb7ae12e54577eda269b811aa97`
+- Conclusion: **success**; job `133062330797` completed successfully.
+- Full feature-branch pytest suite: **667 passed, 2 warnings in 11.01s**.
+- Dashboard HTML validation confirmed both local script references.
+- JavaScript syntax checks passed for `dashboard/app.js`, `dashboard/chart.js`, and `tests/dashboard_live_integration.cjs`.
+- Playwright Chromium setup and the full feature-branch Python + browser QA step completed successfully. The separate Python-only step is intentionally skipped to avoid duplicate suite execution.
+
+The two warnings remain dependency deprecations (Starlette TestClient/httpx integration and FastAPI's deprecated `example` parameter). They did not fail the suite.
+
+The adjacent Run #1918 (`43795178051`, preceding commit `2c603f4...`) was cancelled when the newer head run superseded it; it is not the final-head validation. The final-head Run #1919 is successful.
+
+The live Cloudflare Pages → Render workflow Run #10 (`43794555831`) had a successful configuration-check job, but its live cross-origin Chromium job was **skipped** because the required exact HTTPS repository variables were unavailable. The live authenticated health/API/preflight integration is therefore still unverified. The required owner-managed inputs remain `DASHBOARD_PREVIEW_URL`, `RENDER_BACKEND_URL`, and masked secret `DASHBOARD_QA_BEARER_TOKEN`; do not put the token in a repository variable, source file, or chat.
+
+Current branch-head verification: `feat/institutional-dashboard-design` points to `1938a82d15d4edb7ae12e54577eda269b811aa97`. The `main` ref remains `0e3b921ab83e18d4999c1eac87f45285a0f27b26`. No PR merge, Render configuration/secret change, wildcard CORS, or production/staging deployment was performed.
