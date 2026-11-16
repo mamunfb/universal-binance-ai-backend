@@ -67,6 +67,12 @@ const {chromium}=require("playwright");
    await page.locator('table[aria-label="Spot market scan results"] thead th').nth(4).click();await page.waitForFunction(()=>document.querySelector('table[aria-label="Spot market scan results"] thead th:nth-child(5)')?.getAttribute("aria-sort")==="ascending");await settleScannerDom();
    await cdp.send("HeapProfiler.collectGarbage");
    const finalMetrics=await readMetrics();
+   const failedApiEvents=apiEvents.filter(event=>event.type==="requestfailed"||(event.type==="response"&&event.status!==200));
+   if(errors.length)throw new Error("Browser page errors during performance QA: "+JSON.stringify(errors));
+   if(failedApiEvents.length)throw new Error("Mock API request failures or non-200 responses: "+JSON.stringify(failedApiEvents));
+   const openSidebarNavigations=navSamples.filter(sample=>!sample.sidebar_closed);
+   if(openSidebarNavigations.length)throw new Error("Sidebar remained open after navigation: "+JSON.stringify(openSidebarNavigations));
+   if(visibleRows!==100||searchRows!==1)throw new Error("Scanner row-count regression: visible="+visibleRows+", search="+searchRows);
    results.samples.push({cpu_throttle:rate,initial_navigation_ms:loadMs,navigation_samples:navSamples,scanner_fixture:{rows:fixtureRows.length,visible_rows_first_page:visibleRows,scan_render_ms:scanRenderMs,sort_ms:sortMs,search_ms:searchMs,search_visible_rows:searchRows,pagination_ms:paginationMs,repeated_5_cycle_ms:repeatedCyclesMs,heap_used_before_cycles_bytes:baselineMetrics.JSHeapUsedSize,heap_used_after_cycles_bytes:finalMetrics.JSHeapUsedSize,gc_heap_delta_bytes:finalMetrics.JSHeapUsedSize-baselineMetrics.JSHeapUsedSize,dom_nodes_before_cycles:baselineMetrics.Nodes,dom_nodes_after_cycles:finalMetrics.Nodes,dom_nodes_delta:finalMetrics.Nodes-baselineMetrics.Nodes},heap_used_bytes:finalMetrics.JSHeapUsedSize,heap_total_bytes:finalMetrics.JSHeapTotalSize,dom_nodes:finalMetrics.Nodes,page_errors:errors});
    await context.close();
   }
