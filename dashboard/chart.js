@@ -206,21 +206,24 @@ function drawLinePanel(title,values,{min=null,max=null,zero=false}={}){
  panel.append(svg);return panel;
 }
 function render(c){
- const host=document.getElementById("chart-placeholder");host.replaceChildren();
- if(!Array.isArray(c)||!c.length){host.textContent="No complete candle data returned.";return;}
- const a=c.slice(-120),w=1000,h=370,left=20,right=900,top=18,bottom=252,volTop=278,volBottom=332,axisY=352;
- const hi=Math.max(...a.map(x=>x.high)),lo=Math.min(...a.map(x=>x.low));
- if(!Number.isFinite(hi)||!Number.isFinite(lo)||hi<=0||lo<=0){host.textContent="Candle price range is invalid.";return;}
- const scale=Math.max(Math.abs(hi),Math.abs(lo),1),low=lo/scale,span=hi/scale-low||1,maxVol=Math.max(...a.map(x=>x.volume)),step=(right-left)/a.length,cw=Math.max(2,Math.min(9,step*.62));
- const y=v=>bottom-(v/scale-low)/span*(bottom-top),fmt=v=>new Intl.NumberFormat(undefined,{maximumSignificantDigits:7}).format(v);
- const svg=document.createElementNS(ns,"svg");svg.setAttribute("viewBox","0 0 "+w+" "+h);svg.setAttribute("role","img");svg.setAttribute("aria-label","OHLC candlestick chart with volume");svg.style.width="100%";svg.style.height="auto";
- const frag=document.createDocumentFragment(),add=(tag,attrs)=>{const el=document.createElementNS(ns,tag);Object.entries(attrs).forEach(([k,v])=>el.setAttribute(k,String(v)));frag.append(el);return el;};
- for(let i=0;i<=4;i++){const v=hi-(hi-lo)*i/4,gy=top+(bottom-top)*i/4;add("line",{x1:left,y1:gy,x2:right,y2:gy,stroke:"#26364c","stroke-width":1});const t=add("text",{x:912,y:gy+4,fill:"#91a2ba","font-size":11});t.textContent=fmt(v);}
- for(let i=0;i<=2;i++){const gy=volTop+(volBottom-volTop)*i/2;add("line",{x1:left,y1:gy,x2:right,y2:gy,stroke:"#1d2c40","stroke-dasharray":"3 5"});}
- a.forEach((candle,i)=>{const cx=left+i*step+step/2,color=candle.close>=candle.open?"#16b887":"#ea5965",wick=add("line",{x1:cx,y1:y(candle.high),x2:cx,y2:y(candle.low),stroke:color,"stroke-width":1.35}),body=add("rect",{x:cx-cw/2,y:Math.min(y(candle.open),y(candle.close)),width:cw,height:Math.max(1,Math.abs(y(candle.open)-y(candle.close))),fill:color}),vh=maxVol>0?candle.volume/maxVol*(volBottom-volTop):0,volume=add("rect",{x:cx-cw/2,y:volBottom-vh,width:cw,height:vh,fill:color,opacity:.58}),date=new Date(candle.time),stamp=Number.isFinite(date.getTime())?date.toISOString():"Unknown time",tip="Time: "+stamp+" | O: "+fmt(candle.open)+" | H: "+fmt(candle.high)+" | L: "+fmt(candle.low)+" | C: "+fmt(candle.close)+" | Volume: "+fmt(candle.volume);[wick,body,volume].forEach(el=>{const title=document.createElementNS(ns,"title");title.textContent=tip;el.append(title);});});
- const vol=add("text",{x:left,y:volTop-8,fill:"#91a2ba","font-size":10});vol.textContent="VOLUME";
- [0,Math.floor((a.length-1)/2),a.length-1].filter((v,i,arr)=>arr.indexOf(v)===i).forEach(i=>{const d=new Date(a[i].time),label=Number.isFinite(d.getTime())?new Intl.DateTimeFormat(undefined,{month:"short",day:"2-digit",hour:"2-digit",minute:"2-digit",timeZone:"UTC"}).format(d):"",t=add("text",{x:left+i*step+step/2,y:axisY,fill:"#91a2ba","font-size":10,"text-anchor":i===0?"start":i===a.length-1?"end":"middle"});t.textContent=label+" UTC";});
- svg.append(frag);const caption=document.createElement("div");caption.className="chart-caption";caption.textContent=a.length+" candles · OHLC price action · volume · UTC · hover a candle for OHLCV";host.append(svg,caption);
+ const host=document.getElementById("chart-placeholder");host.replaceChildren();if(!c.length){host.textContent="No complete candle data returned.";return;}
+ const a=c.slice(-120),w=1000,h=330,top=18,bottom=238,volTop=260,volBottom=310,closeAll=c.map(x=>x.close),bands=bollingerSeries(closeAll),bandValues=[...bands.upper.slice(-a.length),...bands.lower.slice(-a.length)].filter(Number.isFinite),hi=Math.max(...a.map(x=>x.high),...bandValues),lo=Math.min(...a.map(x=>x.low),...bandValues),priceScale=Math.max(Math.abs(hi),Math.abs(lo),1),scaledLo=lo/priceScale,scaledSpan=hi/priceScale-scaledLo||1,maxVol=Math.max(...a.map(x=>x.volume));
+ const svg=document.createElementNS(ns,"svg");svg.setAttribute("viewBox","0 0 "+w+" "+h);svg.setAttribute("role","img");svg.setAttribute("aria-label","Candlestick and volume chart from verified backend OHLCV data");svg.style.width="100%";
+ const svgContent=document.createDocumentFragment();const add=(tag,attrs)=>{const e=document.createElementNS(ns,tag);Object.entries(attrs).forEach(([k,v])=>e.setAttribute(k,String(v)));svgContent.append(e);};
+ for(let i=0;i<5;i++){const y=top+i*(bottom-top)/4;add("line",{x1:20,y1:y,x2:980,y2:y,stroke:"#243650","stroke-width":1});}
+ const step=960/a.length,cw=Math.max(2,step*.58),y=v=>bottom-(v/priceScale-scaledLo)/scaledSpan*(bottom-top);
+ a.forEach((x,i)=>{const cx=20+i*step+step/2,color=x.close>=x.open?"#48c99a":"#ef737e";add("line",{x1:cx,y1:y(x.high),x2:cx,y2:y(x.low),stroke:color,"stroke-width":1.2});add("rect",{x:cx-cw/2,y:Math.min(y(x.open),y(x.close)),width:cw,height:Math.max(1,Math.abs(y(x.open)-y(x.close))),fill:color});const vh=maxVol>0?x.volume/maxVol*(volBottom-volTop):0;add("rect",{x:cx-cw/2,y:volBottom-vh,width:cw,height:vh,fill:color,opacity:.4});});
+ const closes=closeAll,ema20=emaSeries(closes,20),offset=c.length-a.length;
+ const linePoints=series=>{const segments=[];let segment=[];series.slice(offset).forEach((v,i)=>{if(!Number.isFinite(v)){if(segment.length>1)segments.push(segment);segment=[];return;}const point=(20+i*step+step/2)+","+y(v);if(point.includes("NaN")||point.includes("Infinity")){if(segment.length>1)segments.push(segment);segment=[];return;}segment.push(point);});if(segment.length>1)segments.push(segment);return segments;};
+ for(const [series,color,width] of [[bands.upper,"#8b9db8",1.2],[bands.middle,"#8b9db8",1],[bands.lower,"#8b9db8",1],[ema20,"#f4c46a",2]]){for(const pts of linePoints(series))add("polyline",{points:pts.join(" "),fill:"none",stroke:color,"stroke-width":width,"stroke-linejoin":"round","stroke-dasharray":color==="#8b9db8"?"5 4":"none"});}
+ svg.append(svgContent);
+ const caption=document.createElement("div");caption.className="chart-caption";caption.textContent=a.length+" candles · actual backend OHLCV · EMA20 + Bollinger(20,2) overlays · "+(c[0].time?new Date(c[0].time).toISOString():"");host.append(svg,caption);
+ const valuesClose=c.map(x=>x.close);
+ host.append(drawLinePanel("RSI (14) · Wilder",rsiSeries(valuesClose),{min:0,max:100}));
+ const stoch=stochRsiSeries(valuesClose);host.append(drawLinePanel("Stochastic RSI · %K",stoch.k,{min:0,max:100}));host.append(drawLinePanel("Stochastic RSI · %D",stoch.d,{min:0,max:100}));
+ host.append(drawLinePanel("ADX (14) · Wilder",adxSeries(c),{min:0,max:100}));
+ const macd=macdComponents(valuesClose);host.append(drawLinePanel("MACD line · EMA12 − EMA26",macd.line,{zero:true}));host.append(drawLinePanel("MACD signal · EMA9 of MACD",macd.signal,{zero:true}));host.append(drawLinePanel("MACD histogram · line − signal",macd.histogram,{zero:true}));
+ host.append(drawLinePanel("ATR (14) · Wilder",atrSeries(c)));
 }
 function invalidate(){activeLoadSequence++;if(activeLoadController){activeLoadController.abort();activeLoadController=null;}}
 async function load(api,market,symbol,timeframe){
