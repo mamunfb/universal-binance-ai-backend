@@ -1252,3 +1252,14 @@ Corrected the browser test synchronization in commit `bd327a74778fdf1d4ca9f57365
 - Navigate back to Overview before clicking the research-preflight control.
 
 **Validation status:** these corrections are committed but have not yet been confirmed by a subsequent completed browser QA run. The next CI result is required before calling the browser suite green. No dashboard application source was changed.
+
+
+## 66. Browser QA recovery and accumulated regression execution (2026-11-16)
+
+The follow-up Chromium workflow completed successfully on feature-branch commit `b611c256f02181b9f96e55c7806f43f3bf91d498`:
+
+- [Dashboard browser QA Run #43](https://github.com/mamunfb/universal-binance-ai-backend/actions/runs/43783483736): **success**. GitHub recorded successful setup, checkout, Node.js setup, pinned Playwright installation, Chromium/system dependency installation, and execution of the isolated browser test command.
+- The browser test source at this commit contains **19 test cases**. The successful isolated browser-test step validates the current suite, including the previously pending API transport/cookie, mobile axe-core, health-request clearing, live-region semantics, overlapping scan, data-quality race, and research-readiness race coverage, as well as responsive layout, keyboard navigation and scanner pagination/search.
+- [Backend and dashboard tests Run #1868](https://github.com/mamunfb/universal-binance-ai-backend/actions/runs/43783483742): **success**. The job completed its setup, dependency installation, document/script-reference validation, JavaScript syntax validation and feature-branch full Python/Chromium QA step. Its separate generic Python test step was skipped by workflow conditions; do not infer an additional pytest count from this run.
+
+This closes the pending CI-execution status recorded in Section 65 for the corrected browser suite. The browser's backend responses are deterministic route mocks; no real Render backend or Cloudflare Pages cross-origin session was exercised. Physical Android/iOS testing, manual TalkBack/VoiceOver verification, live backend integration, Lighthouse/Core Web Vitals and production verification remain outstanding. No merge, deployment, backend/database change, secret change or `main` update was performed.
