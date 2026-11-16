@@ -1,3 +1,4 @@
+import pytest
 from fastapi.testclient import TestClient
 
 from app import main
@@ -15,20 +16,27 @@ class FakeSpotProvider:
         return [[1700000000000, "1", "2", "0.5", "1.5", "10"]]
 
 
-def test_spot_kline_endpoint_accepts_one_second_interval(monkeypatch):
+@pytest.mark.parametrize(
+    "interval",
+    [
+        "1s", "1m", "3m", "5m", "15m", "30m",
+        "1h", "2h", "4h", "6h", "8h", "12h",
+        "1d", "3d", "1w", "1M",
+    ],
+)
+def test_spot_kline_endpoint_accepts_all_binance_spot_intervals(monkeypatch, interval):
     provider = FakeSpotProvider()
     monkeypatch.setattr(main, "get_spot_provider", lambda: provider)
 
     response = client.get(
         "/api/v1/markets/spot/klines/BTCUSDT",
-        params={"interval": "1s", "limit": 100},
+        params={"interval": interval, "limit": 100},
     )
 
     assert response.status_code == 200
-    assert response.json()["interval"] == "1s"
+    assert response.json()["interval"] == interval
     assert response.json()["count"] == 1
-    assert provider.calls == [("BTCUSDT", "1s", 100)]
-
+    assert provider.calls == [("BTCUSDT", interval, 100)]
 
 def test_spot_kline_endpoint_rejects_unsupported_interval(monkeypatch):
     def fail_if_called():
