@@ -87,6 +87,8 @@ def parse_cors_allowed_origins(value: str) -> list[str]:
             or parsed.path
             or parsed.query
             or parsed.fragment
+            or "?" in origin
+            or "#" in origin
             or "*" in origin
             or any(character.isspace() for character in origin)
         ):
