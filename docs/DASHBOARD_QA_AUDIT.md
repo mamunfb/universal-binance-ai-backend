@@ -1366,3 +1366,22 @@ No source code, backend behavior, secrets, database, `main`, PR metadata, merge 
 
 
 **Related existing implementation located:** a separate open Draft PR #30 branch, `fix/dashboard-cloudflare-pages-cors`, already contains a strict CORS implementation in `backend/app/config.py` and registers it after request-tracking middleware in `backend/app/main.py`. Its `tests/test_cors_configuration.py` covers exact HTTPS/local origins, wildcard/path/credential/insecure-origin rejection, allowed Authorization preflight, unlisted-origin rejection, and empty configuration. This implementation is not present in the current dashboard feature branch. It has not been merged; do not assume it is active in the live backend. Review its dependency/base-branch relationship before selectively porting or stacking it, and add explicit authenticated-route regression coverage before declaring the requested API checks complete.
+
+
+## 34. Strict CORS implementation and authenticated-preflight regression tests (2026-11-16)
+
+To remove the source-level preflight blocker identified in Section 33, strict CORS support and focused regression coverage were added to this feature branch only:
+
+- `backend/app/config.py` adds the optional `CORS_ALLOWED_ORIGINS` setting and a parser that permits exact HTTPS origins (plus localhost HTTP for development), rejects wildcard/path/credential/query/fragment/invalid-port values, and normalizes hostname casing and default ports.
+- The CORS middleware permits only GET/POST and Authorization/Content-Type headers, exposes X-Request-ID, disables cookie credentials, and uses a bounded preflight cache age. An empty allowlist grants no cross-origin access.
+- `backend/app/main.py` registers CORS outside the request-tracking/API-key middleware so browser OPTIONS preflight is handled before Bearer authentication. Non-OPTIONS protected API requests remain subject to the existing API-key check.
+- `tests/test_cors_configuration.py` adds coverage for safe parsing and normalization, unsafe-origin rejection, allowed and disallowed preflight, missing/invalid Bearer rejection, valid Bearer acceptance, and empty-allowlist behavior.
+
+Implementation commits:
+- `b50776cd02363db9c86aaeb8b2a6f19f888e8227` — strict exact-origin CORS configuration.
+- `dd8beffaf336b4866e21d912800bbfa4aecb0191` — CORS middleware ordering before API authentication.
+- `102197e507aca96e4fa68ae63971ad7af37310eb` — CORS and authenticated API regression tests.
+
+**Validation status:** source files and commit diffs were read back from GitHub. At the time of this entry, no CI status/check record had yet been returned for the new test commit; therefore these tests are **pending execution**, not PASS. The live Cloudflare Pages → Render test is still blocked by the missing exact repository URL variables and dedicated masked test credential. No real Render response or browser preflight has yet been observed.
+
+No wildcard CORS, production/main change, PR merge, Render setting change, secret change, database change, or deployment was performed.
