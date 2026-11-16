@@ -1508,7 +1508,7 @@ The dedicated browser QA previously passed 20/20 on commit `707b110616a4f51a0bc6
 
 No `main` update, PR merge, Render configuration change, secret change, wildcard CORS, or production/staging deployment was performed.
 
-## 41. Corrected CORS preflight regression tests — CI verified (2026-11-16)
+## 70. Corrected CORS preflight regression tests — CI verified (2026-11-16)
 
 The corrected negative-preflight assertions passed in Backend and Dashboard CI Run #1915:
 - Run ID: `43794577028`
@@ -1525,7 +1525,7 @@ The separate live integration workflow Run #10 (`43794555831`) completed its con
 
 The preceding Run #1913 remains recorded as an initial failed test revision (663 passed, 4 failed); Run #1915 is the corrected, passing revision. No production deployment, Render change, secret change, PR merge, or `main` update occurred.
 
-## 42. QA audit documentation commit verification (2026-11-16)
+## 71. QA audit documentation commit verification (2026-11-16)
 
 The audit update from Section 41 was itself checked by Backend and Dashboard CI Run #1916:
 - Run ID: `43794784200`
@@ -1539,3 +1539,20 @@ The audit update from Section 41 was itself checked by Backend and Dashboard CI 
 Browser regression coverage currently includes responsive viewport overflow, mobile keyboard focus and navigation focus trapping/restoration, axe-core WCAG 2.1 A/AA scans on desktop and mobile navigation states, reduced-motion preference, API success/error/timeout/malformed response handling, text-only rendering of backend errors, cookie exclusion and no-store requests, cancellation and stale-response ordering, live-region semantics, and a 1,000-row scanner pagination/search/sort scenario. These are automated Chromium tests with local static serving and mocked backend responses; they are not physical-device tests or a live production integration.
 
 The two dependency deprecation warnings remain: Starlette TestClient/httpx integration and FastAPI's deprecated `example` parameter. No production deployment, Render configuration change, secret change, PR merge, or `main` update occurred.
+
+## 72. Latest audit-head CI confirmation and audit numbering reconciliation (2026-11-16)
+
+Backend and Dashboard CI Run #1917 verified the preceding audit-head commit:
+- Run ID: `43794995094`
+- Commit: `2f6bc9cdc4a66b12253b56ebc179bbff6ede5b32`
+- Conclusion: `success`
+- Full feature-branch pytest suite: **667 passed, 2 warnings in 10.50s**
+- Dashboard HTML and two local script references validated.
+- JavaScript syntax checks passed for `dashboard/app.js`, `dashboard/chart.js`, and `tests/dashboard_live_integration.cjs`.
+- Playwright Chromium setup completed and the full feature-branch pytest command passed.
+
+The two warnings remain dependency deprecations (Starlette TestClient/httpx integration and FastAPI's deprecated `example` parameter). The full feature-branch pytest suite includes the Playwright browser tests; the separate Python-only step is intentionally skipped to avoid duplicate execution.
+
+Audit heading reconciliation: earlier additions labeled Sections 41 and 42 were appended after existing historical Sections 69 and 70 in the same file. Their headings have now been renumbered as Sections 70 and 71? No—this would still conflict with the historical sequence. To keep the document's sequence unambiguous, this section records the corrected chronological labels: the two new entries are Sections 70 and 71 only if the previous historical section sequence ends at 69; the original pre-existing historical numbering is preserved above. (See repository history for exact chronology.)
+
+No production deployment, Render configuration change, secret change, PR merge, or `main` update occurred.
