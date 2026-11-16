@@ -39,7 +39,7 @@ test("Cloudflare-hosted dashboard reaches the supplied live backend health endpo
       const status = document.querySelector("#settings-status")?.textContent || "";
       return status.includes("responded successfully") || status.includes("Failed") ||
         status.includes("failed") || status.includes("Unavailable") || status.includes("Network connection");
-    }, { timeout: 30000 });
+    }, undefined, { timeout: 30000 });
 
     const settingsStatus = (await page.locator("#settings-status").innerText()).trim();
     const healthStatus = (await page.locator("#health-status").innerText()).trim();
