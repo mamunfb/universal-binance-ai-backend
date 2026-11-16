@@ -6,6 +6,9 @@ on:
       - feat/institutional-dashboard-design
     paths:
       - "dashboard/**"
+      - "backend/app/config.py"
+      - "backend/app/main.py"
+      - "tests/test_cors_configuration.py"
       - "tests/dashboard_live_integration.cjs"
       - ".github/workflows/dashboard-live-integration-qa.yml"
 
