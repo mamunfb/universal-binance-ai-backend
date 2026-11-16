@@ -1385,3 +1385,24 @@ Implementation commits:
 **Validation status:** source files and commit diffs were read back from GitHub. At the time of this entry, no CI status/check record had yet been returned for the new test commit; therefore these tests are **pending execution**, not PASS. The live Cloudflare Pages → Render test is still blocked by the missing exact repository URL variables and dedicated masked test credential. No real Render response or browser preflight has yet been observed.
 
 No wildcard CORS, production/main change, PR merge, Render setting change, secret change, database change, or deployment was performed.
+
+
+## 35. Live browser test expanded to authenticated API and real preflight (2026-11-16)
+
+Extended the live integration harness so a future configured run will test more than the public health endpoint:
+
+- The live workflow now passes `DASHBOARD_QA_BEARER_TOKEN` from a GitHub Actions secret to the test process; the test validates that a sufficiently long token is present and never prints it.
+- The Chromium test configures the dashboard with the QA token, verifies the public health endpoint, then calls the protected `GET /api/v1/research/phase-readiness` route from the dashboard origin.
+- It asserts that the protected route returns **401 without a Bearer token** and **200 with the configured QA Bearer token**.
+- It records the browser's actual OPTIONS response for that protected route and checks HTTP 200, the exact dashboard `Access-Control-Allow-Origin`, GET permission, Authorization-header permission, and absence of cookie-credential permission.
+- The standard Backend + Dashboard workflow now runs `node --check tests/dashboard_live_integration.cjs` so the live harness receives a JavaScript syntax check even when live environment values are not configured.
+
+Commits:
+- `cbe69f3d54ae6bd09bf819d3432505e73a5cb38a` — pass the masked QA token to the live workflow.
+- `6597729a7fdd0075db4466e69b2254ccf847f3b1` — add authenticated API and preflight assertions.
+- `9e10e55cd41bf541287032a8c5bb6e8bbabfc1ca` — scope preflight evidence to the protected route.
+- `ebbf1e8a75fc1c181930268f9a78a35b51a9094e` — syntax-check the live test in standard CI.
+
+**Validation status:** these changes have been read back from the feature branch, but no post-change CI result or live browser run is yet confirmed. The live run requires all three owner-provided inputs: exact HTTPS `DASHBOARD_PREVIEW_URL` and `RENDER_BACKEND_URL` repository variables, plus `DASHBOARD_QA_BEARER_TOKEN` as a masked Actions secret. The backend deployment must already have the exact dashboard origin in its strict `CORS_ALLOWED_ORIGINS` allowlist and the token must be valid there. This audit did not change Render settings or secrets.
+
+No production deployment, staging deployment, `main` update, PR merge, wildcard CORS, Render configuration change, or credential disclosure was performed.
