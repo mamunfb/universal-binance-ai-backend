@@ -1553,6 +1553,6 @@ Backend and Dashboard CI Run #1917 verified the preceding audit-head commit:
 
 The two warnings remain dependency deprecations (Starlette TestClient/httpx integration and FastAPI's deprecated `example` parameter). The full feature-branch pytest suite includes the Playwright browser tests; the separate Python-only step is intentionally skipped to avoid duplicate execution.
 
-Audit heading reconciliation: earlier additions labeled Sections 41 and 42 were appended after existing historical Sections 69 and 70 in the same file. Their headings have now been renumbered as Sections 70 and 71? No—this would still conflict with the historical sequence. To keep the document's sequence unambiguous, this section records the corrected chronological labels: the two new entries are Sections 70 and 71 only if the previous historical section sequence ends at 69; the original pre-existing historical numbering is preserved above. (See repository history for exact chronology.)
+Audit heading reconciliation: the earlier two additions had been appended after historical Section 69 but mistakenly reused the labels 41 and 42. Their headings are now corrected to Sections 70 and 71, preserving the existing historical sections and restoring a continuous sequence.
 
 No production deployment, Render configuration change, secret change, PR merge, or `main` update occurred.
