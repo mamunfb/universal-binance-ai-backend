@@ -1493,14 +1493,17 @@ Live Cloudflare Pages → Render integration remains unverified because the exac
 ## 40. CORS method and request-header allowlist regression coverage (2026-11-16)
 
 Added negative preflight tests to ensure the browser CORS policy remains narrow:
-- `PUT`, `PATCH`, and `DELETE` preflights are rejected because the configured allowlist permits only `GET` and `POST`.
-- A preflight requesting the unlisted `X-Admin-Override` header is rejected, even when `Authorization` is also requested.
-- Both cases assert that a rejected preflight does not return `Access-Control-Allow-Origin`.
+- `PUT`, `PATCH`, and `DELETE` preflights return HTTP 400 because the configured allowlist permits only `GET` and `POST`.
+- A preflight requesting the unlisted `X-Admin-Override` header returns HTTP 400, even when `Authorization` is also requested.
 
-Test commit: `8ab360bfb0d678df03d28ad9b33086a127ad2806`.
+The first test revision made an incorrect assertion that Starlette's CORS middleware must omit `Access-Control-Allow-Origin` for an allowed origin when the requested method/header is rejected. Run #1913 exposed this test-expectation error: the middleware correctly returned HTTP 400 while retaining the exact allowed origin header. The tests were corrected to assert HTTP 400 and verify the requested method/header is absent from the corresponding allowlist response headers.
 
-The previous head `02c19f51287400b91c2d110bbd1ba98fb13e41e8` was verified by Backend + Dashboard Run #1911 (`43794210040`): **663 passed, 2 dependency deprecation warnings**; dashboard HTML/script-reference validation and JavaScript syntax checks succeeded. The new method/header negative tests are not included in that 663 count and remain pending a fresh CI run.
+Commits:
+- `8ab360bfb0d678df03d28ad9b33086a127ad2806` — initial negative preflight cases.
+- `80f3da039feee4f7b4e32d6820b0d60c804ab23c` — correct assertions against the middleware's actual rejection behavior.
 
-The dedicated browser QA previously passed 20/20 on commit `707b110616a4f51a0bc6f8e140bf200137e43e3e`; it does not constitute physical Android/iOS or assistive-technology verification. Live Cloudflare Pages → Render authenticated CORS integration is still unverified because the exact HTTPS Actions URL variables and masked QA token are not configured for the workflow.
+Run #1913 (`43794399063`) on the initial revision failed: **663 passed, 4 failed, 2 warnings**. All four failures were in the new assertions described above; dashboard HTML/script-reference validation and JavaScript syntax checks succeeded. The corrected tests are awaiting a fresh CI run and are not yet counted as passing.
+
+The dedicated browser QA previously passed 20/20 on commit `707b110616a4f51a0bc6f8e140bf200137e43e3e`; this does not constitute physical Android/iOS or assistive-technology verification. Live Cloudflare Pages → Render authenticated CORS integration remains unverified because the exact HTTPS Actions URL variables and masked QA token are not configured for the workflow.
 
 No `main` update, PR merge, Render configuration change, secret change, wildcard CORS, or production/staging deployment was performed.
