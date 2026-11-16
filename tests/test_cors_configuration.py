@@ -1,8 +1,8 @@
 import pytest
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
 
 from app.config import configure_cors_middleware, parse_cors_allowed_origins
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
 
 def _client(origins: str) -> TestClient:
