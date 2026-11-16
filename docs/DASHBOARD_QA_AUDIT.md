@@ -1296,17 +1296,17 @@ Limits: browser API calls used deterministic route mocks; Lighthouse used the lo
 
 ## 69. GitHub-hosted live cross-origin browser integration harness (2026-11-16)
 
-Added a manual-only browser workflow to bridge the gap between mocked browser tests and a live Cloudflare Pages Preview → Render backend session:
+Added a feature-branch push workflow to bridge the gap between mocked browser tests and a live Cloudflare Pages Preview → Render backend session:
 
-- `.github/workflows/dashboard-live-integration-qa.yml` accepts the exact HTTPS dashboard URL and backend base URL as manual workflow inputs. It runs on GitHub-hosted Ubuntu 24.04, installs pinned Playwright 1.56.1 and Chromium, and launches a real headless Chromium browser.
+- `.github/workflows/dashboard-live-integration-qa.yml` reads the exact HTTPS dashboard URL and backend base URL from repository Actions variables `DASHBOARD_PREVIEW_URL` and `RENDER_BACKEND_URL`. If either is missing, the workflow reports that configuration is required and skips the browser job. Configure both under Settings → Secrets and variables → Actions → Variables; these are URL values, not credentials. It runs on GitHub-hosted Ubuntu 24.04, installs pinned Playwright 1.56.1 and Chromium, and launches a real headless Chromium browser.
 - `tests/dashboard_live_integration.cjs` opens the provided dashboard origin at 390×844, enters the backend URL using the dashboard's own Settings UI, activates **Test Connection**, and asserts that the real health request succeeds, the health label reports `ok`/healthy, and the page emits no JavaScript exceptions.
 - URL validation rejects non-HTTPS inputs, embedded credentials, query strings and fragments; the dashboard and backend must be different origins.
 - The smoke test deliberately leaves the bearer token blank and exercises only the health endpoint. It does not establish that authenticated market-data routes work, that a CORS OPTIONS preflight succeeds, or that production performance is acceptable. Those require a separately authorized token/route test and confirmed CORS configuration.
-- The workflow is manual-only. It does not change deployment state, Render settings, secrets, CORS allowlists or production configuration.
+- The workflow runs only on relevant pushes to `feat/institutional-dashboard-design`; it does not change deployment state, Render settings, secrets, CORS allowlists or production configuration. The exact Preview URL is not guessed and no wildcard origin is used.
 
 Validation:
 - Backend + Dashboard workflow [run 43790991040](https://github.com/mamunfb/universal-binance-ai-backend/actions/runs/43790991040) on feature-branch commit `abaef530a77be180e7e01bcaf0a6054d49fe7769`: **success**. The executed feature-branch pytest/Chromium step reports **640 passed, 2 warnings**; dashboard document/script references and JavaScript syntax checks also passed.
 - The separate generic Python test step was skipped by workflow conditions. The run's executed full feature-branch pytest/browser step is the basis for the 640-test count.
-- The live integration workflow has not been dispatched because the exact Cloudflare Pages Preview URL is not yet confirmed. Therefore no live Render/Cloudflare browser pass is claimed.
+- The live integration workflow has not yet completed a live run because the exact Cloudflare Pages Preview URL and repository Actions variables are not yet configured. Therefore no live Render/Cloudflare browser pass is claimed.
 
-Outstanding: provide/confirm the exact Preview URL, dispatch the manual live integration workflow, test authenticated endpoints and preflight only after confirming safe CORS/API-key configuration, then perform physical Android/iOS and manual TalkBack/VoiceOver checks. No `main` update, PR creation/merge, deployment, Render setting change, CORS allowlist change, secret change, or backend/database logic change was performed.
+Outstanding: configure the exact Preview and Render URLs as repository Actions variables, then push a relevant feature-branch change to trigger the live workflow, test authenticated endpoints and preflight only after confirming safe CORS/API-key configuration, then perform physical Android/iOS and manual TalkBack/VoiceOver checks. No `main` update, PR creation/merge, deployment, Render setting change, CORS allowlist change, secret change, or backend/database logic change was performed.
