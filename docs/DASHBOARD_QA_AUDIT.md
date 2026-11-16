@@ -1743,3 +1743,22 @@ The current feature branch head is `5f3ac728f9b2976a623f6e6ba2faba7a9c84db22` (`
 **3h regression:** The loader now admits the custom `3h` timeframe, requests hourly candles, and aggregates only complete UTC-aligned three-hour buckets. The regression test was added in commit `5f3ac728...`; its chart fixture passed in the current-head frontend workflow. Existing indicator rendering was not intentionally removed or altered by this targeted fix.
 
 **Change control:** No `main` update, PR merge, production or staging deployment, Render configuration/secret change, or CORS relaxation was performed. The branch head remains `5f3ac728...`.
+
+
+
+## 80. Audit-documentation commit CI confirmation (2026-11-16)
+
+The audit documentation update itself is now the feature-branch head:
+- Commit: `5b950388c92e2e8187b53d8ac2530d0d80626569` (`docs: record latest dashboard QA evidence`).
+- Backend and dashboard workflow Run ID: `43811642197`.
+- Job ID: `133114392409`; job conclusion: **success**.
+- Full Python suite: **686 passed, 2 warnings in 10.85s**.
+- Dashboard HTML/script-reference validation and JavaScript syntax validation: **success**.
+- Combined feature-branch Python + Chromium browser QA step: **success**.
+- The separate Python-only step was skipped by design because the combined step runs the suite once.
+
+The exact current head `5b950388...` changes only `docs/DASHBOARD_QA_AUDIT.md`; dashboard source and browser/performance harness files are unchanged from `5f3ac728...`. Therefore the source behavior covered by the current-head CI remains the same as the prior chart-loader and regression-test commits.
+
+The standalone 20-test Chromium browser workflow and Lighthouse/performance workflow have not been re-run on `5b950388...`. Their latest detailed evidence remains tied to `008bfe9e...`, as stated in Section 79. Both workflow YAML files expose `workflow_dispatch`, but the connected GitHub action interface available in this session does not expose a workflow-dispatch operation. No fake dispatch, source-only trigger commit, or deployment workaround was used.
+
+No `main` update, PR merge, production/staging deployment, Render setting/secret change, or CORS relaxation was performed.
