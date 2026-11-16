@@ -1,4 +1,7 @@
+from urllib.parse import urlsplit
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from starlette.middleware.cors import CORSMiddleware
 
 
 class Settings(BaseSettings):
@@ -9,6 +12,7 @@ class Settings(BaseSettings):
     require_database_url: bool = False
     ai_client_api_keys: str = "{}"
     log_level: str = "INFO"
+    cors_allowed_origins: str = ""
     binance_spot_base_url: str = "https://data-api.binance.vision"
     http_timeout_seconds: float = 15.0
     liquidation_collector_enabled: bool = False
@@ -60,3 +64,52 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+
+def parse_cors_allowed_origins(value: str) -> list[str]:
+    """Parse exact browser origins; reject wildcards, paths, and insecure remote HTTP."""
+    origins: list[str] = []
+    for raw_origin in value.split(","):
+        origin = raw_origin.strip()
+        if not origin:
+            continue
+        parsed = urlsplit(origin)
+        hostname = parsed.hostname
+        try:
+            parsed.port
+        except ValueError as exc:
+            raise ValueError("CORS_ALLOWED_ORIGINS contains an invalid port") from exc
+        if (
+            parsed.scheme not in {"https", "http"}
+            or not parsed.netloc
+            or hostname is None
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.path
+            or parsed.query
+            or parsed.fragment
+            or "*" in origin
+        ):
+            raise ValueError("CORS_ALLOWED_ORIGINS must contain exact HTTPS origins without paths or credentials")
+        if parsed.scheme == "http" and hostname not in {"localhost", "127.0.0.1", "::1"}:
+            raise ValueError("CORS_ALLOWED_ORIGINS permits HTTP only for localhost development origins")
+        canonical_origin = f"{parsed.scheme}://{parsed.netloc}"
+        if origin != canonical_origin:
+            raise ValueError("CORS_ALLOWED_ORIGINS entries must use canonical origin syntax")
+        if canonical_origin not in origins:
+            origins.append(canonical_origin)
+    return origins
+
+
+def configure_cors_middleware(app, allowed_origins: str) -> None:
+    """Enable narrow Bearer-header CORS without cookies or wildcard origins."""
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=parse_cors_allowed_origins(allowed_origins),
+        allow_methods=["GET", "POST"],
+        allow_headers=["Authorization", "Content-Type"],
+        expose_headers=["X-Request-ID"],
+        allow_credentials=False,
+        max_age=600,
+    )
