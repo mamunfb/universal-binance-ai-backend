@@ -60,6 +60,8 @@ def test_parse_cors_allowed_origins_normalizes_case_and_default_ports():
         "https://user:password@dashboard.example",
         "https://dashboard.example?token=secret",
         "https://dashboard.example#fragment",
+        "https://dashboard.example?",
+        "https://dashboard.example#",
         "ftp://dashboard.example",
         "https://dashboard.example:invalid",
         "https://dashboard.example:65536",
