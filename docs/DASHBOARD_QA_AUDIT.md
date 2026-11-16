@@ -1576,3 +1576,33 @@ The adjacent Run #1918 (`43795178051`, preceding commit `2c603f4...`) was cancel
 The live Cloudflare Pages → Render workflow Run #10 (`43794555831`) had a successful configuration-check job, but its live cross-origin Chromium job was **skipped** because the required exact HTTPS repository variables were unavailable. The live authenticated health/API/preflight integration is therefore still unverified. The required owner-managed inputs remain `DASHBOARD_PREVIEW_URL`, `RENDER_BACKEND_URL`, and masked secret `DASHBOARD_QA_BEARER_TOKEN`; do not put the token in a repository variable, source file, or chat.
 
 Current branch-head verification: `feat/institutional-dashboard-design` points to `1938a82d15d4edb7ae12e54577eda269b811aa97`. The `main` ref remains `0e3b921ab83e18d4999c1eac87f45285a0f27b26`. No PR merge, Render configuration/secret change, wildcard CORS, or production/staging deployment was performed.
+
+
+## 74. Retrieved mobile Lighthouse and CPU/heap benchmark evidence (2026-11-16)
+
+The raw performance artifact from Dashboard performance QA Run #25 was downloaded and inspected, rather than relying only on the workflow's green conclusion:
+- Run ID: `43789369354`; job ID: `133044073143`.
+- Benchmark source commit: `e250f30d6db67432e16774ba4fe2547f41539321` (this is an earlier feature-branch commit, not the current audit head).
+- Artifact ID: `14191367649`; four files: three raw mobile Lighthouse JSON reports and `browser-profile.json`.
+- The job completed successfully; all three Lighthouse runs, CPU/heap browser profiling, and raw artifact upload succeeded.
+
+**Three simulated mobile Lighthouse cold-load samples** (390 × 844, Lighthouse mobile preset, simulated throttling):
+- Performance category score: **1.00 in all three samples**.
+- First Contentful Paint: **0.903–0.905 s**.
+- Largest Contentful Paint: **1.524–1.694 s** (median approximately **1.655 s**).
+- Total Blocking Time: **0 ms** in all three samples.
+- Cumulative Layout Shift: **0 to 0.000024**.
+- Main-thread work: approximately **164–263 ms**.
+
+**CPU-throttled 1,000-row scanner fixture** (deterministic mocked API data, 100 visible rows/page):
+- At 1× CPU: scan render **67 ms**, sort **36 ms**, search **155 ms**, pagination **70 ms**.
+- At 4× CPU throttling: scan render **91 ms**, sort **79 ms**, search **180 ms**, pagination **109 ms**.
+- Five repeated search/sort/pagination cycles took **2.343 s** at 1× and **2.925 s** at 4×.
+- After explicit garbage collection, JS heap delta was **36,452 bytes** at 1× and **64,796 bytes** at 4×; DOM node delta was **+5** in each run. These two post-cycle samples do **not** prove absence of a long-term memory leak or establish a stable memory-growth trend.
+- No browser page errors were recorded in either CPU profile sample.
+
+**Optimization evidence / limitations:** Lighthouse consistently identified approximately **59 KiB** of estimated unused JavaScript on the initial page (app.js and chart.js), and render-blocking CSS with an estimated **110–152 ms** opportunity. It also reported missing text compression in the local static QA server. These are follow-up optimization candidates, not measured production savings. The local QA server does not emulate Cloudflare compression/cache behavior, and these measurements do not represent a real phone, production network, or live backend. Lighthouse emitted non-fatal Lantern messages that the all-frames FCP/LCP computations are not implemented; the standard FCP/LCP metrics above were still present in the reports.
+
+**Freshness gate:** this artifact is from commit `e250f30...`, while the current branch head at this audit update is later. Do not present these measurements as a fresh benchmark of the latest source until the performance workflow is run against the latest dashboard commit. No production performance claim is made.
+
+No Render setting, secret, deployment, `main`, or PR merge was changed.
