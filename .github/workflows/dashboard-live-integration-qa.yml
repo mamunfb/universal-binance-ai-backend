@@ -8,16 +8,6 @@ on:
       - "dashboard/**"
       - "tests/dashboard_live_integration.cjs"
       - ".github/workflows/dashboard-live-integration-qa.yml"
-  workflow_dispatch:
-    inputs:
-      dashboard_url:
-        description: Exact HTTPS Cloudflare Pages Preview URL (no wildcard)
-        required: true
-        type: string
-      backend_url:
-        description: Exact HTTPS Render backend base URL
-        required: true
-        type: string
 
 permissions:
   contents: read
