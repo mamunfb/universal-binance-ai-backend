@@ -22,7 +22,8 @@ def _client(origins: str) -> TestClient:
 
 def test_parse_cors_allowed_origins_accepts_exact_https_and_localhost_origins():
     assert parse_cors_allowed_origins(
-        " https://dashboard.example,https://research.example,http://localhost:3000,https://dashboard.example "
+        " https://dashboard.example,https://research.example,"
+        "http://localhost:3000,https://dashboard.example "
     ) == [
         "https://dashboard.example",
         "https://research.example",
