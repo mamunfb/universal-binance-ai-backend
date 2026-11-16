@@ -1801,3 +1801,21 @@ The FastAPI `Body(example=...)` warning reported in Section 81 is no longer pres
 **Evidence boundaries:** This run verifies the current backend/dashboard tree through the repository's combined pytest + Chromium workflow and JavaScript validation. It does not refresh the standalone Node-based 20-test browser workflow or Lighthouse/performance artifact, whose detailed evidence remains tied to the earlier commits identified in Section 79. The live cross-origin Cloudflare Pages → Render smoke test remains unverified because its required Actions repository variables are not configured; no values were created or changed.
 
 **Change control:** No `main` update, PR creation/merge, production or staging deployment, Render configuration/secret change, repository variable change, or CORS relaxation was performed.
+
+
+## 83. httpx2 test dependency and current-head CI verification (2026-11-16)
+
+The feature branch adds `httpx2>=2.0,<3.0` to the optional `dev` dependency group in `pyproject.toml`. This is a test/development dependency only; production runtime dependencies and `requirements.txt` were not changed.
+
+Current-head Backend and dashboard tests Run #1957:
+- Run ID: `43813106020`; job ID: `133118960100`; tested head: `3c209bf5a0983a4ab4cd46c55641fa7b8b82e7e3`.
+- Job conclusion: **success**.
+- Dashboard HTML/script-reference validation: **success**; both local script references exist.
+- JavaScript syntax validation for `dashboard/app.js`, `dashboard/chart.js`, and `tests/dashboard_live_integration.cjs`: **success**.
+- Combined feature-branch Python + Chromium browser QA: **success**, with **687 passed in 9.07s**.
+- No pytest warnings were printed in this run's test output. This confirms the previous Starlette TestClient/httpx deprecation warning did not recur in this run; it does not claim every warning in every workflow is resolved.
+- The separate Python-only step was skipped by workflow design because the combined step ran the complete pytest suite.
+
+**Evidence boundaries and remaining gates:** This current-head run validates the backend/dashboard tree with the combined Python + Chromium tests and JavaScript checks. It does not refresh the standalone Node-based 20-test browser workflow or Lighthouse/performance artifact, whose detailed evidence remains tied to the earlier dashboard source commit identified in Section 79. The live cross-origin Cloudflare Pages → Render smoke test remains unverified because its required Actions repository variables `DASHBOARD_PREVIEW_URL` and `RENDER_BACKEND_URL` are not configured; no values were created or changed.
+
+**Change control:** No `main` update, PR creation/merge, production or staging deployment, Render configuration/secret change, repository variable change, or CORS relaxation was performed.
