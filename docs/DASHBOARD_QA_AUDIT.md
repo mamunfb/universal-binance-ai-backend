@@ -1625,3 +1625,35 @@ The two warnings remain dependency deprecations: Starlette TestClient/httpx inte
 The performance workflow already includes `workflow_dispatch` and dashboard-source path filters. This provides a manual GitHub Actions rerun path; no workflow change was needed. A fresh performance benchmark has not yet been run against this audit-head commit, so Section 74's older benchmark must not be represented as current-head evidence.
 
 The current feature-branch commit is the SHA listed above. The previously verified `main` SHA remains `0e3b921ab83e18d4999c1eac87f45285a0f27b26`; no change to `main` was requested or made. No PR merge, Render configuration/secret change, wildcard CORS, or production/staging deployment was performed.
+
+
+## 76. Fresh performance QA and enforced interaction invariants (2026-11-16)
+
+The Dashboard performance QA workflow ran against the then-current source commit:
+- Workflow Run #1923; run ID: `43796077835`.
+- Source commit: `7f1fd784431cc20948e11992ad877a93fa360c41`.
+- Job ID: `133065073990`; conclusion: **success**.
+- Raw artifact ID: `14194192989`; artifact name: `dashboard-performance-7f1fd784431cc20948e11992ad877a93fa360c41`.
+- Artifact SHA-256: `3ba55ce18b95420dfdbd5a65686f291466cfe84081f0c76dd642dd8476af5cdb`.
+- The artifact contains three raw mobile Lighthouse JSON reports and `browser-profile.json`; these were downloaded and inspected.
+
+**Lighthouse samples (390 × 844, simulated mobile throttling, local static QA server):**
+- Performance scores: **0.91, 1.00, 1.00**.
+- First Contentful Paint: **0.902–0.904 s**.
+- Largest Contentful Paint: **1.653–2.037 s**.
+- Total Blocking Time: **0 ms, 367 ms, 0 ms**.
+- Cumulative Layout Shift: **0 to approximately 0.000024**.
+- One sample had a measurable TBT outlier (367 ms) and lower score (0.91); do not hide this sample or describe all three runs as identical. The two other samples had 0 ms TBT and score 1.00.
+- All three reports estimated approximately 59 KiB unused JavaScript and 75 KiB potential text-compression savings. The latter is measured against the local static QA server and is not evidence that the production Cloudflare edge lacks compression.
+- Lighthouse emitted non-fatal Lantern messages that all-frames FCP/LCP computations are not implemented; standard page FCP/LCP values were present.
+
+**CPU-throttled 1,000-row mocked scanner fixture:**
+- At 1× CPU: initial navigation 61 ms; scanner render 67 ms; sort 38 ms; search 163 ms; pagination 107 ms; five repeated cycles 2,485 ms; post-GC heap delta +77,024 bytes; DOM delta +5.
+- At 4× CPU: initial navigation 65 ms; scanner render 134 ms; sort 96 ms; search 201 ms; pagination 131 ms; five repeated cycles 3,477 ms; post-GC heap delta +68,184 bytes; DOM delta +2.
+- Both profiles rendered 100 visible rows from the 1,000-row fixture, returned one row for the unique-symbol search, and recorded no browser page errors.
+- All 12 sampled in-app navigation actions closed the sidebar as expected in each CPU profile.
+- These short, deterministic mock-data runs do not prove production performance, physical-device behavior, or absence of a long-term memory leak.
+
+The benchmark harness now fails on browser page errors, mock API request failures/non-200 responses, a sidebar left open after navigation, or unexpected scanner visible/search row counts. These assertions were added in commit `7f1fd784...` and the successful performance run confirms they executed without triggering. The backend/dashboard CI for the same commit also succeeded: Run #1923 ID `43796077857`, with **667 passed, 2 warnings in 12.95s**, dashboard HTML/script validation, JavaScript syntax checks, and full Chromium browser QA.
+
+The two Python warnings remain the known Starlette TestClient/httpx and FastAPI deprecated `example` warnings. No production deployment, staging deployment, Render configuration or secret change, wildcard CORS, PR merge, or `main` update occurred.
