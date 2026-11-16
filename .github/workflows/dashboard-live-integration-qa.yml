@@ -54,4 +54,5 @@ jobs:
         env:
           DASHBOARD_URL: ${{ vars.DASHBOARD_PREVIEW_URL }}
           BACKEND_URL: ${{ vars.RENDER_BACKEND_URL }}
+          DASHBOARD_QA_BEARER_TOKEN: ${{ secrets.DASHBOARD_QA_BEARER_TOKEN }}
         run: node --test tests/dashboard_live_integration.cjs
