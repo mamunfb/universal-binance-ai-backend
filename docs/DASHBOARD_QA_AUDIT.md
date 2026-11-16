@@ -1779,3 +1779,25 @@ The feature branch head `fd351936777884b8c73aaf6c33fae8dd839ab2aa` (`docs: confi
 - The standalone browser and performance workflow evidence remains tied to earlier dashboard source commits, as described in Section 79. The current workflow YAML exposes manual dispatch, but no dispatch action is available through the connected GitHub interface in this session.
 - The live Cloudflare Pages → Render integration workflow still requires the repository Actions variables `DASHBOARD_PREVIEW_URL` and `RENDER_BACKEND_URL`. Its actual cross-origin browser smoke test has not run; no repository variables, secrets, CORS rules, or deployment settings were changed.
 - No `main` update, PR merge, production/staging deployment, Render configuration/secret change, or CORS relaxation occurred.
+
+
+
+## 82. EVM OpenAPI example deprecation fix and current-head CI (2026-11-16)
+
+The feature branch now contains a targeted OpenAPI metadata correction and a regression guard:
+- Commit `974247f29542ca9371468d638c2a4b5eab54ce76`: changed the EVM token-index request body's deprecated FastAPI `Body(example=...)` metadata to `Body(examples=[...])`, which places the example in the JSON Schema `examples` array.
+- Commit `f0d66921d5858b20195c6503025bc5ea9f69c3e0`: added `test_evm_token_index_body_example_uses_json_schema_examples`, asserting the generated OpenAPI request-body schema contains the expected `examples` array and no deprecated singular `example` key.
+
+**Current-head CI:** Backend and dashboard tests Run #1954:
+- Run ID: `43812714921`; job ID: `133117756740`; tested head: `f0d66921d5858b20195c6503025bc5ea9f69c3e0`.
+- Job conclusion: **success**.
+- Dashboard HTML/script-reference validation: **success**.
+- JavaScript syntax validation for `dashboard/app.js`, `dashboard/chart.js`, and `tests/dashboard_live_integration.cjs`: **success**.
+- Combined feature-branch Python + Chromium browser QA: **success**, with **687 passed, 1 warning in 10.29s**.
+- The separate Python-only step was skipped because the combined feature-branch step ran the test suite.
+
+The FastAPI `Body(example=...)` warning reported in Section 81 is no longer present in this run. The remaining warning is Starlette's `TestClient` / httpx integration deprecation notice, which recommends `httpx2`. No dependency upgrade was made: compatibility and the repository's supported dependency range need a separate review before changing test-client dependencies.
+
+**Evidence boundaries:** This run verifies the current backend/dashboard tree through the repository's combined pytest + Chromium workflow and JavaScript validation. It does not refresh the standalone Node-based 20-test browser workflow or Lighthouse/performance artifact, whose detailed evidence remains tied to the earlier commits identified in Section 79. The live cross-origin Cloudflare Pages → Render smoke test remains unverified because its required Actions repository variables are not configured; no values were created or changed.
+
+**Change control:** No `main` update, PR creation/merge, production or staging deployment, Render configuration/secret change, repository variable change, or CORS relaxation was performed.
