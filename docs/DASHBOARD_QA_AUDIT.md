@@ -1524,3 +1524,18 @@ The two warnings are dependency deprecations: Starlette TestClient/httpx integra
 The separate live integration workflow Run #10 (`43794555831`) completed its configuration-check job but **skipped** the live cross-origin Chromium job because the required exact HTTPS repository variables are not configured. Therefore this CI result does not prove a real Cloudflare Pages → Render connection or production CORS behavior.
 
 The preceding Run #1913 remains recorded as an initial failed test revision (663 passed, 4 failed); Run #1915 is the corrected, passing revision. No production deployment, Render change, secret change, PR merge, or `main` update occurred.
+
+## 42. QA audit documentation commit verification (2026-11-16)
+
+The audit update from Section 41 was itself checked by Backend and Dashboard CI Run #1916:
+- Run ID: `43794784200`
+- Commit: `4bdc0d961ee64432f3f9b4d334d489fc00030ce2`
+- Conclusion: `success`
+- Full feature-branch test suite: **667 passed, 2 warnings in 10.08s**
+- Dashboard HTML/script-reference validation passed (2 local scripts).
+- JavaScript syntax checks passed for dashboard app, chart, and live integration test scripts.
+- The feature-branch workflow ran the full pytest command with Playwright Chromium installed; the standalone Python-only step is intentionally skipped on this branch to avoid running the suite twice.
+
+Browser regression coverage currently includes responsive viewport overflow, mobile keyboard focus and navigation focus trapping/restoration, axe-core WCAG 2.1 A/AA scans on desktop and mobile navigation states, reduced-motion preference, API success/error/timeout/malformed response handling, text-only rendering of backend errors, cookie exclusion and no-store requests, cancellation and stale-response ordering, live-region semantics, and a 1,000-row scanner pagination/search/sort scenario. These are automated Chromium tests with local static serving and mocked backend responses; they are not physical-device tests or a live production integration.
+
+The two dependency deprecation warnings remain: Starlette TestClient/httpx integration and FastAPI's deprecated `example` parameter. No production deployment, Render configuration change, secret change, PR merge, or `main` update occurred.
