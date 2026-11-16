@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
 from pathlib import Path
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.config import settings
+from app.config import configure_cors_middleware, settings
 from app.indicators import calculate_indicators
 from app.providers.binance_spot import BinanceSpotProvider
 from app.providers.binance_futures import BinanceFuturesProvider
@@ -286,6 +286,10 @@ async def request_tracking_middleware(request: Request, call_next):
     response = await call_next(request)
     response.headers["X-Request-ID"] = request_id
     return _apply_security_headers(response, request)
+
+
+# CORS is added after request tracking so preflight requests bypass API-key auth.
+configure_cors_middleware(app, settings.cors_allowed_origins)
 
 
 @app.exception_handler(RequestValidationError)
