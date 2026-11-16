@@ -1,6 +1,7 @@
 import pytest
 
 from app.config import configure_cors_middleware, parse_cors_allowed_origins
+from app import main
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -88,3 +89,42 @@ def test_empty_cors_configuration_does_not_grant_cross_origin_access():
     )
     assert response.status_code == 200
     assert "access-control-allow-origin" not in response.headers
+
+
+def test_cors_preflight_bypasses_auth_but_api_requests_still_require_bearer_key(monkeypatch):
+    monkeypatch.setattr(main.settings, "app_env", "development")
+    monkeypatch.setattr(main.settings, "personal_api_key", "test-owner-key-with-enough-entropy")
+    monkeypatch.setattr(main.settings, "ai_client_api_keys", "{}")
+
+    app = FastAPI()
+    app.middleware("http")(main.request_tracking_middleware)
+    configure_cors_middleware(app, "https://dashboard.example")
+
+    @app.get("/api/resource")
+    def resource():
+        return {"status": "ok"}
+
+    client = TestClient(app)
+    preflight = client.options(
+        "/api/resource",
+        headers={
+            "Origin": "https://dashboard.example",
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "authorization",
+        },
+    )
+    assert preflight.status_code == 200
+    assert preflight.headers["access-control-allow-origin"] == "https://dashboard.example"
+
+    unauthorized = client.get("/api/resource", headers={"Origin": "https://dashboard.example"})
+    assert unauthorized.status_code == 401
+
+    authorized = client.get(
+        "/api/resource",
+        headers={
+            "Origin": "https://dashboard.example",
+            "Authorization": "Bearer test-owner-key-with-enough-entropy",
+        },
+    )
+    assert authorized.status_code == 200
+    assert authorized.headers["access-control-allow-origin"] == "https://dashboard.example"
