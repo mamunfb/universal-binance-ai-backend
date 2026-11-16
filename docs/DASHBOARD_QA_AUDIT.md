@@ -1838,3 +1838,20 @@ The latest live integration workflow Run #27 (ID `43812701904`) was also inspect
 The live integration gate remains: configure the exact HTTPS repository Actions variables `DASHBOARD_PREVIEW_URL` and `RENDER_BACKEND_URL` in GitHub repository settings, then rerun/trigger the live workflow through an authorized workflow trigger. No secrets, variables, CORS rules, or deployment settings were changed in this audit.
 
 **Change control:** No `main` update, PR creation/merge, production or staging deployment, Render configuration/secret change, repository variable change, or CORS relaxation was performed.
+
+
+## 85. Latest feature-branch CI run #1958 verified (2026-11-16)
+
+The feature branch head `65a635ea773be752188695b3476ffe18469a45db` was verified against Backend and dashboard tests Run #1958:
+
+- Run ID: `43813602493`; job ID: `133120512068`; conclusion: **success**.
+- Dashboard HTML validation confirmed the expected document and both local script references.
+- JavaScript syntax checks passed for `dashboard/app.js`, `dashboard/chart.js`, and `tests/dashboard_live_integration.cjs`.
+- The combined feature-branch Python + Chromium browser QA step completed successfully.
+- Full pytest output: **687 passed in 12.15s**.
+- The separate Python-only step was skipped by workflow design because the combined step ran the complete suite.
+- The job had populated steps and retrievable logs; this is actual runner execution evidence, unlike the earlier billing-blocked runs documented in Sections 11–17.
+
+**Remaining evidence gates:** This run does not refresh the standalone Node-based 20-test browser workflow or Lighthouse/performance artifact. The live Cloudflare Pages → Render integration test remains unverified: its workflow's required Actions variables `DASHBOARD_PREVIEW_URL` and `RENDER_BACKEND_URL` have not been configured, so the live cross-origin browser job was skipped in the previously inspected Run #27. A successful general CI run is not a successful live integration run.
+
+**Change control:** This update records CI evidence only. No `main` update, PR creation/merge, production or staging deployment, Render configuration/secret change, repository variable change, or CORS relaxation was performed.
