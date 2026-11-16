@@ -80,6 +80,7 @@ def parse_cors_allowed_origins(value: str) -> list[str]:
         if (
             parsed.scheme not in {"https", "http"}
             or not parsed.netloc
+            or parsed.netloc.endswith(":")
             or hostname is None
             or parsed.username is not None
             or parsed.password is not None
