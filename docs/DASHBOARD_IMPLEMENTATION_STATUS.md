@@ -997,3 +997,12 @@ Verified feature-branch HEAD: `ff39adc7d9d013215d5e1af3e79e3913a7560f8a`.
 - Dashboard Frontend run #31, ID `43718841160`: **119 dashboard tests**, chart fixtures and JavaScript syntax checks passed.
 
 Limits: API fault cases use deterministic route mocks, not the live backend. Screen-reader/assistive-technology testing, physical-device testing, Lighthouse/Core Web Vitals, memory profiling, live API integration and production verification remain pending. No merge, deployment, backend/database change, secret change or main-branch update was performed.
+
+
+## Dashboard Browser QA follow-up — 2026-11-16
+
+- Feature-branch commit: `b611c256f02181b9f96e55c7806f43f3bf91d498`.
+- Dashboard Browser QA Run #43 (ID `43783483736`): **success**. Chromium setup and the isolated browser-test execution step all completed successfully. The current browser test source contains 19 cases, including responsive widths, mobile keyboard/focus behavior, mocked API success/failure/timeout/cancellation, scanner pagination/search/sorting, axe-core checks, cookie omission, live-region semantics and asynchronous stale-response races.
+- Backend and Dashboard Run #1868 (ID `43783483742`): **success**. Document/script-reference validation, JavaScript syntax validation and the feature-branch full Python/Chromium QA step succeeded. The separate generic Python test step was skipped by workflow conditions; no pytest count is asserted for this run.
+- These runs validate automated Chromium and CI behavior with mocked backend responses. Live Render + Cloudflare Pages integration, physical-device testing, manual TalkBack/VoiceOver checks, Lighthouse/Core Web Vitals and production verification remain pending.
+- No PR merge, deployment, backend/database change, secret change or `main` update was performed.
