@@ -77,7 +77,7 @@ def parse_cors_allowed_origins(value: str) -> list[str]:
         parsed = urlsplit(origin)
         hostname = parsed.hostname
         try:
-            parsed.port
+            _ = parsed.port
         except ValueError as exc:
             raise ValueError("CORS_ALLOWED_ORIGINS contains an invalid port") from exc
         if (
