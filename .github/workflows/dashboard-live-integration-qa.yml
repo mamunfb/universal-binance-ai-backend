@@ -1,0 +1,49 @@
+name: Dashboard live integration QA
+
+on:
+  workflow_dispatch:
+    inputs:
+      dashboard_url:
+        description: Exact HTTPS Cloudflare Pages Preview URL (no wildcard)
+        required: true
+        type: string
+      backend_url:
+        description: Exact HTTPS Render backend base URL
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dashboard-live-integration-qa
+  cancel-in-progress: false
+
+jobs:
+  live-cross-origin:
+    name: Live cross-origin Chromium smoke test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          package-manager-cache: false
+
+      - name: Install pinned Playwright
+        run: npm install --no-save --no-package-lock playwright@1.56.1
+
+      - name: Install Chromium
+        run: npx --no-install playwright install --with-deps chromium
+
+      - name: Verify live Cloudflare-to-Render browser connection
+        env:
+          DASHBOARD_URL: ${{ inputs.dashboard_url }}
+          BACKEND_URL: ${{ inputs.backend_url }}
+        run: node --test tests/dashboard_live_integration.cjs
