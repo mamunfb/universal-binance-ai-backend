@@ -1338,3 +1338,28 @@ Run evidence: https://github.com/mamunfb/universal-binance-ai-backend/actions/ru
 4. Keep physical Android/TalkBack and iOS/VoiceOver checks marked pending until performed on real devices.
 
 No production deployment, staging deployment, PR creation/merge, main-branch update, Render configuration change, or wildcard CORS allowance was performed.
+
+
+## 33. Cross-origin and authenticated API source gate (2026-11-16)
+
+A read-only source inspection was performed after Section 32 to determine whether the pending live cross-origin, authenticated API, and CORS preflight tests can safely run against the current feature-branch backend source.
+
+Findings from `backend/app/main.py` on `feat/institutional-dashboard-design`:
+
+- The FastAPI application is created without a visible `CORSMiddleware` registration or another CORS middleware registration in this entrypoint.
+- The `request_tracking_middleware` applies its API-key handling to every request whose path starts with `/api/`.
+- The middleware does not contain an `OPTIONS` preflight bypass before the API-key check. When a private key is configured, an unauthenticated browser preflight to an `/api/` path can therefore be rejected with HTTP 401 before the route is reached.
+- The inspected `backend/app/config.py` does not declare a CORS allowed-origins setting.
+- The existing live Chromium smoke test intentionally sends no Bearer token and tests only the health connection. It does not exercise a protected API route or an OPTIONS preflight.
+
+**Conclusion:** the current source readback does not establish that the feature-branch backend is ready for cross-origin browser requests. The live smoke workflow must remain pending until an exact-origin CORS policy is implemented/configured in the backend deployment being tested, with preflight handled before API-key authentication. Do not use wildcard origins, do not bypass authentication for non-OPTIONS API requests, and do not put credentials in repository variables or logs.
+
+**Execution blockers remain:**
+1. The exact Cloudflare Pages Preview URL and repository Actions variables `DASHBOARD_PREVIEW_URL` and `RENDER_BACKEND_URL` are not configured/verified.
+2. An approved, dedicated test Bearer credential is not yet available as a GitHub Actions secret for protected-route testing.
+3. A strict CORS allowlist for the exact dashboard origin is not evidenced in the inspected feature-branch backend source or its settings model.
+4. Physical Android/iOS testing and manual TalkBack/VoiceOver checks still require real devices and have not been performed.
+
+**Next safe test sequence:** first verify/implement strict exact-origin CORS support in the backend branch intended for the live service; ensure OPTIONS preflight is answered without a Bearer token while protected GET requests still require a valid Bearer token; add regression tests for allowed origin, disallowed origin, requested Authorization header, unauthenticated preflight, missing/invalid token (401), and valid test token; then configure the exact Preview/backend URLs and a masked Actions secret and run the live Chromium workflow. Record actual response status and CORS headers from browser/network evidence. Do not change Render settings or deploy as part of this source-only checkpoint.
+
+No source code, backend behavior, secrets, database, `main`, PR metadata, merge state, Render configuration, CORS deployment setting, or production deployment was changed during this inspection.
