@@ -1711,3 +1711,35 @@ The performance harness enhancement was committed in `c9d9c83...` and is test-on
 - Lighthouse emitted non-fatal all-frames FCP/LCP computation warnings; standard page FCP/LCP metrics were present in the reports.
 
 No `main` update, PR merge, Render configuration or secret change, wildcard CORS, or production/staging deployment occurred.
+
+
+
+## 79. Latest 3-hour chart regression, browser QA and performance evidence (2026-11-16)
+
+The current feature branch head is `5f3ac728f9b2976a623f6e6ba2faba7a9c84db22` (`Test 3-hour chart request and aggregation`).
+
+**Current-head CI:**
+- Dashboard frontend checks Run ID `43811201799`, commit `5f3ac728...`: **success**. JavaScript syntax, dashboard chart fixtures and Python dashboard contract tests all passed.
+- Backend and dashboard tests Run ID `43811201698`, commit `5f3ac728...`: **success**. Full pytest suite: **686 passed, 2 warnings in 13.81s**. The separate Python-only step was skipped because the combined feature-branch Python + Chromium QA step ran successfully.
+- Dashboard browser QA Run ID `43811198114`, commit `008bfe9e...`: **success**. The retained job log reports **20 tests passed, 0 failed, 0 skipped**. Coverage includes supported responsive widths without horizontal overflow; visible keyboard focus; mobile sidebar focus trap, Escape and focus restoration; API 503, malformed JSON, network failure and timeout handling; 1,000-row scanner pagination/search/keyboard sorting; automated WCAG 2.1 A/AA checks; and asynchronous stale-response ordering.
+- Dashboard performance QA Run ID `43811198133`, commit `008bfe9e...`: **success**. Lighthouse, CPU-throttled browser/heap profiling and raw artifact upload all completed. Raw artifact ID `14200666615`, SHA-256 `86168ee831156acb452a777164dd4a0008b283215e90843058431361b9aa277e`; downloaded and inspected in this audit.
+- The browser and performance runs were triggered for `008bfe9e...`, the chart-loader code fix. The later regression-test commit `5f3ac728...` has current-head frontend and backend/dashboard CI success, but the browser/performance workflows have not yet been re-run on that exact commit. Keep that commit distinction explicit.
+
+**Performance artifact measurements** (390 × 844 Chromium, local static QA server, Lighthouse mobile preset/simulated throttling):
+- Lighthouse Performance scores: **0.96, 1.00, 1.00**.
+- First Contentful Paint: **902.7–906.3 ms**.
+- Largest Contentful Paint: **1,652.8–1,805.3 ms**.
+- Total Blocking Time: **0 ms, 0 ms, 209 ms**.
+- Cumulative Layout Shift: **0 to approximately 0.0000238**.
+- The first sample's 209 ms TBT and 0.96 score are retained as a real sample, not averaged away.
+- On the 1,000-row mocked scanner fixture, 100 rows were visible on the first page and the unique-symbol search returned one row. At 1× CPU: render 67 ms, sort 38 ms, search 156 ms, pagination 68 ms. At 4× CPU: render 102 ms, sort 96 ms, search 188 ms, pagination 137 ms.
+- Five repeated scanner interaction cycles: 2,401 ms at 1× and 3,311 ms at 4×. Post-GC heap deltas were +31,264 bytes and +70,360 bytes respectively; DOM deltas were +5 and +2. These short samples do not establish absence of a long-term memory leak.
+- No browser page errors were recorded in either CPU profile.
+- Local uncompressed resource timing: app.js 46,829 body bytes and chart.js 23,663 body bytes in both profiles. This is local QA-server transfer evidence, not production Cloudflare transfer size or compression evidence.
+- Lighthouse estimates of unused JavaScript/compression opportunities are local diagnostic candidates only; no production savings are claimed.
+
+**Live integration gate:** Live integration workflow Run ID `43811198164` completed its configuration-check job successfully, but the actual `Live cross-origin Chromium smoke test` job was **skipped**. The workflow explicitly requires Actions repository variables `DASHBOARD_PREVIEW_URL` and `RENDER_BACKEND_URL`; its live test also optionally reads `DASHBOARD_QA_BEARER_TOKEN`. No values were created or changed. Therefore Cloudflare Pages → Render live connectivity remains unverified.
+
+**3h regression:** The loader now admits the custom `3h` timeframe, requests hourly candles, and aggregates only complete UTC-aligned three-hour buckets. The regression test was added in commit `5f3ac728...`; its chart fixture passed in the current-head frontend workflow. Existing indicator rendering was not intentionally removed or altered by this targeted fix.
+
+**Change control:** No `main` update, PR merge, production or staging deployment, Render configuration/secret change, or CORS relaxation was performed. The branch head remains `5f3ac728...`.
