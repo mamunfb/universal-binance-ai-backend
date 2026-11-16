@@ -1406,3 +1406,31 @@ Commits:
 **Validation status:** these changes have been read back from the feature branch, but no post-change CI result or live browser run is yet confirmed. The live run requires all three owner-provided inputs: exact HTTPS `DASHBOARD_PREVIEW_URL` and `RENDER_BACKEND_URL` repository variables, plus `DASHBOARD_QA_BEARER_TOKEN` as a masked Actions secret. The backend deployment must already have the exact dashboard origin in its strict `CORS_ALLOWED_ORIGINS` allowlist and the token must be valid there. This audit did not change Render settings or secrets.
 
 No production deployment, staging deployment, `main` update, PR merge, wildcard CORS, Render configuration change, or credential disclosure was performed.
+
+
+## 36. Post-CORS feature-branch CI verification (2026-11-16)
+
+The latest feature-branch CI run for commit `496d48178d2d20617ed948489c1eb266fa549109` has completed successfully:
+
+- Workflow: Backend and dashboard tests, Run #1901
+- Run ID: `43793379013`
+- Overall conclusion: **success**
+- Toolchain setup: success
+- Python test dependency installation: success
+- Playwright + Chromium installation: success
+- Dashboard HTML/script-reference validation: success
+- Dashboard JavaScript and live integration harness syntax checks: success
+- Full Python + Chromium browser QA step: success
+
+The workflow intentionally skips the separate Python-only test step for this feature branch because the full feature-branch step runs `python -m pytest -q`; that full-suite step completed successfully. The GitHub job summary exposed no exact test count in the retrieved run metadata, so no test count is asserted here.
+
+**Important distinction:** the successful local-browser/fixture-backed Chromium suite is not the live Cloudflare Pages → Render integration test. The live workflow Run #6 completed its URL-configuration explanation job successfully, while the actual live cross-origin Chromium job was **skipped** because the required repository variables were not available. Therefore no live Render CORS response, authenticated request, or real preflight has yet been verified.
+
+**Next gates:**
+1. Supply exact HTTPS `DASHBOARD_PREVIEW_URL` and `RENDER_BACKEND_URL` repository Actions variables.
+2. Supply `DASHBOARD_QA_BEARER_TOKEN` as a masked Actions secret; never put it in a variable, commit, issue, or log.
+3. Ensure the backend instance being tested has the exact dashboard origin in `CORS_ALLOWED_ORIGINS` and the QA token is valid for that instance.
+4. Re-run the live workflow and retain actual browser response/header evidence for health, unauthenticated 401, authenticated 200, and OPTIONS preflight.
+5. Continue physical-device keyboard/viewport testing and real Android TalkBack/iOS VoiceOver checks.
+
+No main-branch change, PR merge, Render setting change, secret change, wildcard CORS, or deployment was performed for this verification.
