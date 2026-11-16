@@ -86,8 +86,9 @@ test("keyboard Tab navigation exposes a visible focus indicator on the first das
     };
   });
 
-  assert.equal(focus.tag, "A", "the first Tab stop should be the dashboard brand link");
-  assert.match(String(focus.className), /brand/);
+  assert.equal(focus.tag, "BUTTON", "the first Tab stop at a mobile viewport should be the mobile navigation control");
+  assert.equal(await page.evaluate(() => document.activeElement.id), "mobile-menu");
+  assert.match(String(focus.className), /icon-btn/);
   assert.equal(focus.outlineStyle, "solid", "keyboard focus must have a visible outline");
   assert.equal(focus.outlineWidth, "2px", "keyboard focus outline must be at least 2 CSS pixels");
   assert.notEqual(focus.outlineColor, "rgba(0, 0, 0, 0)",
