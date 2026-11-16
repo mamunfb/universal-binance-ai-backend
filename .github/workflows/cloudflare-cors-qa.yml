@@ -25,6 +25,8 @@ jobs:
           pip install -e ".[dev]"
       - name: Run CORS configuration regression tests
         run: pytest -q tests/test_cors_configuration.py
+      - name: Run complete backend regression suite
+        run: pytest -q
       - name: Lint CORS implementation and test correctness
         run: |
           ruff check backend/app/config.py
