@@ -1,6 +1,7 @@
 name: Dashboard live integration QA
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - feat/institutional-dashboard-design
