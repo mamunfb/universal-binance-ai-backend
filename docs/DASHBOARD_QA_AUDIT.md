@@ -1762,3 +1762,20 @@ The exact current head `5b950388...` changes only `docs/DASHBOARD_QA_AUDIT.md`; 
 The standalone 20-test Chromium browser workflow and Lighthouse/performance workflow have not been re-run on `5b950388...`. Their latest detailed evidence remains tied to `008bfe9e...`, as stated in Section 79. Both workflow YAML files expose `workflow_dispatch`, but the connected GitHub action interface available in this session does not expose a workflow-dispatch operation. No fake dispatch, source-only trigger commit, or deployment workaround was used.
 
 No `main` update, PR merge, production/staging deployment, Render setting/secret change, or CORS relaxation was performed.
+
+
+## 81. Current feature-branch head CI verification (2026-11-16)
+
+The feature branch head `fd351936777884b8c73aaf6c33fae8dd839ab2aa` (`docs: confirm audit commit CI evidence`) was verified by Backend and dashboard tests Run #1951:
+- Run ID: `43811810701`; job ID: `133114909136`; job conclusion: **success**.
+- Dashboard HTML validation confirmed the document doctype, app shell, both `chart.js` and `app.js` references, and that local referenced scripts exist.
+- JavaScript syntax validation passed for `dashboard/app.js`, `dashboard/chart.js`, and `tests/dashboard_live_integration.cjs`.
+- Full pytest suite: **686 passed, 2 warnings in 10.80s**.
+- The feature-branch pytest invocation includes `tests/test_dashboard_browser.py`, which launches Chromium through Playwright. The browser test module includes dashboard runtime-error checks, responsive viewport checks at 360/390/768/1280px, and mobile navigation Escape/focus restoration checks. This is distinct from the standalone Node-based 20-test browser workflow cited in Section 79.
+- The two warnings are dependency deprecations: Starlette TestClient/httpx integration and FastAPI's deprecated `example` parameter. They did not fail the run.
+
+**Evidence boundaries and remaining gates:**
+- This run was triggered by a documentation-only commit. It verifies the current source tree through the general Python/pytest + JavaScript validation workflow; it does not refresh the standalone browser QA or Lighthouse/performance artifacts.
+- The standalone browser and performance workflow evidence remains tied to earlier dashboard source commits, as described in Section 79. The current workflow YAML exposes manual dispatch, but no dispatch action is available through the connected GitHub interface in this session.
+- The live Cloudflare Pages → Render integration workflow still requires the repository Actions variables `DASHBOARD_PREVIEW_URL` and `RENDER_BACKEND_URL`. Its actual cross-origin browser smoke test has not run; no repository variables, secrets, CORS rules, or deployment settings were changed.
+- No `main` update, PR merge, production/staging deployment, Render configuration/secret change, or CORS relaxation occurred.
