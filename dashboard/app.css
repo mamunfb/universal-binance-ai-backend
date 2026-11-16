@@ -64,3 +64,4 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px soli
 .timeframe-btn:focus-visible{outline:2px solid #8fb6ff;outline-offset:3px}
 @media(min-width:900px){.timeframe-strip{grid-template-columns:repeat(8,minmax(0,1fr))}}
 @media(max-width:520px){.timeframe-strip{grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;padding:10px}.timeframe-btn{min-height:36px;padding:7px 4px;font-size:11px}}
+.timeframe-btn:disabled{opacity:.35;cursor:not-allowed;background:#0b111b;color:#6f7d91;border-color:#1a2535}
