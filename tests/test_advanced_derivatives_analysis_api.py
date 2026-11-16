@@ -50,3 +50,12 @@ def test_derivatives_signal_history_endpoint_uses_store(monkeypatch):
     )
     assert response.status_code == 200
     assert calls == [("btcusdt", "1h", 10, 20, 25)]
+
+
+def test_evm_token_index_body_example_uses_json_schema_examples():
+    operation = app.openapi()["paths"]["/api/v1/onchain/evm/token/{contract}/index"]["post"]
+    body_schema = operation["requestBody"]["content"]["application/json"]["schema"]
+    assert body_schema["examples"] == [
+        {"from_block": 1000000, "to_block": 1001000, "chunk_size": 500}
+    ]
+    assert "example" not in body_schema
