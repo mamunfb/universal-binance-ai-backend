@@ -1819,3 +1819,22 @@ Current-head Backend and dashboard tests Run #1957:
 **Evidence boundaries and remaining gates:** This current-head run validates the backend/dashboard tree with the combined Python + Chromium tests and JavaScript checks. It does not refresh the standalone Node-based 20-test browser workflow or Lighthouse/performance artifact, whose detailed evidence remains tied to the earlier dashboard source commit identified in Section 79. The live cross-origin Cloudflare Pages → Render smoke test remains unverified because its required Actions repository variables `DASHBOARD_PREVIEW_URL` and `RENDER_BACKEND_URL` are not configured; no values were created or changed.
 
 **Change control:** No `main` update, PR creation/merge, production or staging deployment, Render configuration/secret change, repository variable change, or CORS relaxation was performed.
+
+
+## 84. Dashboard QA evidence freshness and live-integration gate (2026-11-16)
+
+A Git comparison was performed from the last detailed standalone Dashboard browser/performance QA source commit `008bfe9e5ae9caefee260085d6a57389a664f1e5` to the current feature-branch head before this documentation update, `9b6c224684f71ed18dc4e4de39b311512b9589c0`.
+
+- The comparison reports 9 commits ahead and 0 behind.
+- Changed files across those commits: `backend/app/main.py`, `docs/DASHBOARD_QA_AUDIT.md`, `pyproject.toml`, `tests/test_advanced_derivatives_analysis_api.py`, and `tests/test_dashboard_chart.js`.
+- No files under `dashboard/` changed in this range. Therefore the dashboard application source used by standalone browser QA Run #60 and performance QA Run #41 remains byte-for-byte unchanged through the current feature head. The standalone QA harness files are also not listed among the changed files.
+- This comparison supports carrying forward the prior standalone browser/performance evidence for the unchanged dashboard source; it does not constitute a fresh rerun of either workflow on the new commit.
+
+The latest live integration workflow Run #27 (ID `43812701904`) was also inspected by job:
+- `Live URL configuration check`: success; it reported the required repository Actions variables were missing.
+- `Live cross-origin Chromium smoke test`: **skipped**.
+- Consequently, the workflow's overall success must not be interpreted as a successful live Cloudflare Pages → Render browser test.
+
+The live integration gate remains: configure the exact HTTPS repository Actions variables `DASHBOARD_PREVIEW_URL` and `RENDER_BACKEND_URL` in GitHub repository settings, then rerun/trigger the live workflow through an authorized workflow trigger. No secrets, variables, CORS rules, or deployment settings were changed in this audit.
+
+**Change control:** No `main` update, PR creation/merge, production or staging deployment, Render configuration/secret change, repository variable change, or CORS relaxation was performed.
