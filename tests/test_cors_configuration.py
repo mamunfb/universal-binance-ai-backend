@@ -63,6 +63,7 @@ def test_parse_cors_allowed_origins_normalizes_case_and_default_ports():
         "ftp://dashboard.example",
         "https://dashboard.example:invalid",
         "https://dashboard.example:65536",
+        "https://dashboard.example:",
         "https://dashboard example",
     ],
 )
