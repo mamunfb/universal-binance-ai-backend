@@ -1015,3 +1015,11 @@ Limits: API fault cases use deterministic route mocks, not the live backend. Scr
 - Backend and Dashboard run `43788713276`: **success**; feature-branch full pytest + Chromium browser QA completed. Job log reports **640 passed, 2 warnings**.
 - This confirms automated tests only. The backend API was mocked in browser tests; live Render/Cloudflare integration, physical mobile devices, manual TalkBack/VoiceOver, and Lighthouse/Core Web Vitals remain pending.
 - No merge, deployment, production setting, secret, backend/database logic or `main` branch change was made.
+
+
+## Mobile performance QA checkpoint — 2026-11-16
+
+- Performance workflow `43789369354`: **success** on commit `e250f30d6db67432e16774ba4fe2547f41539321`; raw artifact is attached to the workflow run.
+- Three simulated-mobile Lighthouse runs against the local static QA server each scored **100/100 Performance**. FCP was about 0.90 s; LCP ranged 1.52–1.69 s (median about 1.65 s); TBT 0 ms; CLS 0–0.000024. The `perf` preset does not provide Accessibility/Best Practices/SEO category scores.
+- CPU-throttled Chromium profiling at 1×/4× used a deterministic 1,000-row mocked scanner fixture. Five repeated search/sort/pagination cycles took 2.343 s / 2.925 s; post-GC heap deltas were 36,452 / 64,796 bytes and DOM node delta was +5 in each run. These are baseline observations, not proof of leak-free long sessions.
+- Live Render/Cloudflare integration, real network profiling, physical Android/iOS, and manual TalkBack/VoiceOver remain pending. No production deployment, merge or `main` change was made.
