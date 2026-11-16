@@ -308,7 +308,7 @@
   function initTimeframes() {
     ["global-timeframe","default-timeframe","quality-interval"].forEach(id=>{const select=$(id);select.replaceChildren();TIMEFRAMES.forEach(tf=>{const option=document.createElement("option");option.value=tf;option.textContent=tf;select.append(option);});});
     $("global-timeframe").value="1h";$("default-timeframe").value="1h";const qualitySelect=$("quality-interval");qualitySelect.replaceChildren();["1m","3m","5m","15m","30m","1h","2h","4h","6h","8h","12h","1d"].forEach(tf=>{const option=document.createElement("option");option.value=tf;option.textContent=tf;qualitySelect.append(option);});qualitySelect.value="1h";
-    const strip=$("analysis-timeframes");TIMEFRAMES.forEach(tf=>{const button=document.createElement("button");button.className="timeframe-btn"+(tf==="1h"?" active":"");button.type="button";button.textContent=tf;button.addEventListener("click",()=>{state.timeframe=tf;$("global-timeframe").value=tf;strip.querySelectorAll("button").forEach(b=>b.classList.toggle("active",b===button));syncAnalysisHeader();withButton("load-coin-analysis",loadTechnical,"Loading…");});strip.append(button);});
+    const strip=$("analysis-timeframes");TIMEFRAMES.forEach(tf=>{const button=document.createElement("button");button.className="timeframe-btn"+(tf==="1h"?" active":"");button.type="button";button.textContent=tf;button.setAttribute("aria-pressed",String(tf==="1h"));button.addEventListener("click",()=>{state.timeframe=tf;$("global-timeframe").value=tf;strip.querySelectorAll("button").forEach(b=>{const active=b===button;b.classList.toggle("active",active);b.setAttribute("aria-pressed",String(active));});syncAnalysisHeader();withButton("load-coin-analysis",loadTechnical,"Loading…");});strip.append(button);});
   }
   function applyDisplayPreferences() {
     state.displayTimezone=$("display-timezone").value;
@@ -316,7 +316,7 @@
     state.timeframe=$("default-timeframe").value;
     $("global-market").value=state.market;$("global-timeframe").value=state.timeframe;
     document.querySelectorAll(".market-tab").forEach(b=>b.classList.toggle("active",b.dataset.market===state.market));
-    $("analysis-timeframes").querySelectorAll("button").forEach(b=>b.classList.toggle("active",b.textContent===state.timeframe));
+    $("analysis-timeframes").querySelectorAll("button").forEach(b=>{const active=b.textContent===state.timeframe;b.classList.toggle("active",active);b.setAttribute("aria-pressed",String(active));});
     syncAnalysisHeader();
   }
   function invalidateQualityRequest(){activeQualitySequence++;if(activeQualityController){activeQualityController.abort();activeQualityController=null;}}
@@ -442,7 +442,7 @@
     $("clear-credentials").addEventListener("click",()=>{invalidateScanRequests();invalidateQualityRequest();invalidateReadinessRequests();cancelAnalysisRequests();invalidateHealthRequests();state.base="";state.token="";clearConnectionScopedData("Backend credentials cleared · previous backend data removed");$("backend-url").value="";$("backend-url").setCustomValidity("");$("backend-token").value="";setText("health-status","Not checked · backend credentials cleared");setText("scan-state","Backend credentials cleared · scan unavailable");setText("quality-state","Backend credentials cleared · quality check unavailable");setConnection(false,"Not connected");setText("settings-status","Credentials cleared from page memory.");toast("Connection credentials cleared.","success");});
     $("display-timezone").addEventListener("change",e=>{state.displayTimezone=e.target.value;refreshDisplayedTimestamps();setText("settings-status","Display timezone applied for this page session.");});
     $("default-market").addEventListener("change",e=>{invalidateScanRequests();setText("scan-state","Market selection changed · run a new scan");$("global-market").value=e.target.value;state.market=e.target.value;document.querySelectorAll(".market-tab").forEach(b=>b.classList.toggle("active",b.dataset.market===state.market));invalidateChartView();});
-    $("default-timeframe").addEventListener("change",e=>{$("global-timeframe").value=e.target.value;state.timeframe=e.target.value;$("analysis-timeframes").querySelectorAll("button").forEach(b=>b.classList.toggle("active",b.textContent===state.timeframe));invalidateChartView();});
+    $("default-timeframe").addEventListener("change",e=>{$("global-timeframe").value=e.target.value;state.timeframe=e.target.value;$("analysis-timeframes").querySelectorAll("button").forEach(b=>{const active=b.textContent===state.timeframe;b.classList.toggle("active",active);b.setAttribute("aria-pressed",String(active));});invalidateChartView();});
     window.addEventListener("hashchange",()=>navigate(location.hash.slice(1)||"overview"));
   }
   initTimeframes();applyDisplayPreferences();bind();navigate(location.hash.slice(1)||"overview");setConnection(false,"Backend not configured");
