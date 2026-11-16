@@ -77,6 +77,7 @@ jobs:
         run: |
           node --check dashboard/app.js
           node --check dashboard/chart.js
+          node --check tests/dashboard_live_integration.cjs
 
       - name: Run Python test suite
         if: github.ref != 'refs/heads/feat/institutional-dashboard-design' && github.event.pull_request.head.ref != 'feat/institutional-dashboard-design'
