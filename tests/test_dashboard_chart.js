@@ -105,6 +105,30 @@ test("3h aggregation discards incomplete, duplicated and misaligned buckets", ()
   assert.equal(charts.aggregate3h(invalidCloseTime).length, 0);
 });
 
+test("3h chart load requests hourly candles and renders only complete aggregated buckets", async () => {
+  const makeElement = tag => ({
+    tagName:tag,attributes:{},children:[],style:{},textContent:"",
+    setAttribute(key,value){this.attributes[key]=String(value);},append(...nodes){this.children.push(...nodes);},
+    replaceChildren(...nodes){this.children=[...nodes];}
+  });
+  const nodes={"chart-placeholder":makeElement("host"),"technical-summary":makeElement("summary"),"analysis-output":makeElement("output"),"chart-state":makeElement("state")};
+  const originalDocument=global.document;
+  global.document={getElementById(id){return nodes[id];},createElement:makeElement,createElementNS(_ns,tag){return makeElement(tag);},createDocumentFragment:()=>makeElement("fragment")};
+  const rows=Array.from({length:7},(_,i)=>{const close=100+i;const time=i*3600000;return [time,close,close+2,close-1,close+1,10,time+3599999];});
+  let requestedUrl="";
+  try {
+    const result=await charts.load(async url=>{requestedUrl=url;return {klines:rows};},"SPOT","BTCUSDT","3h");
+    assert.match(requestedUrl,/interval=1h/);
+    assert.equal(result.requested_timeframe,"3h");
+    assert.equal(result.source_interval,"1h");
+    assert.equal(result.aggregation,"UTC-aligned groups of exactly three consecutive 1h candles; incomplete groups discarded");
+    assert.equal(result.source_rows_received,7);
+    assert.equal(result.candle_count,2);
+    assert.equal(result.latest_candle_time_utc,new Date(3*3600000).toISOString());
+    assert.match(nodes["chart-state"].textContent,/3h aggregated/);
+  } finally {global.document=originalDocument;}
+});
+
 test("timeframe and market route mapping stays explicit", () => {
   assert.equal(charts.intervalFor("3h"), "1h");
   assert.equal(charts.intervalFor("1D"), "1d");
