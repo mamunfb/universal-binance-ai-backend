@@ -1701,6 +1701,13 @@ Dashboard Performance QA Run #27 and Backend + Dashboard CI Run #1926 both verif
 - Both profiles rendered 100 visible rows from the 1,000-row fixture, unique search returned one row, all 12 sampled navigation actions left the sidebar closed, and no browser page errors were recorded.
 - These deterministic, short mock runs do not establish production performance, real-device behavior, or absence of a long-term memory leak. The resource transfer sizes are local uncompressed measurements and must not be interpreted as production Cloudflare transfer sizes.
 
-The performance harness enhancement was committed in `c9d9c83...` and is test-only; no dashboard runtime code was changed in this commit. The Lighthouse raw JSON reports are retained in the artifact for independent metric inspection; this section intentionally does not infer scores or timing metrics from the workflow's success status.
+The performance harness enhancement was committed in `c9d9c83...` and is test-only; no dashboard runtime code was changed in this commit. The three Lighthouse JSON reports were downloaded from the artifact and inspected directly (390 × 844, Lighthouse mobile preset with simulated throttling, local static QA server):
+- Performance category scores: **0.96, 1.00, 1.00**.
+- First Contentful Paint: **902.9–906.8 ms**.
+- Largest Contentful Paint: **1,502.9–1,763.8 ms**.
+- Total Blocking Time: **0 ms, 210.6 ms, 0 ms**; the first sample has a measurable blocking-time outlier and must not be hidden.
+- Cumulative Layout Shift: approximately **0.0000238** in all three samples.
+- Estimated unused JavaScript opportunity: **60,333 bytes**; estimated text-compression savings: **76,974 bytes**. These are Lighthouse estimates against the local QA server, not confirmed production savings or evidence about Cloudflare edge compression.
+- Lighthouse emitted non-fatal all-frames FCP/LCP computation warnings; standard page FCP/LCP metrics were present in the reports.
 
 No `main` update, PR merge, Render configuration or secret change, wildcard CORS, or production/staging deployment occurred.
