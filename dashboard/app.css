@@ -55,3 +55,12 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px soli
 .filter-row select:focus-visible,
 .settings-grid input:focus-visible,
 .settings-grid select:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+
+/* Exchange-style timeframe selector */
+.timeframe-strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:0 0 12px;padding:12px;background:#05080e;border:1px solid #202b3b;border-radius:12px}
+.timeframe-btn{min-height:38px;padding:8px 10px;background:#101a29;border:1px solid #1d2b40;border-radius:999px;color:#c5d0df;font-size:12px;font-weight:650;transition:background .15s ease,color .15s ease,border-color .15s ease}
+.timeframe-btn:hover{background:#1a2a40;color:#fff;border-color:#3b5271}
+.timeframe-btn.active,.timeframe-btn[aria-pressed="true"]{background:#f4f5f7;border-color:#f4f5f7;color:#10141c}
+.timeframe-btn:focus-visible{outline:2px solid #8fb6ff;outline-offset:3px}
+@media(min-width:900px){.timeframe-strip{grid-template-columns:repeat(8,minmax(0,1fr))}}
+@media(max-width:520px){.timeframe-strip{grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;padding:10px}.timeframe-btn{min-height:36px;padding:7px 4px;font-size:11px}}
