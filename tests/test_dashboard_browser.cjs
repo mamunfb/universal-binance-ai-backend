@@ -70,7 +70,7 @@ test("responsive layout has no horizontal overflow at supported viewport widths"
   }
 });
 
-test("keyboard Tab navigation exposes a visible focus indicator on the first dashboard link", async () => {
+test("mobile keyboard Tab navigation exposes a visible focus indicator on the menu button", async () => {
   const {context, page, pageErrors} = await newPage(390, 844);
   await page.keyboard.press("Tab");
 
