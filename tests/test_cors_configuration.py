@@ -140,7 +140,7 @@ def test_protected_api_accepts_valid_bearer_key_for_allowed_origin(private_api_k
     assert response.headers["access-control-allow-origin"] == "https://dashboard.example"
 
 
-def test_empty_cors_configuration_does_not_grant_cross_origin_access():
+def test_empty_cors_configuration_does_not_grant_cross_origin_access(private_api_key):
     response = _client("").get(
         "/api/qa-probe",
         headers={
