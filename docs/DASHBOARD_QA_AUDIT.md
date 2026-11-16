@@ -1475,3 +1475,17 @@ The two successful runs above cover adjacent commits: Browser QA #45 tested the 
 Live Cloudflare Pages → Render integration is still not verified: exact HTTPS Actions variables and the masked QA Bearer secret are not configured/available to the workflow. Physical-device TalkBack and VoiceOver testing also remains outstanding.
 
 No `main` change, PR merge, Render configuration/secret change, wildcard CORS, or deployment was performed.
+
+
+## 39. Latest CI verification and strict origin syntax edge cases (2026-11-16)
+
+The latest complete QA runs have been inspected from their job logs:
+
+- Dedicated Dashboard Browser QA Run #46 (`43793995990`), commit `707b110616a4f51a0bc6f8e140bf200137e43e3e`: **20 passed, 0 failed, 0 skipped**.
+- Backend + Dashboard Run #1908 (`43794000609`), commit `cef2648b1669e6b6d6b18bab22ea6e8d25a6bc2b`: full Python suite **661 passed**, 2 dependency deprecation warnings, in 11.17 seconds. Dashboard HTML/script references, JavaScript syntax and full Python + Chromium feature-branch QA also succeeded.
+
+A small strictness gap was then identified in CORS origin parsing: `urlsplit` returns empty query/fragment values for syntactically present empty delimiters (`?` and `#`). Since a CORS allowlist entry must be an origin, not a URL with query/fragment delimiters, the parser now explicitly rejects those characters and regression cases cover both empty forms.
+
+These parser and test changes are being validated by new CI runs. They are not yet counted as passed until those runs complete.
+
+Live Cloudflare Pages → Render integration remains unverified because the exact HTTPS Actions variables and masked QA Bearer secret are not configured/available to the workflow. No production, Render, main-branch, PR merge, or deployment change was made.
