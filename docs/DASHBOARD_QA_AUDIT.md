@@ -1657,3 +1657,21 @@ The Dashboard performance QA workflow ran against the then-current source commit
 The benchmark harness now fails on browser page errors, mock API request failures/non-200 responses, a sidebar left open after navigation, or unexpected scanner visible/search row counts. These assertions were added in commit `7f1fd784...` and the successful performance run confirms they executed without triggering. The backend/dashboard CI for the same commit also succeeded: Run #1923 ID `43796077857`, with **667 passed, 2 warnings in 12.95s**, dashboard HTML/script validation, JavaScript syntax checks, and full Chromium browser QA.
 
 The two Python warnings remain the known Starlette TestClient/httpx and FastAPI deprecated `example` warnings. No production deployment, staging deployment, Render configuration or secret change, wildcard CORS, PR merge, or `main` update occurred.
+
+
+## 77. Latest dashboard/backend CI confirmation (2026-11-16)
+
+Backend and Dashboard workflow Run #1924 verified the current audit-head commit:
+- Run ID: `43796389980`.
+- Commit: `9980aa20a971e804ef1d971f3a95006056a13375`.
+- Job ID: `133066057865`; conclusion: **success**.
+- Full feature-branch pytest suite: **667 passed, 2 warnings in 12.22s**.
+- Dashboard HTML validation confirmed the app shell and both local script references (`chart.js` and `app.js`).
+- JavaScript syntax checks passed for `dashboard/app.js`, `dashboard/chart.js`, and `tests/dashboard_live_integration.cjs`.
+- The combined Python + Chromium browser QA step passed. The standalone Python-only step was skipped by design to avoid running the same suite twice.
+
+The two warnings remain dependency deprecations: Starlette TestClient/httpx integration and FastAPI's deprecated `example` parameter. They did not fail the suite.
+
+The performance workflow Run #26 remains the latest raw performance evidence described in Section 76. Its source commit is `7f1fd784...`, earlier than this audit-head commit; therefore its Lighthouse and CPU/heap numbers are not claimed as measurements of this exact commit. A separate physical-device test and live Cloudflare Pages → Render integration are still not established by this run.
+
+No `main` update, PR merge, Render configuration/secret change, wildcard CORS, or production/staging deployment was performed.
