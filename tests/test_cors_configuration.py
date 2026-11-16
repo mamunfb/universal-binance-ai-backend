@@ -165,7 +165,9 @@ def test_preflight_rejects_methods_outside_the_cors_allowlist(private_api_key, r
     )
 
     assert response.status_code == 400
-    assert "access-control-allow-origin" not in response.headers
+    assert response.headers["access-control-allow-origin"] == "https://dashboard.example"
+    allowed_methods = response.headers["access-control-allow-methods"].upper().split(",")
+    assert requested_method not in [method.strip() for method in allowed_methods]
 
 
 def test_preflight_rejects_unlisted_request_headers(private_api_key):
@@ -179,4 +181,6 @@ def test_preflight_rejects_unlisted_request_headers(private_api_key):
     )
 
     assert response.status_code == 400
-    assert "access-control-allow-origin" not in response.headers
+    assert response.headers["access-control-allow-origin"] == "https://dashboard.example"
+    allowed_headers = response.headers["access-control-allow-headers"].lower().split(",")
+    assert "x-admin-override" not in [header.strip() for header in allowed_headers]
