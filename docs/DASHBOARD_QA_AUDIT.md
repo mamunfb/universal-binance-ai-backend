@@ -1440,7 +1440,7 @@ No main-branch change, PR merge, Render setting change, secret change, wildcard 
 
 Added a focused Playwright regression test in `tests/test_dashboard_browser.cjs`:
 - Starts keyboard navigation with Tab at a 390 × 844 viewport.
-- Verifies the first focus stop is the dashboard brand link.
+- Verifies the first focus stop at the 390 px mobile viewport is the mobile navigation button (the sidebar brand link is inert while the mobile sidebar is closed).
 - Checks computed focus styling is a solid, non-transparent 2 CSS-pixel outline.
 - Confirms no browser page errors are raised during the check.
 
@@ -1448,7 +1448,7 @@ Commit: `b5855b3cf5df2eb0d646302e87ff8f0802b22a91`.
 
 Backend + Dashboard workflow Run #1903 (`43793582340`) completed with **success** on that commit. The job completed the full feature-branch `python -m pytest -q` step successfully, along with runner setup, dependency installation, Playwright/Chromium installation, dashboard HTML/script-reference validation, and JavaScript syntax checks. The separate Python-only step is intentionally skipped on the feature branch because the full feature-branch test command includes Python and Chromium tests.
 
-A second dedicated Chromium QA workflow, Run #44 (`43793582323`), has installed its pinned Playwright and Chromium dependencies and is currently executing `node --test tests/test_dashboard_browser.cjs`. Its result is **pending** at the time this entry was written; do not report it as passed until the job completes.
+Dedicated Chromium QA Run #44 (`43793582323`) completed with 19 of 20 tests passing. The new focus test initially failed because it incorrectly expected the sidebar brand link to be the first Tab stop, while the closed mobile sidebar is inert and the mobile menu button is the correct first stop. This was a test expectation error, not evidence of a missing focus outline. The assertion has been corrected to target `#mobile-menu` and verify its visible 2 px focus outline. The corrected test is queued in Run #45 (`43793740587`) and the full suite in Run #1905 (`43793740723`); their results remain pending.
 
 **Still not verified:** the live Cloudflare Pages → Render cross-origin test remains blocked by missing exact HTTPS repository variables and the masked QA Bearer secret. Real Android TalkBack and iOS VoiceOver checks remain unperformed and require physical devices.
 
