@@ -1453,3 +1453,25 @@ Dedicated Chromium QA Run #44 (`43793582323`) completed with 19 of 20 tests pass
 **Still not verified:** the live Cloudflare Pages → Render cross-origin test remains blocked by missing exact HTTPS repository variables and the masked QA Bearer secret. Real Android TalkBack and iOS VoiceOver checks remain unperformed and require physical devices.
 
 No `main` change, PR merge, Render configuration/secret change, wildcard CORS, or deployment was performed.
+
+
+## 38. Corrected mobile keyboard-focus test and CI verification (2026-11-16)
+
+The corrected mobile keyboard-focus test has now passed in the dedicated Chromium workflow:
+- Dashboard Browser QA Run #45, run ID `43793740587`, commit `1816a4ac7ec4a859e44a21c0413618eb335cb157`.
+- Result: **20 passed, 0 failed, 0 skipped**.
+- The test confirms that at a 390 × 844 mobile viewport the first Tab stop is `#mobile-menu`, and its computed focus outline is solid, 2 px wide, and non-transparent.
+- The test title was clarified to identify the mobile menu button rather than incorrectly describing it as the first dashboard link.
+
+Backend + Dashboard Run #1906, run ID `43793771904`, completed successfully on commit `8a6a5c7f52a9728f24de125c530a92e1207f5dce`:
+- Full feature-branch `python -m pytest -q`: **661 passed** in 11.17 seconds.
+- Dashboard HTML/script-reference validation and JavaScript syntax checks: success.
+- The full Python + Chromium QA step: success.
+- Two deprecation warnings were emitted by installed Starlette/FastAPI dependencies; they did not fail the test run.
+- The separate Python-only workflow step is skipped by design on this feature branch because the full-suite step is used instead.
+
+The two successful runs above cover adjacent commits: Browser QA #45 tested the code commit `1816a4a...`; Backend + Dashboard #1906 tested documentation commit `8a6a5c7...`. A title-only test clarification is being committed now and will trigger fresh workflows.
+
+Live Cloudflare Pages → Render integration is still not verified: exact HTTPS Actions variables and the masked QA Bearer secret are not configured/available to the workflow. Physical-device TalkBack and VoiceOver testing also remains outstanding.
+
+No `main` change, PR merge, Render configuration/secret change, wildcard CORS, or deployment was performed.
