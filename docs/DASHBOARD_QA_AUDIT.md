@@ -1434,3 +1434,22 @@ The workflow intentionally skips the separate Python-only test step for this fea
 5. Continue physical-device keyboard/viewport testing and real Android TalkBack/iOS VoiceOver checks.
 
 No main-branch change, PR merge, Render setting change, secret change, wildcard CORS, or deployment was performed for this verification.
+
+
+## 37. Keyboard focus regression and CI #1903 verification (2026-11-16)
+
+Added a focused Playwright regression test in `tests/test_dashboard_browser.cjs`:
+- Starts keyboard navigation with Tab at a 390 × 844 viewport.
+- Verifies the first focus stop is the dashboard brand link.
+- Checks computed focus styling is a solid, non-transparent 2 CSS-pixel outline.
+- Confirms no browser page errors are raised during the check.
+
+Commit: `b5855b3cf5df2eb0d646302e87ff8f0802b22a91`.
+
+Backend + Dashboard workflow Run #1903 (`43793582340`) completed with **success** on that commit. The job completed the full feature-branch `python -m pytest -q` step successfully, along with runner setup, dependency installation, Playwright/Chromium installation, dashboard HTML/script-reference validation, and JavaScript syntax checks. The separate Python-only step is intentionally skipped on the feature branch because the full feature-branch test command includes Python and Chromium tests.
+
+A second dedicated Chromium QA workflow, Run #44 (`43793582323`), has installed its pinned Playwright and Chromium dependencies and is currently executing `node --test tests/test_dashboard_browser.cjs`. Its result is **pending** at the time this entry was written; do not report it as passed until the job completes.
+
+**Still not verified:** the live Cloudflare Pages → Render cross-origin test remains blocked by missing exact HTTPS repository variables and the masked QA Bearer secret. Real Android TalkBack and iOS VoiceOver checks remain unperformed and require physical devices.
+
+No `main` change, PR merge, Render configuration/secret change, wildcard CORS, or deployment was performed.
