@@ -1006,3 +1006,12 @@ Limits: API fault cases use deterministic route mocks, not the live backend. Scr
 - Backend and Dashboard Run #1868 (ID `43783483742`): **success**. Document/script-reference validation, JavaScript syntax validation and the feature-branch full Python/Chromium QA step succeeded. The separate generic Python test step was skipped by workflow conditions; no pytest count is asserted for this run.
 - These runs validate automated Chromium and CI behavior with mocked backend responses. Live Render + Cloudflare Pages integration, physical-device testing, manual TalkBack/VoiceOver checks, Lighthouse/Core Web Vitals and production verification remain pending.
 - No PR merge, deployment, backend/database change, secret change or `main` update was performed.
+
+
+## CI confirmation after dashboard test-discovery fix — 2026-11-16
+
+- Feature-branch commit: `590fd526a9bef8e450a2c27d4083149827795dd7`.
+- Dashboard Frontend run `43788713264`: **success**; the Python unittest discovery targets now exclude the pytest/Playwright browser module, and JavaScript syntax/chart fixture checks passed.
+- Backend and Dashboard run `43788713276`: **success**; feature-branch full pytest + Chromium browser QA completed. Job log reports **640 passed, 2 warnings**.
+- This confirms automated tests only. The backend API was mocked in browser tests; live Render/Cloudflare integration, physical mobile devices, manual TalkBack/VoiceOver, and Lighthouse/Core Web Vitals remain pending.
+- No merge, deployment, production setting, secret, backend/database logic or `main` branch change was made.
