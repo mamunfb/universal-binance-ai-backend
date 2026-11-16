@@ -1276,3 +1276,20 @@ Validation on the corrected commit:
 - [Backend and dashboard tests](https://github.com/mamunfb/universal-binance-ai-backend/actions/runs/43788713276): **success**; feature-branch Playwright/Chromium installation, document/script-reference checks, JavaScript syntax and full pytest suite all completed successfully. Job log records **640 passed, 2 warnings**.
 
 The generic Python suite step was skipped by workflow conditions on this feature-branch run; the full feature-branch pytest step is the executed suite represented by the 640-test result. Browser API responses remain deterministic mocks, not a live Render/Cloudflare cross-origin test. Physical Android/iOS, TalkBack/VoiceOver manual review, live backend integration and Lighthouse/Core Web Vitals remain separate verification tasks. No application source, backend business logic, database, secrets, `main`, PR metadata, merge state or deployment configuration was changed. No merge or deployment was performed.
+
+
+## 68. Mobile Lighthouse, CPU-throttled interaction and heap profiling (2026-11-16)
+
+Performance QA workflow [Run `43789369354`](https://github.com/mamunfb/universal-binance-ai-backend/actions/runs/43789369354) completed successfully on feature-branch commit `e250f30d6db67432e16774ba4fe2547f41539321`. Raw evidence artifact: [dashboard-performance-e250f30d6db67432e16774ba4fe2547f41539321](https://github.com/mamunfb/universal-binance-ai-backend/actions/runs/43789369354/artifacts/14191367649).
+
+Three Lighthouse mobile cold-load samples against the local static QA server completed and each recorded a **Performance score of 1.00 (100/100)**. Across the three samples, First Contentful Paint was approximately 0.90 s; Largest Contentful Paint was 1.52–1.69 s (median approximately 1.65 s); Total Blocking Time was 0 ms; Cumulative Layout Shift was 0 or approximately 0.000024. These are Lighthouse simulated-mobile measurements of the local static page, not production/Cloudflare measurements. The workflow used the `perf` preset, so these runs do not provide Accessibility, Best Practices or SEO category scores.
+
+The Playwright profile exercised a deterministic mocked 1,000-row Spot scanner fixture at 390×844 CSS px, with CPU throttle rates 1× and 4×:
+- Both runs rendered the first 100-row page and filtered the fixture to one matching row; no page-level JavaScript errors were recorded.
+- At 1×: initial navigation 29 ms, scanner render 67 ms, sort 36 ms, search 155 ms, pagination 70 ms; five repeated search/sort/page cycles took 2,343 ms.
+- At 4×: initial navigation 49 ms, scanner render 91 ms, sort 79 ms, search 180 ms, pagination 109 ms; five repeated cycles took 2,925 ms.
+- After explicit garbage collection and five repeated cycles, retained JS heap delta was 36,452 bytes at 1× and 64,796 bytes at 4×; DOM node delta was +5 in both runs. These single-run deltas are useful regression baselines, not proof that long-session memory leaks are absent.
+
+The performance harness contained a duplicate `dom_nodes_before_cycles` object key. Removed the redundant duplicate in commit `e250f30d6db67432e16774ba4fe2547f41539321`; the value and measured behavior are unchanged.
+
+Limits: browser API calls used deterministic route mocks; Lighthouse used the local static server and simulated mobile throttling. No live Render API, Cloudflare Pages origin, real network conditions, physical Android/iOS device, or manual TalkBack/VoiceOver session was tested. No production performance claim is made. No application behavior, backend business logic, database, secrets, `main`, PR metadata, merge state or deployment configuration was changed. No merge or deployment was performed.
