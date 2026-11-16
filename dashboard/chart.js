@@ -229,7 +229,7 @@ function invalidate(){activeLoadSequence++;if(activeLoadController){activeLoadCo
 async function load(api,market,symbol,timeframe){
  const tf=timeframe,route=routeFor(market);
  if(!route)throw new Error("Unsupported market type: "+market);
- const supportedTimeframes=["1m","3m","5m","15m","30m","1h","2h","3h","4h","6h","8h","12h","1D","3D","1W","1M"];
+ const supportedTimeframes=["1m","3m","5m","15m","30m","1h","2h","4h","6h","8h","12h","1D","1W","1M"];
  if(!supportedTimeframes.includes(tf))throw new Error("Unsupported chart timeframe: "+tf);
  if(typeof symbol!=="string"||!symbol.trim())throw new Error("Enter a valid trading symbol.");
  const interval=intervalFor(tf),requestSequence=++activeLoadSequence;
