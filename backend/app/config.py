@@ -1,4 +1,7 @@
+from urllib.parse import urlsplit
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from starlette.middleware.cors import CORSMiddleware
 
 
 class Settings(BaseSettings):
@@ -7,6 +10,7 @@ class Settings(BaseSettings):
     personal_api_key: str = ""
     ai_client_api_keys: str = "{}"
     log_level: str = "INFO"
+    cors_allowed_origins: str = ""
     binance_spot_base_url: str = "https://api.binance.com"
     http_timeout_seconds: float = 15.0
     liquidation_collector_enabled: bool = False
@@ -57,3 +61,62 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+
+def parse_cors_allowed_origins(value: str) -> list[str]:
+    """Parse exact browser origins; reject wildcards, paths, and insecure remote HTTP."""
+    origins: list[str] = []
+    for raw_origin in value.split(","):
+        origin = raw_origin.strip()
+        if not origin:
+            continue
+        parsed = urlsplit(origin)
+        hostname = parsed.hostname
+        try:
+            port = parsed.port
+        except ValueError as exc:
+            raise ValueError("CORS_ALLOWED_ORIGINS contains an invalid port") from exc
+        if (
+            parsed.scheme not in {"https", "http"}
+            or not parsed.netloc
+            or hostname is None
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.path
+            or parsed.query
+            or parsed.fragment
+            or "*" in origin
+            or any(character.isspace() for character in origin)
+        ):
+            raise ValueError(
+                "CORS_ALLOWED_ORIGINS must contain exact HTTPS origins without paths or credentials"
+            )
+        if parsed.scheme == "http" and hostname not in {"localhost", "127.0.0.1", "::1"}:
+            raise ValueError("CORS_ALLOWED_ORIGINS permits HTTP only for localhost development origins")
+        try:
+            normalized_hostname = hostname.encode("idna").decode("ascii").lower()
+        except UnicodeError as exc:
+            raise ValueError("CORS_ALLOWED_ORIGINS contains an invalid hostname") from exc
+        if not normalized_hostname or any(character in normalized_hostname for character in "/\\\\?#@"):
+            raise ValueError("CORS_ALLOWED_ORIGINS contains an invalid hostname")
+        default_port = 443 if parsed.scheme == "https" else 80
+        host_for_origin = f"[{normalized_hostname}]" if ":" in normalized_hostname else normalized_hostname
+        authority = host_for_origin if port is None or port == default_port else f"{host_for_origin}:{port}"
+        canonical_origin = f"{parsed.scheme}://{authority}"
+        if canonical_origin not in origins:
+            origins.append(canonical_origin)
+    return origins
+
+
+def configure_cors_middleware(app, allowed_origins: str) -> None:
+    """Enable narrow Bearer-header CORS without cookies or wildcard origins."""
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=parse_cors_allowed_origins(allowed_origins),
+        allow_methods=["GET", "POST"],
+        allow_headers=["Authorization", "Content-Type"],
+        expose_headers=["X-Request-ID"],
+        allow_credentials=False,
+        max_age=600,
+    )
