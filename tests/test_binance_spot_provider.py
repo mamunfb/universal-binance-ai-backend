@@ -109,3 +109,24 @@ async def test_spot_price_ticker_uses_symbol_query_parameter(monkeypatch):
     result = await BinanceSpotProvider("https://spot.example.test").price_ticker("btcusdt")
     assert result == {"symbol": "BTCUSDT", "price": "100"}
     assert clients[0].calls == [("/api/v3/ticker/price", {"symbol": "BTCUSDT"})]
+
+async def test_spot_klines_forwards_one_second_interval_to_binance(monkeypatch):
+    clients = []
+
+    def client_factory(**kwargs):
+        client = FakeAsyncClient(**kwargs)
+        clients.append(client)
+        return client
+
+    monkeypatch.setattr("app.providers.binance_spot.httpx.AsyncClient", client_factory)
+    provider = BinanceSpotProvider("https://spot.example.test")
+
+    result = await provider.klines("BTCUSDT", interval="1s", limit=100)
+
+    assert result == [["candle"]]
+    assert clients[0].calls == [
+        (
+            "/api/v3/klines",
+            {"symbol": "BTCUSDT", "interval": "1s", "limit": 100},
+        )
+    ]
