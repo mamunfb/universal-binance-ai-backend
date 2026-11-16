@@ -153,3 +153,30 @@ def test_empty_cors_configuration_does_not_grant_cross_origin_access(private_api
 
     assert response.status_code == 200
     assert "access-control-allow-origin" not in response.headers
+
+@pytest.mark.parametrize("requested_method", ["PUT", "PATCH", "DELETE"])
+def test_preflight_rejects_methods_outside_the_cors_allowlist(private_api_key, requested_method):
+    response = _client("https://dashboard.example").options(
+        "/api/qa-probe",
+        headers={
+            "Origin": "https://dashboard.example",
+            "Access-Control-Request-Method": requested_method,
+        },
+    )
+
+    assert response.status_code == 400
+    assert "access-control-allow-origin" not in response.headers
+
+
+def test_preflight_rejects_unlisted_request_headers(private_api_key):
+    response = _client("https://dashboard.example").options(
+        "/api/qa-probe",
+        headers={
+            "Origin": "https://dashboard.example",
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "authorization,x-admin-override",
+        },
+    )
+
+    assert response.status_code == 400
+    assert "access-control-allow-origin" not in response.headers
