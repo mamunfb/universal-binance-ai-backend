@@ -45,7 +45,10 @@ jobs:
       - name: Install Python test dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev,mcp]"
+          pip install -e ".[dev,mcp]" playwright
+
+      - name: Install Chromium for browser QA
+        run: python -m playwright install --with-deps chromium
 
       - name: Validate dashboard document and script references
         run: |
