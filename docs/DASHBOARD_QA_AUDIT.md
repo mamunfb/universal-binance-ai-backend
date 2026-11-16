@@ -1263,3 +1263,16 @@ The follow-up Chromium workflow completed successfully on feature-branch commit 
 - [Backend and dashboard tests Run #1868](https://github.com/mamunfb/universal-binance-ai-backend/actions/runs/43783483742): **success**. The job completed its setup, dependency installation, document/script-reference validation, JavaScript syntax validation and feature-branch full Python/Chromium QA step. Its separate generic Python test step was skipped by workflow conditions; do not infer an additional pytest count from this run.
 
 This closes the pending CI-execution status recorded in Section 65 for the corrected browser suite. The browser's backend responses are deterministic route mocks; no real Render backend or Cloudflare Pages cross-origin session was exercised. Physical Android/iOS testing, manual TalkBack/VoiceOver verification, live backend integration, Lighthouse/Core Web Vitals and production verification remain outstanding. No merge, deployment, backend/database change, secret change or `main` update was performed.
+
+
+## 67. CI test-discovery correction and full-suite confirmation (2026-11-16)
+
+The documentation-only commit that followed Section 66 exposed a Dashboard Frontend workflow failure: its `unittest discover -p "test_dashboard_*.py"` command also imported `tests/test_dashboard_browser.py`, which requires `pytest` and Playwright and is not a standard-library unittest module. The failure was a workflow test-selection/configuration issue, not a dashboard JavaScript runtime failure.
+
+Corrected `.github/workflows/dashboard-frontend.yml` in commit `590fd526a9bef8e450a2c27d4083149827795dd7` by running `test_dashboard_contract.py` and `test_dashboard_accessibility.py` as separate unittest discovery targets. This keeps the Python standard-library contract checks isolated from the pytest/Playwright browser suite.
+
+Validation on the corrected commit:
+- [Dashboard frontend checks](https://github.com/mamunfb/universal-binance-ai-backend/actions/runs/43788713264): **success**; JavaScript syntax, chart fixtures and both dashboard unittest targets completed successfully.
+- [Backend and dashboard tests](https://github.com/mamunfb/universal-binance-ai-backend/actions/runs/43788713276): **success**; feature-branch Playwright/Chromium installation, document/script-reference checks, JavaScript syntax and full pytest suite all completed successfully. Job log records **640 passed, 2 warnings**.
+
+The generic Python suite step was skipped by workflow conditions on this feature-branch run; the full feature-branch pytest step is the executed suite represented by the 640-test result. Browser API responses remain deterministic mocks, not a live Render/Cloudflare cross-origin test. Physical Android/iOS, TalkBack/VoiceOver manual review, live backend integration and Lighthouse/Core Web Vitals remain separate verification tasks. No application source, backend business logic, database, secrets, `main`, PR metadata, merge state or deployment configuration was changed. No merge or deployment was performed.
