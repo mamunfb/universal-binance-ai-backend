@@ -30,9 +30,10 @@ test("Cloudflare-hosted dashboard reaches the supplied live backend health endpo
   const pageErrors = [];
   const preflightResponses = [];
   page.on("pageerror", error => pageErrors.push(error.message));
-  page.on("response", async response => {
-    if (response.request().method() === "OPTIONS" && response.url().startsWith(backendUrl.origin + "/")) {
-      preflightResponses.push({status: response.status(), headers: await response.allHeaders()});
+  page.on("response", response => {
+    if (response.request().method() === "OPTIONS" &&
+        response.url().startsWith(backendUrl.origin + "/api/v1/research/phase-readiness")) {
+      preflightResponses.push(response);
     }
   });
 
@@ -85,14 +86,15 @@ test("Cloudflare-hosted dashboard reaches the supplied live backend health endpo
     assert.ok(preflightResponses.length > 0,
       "Browser did not issue an OPTIONS preflight for the Authorization header");
     const preflight = preflightResponses[preflightResponses.length - 1];
-    assert.equal(preflight.status, 200, "Authorization preflight did not return HTTP 200");
-    assert.equal(preflight.headers["access-control-allow-origin"], dashboardUrl.origin,
+    const preflightHeaders = await preflight.allHeaders();
+    assert.equal(preflight.status(), 200, "Authorization preflight did not return HTTP 200");
+    assert.equal(preflightHeaders["access-control-allow-origin"], dashboardUrl.origin,
       "Preflight did not allow the exact dashboard origin");
-    assert.match(preflight.headers["access-control-allow-methods"] || "", /GET/,
+    assert.match(preflightHeaders["access-control-allow-methods"] || "", /GET/,
       "Preflight did not allow GET");
-    assert.match(preflight.headers["access-control-allow-headers"] || "", /authorization/i,
+    assert.match(preflightHeaders["access-control-allow-headers"] || "", /authorization/i,
       "Preflight did not allow the Authorization header");
-    assert.equal(preflight.headers["access-control-allow-credentials"], undefined,
+    assert.equal(preflightHeaders["access-control-allow-credentials"], undefined,
       "Cookie credentials must remain disabled");
     assert.deepEqual(pageErrors, [], "Browser page errors were recorded");
 
@@ -103,7 +105,7 @@ test("Cloudflare-hosted dashboard reaches the supplied live backend health endpo
       healthStatus,
       connectionStatus,
       protectedApi,
-      preflight: {status: preflight.status, allowedOrigin: preflight.headers["access-control-allow-origin"]},
+      preflight: {status: preflight.status(), allowedOrigin: preflightHeaders["access-control-allow-origin"]},
       pageErrors
     }, null, 2));
   } finally {
