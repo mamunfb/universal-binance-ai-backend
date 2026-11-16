@@ -1675,3 +1675,32 @@ The two warnings remain dependency deprecations: Starlette TestClient/httpx inte
 The performance workflow Run #26 remains the latest raw performance evidence described in Section 76. Its source commit is `7f1fd784...`, earlier than this audit-head commit; therefore its Lighthouse and CPU/heap numbers are not claimed as measurements of this exact commit. A separate physical-device test and live Cloudflare Pages → Render integration are still not established by this run.
 
 No `main` update, PR merge, Render configuration/secret change, wildcard CORS, or production/staging deployment was performed.
+
+
+
+## 78. Current-head script transfer timing and fresh performance QA (2026-11-16)
+
+Dashboard Performance QA Run #27 and Backend + Dashboard CI Run #1926 both verified source commit `c9d9c83cdca019e3ac299d9ca043379008a4fc6b` on `feat/institutional-dashboard-design`.
+
+**Workflow verification:**
+- Performance Run #27: run ID `43796849174`; job ID `133067493717`; conclusion: **success**.
+- Backend + Dashboard CI Run #1926: run ID `43796849084`; job ID `133067493504`; conclusion: **success**.
+- CI log: **667 passed, 2 warnings in 11.69s**. Dashboard HTML validation confirmed both local script references; JavaScript syntax checks passed for `dashboard/app.js`, `dashboard/chart.js`, and `tests/dashboard_live_integration.cjs`; the combined Python + Chromium browser QA step passed. The separate Python-only step was skipped by design to avoid duplicate suite execution.
+- The two warnings remain dependency deprecations: Starlette TestClient/httpx integration and FastAPI's deprecated `example` parameter.
+- Performance run completed all three mobile Lighthouse report generations, CPU-throttled browser/heap profiling, and artifact upload.
+- Raw artifact: ID `14194707645`; name `dashboard-performance-c9d9c83cdca019e3ac299d9ca043379008a4fc6b`; SHA-256 `cff2b1ed42226a36325236967009f503d3acd5bc96843ddb940953f01df783f6`; four files uploaded (three Lighthouse JSON reports and `browser-profile.json`).
+
+**New script resource-timing evidence** (390 × 844 local static QA browser; no compression configured by this local server):
+- At 1× CPU, `app.js`: 45,711 encoded/decoded body bytes, 46,011 transfer bytes, 8.4 ms resource duration; `chart.js`: 23,658 encoded/decoded body bytes, 23,958 transfer bytes, 8.4 ms duration.
+- At 4× CPU, `app.js`: 45,711 encoded/decoded body bytes, 46,011 transfer bytes, 10.6 ms duration; `chart.js`: 23,658 encoded/decoded body bytes, 23,958 transfer bytes, 9.2 ms duration.
+- Both scripts were present with non-zero decoded bodies; the harness now records and validates this rather than silently omitting missing resources.
+
+**CPU-throttled 1,000-row mocked scanner fixture:**
+- At 1× CPU: initial navigation 29 ms; scan render 67 ms; sort 39 ms; search 171 ms; pagination 72 ms; five repeated cycles 2,452 ms; post-GC heap delta +67,004 bytes; DOM delta +5.
+- At 4× CPU: initial navigation 56 ms; scan render 99 ms; sort 78 ms; search 182 ms; pagination 134 ms; five repeated cycles 3,295 ms; post-GC heap delta +63,232 bytes; DOM delta +2.
+- Both profiles rendered 100 visible rows from the 1,000-row fixture, unique search returned one row, all 12 sampled navigation actions left the sidebar closed, and no browser page errors were recorded.
+- These deterministic, short mock runs do not establish production performance, real-device behavior, or absence of a long-term memory leak. The resource transfer sizes are local uncompressed measurements and must not be interpreted as production Cloudflare transfer sizes.
+
+The performance harness enhancement was committed in `c9d9c83...` and is test-only; no dashboard runtime code was changed in this commit. The Lighthouse raw JSON reports are retained in the artifact for independent metric inspection; this section intentionally does not infer scores or timing metrics from the workflow's success status.
+
+No `main` update, PR merge, Render configuration or secret change, wildcard CORS, or production/staging deployment occurred.
