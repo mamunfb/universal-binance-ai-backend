@@ -1606,3 +1606,22 @@ The raw performance artifact from Dashboard performance QA Run #25 was downloade
 **Freshness gate:** this artifact is from commit `e250f30...`, while the current branch head at this audit update is later. Do not present these measurements as a fresh benchmark of the latest source until the performance workflow is run against the latest dashboard commit. No production performance claim is made.
 
 No Render setting, secret, deployment, `main`, or PR merge was changed.
+
+
+## 75. Latest feature-branch CI verification (2026-11-16)
+
+Backend and Dashboard workflow Run #1921 verified the audit-head commit:
+- Run ID: `43795597840`
+- Commit: `efbce60b13e026f18db70b7899aec665b0d7d854`
+- Job ID: `133063572030`
+- Job conclusion: **success**.
+- Full Python suite: **667 passed, 2 warnings in 11.41s**.
+- Dashboard HTML validation confirmed the document shell and both local script references.
+- JavaScript syntax checks passed for `dashboard/app.js`, `dashboard/chart.js`, and `tests/dashboard_live_integration.cjs`.
+- Playwright Chromium installation completed and the combined feature-branch Python + browser QA step passed. The separate Python-only workflow step was skipped intentionally because the combined step runs the full suite once.
+
+The two warnings remain dependency deprecations: Starlette TestClient/httpx integration and FastAPI's deprecated `example` parameter. They did not fail the test suite.
+
+The performance workflow already includes `workflow_dispatch` and dashboard-source path filters. This provides a manual GitHub Actions rerun path; no workflow change was needed. A fresh performance benchmark has not yet been run against this audit-head commit, so Section 74's older benchmark must not be represented as current-head evidence.
+
+The current feature-branch commit is the SHA listed above. The previously verified `main` SHA remains `0e3b921ab83e18d4999c1eac87f45285a0f27b26`; no change to `main` was requested or made. No PR merge, Render configuration/secret change, wildcard CORS, or production/staging deployment was performed.
