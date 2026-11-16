@@ -1507,3 +1507,20 @@ Run #1913 (`43794399063`) on the initial revision failed: **663 passed, 4 failed
 The dedicated browser QA previously passed 20/20 on commit `707b110616a4f51a0bc6f8e140bf200137e43e3e`; this does not constitute physical Android/iOS or assistive-technology verification. Live Cloudflare Pages → Render authenticated CORS integration remains unverified because the exact HTTPS Actions URL variables and masked QA token are not configured for the workflow.
 
 No `main` update, PR merge, Render configuration change, secret change, wildcard CORS, or production/staging deployment was performed.
+
+## 41. Corrected CORS preflight regression tests — CI verified (2026-11-16)
+
+The corrected negative-preflight assertions passed in Backend and Dashboard CI Run #1915:
+- Run ID: `43794577028`
+- Commit: `101b66f401737b676aafaf4ba5c2a265b005fe59`
+- Overall conclusion: `success`
+- Full feature-branch pytest suite: **667 passed, 2 warnings in 11.54s**
+- Dashboard HTML structure and both local script references validated.
+- `node --check` passed for `dashboard/app.js`, `dashboard/chart.js`, and `tests/dashboard_live_integration.cjs`.
+- The feature-branch pytest command includes `tests/test_dashboard_browser.py` and ran under the Playwright Chromium installation step.
+
+The two warnings are dependency deprecations: Starlette TestClient/httpx integration and FastAPI's deprecated `example` parameter. They did not fail the suite.
+
+The separate live integration workflow Run #10 (`43794555831`) completed its configuration-check job but **skipped** the live cross-origin Chromium job because the required exact HTTPS repository variables are not configured. Therefore this CI result does not prove a real Cloudflare Pages → Render connection or production CORS behavior.
+
+The preceding Run #1913 remains recorded as an initial failed test revision (663 passed, 4 failed); Run #1915 is the corrected, passing revision. No production deployment, Render change, secret change, PR merge, or `main` update occurred.
