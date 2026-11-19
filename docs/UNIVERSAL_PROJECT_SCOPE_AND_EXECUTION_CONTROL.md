@@ -1,3 +1,18 @@
+# GOVERNANCE PRECEDENCE — CURRENT POLICY (2026-11-19)
+
+> **This notice supersedes every conflicting software-development phase gate, paired-phase lock, per-session full-audit mandate, and “Phase N+1 LOCKED” instruction appearing later in this historical scope document.** Those instructions are retained below as historical project context only. They are not active engineering controls. The active engineering rules are in [PROJECT_EXECUTION_GOVERNANCE.md](PROJECT_EXECUTION_GOVERNANCE.md), and current package status is in [PROJECT_PROGRESS_LEDGER.md](PROJECT_PROGRESS_LEDGER.md). Session startup is controlled by [MASTER_RESUME_PROMPT.md](../master-prompts/MASTER_RESUME_PROMPT.md).
+
+## Two separate kinds of sequencing — do not conflate them
+
+1. **Software engineering:** use one active task/work package at a time, selected by dependency and priority. There is no paired SPOT/FUTURES phase lock, no automatic “next phase” lock, and no requirement to finish all SPOT engineering for a numbered phase before FUTURES engineering. A package is accepted only with its applicable implementation, verification and evidence. Reopen only the affected package and materially dependent packages when a confirmed regression requires it.
+2. **Crypto market analysis:** the 20-phase analytical workflow defined inside each canonical SPOT and FUTURES master prompt remains part of that prompt's functional requirements. Preserve its internal phase order, market-specific rules, outputs, safety checks and evidence requirements during an analysis. This analytical sequence does not impose a software-development task lock or require SPOT and FUTURES engineering to advance as a pair.
+
+## Active source-of-truth order
+
+For engineering workflow and progress, follow this order: (1) latest explicit user instruction; (2) `docs/PROJECT_EXECUTION_GOVERNANCE.md`; (3) `docs/PROJECT_PROGRESS_LEDGER.md`; (4) `master-prompts/MASTER_RESUME_PROMPT.md`; (5) this document's still-applicable project scope and safety requirements. Historical audit entries and old paired-ledger content are evidence of past decisions, not active workflow commands. For crypto-analysis behavior, the two canonical market prompts remain authoritative within their respective markets.
+
+---
+
 # UNIVERSAL BINANCE AI BACKEND — COMPLETE PROJECT SCOPE & EXECUTION CONTROL
 
 Version: 1.0
