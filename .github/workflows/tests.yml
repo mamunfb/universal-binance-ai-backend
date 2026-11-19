@@ -2,7 +2,7 @@ name: Backend and dashboard tests
 
 on:
   push:
-    branches: [main, feat/institutional-dashboard-design]
+    branches: [main, feat/institutional-dashboard-design, feat/institutional-dashboard-task-governance]
   pull_request:
     branches: [main]
 
@@ -48,7 +48,7 @@ jobs:
           pip install -e ".[dev,mcp]"
 
       - name: Install Playwright for feature-branch browser QA
-        if: github.ref == 'refs/heads/feat/institutional-dashboard-design' || github.event.pull_request.head.ref == 'feat/institutional-dashboard-design'
+        if: github.ref == 'refs/heads/feat/institutional-dashboard-design' || github.event.pull_request.head.ref == 'feat/institutional-dashboard-design' || github.ref == 'refs/heads/feat/institutional-dashboard-task-governance' || github.event.pull_request.head.ref == 'feat/institutional-dashboard-task-governance'
         run: |
           pip install playwright
           python -m playwright install --with-deps chromium
@@ -84,5 +84,5 @@ jobs:
         run: python -m pytest -q --ignore=tests/test_dashboard_browser.py
 
       - name: Run full Python and Chromium browser QA on feature branch
-        if: github.ref == 'refs/heads/feat/institutional-dashboard-design' || github.event.pull_request.head.ref == 'feat/institutional-dashboard-design'
+        if: github.ref == 'refs/heads/feat/institutional-dashboard-design' || github.event.pull_request.head.ref == 'feat/institutional-dashboard-design' || github.ref == 'refs/heads/feat/institutional-dashboard-task-governance' || github.event.pull_request.head.ref == 'feat/institutional-dashboard-task-governance'
         run: python -m pytest -q
