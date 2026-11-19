@@ -80,7 +80,7 @@ jobs:
           node --check tests/dashboard_live_integration.cjs
 
       - name: Run Python test suite
-        if: github.ref != 'refs/heads/feat/institutional-dashboard-design' && github.event.pull_request.head.ref != 'feat/institutional-dashboard-design'
+        if: github.ref != 'refs/heads/feat/institutional-dashboard-design' && github.event.pull_request.head.ref != 'feat/institutional-dashboard-design' && github.ref != 'refs/heads/feat/institutional-dashboard-task-governance' && github.event.pull_request.head.ref != 'feat/institutional-dashboard-task-governance'
         run: python -m pytest -q --ignore=tests/test_dashboard_browser.py
 
       - name: Run full Python and Chromium browser QA on feature branch
