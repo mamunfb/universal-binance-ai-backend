@@ -1,5 +1,7 @@
 # UNIVERSAL CRYPTO ANALYSIS MASTER PROMPT
 
+> **Engineering-governance boundary (2026-11-19):** The 20 numbered phases below are the required analytical workflow for a FUTURES market-analysis run. They are not software-development phases and do not create a paired SPOT/FUTURES engineering lock. Repository implementation work is managed one task/work package at a time under `docs/PROJECT_EXECUTION_GOVERNANCE.md` and tracked in `docs/PROJECT_PROGRESS_LEDGER.md`. Preserve USDⓈ-M and COIN-M distinctions and all Futures-specific analytical requirements in this prompt; do not substitute Spot calculations or rules.
+
 ## INSTITUTIONAL-LEVEL 20-PHASE CRYPTO MARKET INTELLIGENCE & TRADING RESEARCH SYSTEM — FUTURES TRADING
 
 ---
