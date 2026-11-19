@@ -1,3 +1,5 @@
+> **Historical audit record — workflow superseded (2026-11-19):** This file preserves dated implementation findings, test evidence and decisions from the paired-phase governance period. Its old paired-phase locks, mandatory full-codebase pre-coding audit at every session, and “Phase N+1 LOCKED” instructions are historical only and must not be followed as current engineering workflow. Use `docs/PROJECT_EXECUTION_GOVERNANCE.md`, `docs/PROJECT_PROGRESS_LEDGER.md`, and `master-prompts/MASTER_RESUME_PROMPT.md` for current task governance. Do not rewrite or erase historical test/commit evidence merely to change governance.
+
 # Master Prompt 01 (SPOT) + Master Prompt 02 (FUTURES) — Repository Gap Audit
 
 Audit basis:
