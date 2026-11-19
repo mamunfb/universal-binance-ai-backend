@@ -4,7 +4,7 @@ A private, single-owner, research-only backend for collecting public cryptocurre
 
 ## Project execution rules
 
-All repository engineering work must follow the [Project Execution Governance](docs/PROJECT_EXECUTION_GOVERNANCE.md): strict one-package-at-a-time execution, evidence-based completion, locked verified baselines, targeted regression gates, controlled reopening of only affected packages, and a durable progress ledger. This policy does not authorize merging to `main` or production deployment; explicit owner approval is required.
+All repository engineering work must follow the [Project Execution Governance](docs/PROJECT_EXECUTION_GOVERNANCE.md): strict one-package-at-a-time execution, evidence-based completion, locked verified baselines, targeted regression gates, controlled reopening of only affected packages, and a durable progress ledger. Track work in the [Project Progress Ledger](docs/PROJECT_PROGRESS_LEDGER.md). This policy does not authorize merging to `main` or production deployment; explicit owner approval is required.
 
 ## Project goals
 - Scan eligible Binance Spot, USDⓈ-M Futures, and COIN-M Futures markets where public endpoints support the requested data.
