@@ -1,5 +1,5 @@
 # Project Progress Ledger
-Last updated: 2026-11-19 — WP-00 baseline evidence checkpoint
+Last updated: 2026-11-19 — WP-09 combined CI run #1970 verified
 Repository: `mamunfb/universal-binance-ai-backend`
 Governing policy: [PROJECT_EXECUTION_GOVERNANCE.md](PROJECT_EXECUTION_GOVERNANCE.md)
 
@@ -24,7 +24,7 @@ Statuses: `UNASSESSED`, `NOT_STARTED`, `IN_PROGRESS`, `BLOCKED`, `VERIFICATION`,
 | WP-06 | Market-data infrastructure | UNASSESSED | Review source coverage, rate limits, timestamps, freshness and failure accounting |
 | WP-07 | News, on-chain, tokenomics and AI research intelligence | UNASSESSED | Map provider coverage, verification, provenance and limitations |
 | WP-08 | Risk, safety and research guardrails | UNASSESSED | Verify market separation, uncertainty, risk calculations and research-only boundaries |
-| WP-09 | Frontend and institutional dashboard | IN_PROGRESS | Frontend 119 tests, standalone Chromium 20 tests, Lighthouse/CPU/heap run and 687-test combined suite verified; live integration and physical-device/assistive-technology gates remain open |
+| WP-09 | Frontend and institutional dashboard | IN_PROGRESS | Latest combined CI #1970: 687 passed; frontend 119, standalone Chromium 20, and performance evidence also verified; live integration and physical-device/assistive-technology gates remain open |
 | WP-10 | Authentication and application security | UNASSESSED | Verify current auth, secrets handling, dependency/security checks |
 | WP-11 | Cross-system integration | UNASSESSED | Review REST, dashboard, MCP and AI-client contracts |
 | WP-12 | Full QA and performance | UNASSESSED | Separate local/mock evidence from live/staging/device evidence |
@@ -77,7 +77,7 @@ Reopened package/dependents (if any) and reason:
 **Default branch:** `main`; observed HEAD `0e3b921ab83e18d4999c1eac87f45285a0f27b26`  
 **Active branch:** `feat/institutional-dashboard-task-governance`  
 **Base dashboard source:** `e9d89e2014c5298093a3c9b88f6727657663c21f`  
-**Latest combined-suite commit:** `750b2c64ded70b3504e2cb51206fb7022837d457`  
+**Latest combined-suite commit at this checkpoint:** `0797881c14d02d46ca958298265faf644766a711`  
 **Working-tree visibility:** unavailable through the GitHub repository connector; no claim is made about uncommitted local changes.
 
 ### WP-00 completion evidence
@@ -99,7 +99,7 @@ Reopened package/dependents (if any) and reason:
 - Live integration Run `44443354893` completed its configuration check, but the live Chromium job was skipped because `DASHBOARD_PREVIEW_URL` and `RENDER_BACKEND_URL` were missing. The QA credential prerequisite also remains unconfigured. Do not call this live integration success.
 - Physical-device testing, manual TalkBack/VoiceOver, production performance and long-session memory-leak evidence remain unverified. The Lighthouse/CPU/heap tests use a local static server and mocked data.
 
-### Other known package findings
+- Combined Backend + Dashboard CI Run #1970 / `44443985260`, commit `0797881c14d02d46ca958298265faf644766a711`: **success, 687 passed in 13.60s**. The actual runner log confirms Playwright Chromium installation, dashboard HTML validation (2 local script references), `node --check` for `dashboard/app.js`, `dashboard/chart.js` and `tests/dashboard_live_integration.cjs`, followed by the complete `python -m pytest -q` suite. The standalone Python-only step was skipped because the combined step ran the full suite. No runtime source changes were made in this evidence-only checkpoint.\n\n### Other known package findings
 
 - WP-01 remains UNASSESSED. Dashboard workflows are now wired to this branch, but a complete CI/CD architecture audit has not been performed.
 - WP-06 remains UNASSESSED. Latest scheduled scan Run `44436848791` on `main` failed with Binance Spot HTTP 451 and Futures upstream-unavailable responses. This is an upstream access blocker for that run, not proof of an internal scanner defect; do not bypass legal/geographic restrictions.
