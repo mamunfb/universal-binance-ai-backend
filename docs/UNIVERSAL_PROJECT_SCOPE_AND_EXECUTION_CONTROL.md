@@ -15,8 +15,8 @@ For engineering workflow and progress, follow this order: (1) latest explicit us
 
 # UNIVERSAL BINANCE AI BACKEND — COMPLETE PROJECT SCOPE & EXECUTION CONTROL
 
-Version: 1.0
-Status: ACTIVE — Phase 01 paired gate is the only authorized implementation phase.
+Version: 2.0
+Status: ACTIVE — functional scope remains authoritative; software task sequencing is governed by PROJECT_EXECUTION_GOVERNANCE.md.
 Repository: mamunfb/universal-binance-ai-backend
 Canonical specifications:
 - master-prompts/MASTER_PROMPT_01_SPOT.md (Master Prompt 01 — SPOT)
@@ -24,7 +24,7 @@ Canonical specifications:
 
 ## 1. Authority and precedence
 
-This document is the repository-wide project scope, work breakdown, sequencing contract, acceptance framework and restart checkpoint. The two canonical master prompts above remain the detailed functional specifications. Neither this document nor a future implementation may shorten, replace, reinterpret or silently override them.
+This document defines the repository-wide product scope, functional requirements, safety constraints and market-analysis deliverables. It does not impose software-development phase locks or a fixed engineering task order. Software task sequencing, package acceptance and restart behavior are governed by docs/PROJECT_EXECUTION_GOVERNANCE.md and docs/PROJECT_PROGRESS_LEDGER.md. The two canonical master prompts remain the detailed functional specifications; this document or a future implementation must not shorten, replace, reinterpret or silently override their market-specific requirements.
 
 For every requirement, preserve the market-specific distinction:
 - SPOT prompt governs Spot market research and Spot-long-only planning.
@@ -59,8 +59,8 @@ All phases and all persisted outputs must enforce:
 ### 2.4 Binance API integration architecture
 Implement and maintain official Binance API integrations applicable to each prompt, using current official documentation for endpoint contracts, filters, rate limits and response semantics. Include secure configuration, public endpoint preference, least privilege, no secrets in source/logs/reports, batching, pagination, caching, validation, retries/timeouts, freshness detection, endpoint-level accounting and explicit unavailable-data records. Spot and Futures adapters remain separate. A prompt alone is not a data connection; deployment capabilities must be checked.
 
-### 2.5 Complete 20-phase analysis engine — paired execution
-Every numbered phase below is a two-part deliverable: finish SPOT Phase N, then FUTURES Phase N, verify both, and only then unlock Phase N+1. The exact task lists, subheadings and outputs under the corresponding phase in each canonical prompt are mandatory and controlling.
+### 2.5 Complete 20-phase analysis workflows — separate market specifications
+Each canonical prompt defines its own 20-step analytical workflow. Preserve the exact task lists, subheadings, order and outputs in the relevant prompt. SPOT and FUTURES analysis results must remain distinct and must not be blended. The table below is a cross-market scope map only; it does not require engineering implementation to advance in paired numbered phases, and it does not create a Phase N+1 software lock.
 
 | Phase | SPOT deliverable | FUTURES deliverable |
 |---|---|---|
@@ -104,8 +104,8 @@ Implement all Part 8 requirements from both prompts, including:
 - Full activation command and complete final report workflow.
 - Quick-analysis mode must disclose that it is not a completed 20-phase analysis.
 
-### 2.10 Final project closure (after both Phase 20 deliverables)
-Do not declare the project complete merely because Phase 20 code exists. After SPOT Phase 20 and FUTURES Phase 20 both pass:
+### 2.10 Final project closure
+Do not declare the overall product complete merely because implementation code exists or an isolated analysis phase passes. Before overall closure, verify that the applicable Spot and Futures capabilities and their final analytical workflows meet their own acceptance criteria:
 - Run full unit, integration, contract, regression and security tests.
 - Verify all routes, services, persistence, scheduled/background work and MCP read-only interface.
 - Verify live-data integrations and capability pre-flight in the intended deployment environment; record any external dependencies that cannot be validated.
@@ -116,68 +116,34 @@ Do not declare the project complete merely because Phase 20 code exists. After S
 - Document deployment/configuration, secrets setup, API limits, provider dependencies, monitoring, recovery, known limitations and safe usage.
 - Only then mark overall project COMPLETE and create the final closure record/release.
 
-## 3. Mandatory pre-coding audit of existing implementation
+## 3. Risk-based review and verification for each work package
 
-Before adding any new feature code in every coding session, audit the work already present in the repository. This applies at initial project start and every restart.
+Use the change-focused review process in docs/PROJECT_EXECUTION_GOVERNANCE.md. Before editing a package:
+1. Inspect the code, interfaces, dependencies, tests and documentation materially related to that package.
+2. Reconcile relevant historical findings and acceptance evidence with the current branch and current implementation.
+3. Run targeted tests and checks appropriate to the changed behavior and risk surface.
+4. Expand the review when the change crosses boundaries, touches security/data integrity, affects Spot/Futures separation, or reveals a systemic defect.
+5. Record confirmed defects, suspected risks, severity, reproducible evidence, impact and resolution.
+6. Fix confirmed defects that affect the active package or create material security/data-integrity risk; add regression tests where practical.
+7. Record genuine blockers with the exact missing input/access and smallest resolution. Do not invent workarounds or change code speculatively.
 
-1. Map and inspect the existing architecture and code relevant to the project: providers, scanners, services, routes, schemas, configuration, persistence, background jobs, MCP interface, tests and security-sensitive components.
-2. Compare the current implementation with both canonical prompts, this complete scope, the current phase checklist, API documentation/contracts and previously accepted evidence.
-3. Run available existing tests and relevant lint, type, static analysis, import/build and security checks. Inspect actual failures and warnings; old CI success is not proof of current correctness.
-4. Search for incorrect business logic/formulas/units, Spot-Futures mixing, incorrect API assumptions, incomplete market coverage, silent skips, missing failure ledgers, stale data represented as live, timestamp/timezone errors, unsafe defaults, credential leakage, race conditions, unhandled errors, contract mismatches and inadequate regression coverage.
-5. Create an audit finding for each issue: severity, affected file/component and line where possible, reproducible evidence, impact, classification (confirmed defect or suspected risk), and recommended action.
-6. Fix confirmed defects before new feature coding when they affect the current authorized phase, shared foundations, security, data integrity or already accepted functionality. Add regression tests where practical and rerun affected checks.
-7. Do not use the audit to bypass phase locks. A defect exclusively belonging to a locked later-phase feature must be documented as DEFERRED / PHASE N LOCKED, not implemented early. Fix a later-area defect only when it is necessary to protect current-phase correctness, security or data integrity; explain the justification in the audit.
-8. If a fix needs unavailable credentials, provider access, data or clarification, mark it BLOCKED with the exact resolution needed. Do not invent a workaround or change code speculatively.
-9. New current-phase feature coding may begin only after the pre-coding audit is complete, confirmed in-scope defects are fixed or explicitly blocked, and regression checks are reviewed.
+A full-codebase audit and full-suite run are not mandatory at every session. Use a risk-based review and retain exact test/CI evidence tied to the relevant commit.
 
-Every session's audit record must state inspected areas, commands/checks and actual results, confirmed defects, corrections, regression tests, suspected risks, deferred later-phase findings, blockers and whether the audit gate is COMPLETE or INCOMPLETE.
+## 4. Engineering task governance — no paired phase lock
 
-## 4. Mandatory phase gate — no exceptions
+Software engineering is organized as dependency-aware work packages with one active package at a time. There is no requirement to complete SPOT Phase N engineering and FUTURES Phase N engineering as a pair, and no Phase N+1 lock. A task may proceed when its actual prerequisites are met.
 
-For each phase number N:
-1. Read the canonical SPOT and FUTURES requirements for phase N.
-2. Implement SPOT Phase N only; test and review against every SPOT task/output.
-3. Implement FUTURES Phase N only; test and review against every FUTURES task/output.
-4. Run paired regression/integration checks and inspect real response accounting where live access is available.
-5. Record evidence, tests, data limitations, timestamps and review outcome.
-6. Mark the combined phase COMPLETE and unlock N+1 only if both market-specific statuses are COMPLETE.
-7. Otherwise retain IN_PROGRESS or BLOCKED and stop at N.
+Use the active statuses and completion rules in docs/PROJECT_EXECUTION_GOVERNANCE.md. A package is COMPLETED only when its applicable implementation, tests, review and evidence are recorded. A passing test suite alone is not sufficient. If a task is blocked, record the concrete blocker; unrelated tasks are not automatically locked.
 
-Statuses: NOT_STARTED, IN_PROGRESS, BLOCKED, COMPLETE.
-Combined phase is COMPLETE if and only if both SPOT and FUTURES statuses are COMPLETE.
-A passing test suite is necessary where tests apply, but not sufficient by itself.
-No skipping, parallel phase advancement, inferred completion, phase merging or premature unlock.
-Later-phase code may be inspected for dependencies, but must not be enhanced as later-phase implementation before its paired phase is authorized. Only changes strictly necessary for the current phase are allowed.
-If blocked, record exact missing API/provider/credential/data/decision and the smallest required resolution. Do not silently bypass the blocker.
+The 20 analytical phases inside each canonical prompt remain sequential within that market-analysis workflow. This analytical order does not control the order of software implementation packages.
 
-## 5. Paired phase ledger — source of truth for resume
+## 5. Engineering progress ledger
 
-| Phase | SPOT | FUTURES | Combined | Next phase |
-|---|---|---|---|---|
-| 01 | IN_PROGRESS | IN_PROGRESS | INCOMPLETE / ACTIVE | 02 LOCKED |
-| 02 | NOT_STARTED | NOT_STARTED | LOCKED | 03 LOCKED |
-| 03 | NOT_STARTED | NOT_STARTED | LOCKED | 04 LOCKED |
-| 04 | NOT_STARTED | NOT_STARTED | LOCKED | 05 LOCKED |
-| 05 | NOT_STARTED | NOT_STARTED | LOCKED | 06 LOCKED |
-| 06 | NOT_STARTED | NOT_STARTED | LOCKED | 07 LOCKED |
-| 07 | NOT_STARTED | NOT_STARTED | LOCKED | 08 LOCKED |
-| 08 | NOT_STARTED | NOT_STARTED | LOCKED | 09 LOCKED |
-| 09 | NOT_STARTED | NOT_STARTED | LOCKED | 10 LOCKED |
-| 10 | NOT_STARTED | NOT_STARTED | LOCKED | 11 LOCKED |
-| 11 | NOT_STARTED | NOT_STARTED | LOCKED | 12 LOCKED |
-| 12 | NOT_STARTED | NOT_STARTED | LOCKED | 13 LOCKED |
-| 13 | NOT_STARTED | NOT_STARTED | LOCKED | 14 LOCKED |
-| 14 | NOT_STARTED | NOT_STARTED | LOCKED | 15 LOCKED |
-| 15 | NOT_STARTED | NOT_STARTED | LOCKED | 16 LOCKED |
-| 16 | NOT_STARTED | NOT_STARTED | LOCKED | 17 LOCKED |
-| 17 | NOT_STARTED | NOT_STARTED | LOCKED | 18 LOCKED |
-| 18 | NOT_STARTED | NOT_STARTED | LOCKED | 19 LOCKED |
-| 19 | NOT_STARTED | NOT_STARTED | LOCKED | 20 LOCKED |
-| 20 | NOT_STARTED | NOT_STARTED | LOCKED | FINAL CLOSURE LOCKED |
+The active engineering source of truth is docs/PROJECT_PROGRESS_LEDGER.md. It tracks work packages and their evidence. Do not use the former paired SPOT/FUTURES ledger or old Phase 01/Phase 02 statuses to infer current package status. Unknown package states remain UNASSESSED until reconciled against repository evidence.
 
-Ledger note: Phase 01 detailed outstanding criteria and evidence are maintained in docs/MASTER_PROMPT_IMPLEMENTATION_AUDIT.md. The audit and this ledger must be updated after every accepted work increment. Do not mark any checkbox complete without code/test/evidence references.
+The former paired ledger is retained only as a retirement pointer at docs/PAIRED_PHASE_LEDGER.md. Historical implementation findings remain in docs/MASTER_PROMPT_IMPLEMENTATION_AUDIT.md and must not be mistaken for current task status.
 
-## 6. Phase completion evidence template
+## 6. Market-analysis deliverable evidence template
 
 For each market-specific phase record:
 - Canonical prompt file and exact phase heading/subheading.
@@ -194,17 +160,20 @@ For each market-specific phase record:
 - Commit SHA and PR link.
 
 ## 7. Repository workflow and restart procedure
-- Work on the existing audit branch / pull request unless the user explicitly directs otherwise.
-- Keep canonical prompt files unchanged unless the user explicitly supplies a replacement.
-- Keep this scope file, paired ledger and implementation audit synchronized.
-- At the start of every resumed coding session, read both canonical prompts first, then this scope, then the implementation audit/ledger, then inspect current branch, commits, CI and working tree.
-- Before any new feature coding, complete the mandatory audit in Section 3: inspect the code written so far, verify correctness against the specifications, fix confirmed in-scope errors, add regression tests and record deferred/blocked findings.
-- Determine the earliest phase not COMPLETE in both markets. Resume that exact phase and market sequence; never trust conversational memory over repository state.
-- Before editing, state the current phase, Spot/Futures statuses, exact next task and acceptance evidence.
-- After editing, run appropriate tests, update ledger/audit, commit to the work branch and report verified links/results. Do not merge or modify main without explicit authorization.
 
-## 8. Current restart checkpoint
-- Current branch: work/dual-master-prompt-audit
+Follow docs/PROJECT_EXECUTION_GOVERNANCE.md and master-prompts/MASTER_RESUME_PROMPT.md:
+- Read the active governance and progress ledger first.
+- Read the relevant canonical market prompt sections for the package being resumed; read both prompts fully when establishing or materially revising their implementation contract.
+- Inspect the current branch, HEAD, PR, relevant CI jobs, changed files and tests.
+- Continue one active work package at a time, based on user priority, dependencies and evidence.
+- Use targeted review and verification; do not repeat a full-codebase audit at every session by default.
+- Update the task ledger and relevant audit evidence after meaningful work.
+- Do not infer package completion from historical phase statuses or old chat messages.
+- Do not modify main, merge a PR, deploy to production or alter production databases/secrets without explicit user authorization.
+
+## 8. Historical restart checkpoint — 2026-11-11 (not current state)
+The following records describe the former paired-phase workflow and are preserved for historical traceability only. They are not the current restart point and must not be used to assign current work-package statuses.
+- Historical branch: work/dual-master-prompt-audit
 - Current PR: https://github.com/mamunfb/universal-binance-ai-backend/pull/1 (draft)
 - Current active phase: Phase 01 only.
 - SPOT Phase 01: IN_PROGRESS.
@@ -216,7 +185,8 @@ For each market-specific phase record:
 
 ## 9. Change log
 - 1.0: Establish complete project scope from pre-phase configuration/global/API architecture through all 20 paired phases, post-phase protocols, research quality, execution safety, activation/revalidation and final closure. Establish restart contract and full paired ledger.
-- 1.1: Add a mandatory pre-coding audit gate requiring review of existing implementation, correction of confirmed in-scope defects, regression testing, and explicit deferral of locked later-phase work.
+- 1.1: Add the former paired-phase pre-coding audit gate (retired on 2026-11-19).
+- 2.0: Separate the canonical 20-step market-analysis workflows from engineering task governance; retire paired development-phase locks and replace the active engineering ledger with evidence-based work packages.
 
 
 ## 10. Session audit checkpoint — 2026-11-11
