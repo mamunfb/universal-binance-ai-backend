@@ -220,7 +220,10 @@ async def request_tracking_middleware(request: Request, call_next):
             if scheme.lower() == "bearer" and supplied_key:
                 if isinstance(client_keys, dict):
                     for client_name, client_key in client_keys.items():
-                        if hmac.compare_digest(
+                        # A strong owner key may keep production available when a
+                        # client key is missing, but must never make a weak client
+                        # key valid for authentication.
+                        if len(client_key) >= 32 and hmac.compare_digest(
                             supplied_key.encode("utf-8"), client_key.encode("utf-8")
                         ):
                             matched_client = client_name
@@ -413,9 +416,24 @@ async def index_evm_token_history(
     payload: dict = Body(..., example={"from_block": 1000000, "to_block": 1001000, "chunk_size": 500}),
 ) -> dict:
     try:
-        from_block = int(payload["from_block"])
-        to_block = int(payload["to_block"])
-        chunk_size = int(payload.get("chunk_size", 500))
+        if not isinstance(payload, dict):
+            raise ValueError("request body must be a JSON object")
+        unknown_fields = set(payload) - {"from_block", "to_block", "chunk_size"}
+        if unknown_fields:
+            raise ValueError(f"Unsupported index request fields: {', '.join(sorted(unknown_fields))}")
+        raw_from_block = payload["from_block"]
+        raw_to_block = payload["to_block"]
+        raw_chunk_size = payload.get("chunk_size", 500)
+        for field, value in (
+            ("from_block", raw_from_block),
+            ("to_block", raw_to_block),
+            ("chunk_size", raw_chunk_size),
+        ):
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise ValueError(f"{field} must be an integer")
+        from_block = raw_from_block
+        to_block = raw_to_block
+        chunk_size = raw_chunk_size
         if chunk_size > settings.evm_max_log_block_span:
             raise ValueError(
                 f"chunk_size cannot exceed EVM_MAX_LOG_BLOCK_SPAN ({settings.evm_max_log_block_span})"
@@ -443,11 +461,13 @@ async def get_evm_token_history(
         provider = get_evm_provider()
         chain_id = await provider.chain_id()
         rows = evm_transfer_store.history(chain_id, contract, from_block, to_block, limit)
+        coverage = evm_transfer_store.range_coverage(chain_id, contract, from_block, to_block)
         return {
-            "status": "COMPLETED", "chain_id": chain_id, "contract_address": contract.lower(),
+            "status": "COMPLETED" if coverage["complete"] else "INCOMPLETE",
+            "chain_id": chain_id, "contract_address": contract.lower(),
             "requested_range": {"from": from_block, "to": to_block},
             "returned_count": len(rows), "transfers": rows,
-            "indexed_coverage": evm_transfer_store.coverage(chain_id, contract),
+            "indexed_coverage": coverage,
             "warning": "Only stored indexed logs are returned. An empty result does not prove there were no transfers unless this range is fully covered.",
         }
     except ValueError as exc:
@@ -687,10 +707,10 @@ async def cross_chain_token_intelligence(
                     "warning": "Snapshot balances are queried at one pinned block per chain. Only verified operator-registry wallets are included; this is not a full holder ranking or complete supply concentration analysis.",
                 }
             concentration_status = concentration["status"]
-        except Exception as exc:
-            entity_flows = {"error": f"{type(exc).__name__}: {str(exc)[:200]}"}
+        except Exception:
+            entity_flows = {"error": "UPSTREAM_UNAVAILABLE"}
             entity_flow_status = "FAILED"
-            concentration = {"status": "FAILED", "error": f"{type(exc).__name__}: {str(exc)[:200]}"}
+            concentration = {"status": "FAILED", "error": "UPSTREAM_UNAVAILABLE"}
             concentration_status = "FAILED"
         flow_coverage = flow.get("coverage", {})
         cohort_coverage = (cohort or {}).get("coverage", {})
@@ -953,6 +973,9 @@ async def get_evm_token_history_flows(
         summary = evm_transfer_store.address_flow_summary(
             chain_id, contract, from_block, to_block, decimals, limit
         )
+        coverage = evm_transfer_store.range_coverage(
+            chain_id, contract, from_block, to_block
+        )
         registry = load_wallet_registry(settings.evm_wallet_registry, chain_id)
         for key in ("top_net_receivers", "top_net_senders"):
             rows = summary[key]
@@ -963,11 +986,12 @@ async def get_evm_token_history_flows(
             for row in rows:
                 row["attribution"] = labels[row["address"]]
         return {
-            "status": "COMPLETED", "chain_id": chain_id,
+            "status": "COMPLETED" if coverage["complete"] else "INCOMPLETE",
+            "chain_id": chain_id,
             "contract_address": contract.lower(),
             "requested_range": {"from": from_block, "to": to_block},
             "address_flows": summary,
-            "indexed_coverage": evm_transfer_store.coverage(chain_id, contract),
+            "indexed_coverage": coverage,
             "attribution_warning": registry["warning"],
         }
     except ValueError as exc:
@@ -1341,7 +1365,7 @@ async def usdm_klines(
     try:
         rows = await get_futures_provider("USD_M").klines(symbol, interval, limit)
     except Exception as exc:
-        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error_code": "UPSTREAM_UNAVAILABLE", "error_type": type(exc).__name__}) from exc
     return {"status": "COMPLETED", "source": "Binance USD-M Futures public REST API",
             "symbol": symbol.upper(), "interval": interval, "count": len(rows), "klines": rows}
 
@@ -1358,7 +1382,7 @@ async def coinm_klines(
     try:
         rows = await get_futures_provider("COIN_M").klines(symbol, interval, limit)
     except Exception as exc:
-        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error_code": "UPSTREAM_UNAVAILABLE", "error_type": type(exc).__name__}) from exc
     return {"status": "COMPLETED", "source": "Binance COIN-M Futures public REST API",
             "symbol": symbol.upper(), "interval": interval, "count": len(rows), "klines": rows}
 
@@ -1918,7 +1942,7 @@ async def spot_technical_analysis(
         closes = [float(row[4]) for row in rows]
         indicators = calculate_indicators(closes)
     except Exception as exc:
-        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error_code": "UPSTREAM_UNAVAILABLE", "error_type": type(exc).__name__}) from exc
     required_indicator_paths = {
         "ema_20": indicators.get("ema_20"),
         "ema_50": indicators.get("ema_50"),
@@ -1973,7 +1997,7 @@ async def spot_price_levels(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error_code": "UPSTREAM_UNAVAILABLE", "error_type": type(exc).__name__}) from exc
     return {
         "status": "COMPLETED" if support_resistance["status"] == "COMPLETED" and fibonacci["status"] == "COMPLETED" else "INCOMPLETE",
         "source": "Binance Spot public REST klines",
@@ -2011,7 +2035,7 @@ async def spot_volume_structure(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error_code": "UPSTREAM_UNAVAILABLE", "error_type": type(exc).__name__}) from exc
     sections = [vwap["status"], volume_profile["status"], market_structure["status"]]
     return {
         "status": "COMPLETED" if all(s == "COMPLETED" for s in sections) else "INCOMPLETE",
@@ -2448,7 +2472,7 @@ async def spot_klines(
     try:
         rows = await get_spot_provider().klines(symbol, interval, limit)
     except Exception as exc:
-        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": str(exc)}) from exc
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error_code": "UPSTREAM_UNAVAILABLE", "error_type": type(exc).__name__}) from exc
     return {
         "status": "COMPLETED",
         "source": "Binance Spot public REST API",

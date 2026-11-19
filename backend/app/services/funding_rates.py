@@ -33,6 +33,8 @@ class FundingRateStore:
 
     @staticmethod
     def _finite(value: Any, field: str) -> float:
+        if isinstance(value, bool):
+            raise ValueError(f"Invalid funding {field}")
         try:
             number = float(value)
         except (TypeError, ValueError, OverflowError) as exc:
@@ -45,10 +47,10 @@ class FundingRateStore:
     def _normalize(cls, row: Any) -> tuple[int, float, float | None]:
         if not isinstance(row, dict):
             raise ValueError("Malformed Binance funding row")
-        try:
-            funding_time = int(row["fundingTime"])
-        except (KeyError, TypeError, ValueError, OverflowError) as exc:
-            raise ValueError("Invalid funding timestamp") from exc
+        raw_timestamp = row.get("fundingTime")
+        if isinstance(raw_timestamp, bool) or not isinstance(raw_timestamp, int):
+            raise ValueError("Invalid funding timestamp")
+        funding_time = raw_timestamp
         rate = cls._finite(row.get("fundingRate"), "rate")
         mark_raw = row.get("markPrice")
         mark = None if mark_raw in (None, "") else cls._finite(mark_raw, "mark price")

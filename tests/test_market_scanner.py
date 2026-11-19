@@ -1,4 +1,3 @@
-import pytest
 from datetime import datetime, timezone
 
 from app.services.market_scanner import scan_spot_markets
@@ -95,7 +94,7 @@ async def test_scan_marks_missing_and_malformed_tickers_incomplete():
 
 class FailingProvider:
     async def exchange_info(self):
-        raise RuntimeError("provider unavailable")
+        raise RuntimeError("https://private-host.example/api?token=secret-value")
 
     async def all_24h_tickers(self):
         return []
@@ -104,7 +103,9 @@ class FailingProvider:
 async def test_scan_reports_upstream_failure_without_fabricating_zero_market_result():
     result = await scan_spot_markets(FailingProvider(), quote_asset="USDT")
     assert result["status"] == "FAILED"
-    assert result["error"] == "provider unavailable"
+    assert result["error_code"] == "UPSTREAM_UNAVAILABLE"
+    assert result["error_type"] == "RuntimeError"
+    assert "secret-value" not in result["error"]
     assert result["eligible_symbols"] == 0
     assert result["results"] == []
 
@@ -203,3 +204,26 @@ async def test_spot_scanner_rejects_malformed_exchange_metadata():
     assert result["status"] == "FAILED"
     assert result["error_code"] == "UPSTREAM_INVALID_RESPONSE"
     assert result["results"] == []
+
+
+async def test_spot_scanner_rejects_boolean_numeric_ticker_fields():
+    for field in ("lastPrice", "priceChangePercent", "quoteVolume"):
+        class BooleanTickerProvider:
+            async def exchange_info(self):
+                return {"symbols": [{
+                    "symbol": "AAAUSDT", "baseAsset": "AAA", "quoteAsset": "USDT",
+                    "status": "TRADING", "isSpotTradingAllowed": True,
+                }]}
+
+            async def all_24h_tickers(self):
+                ticker = {
+                    "symbol": "AAAUSDT", "lastPrice": "2",
+                    "priceChangePercent": "1", "quoteVolume": "100",
+                }
+                ticker[field] = True
+                return [ticker]
+
+        result = await scan_spot_markets(BooleanTickerProvider())
+        assert result["status"] == "INCOMPLETE"
+        assert result["failed_symbols"] == 1
+        assert result["matched_symbols"] == 0

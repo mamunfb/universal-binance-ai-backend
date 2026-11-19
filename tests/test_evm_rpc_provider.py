@@ -48,7 +48,10 @@ def test_provider_rejects_invalid_timeout(timeout):
 @pytest.mark.parametrize("response_body, message", [
     ({"jsonrpc": "1.0", "id": 1, "result": "0x1"}, "protocol version"),
     ({"jsonrpc": "2.0", "id": 99, "result": "0x1"}, "response id"),
-    ({"jsonrpc": "2.0", "id": 1}, "no result"),
+    ({"jsonrpc": "2.0", "id": True, "result": "0x1"}, "response id"),
+    ({"jsonrpc": "2.0", "id": 1}, "exactly one"),
+    ({"jsonrpc": "2.0", "id": 1, "result": "0x1", "error": None}, "exactly one"),
+    ({"jsonrpc": "2.0", "id": 1, "error": {"code": "bad", "message": "oops"}}, "error object"),
 ])
 def test_rpc_rejects_invalid_response_envelope(response_body, message):
     def handler(request):
@@ -134,3 +137,110 @@ def test_rpc_does_not_retry_client_error():
 def test_provider_rejects_invalid_retry_attempts(attempts):
     with pytest.raises(ValueError, match="retry_attempts"):
         EVMRPCProvider("https://rpc.example", retry_attempts=attempts)
+
+
+@pytest.mark.parametrize("url", [
+    "https://", "https:///missing-host", "https://user:pass@rpc.example",
+    "https://rpc.example/path#fragment", "https://rpc.example:bad/path",
+    "http://rpc.example",
+])
+def test_provider_rejects_malformed_or_credentialed_endpoint(url):
+    with pytest.raises(ValueError, match="valid HTTPS URL"):
+        EVMRPCProvider(url)
+
+
+@pytest.mark.parametrize("max_bytes", [0, -1, True, 1.5])
+def test_provider_rejects_invalid_response_size_limit(max_bytes):
+    with pytest.raises(ValueError, match="max_response_bytes"):
+        EVMRPCProvider("https://rpc.example", max_response_bytes=max_bytes)
+
+
+def test_rpc_does_not_follow_redirect_even_when_client_allows_it():
+    calls = []
+
+    def handler(request):
+        calls.append(request.url)
+        return httpx.Response(
+            307, headers={"Location": "https://internal.example/metadata"}
+        )
+
+    async def run():
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(handler), follow_redirects=True
+        ) as client:
+            provider = EVMRPCProvider("https://rpc.example", retry_attempts=0)
+            with pytest.raises(httpx.HTTPStatusError):
+                await provider._rpc("eth_chainId", [], client=client)
+
+    asyncio.run(run())
+    assert len(calls) == 1
+    assert str(calls[0]) == "https://rpc.example"
+
+
+def test_rpc_rejects_oversized_response_while_streaming():
+    def handler(request):
+        return httpx.Response(200, content=b"x" * 256)
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            provider = EVMRPCProvider(
+                "https://rpc.example", retry_attempts=0, max_response_bytes=64
+            )
+            with pytest.raises(ValueError, match="byte limit"):
+                await provider._rpc("eth_chainId", [], client=client)
+
+    asyncio.run(run())
+
+
+
+def test_rpc_validates_error_envelope_and_does_not_echo_provider_message():
+    def handler(request):
+        payload = json.loads(request.content)
+        return httpx.Response(200, json={
+            "jsonrpc": "2.0", "id": payload["id"],
+            "error": {"code": -32000, "message": "provider secret detail"},
+        })
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            provider = EVMRPCProvider("https://rpc.example")
+            with pytest.raises(RuntimeError, match="error code -32000") as exc:
+                await provider._rpc("eth_chainId", [], client=client)
+            assert "provider secret detail" not in str(exc.value)
+
+    asyncio.run(run())
+
+
+def test_block_header_returns_normalized_hashes_and_checks_requested_number(monkeypatch):
+    provider = EVMRPCProvider("https://rpc.example")
+    async def fake_rpc(method, params, client=None):
+        assert method == "eth_getBlockByNumber"
+        return {
+            "number": "0x64",
+            "hash": "0x" + "A" * 64,
+            "parentHash": "0x" + "B" * 64,
+        }
+    monkeypatch.setattr(provider, "_rpc", fake_rpc)
+    result = asyncio.run(provider.block_header(100))
+    assert result == {
+        "number": 100,
+        "hash": "0x" + "a" * 64,
+        "parent_hash": "0x" + "b" * 64,
+    }
+
+
+def test_block_header_rejects_wrong_height_and_malformed_hash(monkeypatch):
+    provider = EVMRPCProvider("https://rpc.example")
+    async def wrong_height(method, params, client=None):
+        return {"number": "0x65", "hash": "0x" + "a" * 64,
+                "parentHash": "0x" + "b" * 64}
+    monkeypatch.setattr(provider, "_rpc", wrong_height)
+    with pytest.raises(ValueError, match="does not match"):
+        asyncio.run(provider.block_header(100))
+
+    async def malformed_hash(method, params, client=None):
+        return {"number": "0x64", "hash": "0x1234",
+                "parentHash": "0x" + "b" * 64}
+    monkeypatch.setattr(provider, "_rpc", malformed_hash)
+    with pytest.raises(ValueError, match="invalid hash"):
+        asyncio.run(provider.block_header(100))

@@ -38,6 +38,8 @@ class OpenInterestStore:
 
     @staticmethod
     def _finite(value: Any, field: str) -> float:
+        if isinstance(value, bool):
+            raise ValueError(f"Invalid open interest {field}")
         try:
             number = float(value)
         except (TypeError, ValueError, OverflowError) as exc:
@@ -50,10 +52,10 @@ class OpenInterestStore:
     def _normalize(cls, row: Any) -> tuple[int, float, float, float | None]:
         if not isinstance(row, dict):
             raise ValueError("Malformed Binance open-interest row")
-        try:
-            timestamp = int(row["timestamp"])
-        except (KeyError, TypeError, ValueError, OverflowError) as exc:
-            raise ValueError("Invalid open-interest timestamp") from exc
+        raw_timestamp = row.get("timestamp")
+        if isinstance(raw_timestamp, bool) or not isinstance(raw_timestamp, int):
+            raise ValueError("Invalid open-interest timestamp")
+        timestamp = raw_timestamp
         amount = cls._finite(row.get("sumOpenInterest"), "amount")
         value = cls._finite(row.get("sumOpenInterestValue"), "value")
         supply_raw = row.get("CMCCirculatingSupply")

@@ -101,3 +101,14 @@ def test_advanced_analysis_rejects_invalid_parameters(tmp_path, kwargs):
     engine, _stores = build_engine(tmp_path)
     with pytest.raises(ValueError):
         engine.analyze("BTCUSDT", **kwargs)
+
+
+@pytest.mark.parametrize("timestamp", [True, 1.5, -1])
+def test_signal_store_rejects_invalid_end_timestamps(tmp_path, timestamp):
+    _engine, stores = build_engine(tmp_path)
+    signal_store = stores[-1]
+    with pytest.raises(ValueError, match="end timestamp"):
+        signal_store.save({
+            "status": "COMPLETED", "symbol": "BTCUSDT", "period": "1h",
+            "window": {"end_time_ms": timestamp},
+        })

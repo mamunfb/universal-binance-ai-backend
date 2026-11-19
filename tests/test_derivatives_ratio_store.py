@@ -77,3 +77,11 @@ def test_ratio_store_history_filters_and_validates_bounds(tmp_path):
     assert [row["timestamp_ms"] for row in result["records"]] == [2000]
     with pytest.raises(ValueError, match="end_time_ms"):
         store.history("GLOBAL_LONG_SHORT", "BTCUSDT", "1h", 2000, 1000)
+
+
+@pytest.mark.parametrize("row", [global_row(timestamp=True), global_row(timestamp=1.5)])
+def test_ratio_store_rejects_boolean_and_fractional_timestamps(tmp_path, row):
+    store = DerivativesRatioStore(str(tmp_path / "ratios.sqlite3"))
+    with pytest.raises(ValueError, match="timestamp"):
+        store.save("GLOBAL_LONG_SHORT", "BTCUSDT", "1h", [row])
+    assert store.history("GLOBAL_LONG_SHORT", "BTCUSDT", "1h")["returned_count"] == 0

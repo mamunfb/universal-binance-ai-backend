@@ -23,18 +23,14 @@ class LiquidationClusterAnalysis:
         symbol = symbol.upper().strip()
         if not symbol or len(symbol) > 40:
             raise ValueError("Invalid symbol")
-        if start_time_ms is not None and start_time_ms < 0:
-            raise ValueError("start_time_ms must be non-negative")
-        if end_time_ms is not None and end_time_ms < 0:
-            raise ValueError("end_time_ms must be non-negative")
+        for name, value in (("start_time_ms", start_time_ms), ("end_time_ms", end_time_ms)):
+            if value is not None and (isinstance(value, bool) or not isinstance(value, int) or value < 0):
+                raise ValueError(f"{name} must be a non-negative integer")
         if start_time_ms is not None and end_time_ms is not None and end_time_ms < start_time_ms:
             raise ValueError("end_time_ms must be >= start_time_ms")
-        if not 1 <= limit <= 20000:
-            raise ValueError("limit must be between 1 and 20000")
-        if not 1 <= bucket_bps <= 500:
-            raise ValueError("bucket_bps must be between 1 and 500")
-        if not 1 <= min_events <= 1000:
-            raise ValueError("min_events must be between 1 and 1000")
+        for name, value, maximum in (("limit", limit, 20000), ("bucket_bps", bucket_bps, 500), ("min_events", min_events, 1000)):
+            if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= maximum:
+                raise ValueError(f"{name} must be an integer between 1 and {maximum}")
 
         clauses = ["symbol=?"]
         params: list[Any] = [symbol]

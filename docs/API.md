@@ -17,10 +17,10 @@ On Windows PowerShell, activate with `.venv\\Scripts\\Activate.ps1`.
 Returns service health. This is a process health check, not an exchange connectivity check.
 
 ### GET /api/v1/markets/spot/scan
-Scans Binance Spot symbols that are TRADING and use the requested quote asset.
+Scans Binance Spot symbols that are TRADING across all quote assets by default. Supply `quote_asset` only when intentionally narrowing the scan.
 
 Query parameters:
-- `quote_asset`: quote asset, default `USDT`
+- `quote_asset`: optional quote-asset filter; omitted means all quote assets
 - `min_quote_volume`: minimum 24-hour quote volume, default `0`
 
 The response reports eligible, scanned, matched, and failed symbol counts. A result is marked INCOMPLETE if eligible symbols lack usable ticker data.

@@ -187,10 +187,15 @@ class OrderBookStreamCollector:
             async for raw in socket:
                 await queue.put(json.loads(raw))
         finally:
-            try:
-                queue.put_nowait(None)
-            except asyncio.QueueFull:
-                pass
+            # Always make stream termination observable. If the bounded queue is
+            # full, discard one buffered delta and force the consumer to reconnect;
+            # processing a potentially incomplete book would be unsafe.
+            if queue.full():
+                try:
+                    queue.get_nowait()
+                except asyncio.QueueEmpty:
+                    pass
+            queue.put_nowait(None)
 
     async def _run_job(self, job: dict[str, str]) -> None:
         market, symbol = job["market"], job["symbol"]
@@ -210,7 +215,7 @@ class OrderBookStreamCollector:
                     reader = asyncio.create_task(self._reader(socket, queue))
                     try:
                         snapshot = await self._provider(market).order_book(symbol, self.snapshot_limit)
-                        last_id = int(snapshot["lastUpdateId"])
+                        last_id = self._snapshot_update_id(snapshot)
                         bids = {float(p): float(q) for p, q in snapshot["bids"] if float(q) > 0}
                         asks = {float(p): float(q) for p, q in snapshot["asks"] if float(q) > 0}
                         first_event = True
@@ -267,15 +272,43 @@ class OrderBookStreamCollector:
                 state["synchronized"] = False
 
     @staticmethod
+    def _snapshot_update_id(snapshot: dict[str, Any]) -> int:
+        update_id = snapshot.get("lastUpdateId")
+        if isinstance(update_id, bool) or not isinstance(update_id, int):
+            raise RuntimeError("DEPTH_INVALID_SNAPSHOT_UPDATE_ID")
+        return update_id
+
+    @staticmethod
     def _validate_sequence(market: str, event: dict[str, Any], last_id: int, first_event: bool) -> None:
-        first_id, final_id = int(event.get("U", 0)), int(event.get("u", 0))
+        first_raw, final_raw = event.get("U"), event.get("u")
+        if (
+            isinstance(first_raw, bool) or not isinstance(first_raw, int)
+            or isinstance(final_raw, bool) or not isinstance(final_raw, int)
+        ):
+            raise RuntimeError("DEPTH_INVALID_SEQUENCE_ID")
+        first_id, final_id = first_raw, final_raw
         if first_event:
-            if not (first_id <= last_id + 1 <= final_id):
+            if market in {"USD_M", "COIN_M"}:
+                # Futures diff streams use pu to bridge a snapshot that lands
+                # between update events. Accept either an event spanning the
+                # snapshot update ID or a direct continuation from that ID.
+                previous_id = event.get("pu")
+                if isinstance(previous_id, bool) or not isinstance(previous_id, int):
+                    raise RuntimeError("DEPTH_INVALID_SEQUENCE_ID")
+                overlaps_snapshot = first_id <= last_id <= final_id
+                continues_snapshot = previous_id == last_id
+                if not (overlaps_snapshot or continues_snapshot):
+                    raise RuntimeError("DEPTH_INITIAL_SEQUENCE_GAP")
+            elif not (first_id <= last_id + 1 <= final_id):
                 raise RuntimeError("DEPTH_INITIAL_SEQUENCE_GAP")
             return
         if market in {"USD_M", "COIN_M"}:
             previous_id = event.get("pu")
-            if previous_id is None or int(previous_id) != last_id:
+            if (
+                isinstance(previous_id, bool)
+                or not isinstance(previous_id, int)
+                or previous_id != last_id
+            ):
                 raise RuntimeError("DEPTH_SEQUENCE_GAP")
         elif first_id > last_id + 1:
             raise RuntimeError("DEPTH_SEQUENCE_GAP")

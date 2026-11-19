@@ -46,3 +46,50 @@ def test_store_persists_and_filters_events(tmp_path):
 def test_invalid_message_is_ignored():
     assert normalize_force_order({"e": "aggTrade"}) is None
     assert normalize_force_order({"e": "forceOrder", "o": []}) is None
+
+
+
+def test_invalid_or_non_finite_force_order_quantities_are_ignored():
+    import copy
+
+    cases = (
+        ("q", "not-a-number"),
+        ("l", "not-a-number"),
+        ("ap", "NaN"),
+        ("z", "Infinity"),
+        ("q", "-0.1"),
+        ("l", "-0.1"),
+    )
+    for field, value in cases:
+        message = copy.deepcopy(sample_message())
+        message["o"][field] = value
+        assert normalize_force_order(message) is None
+
+
+def test_negative_force_order_timestamps_are_ignored():
+    import copy
+
+    message = copy.deepcopy(sample_message())
+    message["E"] = -1
+    assert normalize_force_order(message) is None
+
+    message = copy.deepcopy(sample_message())
+    message["o"]["T"] = -1
+    assert normalize_force_order(message) is None
+
+
+
+def test_force_order_rejects_boolean_numeric_fields_and_non_object_payloads():
+    import copy
+
+    for field in ("ap", "q", "l", "z"):
+        message = copy.deepcopy(sample_message())
+        message["o"][field] = True
+        assert normalize_force_order(message) is None
+
+    for target, field in (("message", "E"), ("order", "T")):
+        message = copy.deepcopy(sample_message())
+        (message if target == "message" else message["o"])[field] = True
+        assert normalize_force_order(message) is None
+
+    assert normalize_force_order(["not", "an", "object"]) is None

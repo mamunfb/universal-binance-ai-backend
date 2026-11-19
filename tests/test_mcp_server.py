@@ -413,3 +413,36 @@ def test_market_evidence_mcp_tool_calls_fixed_read_only_route(monkeypatch):
     result = server.get_market_evidence_snapshot("btcusdt")
     assert result["status"] == "COMPLETED"
     assert calls == [("/api/v1/analysis/market-evidence/BTCUSDT", None)]
+
+
+@pytest.mark.parametrize(
+    "tool_name,kwargs",
+    [
+        ("get_spot_klines", {"symbol": "BTCUSDT", "limit": True}),
+        ("inspect_historical_kline_coverage", {
+            "market": "SPOT", "symbol": "BTCUSDT", "interval": "1h",
+            "start_time_ms": True, "end_time_ms": 100,
+        }),
+        ("get_cross_chain_token_intelligence", {
+            "asset_id": "ethereum:0xabc", "from_block": 1,
+            "to_block": 100, "decimals": False,
+        }),
+        ("get_stored_aggregate_trades", {
+            "market": "SPOT", "symbol": "BTCUSDT", "start_time_ms": False,
+        }),
+        ("save_market_confluence_snapshot", {
+            "market": "SPOT", "symbol": "BTCUSDT", "interval": "1h",
+            "analyzed_at_ms": True, "bias": "UNKNOWN", "alignment": "UNKNOWN",
+        }),
+    ],
+)
+def test_mcp_integer_parameters_reject_booleans_before_api_calls(monkeypatch, tool_name, kwargs):
+    server = _load_server(monkeypatch)
+    calls = []
+    monkeypatch.setattr(server, "_get", lambda *args, **kw: calls.append((args, kw)))
+    monkeypatch.setattr(server, "_post", lambda *args, **kw: calls.append((args, kw)))
+
+    with pytest.raises(ValueError, match="must be an integer, not a boolean"):
+        getattr(server, tool_name)(**kwargs)
+
+    assert calls == []

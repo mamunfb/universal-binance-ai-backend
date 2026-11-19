@@ -70,3 +70,44 @@ async def test_no_sources_is_blocked_not_empty_success():
     result = await collect_news_intelligence(RSSNewsProvider(), [], ["BTC"])
     assert result["status"] == "BLOCKED"
     assert result["returned_count"] == 0
+
+
+async def test_feed_failure_does_not_expose_secret_query_parameters():
+    url = "https://feeds.example.test/rss?token=feed-secret"
+    transport = httpx.MockTransport(lambda request: httpx.Response(503, request=request))
+    async with httpx.AsyncClient(transport=transport) as client:
+        result = await RSSNewsProvider().collect([{"name": "Private feed", "url": url}], client=client)
+    assert result["failed_sources"] == 1
+    assert result["failures"][0]["error"] == "HTTPStatusError"
+    assert "feed-secret" not in str(result["failures"])
+
+async def test_feed_redirects_are_not_followed():
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(302, headers={"Location": "http://127.0.0.1/internal"})
+    )
+    async with httpx.AsyncClient(transport=transport, follow_redirects=True) as client:
+        result = await RSSNewsProvider().collect(
+            [{"name": "Redirect", "url": "https://feeds.example.test/rss"}], client=client
+        )
+    assert result["failed_sources"] == 1
+    assert result["failures"][0]["error"] == "HTTPStatusError"
+
+
+async def test_oversized_feed_is_rejected_while_streaming():
+    transport = httpx.MockTransport(lambda request: httpx.Response(200, content=RSS.encode() * 4))
+    async with httpx.AsyncClient(transport=transport) as client:
+        result = await RSSNewsProvider(max_feed_bytes=100).collect(
+            [{"name": "Large", "url": "https://feeds.example.test/rss"}], client=client
+        )
+    assert result["failed_sources"] == 1
+    assert result["failures"][0]["error"] == "ValueError"
+
+
+def test_rss_provider_rejects_invalid_feed_size_limit():
+    for value in (True, 0, -1, 1.5):
+        try:
+            RSSNewsProvider(max_feed_bytes=value)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"expected invalid feed size limit to fail: {value!r}")

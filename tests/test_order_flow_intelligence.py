@@ -49,3 +49,29 @@ def test_order_flow_validates_inputs():
         analyze_order_flow([], "SPOT", "BTCUSDT", 100, 0)
     with pytest.raises(ValueError):
         analyze_order_flow([], "SPOT", "BTCUSDT", 0, 100, bin_size_bps=0)
+
+
+
+def test_order_flow_rejects_boolean_and_fractional_timestamps_and_boolean_metrics():
+    import pytest
+
+    invalid_rows = []
+    for timestamp in (True, 1.5):
+        invalid_rows.append({**trade(100, 100, 1, "BUY"), "trade_time_ms": timestamp})
+    for field in ("price", "quantity", "notional"):
+        invalid_rows.append({**trade(100, 100, 1, "BUY"), field: True})
+    invalid_rows.append(["not", "a", "trade", "object"])
+
+    result = analyze_order_flow(invalid_rows, "SPOT", "BTCUSDT", 0, 1000)
+    assert result["status"] == "INSUFFICIENT_DATA"
+    assert result["trade_count"] == 0
+    assert result["rejected_trade_count"] == len(invalid_rows)
+
+    for start, end in ((True, 100), (0, True), (1.5, 100), (0, 100.5)):
+        with pytest.raises(ValueError, match="integer"):
+            analyze_order_flow([], "SPOT", "BTCUSDT", start, end)
+
+    with pytest.raises(ValueError, match="bin_size_bps"):
+        analyze_order_flow([], "SPOT", "BTCUSDT", 0, 100, bin_size_bps=True)
+    with pytest.raises(ValueError, match="value_area_pct"):
+        analyze_order_flow([], "SPOT", "BTCUSDT", 0, 100, value_area_pct=True)

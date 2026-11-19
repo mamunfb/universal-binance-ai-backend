@@ -124,6 +124,13 @@ async def test_futures_scanner_rejects_negative_minimum_volume():
     assert result["error_code"] == "INVALID_FILTER"
 
 
+async def test_futures_scanner_rejects_boolean_minimum_volume():
+    for value in (True, False):
+        result = await scan_futures_markets(FakeFuturesProvider(), min_quote_volume=value)
+        assert result["status"] == "FAILED"
+        assert result["error_code"] == "INVALID_FILTER"
+
+
 async def test_futures_scanner_rejects_malformed_upstream_shape():
     class MalformedProvider:
         market = "USD_M"
@@ -170,7 +177,7 @@ async def test_coinm_scanner_handles_contract_status_and_base_volume_schema():
                 "symbol": "BTCUSD_PERP", "pair": "BTCUSD",
                 "baseAsset": "BTC", "quoteAsset": "USD", "marginAsset": "BTC",
                 "contractType": "PERPETUAL", "contractStatus": "TRADING",
-                "deliveryDate": 4133404800000,
+                "deliveryDate": 4133404800000, "contractSize": 100,
                 "filters": [{"filterType": "PRICE_FILTER", "tickSize": "0.1"}],
             }]}
 
@@ -188,6 +195,8 @@ async def test_coinm_scanner_handles_contract_status_and_base_volume_schema():
     assert result["results"][0]["status"] == "TRADING"
     assert result["results"][0]["quote_volume_24h"] == 1_000_000
     assert result["results"][0]["quote_volume_method"] == "DERIVED_BASE_VOLUME_TIMES_LAST_PRICE"
+    assert result["results"][0]["contract_size_usd"] == 100
+    assert result["results"][0]["settlement_asset"] == "BTC"
 
 
 async def test_futures_scanner_flags_newly_onboarded_contract():
@@ -254,3 +263,40 @@ async def test_futures_underlying_selection_does_not_compare_incomparable_quote_
     assert underlying["primary_symbol"] is None
     assert underlying["candidate_symbols"] == ["AAAUSD_260626", "AAAUSDT"]
     assert underlying["primary_selection_status"] == "NOT_ESTABLISHED_INCOMPARABLE_QUOTE_OR_MARGIN_ASSETS"
+
+
+async def test_futures_scanner_rejects_boolean_numeric_ticker_fields():
+    for field in ("lastPrice", "priceChangePercent", "quoteVolume"):
+        class BooleanTickerProvider(FakeFuturesProvider):
+            async def all_24h_tickers(self):
+                ticker = {
+                    "symbol": "AAAUSDT", "lastPrice": "12.5",
+                    "priceChangePercent": "2.0", "quoteVolume": "900000",
+                }
+                ticker[field] = True
+                return [ticker]
+
+        result = await scan_futures_markets(BooleanTickerProvider())
+        assert result["status"] == "INCOMPLETE"
+        assert result["failed_symbols"] == 2
+        assert result["matched_symbols"] == 0
+
+    class BooleanCoinMBaseVolumeProvider:
+        market = "COIN_M"
+
+        async def exchange_info(self):
+            return {"symbols": [{
+                "symbol": "BTCUSD_PERP", "baseAsset": "BTC", "quoteAsset": "USD",
+                "marginAsset": "BTC", "contractType": "PERPETUAL", "contractStatus": "TRADING",
+            }]}
+
+        async def all_24h_tickers(self):
+            return [{
+                "symbol": "BTCUSD_PERP", "lastPrice": "50000",
+                "priceChangePercent": "1.5", "baseVolume": True,
+            }]
+
+    result = await scan_futures_markets(BooleanCoinMBaseVolumeProvider())
+    assert result["status"] == "INCOMPLETE"
+    assert result["failed_symbols"] == 1
+    assert result["matched_symbols"] == 0

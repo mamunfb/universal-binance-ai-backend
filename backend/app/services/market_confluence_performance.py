@@ -651,8 +651,8 @@ class MarketConfluencePerformance:
     ) -> dict[str, Any]:
         if price_interval not in self.INTERVAL_MS:
             raise ValueError("price_interval must be 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, or 1d")
-        if not 1 <= limit <= 1000:
-            raise ValueError("limit must be between 1 and 1000")
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 1000:
+            raise ValueError("limit must be an integer between 1 and 1000")
 
         candle_step = self.INTERVAL_MS[price_interval]
         max_required = (max(self.HORIZONS_HOURS) * 3_600_000) // candle_step + 3
@@ -1345,8 +1345,8 @@ class MarketConfluencePerformance:
         """Return one bounded local OHLC path for a saved snapshot."""
         if price_interval not in self.INTERVAL_MS:
             raise ValueError("Unsupported price_interval")
-        if not 1 <= hours <= 720:
-            raise ValueError("hours must be between 1 and 720")
+        if isinstance(hours, bool) or not isinstance(hours, int) or not 1 <= hours <= 720:
+            raise ValueError("hours must be an integer between 1 and 720")
         snapshot = self.snapshots.get_snapshot(market, symbol, snapshot_id)
         if snapshot is None:
             raise ValueError("Snapshot not found for the requested market and symbol")

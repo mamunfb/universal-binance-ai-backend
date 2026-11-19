@@ -28,17 +28,31 @@ def aggregate_trade_stream_url(market: str, symbol: str) -> str:
 
 
 def normalize_aggregate_trade(payload: dict[str, Any], market: str) -> dict[str, Any] | None:
-    if payload.get("e") != "aggTrade":
+    if not isinstance(payload, dict) or payload.get("e") != "aggTrade":
         return None
     try:
         symbol = str(payload["s"]).upper()
-        trade_id = int(payload["a"])
-        price = float(payload["p"])
-        quantity = float(payload["q"])
-        event_time_ms = int(payload["E"])
-        trade_time_ms = int(payload["T"])
+        raw_trade_id = payload["a"]
+        raw_event_time_ms = payload["E"]
+        raw_trade_time_ms = payload["T"]
+        raw_price = payload["p"]
+        raw_quantity = payload["q"]
+        if any(
+            isinstance(value, bool) or not isinstance(value, int)
+            for value in (raw_trade_id, raw_event_time_ms, raw_trade_time_ms)
+        ):
+            return None
+        if isinstance(raw_price, bool) or isinstance(raw_quantity, bool):
+            return None
+        trade_id = raw_trade_id
+        price = float(raw_price)
+        quantity = float(raw_quantity)
+        event_time_ms = raw_event_time_ms
+        trade_time_ms = raw_trade_time_ms
         buyer_is_maker = payload["m"]
-        if not symbol or price <= 0 or quantity <= 0 or not math.isfinite(price * quantity):
+        if (not symbol or trade_id < 0 or event_time_ms < 0 or trade_time_ms < 0
+                or price <= 0 or quantity <= 0 or not math.isfinite(price)
+                or not math.isfinite(quantity) or not math.isfinite(price * quantity)):
             return None
         if not isinstance(buyer_is_maker, bool):
             return None

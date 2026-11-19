@@ -8,6 +8,24 @@ from typing import Any
 from app.providers.evm_rpc import EVMRPCProvider
 
 
+_TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+
+
+def _validate_index_scope(chain_id: int, contract: str, start: int, end: int) -> str:
+    if isinstance(chain_id, bool) or not isinstance(chain_id, int) or chain_id < 0:
+        raise ValueError("chain_id must be a non-negative integer")
+    if not isinstance(contract, str) or len(contract) != 42 or not contract.startswith("0x"):
+        raise ValueError("contract must be a 20-byte 0x-prefixed address")
+    try:
+        int(contract[2:], 16)
+    except ValueError as exc:
+        raise ValueError("contract must be a valid hexadecimal address") from exc
+    if (isinstance(start, bool) or not isinstance(start, int) or start < 0
+            or isinstance(end, bool) or not isinstance(end, int) or end < start):
+        raise ValueError("block range must contain non-negative integers with end >= start")
+    return contract.lower()
+
+
 class EVMTransferStore:
     """Persistent, idempotent storage for indexed ERC-20 Transfer logs."""
 
@@ -46,36 +64,160 @@ class EVMTransferStore:
                     UNIQUE(chain_id, contract_address, from_block, to_block)
                 )
             """)
+            connection.execute("""
+                CREATE TABLE IF NOT EXISTS evm_block_headers (
+                    chain_id INTEGER NOT NULL,
+                    block_number INTEGER NOT NULL,
+                    block_hash TEXT NOT NULL,
+                    parent_hash TEXT NOT NULL,
+                    indexed_at TEXT NOT NULL,
+                    PRIMARY KEY (chain_id, block_number)
+                )
+            """)
 
     def save_chunk(self, chain_id: int, contract: str, start: int, end: int,
-                   logs: list[dict[str, Any]]) -> int:
+                   logs: list[dict[str, Any]],
+                   block_headers: list[dict[str, Any]] | None = None) -> int:
+        contract = _validate_index_scope(chain_id, contract, start, end)
+        if not isinstance(logs, list):
+            raise ValueError("logs must be a list")
         now = datetime.now(timezone.utc).isoformat()
+        if block_headers is None:
+            block_headers = []
+        if not isinstance(block_headers, list):
+            raise ValueError("block_headers must be a list")
+        normalized_headers = []
+        seen_header_numbers = set()
+        for header in block_headers:
+            if not isinstance(header, dict):
+                raise ValueError("Block header checkpoints must be objects")
+            number = header.get("number")
+            block_hash = header.get("hash")
+            parent_hash = header.get("parent_hash")
+            if (isinstance(number, bool) or not isinstance(number, int) or number < 0
+                    or number in seen_header_numbers):
+                raise ValueError("Block header checkpoint number is invalid or duplicated")
+            for value in (block_hash, parent_hash):
+                if (not isinstance(value, str) or len(value) != 66 or not value.startswith("0x")
+                        or any(ch not in "0123456789abcdefABCDEF" for ch in value[2:])):
+                    raise ValueError("Block header checkpoint contains an invalid hash")
+            seen_header_numbers.add(number)
+            normalized_headers.append((chain_id, number, block_hash.lower(), parent_hash.lower(), now))
+        normalized_headers.sort(key=lambda item: item[1])
+        for previous_header, current_header in zip(normalized_headers, normalized_headers[1:]):
+            if (current_header[1] == previous_header[1] + 1
+                    and current_header[3] != previous_header[2]):
+                raise ValueError("Block header checkpoints have inconsistent parent linkage")
         rows = []
+        seen_log_ids: set[tuple[str, int]] = set()
         for log in logs:
             if not isinstance(log, dict):
                 raise ValueError("RPC returned a non-object log; refusing to mark this block range complete")
-            topics = log.get("topics") or []
+            topics = log.get("topics")
             tx_hash = log.get("transactionHash")
-            if len(topics) < 3 or not isinstance(tx_hash, str) or len(tx_hash) != 66 or not tx_hash.startswith("0x"):
-                raise ValueError("RPC returned a malformed Transfer log; refusing to mark this block range complete")
+            if (not isinstance(topics, list) or len(topics) != 3
+                    or not all(isinstance(topic, str) for topic in topics)
+                    or topics[0].lower() != _TRANSFER_TOPIC
+                    or not isinstance(tx_hash, str) or len(tx_hash) != 66
+                    or not tx_hash.startswith("0x")):
+                raise ValueError("RPC returned a malformed ERC-20 Transfer log; refusing to mark this block range complete")
             block_hex, index_hex, data = log.get("blockNumber"), log.get("logIndex"), log.get("data")
             if not all(isinstance(value, str) and value.startswith("0x")
                        for value in (block_hex, index_hex, data)):
                 raise ValueError("RPC Transfer log is missing blockNumber, logIndex, or data")
             try:
+                if (len(tx_hash) != 66 or len(tx_hash[2:]) != 64
+                        or len(block_hex) < 3 or len(index_hex) < 3 or len(data) != 66
+                        or len(topics[1]) != 66 or len(topics[2]) != 66
+                        or any(character not in "0123456789abcdefABCDEF"
+                               for value in (tx_hash[2:], block_hex[2:], index_hex[2:],
+                                             data[2:], topics[0][2:], topics[1][2:], topics[2][2:])
+                               for character in value)):
+                    raise ValueError("Transfer log contains malformed hexadecimal fields")
                 block_number, log_index, raw_value = int(block_hex, 16), int(index_hex, 16), int(data, 16)
-                if len(topics[1]) != 66 or len(topics[2]) != 66:
-                    raise ValueError("Transfer log contains malformed indexed address topics")
+                if topics[1][2:26] != "0" * 24 or topics[2][2:26] != "0" * 24:
+                    raise ValueError("Transfer log contains invalid indexed address padding")
                 sender, recipient = "0x" + topics[1][-40:].lower(), "0x" + topics[2][-40:].lower()
-                int(sender[2:], 16)
-                int(recipient[2:], 16)
+                returned_contract = log.get("address")
+                if returned_contract is not None:
+                    if (not isinstance(returned_contract, str) or len(returned_contract) != 42
+                            or not returned_contract.startswith("0x")
+                            or returned_contract.lower() != contract):
+                        raise ValueError("RPC Transfer log contract does not match requested contract")
+                removed = log.get("removed", False)
+                if not isinstance(removed, bool):
+                    raise ValueError("RPC Transfer log removed flag must be Boolean")
             except (ValueError, TypeError) as exc:
                 raise ValueError("RPC returned an invalid Transfer log; refusing to mark this block range complete") from exc
             if not (start <= block_number <= end) or raw_value < 0:
                 raise ValueError("RPC Transfer log falls outside the requested range or has a negative amount")
-            rows.append((chain_id, contract.lower(), tx_hash.lower(), log_index, block_number,
-                         sender, recipient, str(raw_value), int(bool(log.get("removed"))), now))
+            log_identity = (tx_hash.lower(), log_index)
+            if log_identity in seen_log_ids:
+                raise ValueError("RPC returned a duplicate transactionHash/logIndex within one block chunk")
+            seen_log_ids.add(log_identity)
+            rows.append((chain_id, contract, tx_hash.lower(), log_index, block_number,
+                         sender, recipient, str(raw_value), int(removed), now))
         with sqlite3.connect(self.database_path) as connection:
+            if normalized_headers:
+                has_checkpoint = connection.execute(
+                    "SELECT 1 FROM evm_block_headers WHERE chain_id=? LIMIT 1",
+                    (chain_id,),
+                ).fetchone()
+                has_legacy_coverage = connection.execute(
+                    "SELECT 1 FROM evm_transfer_index_ranges WHERE chain_id=? LIMIT 1",
+                    (chain_id,),
+                ).fetchone()
+                if not has_checkpoint and has_legacy_coverage:
+                    # Old indexed rows have no block identity; do not present them as canonical.
+                    connection.execute("DELETE FROM evm_transfer_logs WHERE chain_id=?", (chain_id,))
+                    connection.execute("DELETE FROM evm_transfer_index_ranges WHERE chain_id=?", (chain_id,))
+            first_divergence = None
+            previous_unchanged_checkpoint = None
+            for _, number, block_hash, parent_hash, _ in normalized_headers:
+                existing = connection.execute(
+                    "SELECT block_hash FROM evm_block_headers WHERE chain_id=? AND block_number=?",
+                    (chain_id, number),
+                ).fetchone()
+                previous = connection.execute(
+                    "SELECT block_hash FROM evm_block_headers WHERE chain_id=? AND block_number=?",
+                    (chain_id, number - 1),
+                ).fetchone() if number > 0 else None
+                mismatch = bool(existing and existing[0] != block_hash) or bool(
+                    previous and previous[0] != parent_hash
+                )
+                if mismatch:
+                    if previous_unchanged_checkpoint is None:
+                        prior_anchor = connection.execute(
+                            """SELECT block_number FROM evm_block_headers
+                               WHERE chain_id=? AND block_number<?
+                               ORDER BY block_number DESC LIMIT 1""",
+                            (chain_id, number),
+                        ).fetchone()
+                        previous_unchanged_checkpoint = prior_anchor[0] if prior_anchor else None
+                    earliest_possible = (
+                        previous_unchanged_checkpoint + 1
+                        if previous_unchanged_checkpoint is not None
+                        else number
+                    )
+                    first_divergence = (
+                        earliest_possible if first_divergence is None
+                        else min(first_divergence, earliest_possible)
+                    )
+                elif existing and existing[0] == block_hash:
+                    previous_unchanged_checkpoint = number
+            if first_divergence is not None:
+                connection.execute(
+                    "DELETE FROM evm_transfer_logs WHERE chain_id=? AND block_number>=?",
+                    (chain_id, first_divergence),
+                )
+                connection.execute(
+                    "DELETE FROM evm_transfer_index_ranges WHERE chain_id=? AND to_block>=?",
+                    (chain_id, first_divergence),
+                )
+                connection.execute(
+                    "DELETE FROM evm_block_headers WHERE chain_id=? AND block_number>=?",
+                    (chain_id, first_divergence),
+                )
             connection.executemany("""
                 INSERT INTO evm_transfer_logs
                 (chain_id, contract_address, transaction_hash, log_index, block_number,
@@ -93,11 +235,22 @@ class EVMTransferStore:
                 VALUES (?, ?, ?, ?, ?, ?)
                 ON CONFLICT(chain_id, contract_address, from_block, to_block)
                 DO UPDATE SET transfer_count=excluded.transfer_count, indexed_at=excluded.indexed_at
-            """, (chain_id, contract.lower(), start, end, len(rows), now))
+            """, (chain_id, contract, start, end, len(rows), now))
+            connection.executemany("""
+                INSERT INTO evm_block_headers
+                (chain_id, block_number, block_hash, parent_hash, indexed_at)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(chain_id, block_number)
+                DO UPDATE SET block_hash=excluded.block_hash,
+                    parent_hash=excluded.parent_hash, indexed_at=excluded.indexed_at
+            """, normalized_headers)
         return len(rows)
 
     def history(self, chain_id: int, contract: str, from_block: int, to_block: int,
                 limit: int = 1000) -> list[dict[str, Any]]:
+        contract = _validate_index_scope(chain_id, contract, from_block, to_block)
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 100_000:
+            raise ValueError("limit must be an integer between 1 and 100000")
         with sqlite3.connect(self.database_path) as connection:
             connection.row_factory = sqlite3.Row
             rows = connection.execute("""
@@ -112,6 +265,11 @@ class EVMTransferStore:
 
     def address_flow_summary(self, chain_id: int, contract: str, from_block: int,
                              to_block: int, decimals: int, limit: int = 50) -> dict[str, Any]:
+        contract = _validate_index_scope(chain_id, contract, from_block, to_block)
+        if isinstance(decimals, bool) or not isinstance(decimals, int) or not 0 <= decimals <= 36:
+            raise ValueError("decimals must be an integer between 0 and 36")
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 200:
+            raise ValueError("limit must be an integer between 1 and 200")
         if not 0 <= decimals <= 36:
             raise ValueError("decimals must be between 0 and 36")
         if not 1 <= limit <= 200:
@@ -153,6 +311,7 @@ class EVMTransferStore:
 
     def range_coverage(self, chain_id: int, contract: str, from_block: int,
                        to_block: int) -> dict[str, Any]:
+        contract = _validate_index_scope(chain_id, contract, from_block, to_block)
         ranges = self.coverage(chain_id, contract)
         relevant = sorted(
             (max(from_block, row["from_block"]), min(to_block, row["to_block"]))
@@ -182,6 +341,11 @@ class EVMTransferStore:
     def smart_money_activity(self, chain_id: int, contract: str, from_block: int,
                              to_block: int, decimals: int, registry: dict[str, Any],
                              limit: int = 100) -> dict[str, Any]:
+        contract = _validate_index_scope(chain_id, contract, from_block, to_block)
+        if isinstance(decimals, bool) or not isinstance(decimals, int) or not 0 <= decimals <= 36:
+            raise ValueError("decimals must be an integer between 0 and 36")
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 1000:
+            raise ValueError("limit must be an integer between 1 and 1000")
         if not 0 <= decimals <= 36:
             raise ValueError("decimals must be between 0 and 36")
         with sqlite3.connect(self.database_path) as connection:
@@ -260,6 +424,11 @@ class EVMTransferStore:
     def smart_money_accumulation_trend(self, chain_id: int, contract: str,
                                        from_block: int, to_block: int, decimals: int,
                                        registry: dict[str, Any], window_blocks: int = 1000) -> dict[str, Any]:
+        contract = _validate_index_scope(chain_id, contract, from_block, to_block)
+        if isinstance(decimals, bool) or not isinstance(decimals, int) or not 0 <= decimals <= 36:
+            raise ValueError("decimals must be an integer between 0 and 36")
+        if isinstance(window_blocks, bool) or not isinstance(window_blocks, int) or not 1 <= window_blocks <= 1_000_000:
+            raise ValueError("window_blocks must be an integer between 1 and 1000000")
         if not 1 <= window_blocks <= 1_000_000:
             raise ValueError("window_blocks must be between 1 and 1000000")
         if not 0 <= decimals <= 36:
@@ -312,6 +481,9 @@ class EVMTransferStore:
 
     def verified_label_flows(self, chain_id: int, contract: str, from_block: int,
                              to_block: int, decimals: int, registry: dict[str, Any]) -> dict[str, Any]:
+        contract = _validate_index_scope(chain_id, contract, from_block, to_block)
+        if isinstance(decimals, bool) or not isinstance(decimals, int) or not 0 <= decimals <= 36:
+            raise ValueError("decimals must be an integer between 0 and 36")
         """Aggregate indexed transfer flow for verified registry labels, cancelling cohort-internal transfers."""
         if not 0 <= decimals <= 36:
             raise ValueError("decimals must be between 0 and 36")
@@ -367,6 +539,30 @@ class EVMTransferStore:
             "warning": "Only operator-verified registry entries are included. Transfers between wallets in the same label cohort are included in gross sent/received but cancel in net flow. Transfers are not proof of exchange deposits, sales, purchases, ownership, or investment intent.",
         }
 
+    def checkpoint_neighbors(self, chain_id: int, from_block: int,
+                             to_block: int) -> list[int]:
+        """Return nearest stored canonical checkpoints bracketing a requested range."""
+        if isinstance(chain_id, bool) or not isinstance(chain_id, int) or chain_id < 0:
+            raise ValueError("chain_id must be a non-negative integer")
+        if (isinstance(from_block, bool) or not isinstance(from_block, int)
+                or isinstance(to_block, bool) or not isinstance(to_block, int)
+                or from_block < 0 or to_block < from_block):
+            raise ValueError("Invalid checkpoint lookup range")
+        with sqlite3.connect(self.database_path) as connection:
+            before = connection.execute(
+                """SELECT block_number FROM evm_block_headers
+                   WHERE chain_id=? AND block_number<=?
+                   ORDER BY block_number DESC LIMIT 1""",
+                (chain_id, from_block),
+            ).fetchone()
+            after = connection.execute(
+                """SELECT block_number FROM evm_block_headers
+                   WHERE chain_id=? AND block_number>=?
+                   ORDER BY block_number ASC LIMIT 1""",
+                (chain_id, to_block),
+            ).fetchone()
+        return sorted({row[0] for row in (before, after) if row is not None})
+
     def coverage(self, chain_id: int, contract: str) -> list[dict[str, Any]]:
         with sqlite3.connect(self.database_path) as connection:
             connection.row_factory = sqlite3.Row
@@ -388,15 +584,21 @@ async def index_erc20_transfer_history(
     chunk_size: int,
     max_total_blocks: int,
 ) -> dict[str, Any]:
-    if from_block < 0 or to_block < from_block:
-        raise ValueError("Invalid block range")
-    if chunk_size < 1 or chunk_size > 2000:
-        raise ValueError("chunk_size must be between 1 and 2000")
+    contract = _validate_index_scope(0, contract, from_block, to_block)
+    if isinstance(chunk_size, bool) or not isinstance(chunk_size, int) or not 1 <= chunk_size <= 2000:
+        raise ValueError("chunk_size must be an integer between 1 and 2000")
+    if (isinstance(max_total_blocks, bool) or not isinstance(max_total_blocks, int)
+            or max_total_blocks < 1):
+        raise ValueError("max_total_blocks must be a positive integer")
     total_blocks = to_block - from_block + 1
     if total_blocks > max_total_blocks:
         raise ValueError(f"Requested history exceeds maximum of {max_total_blocks} blocks")
     chain_id = await provider.chain_id()
+    if isinstance(chain_id, bool) or not isinstance(chain_id, int) or chain_id < 0:
+        raise ValueError("Provider returned an invalid chain_id")
     latest_block = await provider.block_number()
+    if isinstance(latest_block, bool) or not isinstance(latest_block, int) or latest_block < 0:
+        raise ValueError("Provider returned an invalid latest block number")
     if to_block > latest_block:
         raise ValueError(f"to_block {to_block} is ahead of latest block {latest_block}")
     next_block = from_block
@@ -405,10 +607,20 @@ async def index_erc20_transfer_history(
     try:
         while next_block <= to_block:
             chunk_end = min(next_block + chunk_size - 1, to_block)
+            headers = []
+            header_method = getattr(provider, "block_header", None)
+            if not callable(header_method):
+                raise ValueError("EVM provider does not support canonical block-header checkpoints")
+            checkpoint_numbers = set(store.checkpoint_neighbors(chain_id, next_block, chunk_end))
+            checkpoint_numbers.update((next_block, chunk_end))
+            for checkpoint_number in sorted(checkpoint_numbers):
+                headers.append(await header_method(checkpoint_number))
             logs = await provider.token_transfer_logs(
                 contract, next_block, chunk_end, max_block_span=chunk_size
             )
-            indexed_logs += store.save_chunk(chain_id, contract, next_block, chunk_end, logs)
+            indexed_logs += store.save_chunk(
+                chain_id, contract, next_block, chunk_end, logs, block_headers=headers
+            )
             completed_chunks += 1
             next_block = chunk_end + 1
     except Exception as exc:
@@ -419,7 +631,8 @@ async def index_erc20_transfer_history(
             "completed_range": {"from": from_block, "to": next_block - 1} if completed_chunks else None,
             "next_block_to_retry": next_block, "completed_chunks": completed_chunks,
             "stored_log_count_including_replayed_chunks": indexed_logs,
-            "error": f"{type(exc).__name__}: {str(exc)[:300]}",
+            "error": "UPSTREAM_UNAVAILABLE",
+            "error_type": type(exc).__name__,
             "coverage_note": "Only fully successful chunks are recorded. Retry from next_block_to_retry; writes are idempotent.",
         }
     return {

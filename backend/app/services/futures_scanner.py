@@ -7,6 +7,8 @@ from app.providers.binance_futures import BinanceFuturesProvider
 
 
 def _number(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
     try:
         number = float(value)
     except (TypeError, ValueError, OverflowError):
@@ -45,7 +47,7 @@ async def scan_futures_markets(
     if quote_asset is not None and not quote:
         return _failed_result(provider, generated_at, quote, "INVALID_FILTER", "quote_asset must not be empty")
     minimum_volume = _number(min_quote_volume)
-    if minimum_volume is None or minimum_volume < 0:
+    if minimum_volume is None or minimum_volume < 0 or isinstance(min_quote_volume, bool):
         return _failed_result(provider, generated_at, quote, "INVALID_FILTER", "min_quote_volume must be a finite non-negative number")
 
     try:
@@ -146,7 +148,12 @@ async def scan_futures_markets(
         results.append({
             "market": provider.market, "symbol": symbol,
             "base_asset": info.get("baseAsset"), "quote_asset": info.get("quoteAsset"),
-            "margin_asset": info.get("marginAsset"), "contract_type": info.get("contractType"),
+            "margin_asset": info.get("marginAsset"),
+            "settlement_asset": info.get("marginAsset"),
+            "contract_size_usd": (
+                _number(info.get("contractSize")) if provider.market == "COIN_M" else None
+            ),
+            "contract_type": info.get("contractType"),
             "delivery_date": info.get("deliveryDate"),
             "onboard_date_ms": info.get("onboardDate"),
             "onboard_date": (

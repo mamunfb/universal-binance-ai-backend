@@ -49,3 +49,17 @@ def test_liquidation_clusters_report_no_data_and_validate(tmp_path):
         assert "bucket_bps" in str(exc)
     else:
         raise AssertionError("Expected invalid bucket width")
+
+
+
+def test_liquidation_clusters_reject_boolean_and_fractional_query_bounds(tmp_path):
+    import pytest
+
+    engine = LiquidationClusterAnalysis(LiquidationStore(str(tmp_path / "liq.sqlite3")))
+    for kwargs in (
+        {"start_time_ms": True}, {"end_time_ms": 1.5},
+        {"limit": True}, {"limit": 1.5},
+        {"bucket_bps": True}, {"min_events": 1.5},
+    ):
+        with pytest.raises(ValueError):
+            engine.analyze("BTCUSDT", **kwargs)

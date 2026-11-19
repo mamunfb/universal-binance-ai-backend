@@ -169,3 +169,24 @@ def test_dashboard_displays_observed_regime_transitions_and_manual_adaptation_st
     assert "regime_transition_analysis" in html
     assert "signal_adaptation_status" in html
     assert "Pre-transition outcomes closing at or after the change are excluded" in html
+
+
+def test_dashboard_escapes_dynamic_api_content_in_html_renderers():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "escapeHtml(x.source)" in html
+    assert "escapeHtml(x.direction||'NO DIRECTION')" in html
+    assert "escapeHtml(JSON.stringify(x.detail||{},null,2))" in html
+    assert "escapeHtml(JSON.stringify(r,null,2))" in html
+    assert "escapeHtml(id.slice(0,10))" in html
+    assert "safeIsoTimestamp(x?.analyzed_at_ms)" in html
+    assert "escapeHtml(h.label)" in html
+    assert "escapeHtml(x.horizon)" in html
+    assert "escapeHtml(x.snapshot_id)" in html
+
+
+def test_dashboard_validates_numeric_runtime_data_before_svg_rendering():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "const safeFixed=" in html
+    assert "Price-path response contains invalid candle or reference-price values" in html
+    assert "values.every(v=>Number.isFinite(v)&&v>0)" in html
+    assert "safeFixed(r.actual_market_change_percent,3)" in html

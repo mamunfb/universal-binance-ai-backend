@@ -124,6 +124,27 @@ def test_unknown_ai_client_key_is_rejected(monkeypatch):
     assert response.status_code == 401
 
 
+
+def test_production_rejects_weak_client_key_even_when_owner_key_is_configured(monkeypatch):
+    monkeypatch.setattr(settings, "app_env", "production")
+    monkeypatch.setattr(settings, "personal_api_key", "owner-key-" + "o" * 40)
+    monkeypatch.setattr(
+        settings, "ai_client_api_keys",
+        '{"chatgpt":"weak-client-key"}',
+    )
+    weak = client.get(
+        "/api/v1/analysis/futures/liquidations/status",
+        headers={"Authorization": "Bearer weak-client-key"},
+    )
+    owner = client.get(
+        "/api/v1/analysis/futures/liquidations/status",
+        headers={"Authorization": "Bearer " + "owner-key-" + "o" * 40},
+    )
+    assert weak.status_code == 401
+    assert weak.json()["error"]["code"] == "UNAUTHORIZED"
+    assert owner.status_code == 200
+
+
 def test_evm_wallet_route_sanitizes_provider_exception(monkeypatch):
     import asyncio
     from app import main
@@ -165,6 +186,70 @@ def test_derivatives_route_sanitizes_unexpected_provider_exception(monkeypatch):
         assert "private-secret" not in detail
     else:
         raise AssertionError("Expected sanitized HTTP 502")
+
+
+def test_market_data_routes_sanitize_provider_exception_details(monkeypatch):
+    import asyncio
+    from app import main
+
+    class FakeSpot:
+        async def klines(self, *args, **kwargs):
+            raise RuntimeError("https://spot.example/api?token=spot-secret")
+
+    class FakeFutures:
+        async def klines(self, *args, **kwargs):
+            raise RuntimeError("https://futures.example/api?token=futures-secret")
+
+    monkeypatch.setattr(main, "get_spot_provider", lambda: FakeSpot())
+    monkeypatch.setattr(main, "get_futures_provider", lambda market: FakeFutures())
+
+    for operation, secret in (
+        (main.spot_klines("BTCUSDT"), "spot-secret"),
+        (main.usdm_klines("BTCUSDT"), "futures-secret"),
+        (main.coinm_klines("BTCUSD_PERP"), "futures-secret"),
+        (main.spot_technical_analysis("BTCUSDT"), "spot-secret"),
+    ):
+        try:
+            asyncio.run(operation)
+        except Exception as exc:
+            assert getattr(exc, "status_code", None) == 502
+            detail = str(getattr(exc, "detail", ""))
+            assert "UPSTREAM_UNAVAILABLE" in detail
+            assert secret not in detail
+        else:
+            raise AssertionError("Expected sanitized HTTP 502")
+
+
+def test_cross_chain_intelligence_sanitizes_provider_exception(monkeypatch):
+    import asyncio
+    from app import main
+
+    monkeypatch.setattr(main, "parse_chain_token_configs", lambda raw: [{
+        "asset_id": "asset", "chain_id": 1, "contract_address": "0x" + "1" * 40,
+        "chain_name": "test", "rpc_url": "https://rpc.example.test/?key=private-token",
+    }])
+
+    async def fake_flows(*args, **kwargs):
+        return {"chains": [{
+            "chain_id": 1, "contract_address": "0x" + "1" * 40, "status": "COMPLETED",
+            "coverage": {"complete": True, "gaps": []},
+        }]}
+
+    async def fake_cohorts(*args, **kwargs):
+        return {"chains": []}
+
+    def fail_registry(*args, **kwargs):
+        raise RuntimeError("https://rpc.example.test/?key=private-token")
+
+    monkeypatch.setattr(main, "cross_chain_token_flows", fake_flows)
+    monkeypatch.setattr(main, "cross_chain_verified_wallet_flows", fake_cohorts)
+    monkeypatch.setattr(main, "load_wallet_registry", fail_registry)
+    result = asyncio.run(main.cross_chain_token_intelligence(
+        "asset", from_block=1, to_block=2, decimals=18
+    ))
+    assert result["chains"][0]["verified_entity_flows"]["error"] == "UPSTREAM_UNAVAILABLE"
+    assert result["chains"][0]["verified_wallet_concentration"]["error"] == "UPSTREAM_UNAVAILABLE"
+    assert "private-token" not in str(result)
 
 
 def test_spot_futures_basis_route_returns_analysis(monkeypatch):
@@ -236,3 +321,24 @@ def test_market_evidence_route_aggregates_read_only_sections(monkeypatch):
     assert result["decision"]["buy_sell_signal"] is None
     assert result["section_status"]["multi_timeframe"] == "COMPLETED"
     assert result["section_status"]["spot_futures_basis"] == "COMPLETED"
+
+
+
+def test_evm_index_route_rejects_boolean_and_fractional_block_numbers():
+    import asyncio
+    from app import main
+
+    contract = "0x" + "1" * 40
+    invalid_payloads = [
+        {"from_block": True, "to_block": 100, "chunk_size": 10},
+        {"from_block": 1, "to_block": 100.5, "chunk_size": 10},
+        {"from_block": 1, "to_block": 100, "chunk_size": False},
+    ]
+    for payload in invalid_payloads:
+        try:
+            asyncio.run(main.index_evm_token_history(contract, payload))
+        except Exception as exc:
+            assert getattr(exc, "status_code", None) == 422
+            assert "must be an integer" in str(getattr(exc, "detail", ""))
+        else:
+            raise AssertionError("Invalid JSON numeric values must be rejected")

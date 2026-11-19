@@ -1,5 +1,5 @@
+import asyncio
 import json
-import sqlite3
 
 import pytest
 
@@ -68,3 +68,130 @@ def test_sample_calculates_spread_and_depth(tmp_path):
     assert row["best_ask"] == 101.0
     assert row["spread_bps"] > 0
     assert row["depth_imbalance"] < 0  # Ask-side price-weighted notional exceeds bid-side notional.
+
+@pytest.mark.parametrize("market", ["USD_M", "COIN_M"])
+def test_futures_depth_first_event_accepts_snapshot_overlap(tmp_path, market):
+    collector = OrderBookStreamCollector(
+        OrderBookHistoryStore(str(tmp_path / f"{market}.sqlite3")),
+        lambda: None, lambda _market: None,
+    )
+    collector._validate_sequence(
+        market, {"U": 99, "u": 101, "pu": 98}, last_id=100, first_event=True,
+    )
+
+
+@pytest.mark.parametrize("market", ["USD_M", "COIN_M"])
+def test_futures_depth_first_event_accepts_direct_pu_continuation(tmp_path, market):
+    collector = OrderBookStreamCollector(
+        OrderBookHistoryStore(str(tmp_path / f"{market}.sqlite3")),
+        lambda: None, lambda _market: None,
+    )
+    collector._validate_sequence(
+        market, {"U": 101, "u": 105, "pu": 100}, last_id=100, first_event=True,
+    )
+
+
+@pytest.mark.parametrize("market", ["USD_M", "COIN_M"])
+def test_futures_depth_first_event_rejects_unbridged_update_gap(tmp_path, market):
+    collector = OrderBookStreamCollector(
+        OrderBookHistoryStore(str(tmp_path / f"{market}.sqlite3")),
+        lambda: None, lambda _market: None,
+    )
+    with pytest.raises(RuntimeError, match="DEPTH_INITIAL_SEQUENCE_GAP"):
+        collector._validate_sequence(
+            market, {"U": 101, "u": 105, "pu": 99}, last_id=100, first_event=True,
+        )
+
+
+def test_spot_depth_first_event_keeps_spot_update_id_rule(tmp_path):
+    collector = OrderBookStreamCollector(
+        OrderBookHistoryStore(str(tmp_path / "spot.sqlite3")),
+        lambda: None, lambda _market: None,
+    )
+    collector._validate_sequence(
+        "SPOT", {"U": 99, "u": 101}, last_id=100, first_event=True,
+    )
+    with pytest.raises(RuntimeError, match="DEPTH_INITIAL_SEQUENCE_GAP"):
+        collector._validate_sequence(
+            "SPOT", {"U": 102, "u": 105}, last_id=100, first_event=True,
+        )
+
+
+@pytest.mark.parametrize("event", [
+    {"U": 100.5, "u": 101, "pu": 99},
+    {"U": 100, "u": True, "pu": 99},
+    {"U": 100, "u": 101, "pu": 99.5},
+])
+def test_futures_depth_sequence_rejects_non_integer_update_ids(tmp_path, event):
+    collector = OrderBookStreamCollector(
+        OrderBookHistoryStore(str(tmp_path / "malformed.sqlite3")),
+        lambda: None, lambda _market: None,
+    )
+    with pytest.raises(RuntimeError, match="DEPTH_INVALID_SEQUENCE_ID"):
+        collector._validate_sequence("USD_M", event, last_id=100, first_event=True)
+
+
+
+class _EmptyAsyncSocket:
+    def __aiter__(self):
+        async def _empty():
+            if False:
+                yield None
+        return _empty()
+
+
+@pytest.mark.asyncio
+async def test_reader_signals_stream_end_when_queue_is_full(tmp_path):
+    collector = OrderBookStreamCollector(
+        OrderBookHistoryStore(str(tmp_path / "reader.sqlite3")),
+        lambda: None, lambda _market: None,
+    )
+    queue = asyncio.Queue(maxsize=1)
+    queue.put_nowait({"u": 10})
+
+    await collector._reader(_EmptyAsyncSocket(), queue)
+
+    assert queue.get_nowait() is None
+
+
+@pytest.mark.asyncio
+async def test_reader_cancellation_signals_shutdown_when_queue_is_full(tmp_path):
+    collector = OrderBookStreamCollector(
+        OrderBookHistoryStore(str(tmp_path / "reader-cancel.sqlite3")),
+        lambda: None, lambda _market: None,
+    )
+    queue = asyncio.Queue(maxsize=1)
+    queue.put_nowait({"u": 10})
+    blocked = asyncio.Event()
+
+    class _BlockingAsyncSocket:
+        def __aiter__(self):
+            async def _wait():
+                await blocked.wait()
+                yield "{}"
+            return _wait()
+
+    reader = asyncio.create_task(collector._reader(_BlockingAsyncSocket(), queue))
+    await asyncio.sleep(0)
+    reader.cancel()
+    await asyncio.gather(reader, return_exceptions=True)
+
+    assert queue.get_nowait() is None
+
+
+@pytest.mark.parametrize("update_id", [100.5, True, "100"])
+def test_depth_snapshot_rejects_non_integer_update_id(tmp_path, update_id):
+    collector = OrderBookStreamCollector(
+        OrderBookHistoryStore(str(tmp_path / "snapshot-id.sqlite3")),
+        lambda: None, lambda _market: None,
+    )
+    with pytest.raises(RuntimeError, match="DEPTH_INVALID_SNAPSHOT_UPDATE_ID"):
+        collector._snapshot_update_id({"lastUpdateId": update_id})
+
+
+def test_depth_snapshot_accepts_integer_update_id(tmp_path):
+    collector = OrderBookStreamCollector(
+        OrderBookHistoryStore(str(tmp_path / "snapshot-valid.sqlite3")),
+        lambda: None, lambda _market: None,
+    )
+    assert collector._snapshot_update_id({"lastUpdateId": 100}) == 100

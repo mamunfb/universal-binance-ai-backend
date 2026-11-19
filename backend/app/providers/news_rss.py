@@ -82,8 +82,14 @@ def parse_feed(xml_content: str, source_name: str, source_url: str) -> list[dict
 
 
 class RSSNewsProvider:
-    def __init__(self, timeout_seconds: float = 15.0) -> None:
+    def __init__(
+        self, timeout_seconds: float = 15.0, max_feed_bytes: int = 1_048_576
+    ) -> None:
+        if (isinstance(max_feed_bytes, bool) or not isinstance(max_feed_bytes, int)
+                or max_feed_bytes < 1):
+            raise ValueError("max_feed_bytes must be a positive integer")
         self.timeout_seconds = timeout_seconds
+        self.max_feed_bytes = max_feed_bytes
 
     async def collect(
         self, sources: list[dict[str, str]], client: httpx.AsyncClient | None = None
@@ -93,20 +99,31 @@ class RSSNewsProvider:
             client = httpx.AsyncClient(
                 timeout=httpx.Timeout(self.timeout_seconds),
                 headers={"User-Agent": "universal-binance-ai-backend/0.1.0"},
-                follow_redirects=True,
+                follow_redirects=False,
             )
         results: list[dict[str, Any]] = []
         failures: list[dict[str, str]] = []
         try:
             for source in sources:
                 try:
-                    response = await client.get(source["url"])
-                    response.raise_for_status()
-                    results.extend(parse_feed(response.text, source["name"], source["url"]))
+                    chunks: list[bytes] = []
+                    total_bytes = 0
+                    async with client.stream(
+                        "GET", source["url"], follow_redirects=False
+                    ) as response:
+                        response.raise_for_status()
+                        async for chunk in response.aiter_bytes():
+                            total_bytes += len(chunk)
+                            if total_bytes > self.max_feed_bytes:
+                                raise ValueError("RSS feed exceeds configured byte limit")
+                            chunks.append(chunk)
+                        encoding = response.encoding or "utf-8"
+                    xml_content = b"".join(chunks).decode(encoding)
+                    results.extend(parse_feed(xml_content, source["name"], source["url"]))
                 except Exception as exc:
                     failures.append({
                         "source": source.get("name", "unknown"),
-                        "error": f"{type(exc).__name__}: {str(exc)[:300]}",
+                        "error": type(exc).__name__,
                     })
         finally:
             if owns_client:

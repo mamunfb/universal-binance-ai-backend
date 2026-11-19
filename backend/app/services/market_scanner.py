@@ -9,6 +9,8 @@ _LEVERAGED_SUFFIXES = ("UP", "DOWN", "BULL", "BEAR")
 
 
 def _number(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
     try:
         number = float(value)
     except (TypeError, ValueError, OverflowError):
@@ -43,7 +45,7 @@ async def scan_spot_markets(
             "source": "Binance Spot public REST API", "market": "SPOT",
             "quote_asset_filter": quote, "total_available_pairs": 0,
             "eligible_symbols": 0, "scanned_symbols": 0, "matched_symbols": 0,
-            "failed_symbols": 0, "error": str(exc), "results": [],
+            "failed_symbols": 0, "error_code": "UPSTREAM_UNAVAILABLE", "error": "Could not retrieve Spot exchange metadata and market tickers", "error_type": type(exc).__name__, "results": [],
             "unique_coin_count": 0, "unique_coins": [],
         }
 

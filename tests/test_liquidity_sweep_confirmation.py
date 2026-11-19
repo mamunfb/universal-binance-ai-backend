@@ -83,3 +83,36 @@ def test_rejects_inconsistent_ohlc():
         assert "Inconsistent candle" in str(exc)
     else:
         raise AssertionError("Expected invalid OHLC to be rejected")
+
+
+
+def test_rejects_boolean_and_fractional_candle_timestamps_and_boolean_ohlc():
+    import pytest
+
+    candles = make_candles()
+    candles[0]["open_time_ms"] = True
+    with pytest.raises(ValueError, match="open_time_ms"):
+        analyze_liquidity_sweep_confirmation(candles, [], [], "SPOT", "BTCUSDT")
+
+    candles = make_candles()
+    candles[0]["close"] = True
+    with pytest.raises(ValueError, match="OHLC"):
+        analyze_liquidity_sweep_confirmation(candles, [], [], "SPOT", "BTCUSDT")
+
+
+def test_rejects_boolean_time_controls_and_ignores_malformed_trade_times():
+    import pytest
+
+    candles = make_candles()
+    for kwargs in ({"trade_window_ms": True}, {"order_book_max_lag_ms": 1.5},
+                   {"derivatives_max_lag_ms": -1}, {"swing_left": True}):
+        with pytest.raises(ValueError):
+            analyze_liquidity_sweep_confirmation(candles, [], [], "USD_M", "BTCUSDT", **kwargs)
+
+    sweep_time = candles[13]["open_time_ms"]
+    trades = [
+        {"trade_time_ms": True, "price": 100, "quantity": 2, "notional": 200, "aggressor_side": "BUY"},
+        {"trade_time_ms": sweep_time + 1000.5, "price": 100, "quantity": 2, "notional": 200, "aggressor_side": "BUY"},
+    ]
+    result = analyze_liquidity_sweep_confirmation(candles, trades, [], "USD_M", "BTCUSDT")
+    assert all(item["aggressor_flow"]["trade_count"] == 0 for item in result["sweep_candidates"])

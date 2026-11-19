@@ -42,6 +42,8 @@ class HistoricalKlineStore:
 
     @staticmethod
     def _finite(value: Any, field: str) -> float:
+        if isinstance(value, bool):
+            raise ValueError(f"Invalid candle {field}")
         try:
             number = float(value)
         except (TypeError, ValueError, OverflowError) as exc:
@@ -54,12 +56,11 @@ class HistoricalKlineStore:
     def _normalize(cls, row: Any) -> tuple[Any, ...]:
         if not isinstance(row, (list, tuple)) or len(row) < 11:
             raise ValueError("Malformed Binance kline row; refusing to store partial history")
-        try:
-            open_time = int(row[0])
-            close_time = int(row[6])
-            trade_count = int(row[8])
-        except (TypeError, ValueError, OverflowError) as exc:
-            raise ValueError("Invalid candle timestamps or trade count") from exc
+        raw_integer_fields = (row[0], row[6], row[8])
+        if any(isinstance(value, bool) or not isinstance(value, int)
+               for value in raw_integer_fields):
+            raise ValueError("Invalid candle timestamps or trade count")
+        open_time, close_time, trade_count = raw_integer_fields
         open_price, high, low, close, volume, quote_volume, taker_base, taker_quote = (
             cls._finite(row[index], field)
             for index, field in (

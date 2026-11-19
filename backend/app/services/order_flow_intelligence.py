@@ -20,21 +20,35 @@ def analyze_order_flow(
         raise ValueError("market must be SPOT, USD_M or COIN_M")
     if not symbol or len(symbol) > 40:
         raise ValueError("Invalid symbol")
-    if start_time_ms < 0 or end_time_ms < start_time_ms:
-        raise ValueError("Require 0 <= start_time_ms <= end_time_ms")
-    if not math.isfinite(bin_size_bps) or not 0.1 <= bin_size_bps <= 500:
+    if (isinstance(start_time_ms, bool) or not isinstance(start_time_ms, int)
+            or isinstance(end_time_ms, bool) or not isinstance(end_time_ms, int)
+            or start_time_ms < 0 or end_time_ms < start_time_ms):
+        raise ValueError("Require integer 0 <= start_time_ms <= end_time_ms")
+    if (isinstance(bin_size_bps, bool) or not isinstance(bin_size_bps, (int, float))
+            or not math.isfinite(bin_size_bps) or not 0.1 <= bin_size_bps <= 500):
         raise ValueError("bin_size_bps must be between 0.1 and 500")
-    if not math.isfinite(value_area_pct) or not 50 <= value_area_pct <= 99:
+    if (isinstance(value_area_pct, bool) or not isinstance(value_area_pct, (int, float))
+            or not math.isfinite(value_area_pct) or not 50 <= value_area_pct <= 99):
         raise ValueError("value_area_pct must be between 50 and 99")
 
     valid: list[dict[str, Any]] = []
     rejected = 0
     for row in trades:
         try:
-            timestamp = int(row["trade_time_ms"])
-            price = float(row["price"])
-            quantity = float(row["quantity"])
-            notional = float(row.get("notional", price * quantity))
+            if not isinstance(row, dict):
+                raise ValueError("Trade row must be an object")
+            raw_timestamp = row["trade_time_ms"]
+            raw_price = row["price"]
+            raw_quantity = row["quantity"]
+            raw_notional = row.get("notional")
+            if (isinstance(raw_timestamp, bool) or not isinstance(raw_timestamp, int)
+                    or isinstance(raw_price, bool) or isinstance(raw_quantity, bool)
+                    or isinstance(raw_notional, bool)):
+                raise ValueError("Boolean or non-integer timestamp in trade row")
+            timestamp = raw_timestamp
+            price = float(raw_price)
+            quantity = float(raw_quantity)
+            notional = float(raw_notional) if raw_notional is not None else price * quantity
             side = str(row["aggressor_side"]).upper()
         except (KeyError, TypeError, ValueError, OverflowError):
             rejected += 1

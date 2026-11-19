@@ -60,3 +60,16 @@ def test_history_validates_bounds_and_market(tmp_path):
         store.history("SPOT", "BTCUSDT", "1m", 10, 5)
     with pytest.raises(ValueError, match="limit"):
         store.history("SPOT", "BTCUSDT", "1m", limit=5001)
+
+
+@pytest.mark.parametrize("index,value", [
+    (0, True), (0, 1.5), (6, True), (6, 1.5), (8, True), (8, 1.5),
+    (1, True), (5, True),
+])
+def test_store_rejects_boolean_and_fractional_numeric_fields(tmp_path, index, value):
+    row = candle()
+    row[index] = value
+    store = HistoricalKlineStore(str(tmp_path / "history.sqlite3"))
+    with pytest.raises(ValueError):
+        store.save_klines("SPOT", "BTCUSDT", "1m", [row])
+    assert store.history("SPOT", "BTCUSDT", "1m")["returned_count"] == 0

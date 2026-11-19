@@ -55,10 +55,10 @@ class DerivativesRatioStore:
     def _normalize(cls, ratio_type: str, row: Any) -> tuple[int, dict[str, Any]]:
         if not isinstance(row, dict):
             raise ValueError("Malformed Binance ratio record")
-        try:
-            timestamp = int(row["timestamp"])
-        except (KeyError, TypeError, ValueError, OverflowError) as exc:
-            raise ValueError("Invalid ratio timestamp") from exc
+        raw_timestamp = row.get("timestamp")
+        if isinstance(raw_timestamp, bool) or not isinstance(raw_timestamp, int):
+            raise ValueError("Invalid ratio timestamp")
+        timestamp = raw_timestamp
         if timestamp < 0:
             raise ValueError("Ratio timestamp must be non-negative")
         if ratio_type == "GLOBAL_LONG_SHORT":

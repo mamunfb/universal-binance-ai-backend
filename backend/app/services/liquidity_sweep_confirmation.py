@@ -7,11 +7,17 @@ from app.services.order_flow_intelligence import analyze_order_flow
 
 
 def _finite(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
     try:
         number = float(value)
     except (TypeError, ValueError, OverflowError):
         return None
     return number if math.isfinite(number) else None
+
+
+def _integer(value: Any) -> int | None:
+    return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else None
 
 
 def _nearest(
@@ -20,10 +26,10 @@ def _nearest(
 ) -> dict[str, Any] | None:
     candidates = []
     for row in rows:
-        value = row.get(key)
-        try:
-            value = int(value)
-        except (TypeError, ValueError, OverflowError):
+        if not isinstance(row, dict):
+            continue
+        value = _integer(row.get(key))
+        if value is None:
             continue
         if direction == "before" and value > timestamp:
             continue
@@ -106,11 +112,21 @@ def analyze_liquidity_sweep_confirmation(
     derivatives_max_lag_ms: int = 60 * 60_000,
 ) -> dict[str, Any]:
     """Correlate OHLC sweep candidates with nearby locally captured public market data."""
-    if not 1 <= swing_left <= 10 or not 1 <= swing_right <= 10:
-        raise ValueError("swing_left and swing_right must be between 1 and 10")
-    if not 0.1 <= equal_level_tolerance_bps <= 100:
+    if (isinstance(swing_left, bool) or not isinstance(swing_left, int)
+            or isinstance(swing_right, bool) or not isinstance(swing_right, int)
+            or not 1 <= swing_left <= 10 or not 1 <= swing_right <= 10):
+        raise ValueError("swing_left and swing_right must be integers between 1 and 10")
+    if (isinstance(equal_level_tolerance_bps, bool)
+            or not isinstance(equal_level_tolerance_bps, (int, float))
+            or not math.isfinite(equal_level_tolerance_bps)
+            or not 0.1 <= equal_level_tolerance_bps <= 100):
         raise ValueError("equal_level_tolerance_bps must be between 0.1 and 100")
-    if not 1 <= len(candles) <= 1000:
+    for name, value in (("trade_window_ms", trade_window_ms),
+                        ("order_book_max_lag_ms", order_book_max_lag_ms),
+                        ("derivatives_max_lag_ms", derivatives_max_lag_ms)):
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise ValueError(f"{name} must be a non-negative integer")
+    if not isinstance(candles, list) or not 1 <= len(candles) <= 1000:
         raise ValueError("candles must contain between 1 and 1000 rows")
     normalized_market, normalized_symbol = market.upper(), symbol.upper()
     if normalized_market not in {"SPOT", "USD_M", "COIN_M"} or not normalized_symbol:
@@ -125,7 +141,11 @@ def analyze_liquidity_sweep_confirmation(
             "confirmation_status": "INSUFFICIENT_DATA",
         }
 
-    ordered = sorted(candles, key=lambda row: int(row["open_time_ms"]))
+    if any(not isinstance(row, dict) or _integer(row.get("open_time_ms")) is None for row in candles):
+        raise ValueError("Candle open_time_ms values must be non-negative integers")
+    ordered = sorted(candles, key=lambda row: row["open_time_ms"])
+    if any(ordered[i]["open_time_ms"] <= ordered[i - 1]["open_time_ms"] for i in range(1, len(ordered))):
+        raise ValueError("Candle open_time_ms values must be unique and increasing")
     for row in ordered:
         values = [_finite(row.get(key)) for key in ("open", "high", "low", "close")]
         if any(value is None or value <= 0 for value in values):
@@ -151,7 +171,7 @@ def analyze_liquidity_sweep_confirmation(
                     "level": pivot["price"], "wick_extreme": float(row["high"]),
                     "reclaim_close": float(row["close"]),
                     "pivot_time_ms": pivot["time_ms"],
-                    "sweep_time_ms": int(row["open_time_ms"]),
+                    "sweep_time_ms": row["open_time_ms"],
                     "candle_index": index,
                 })
                 break
@@ -167,7 +187,7 @@ def analyze_liquidity_sweep_confirmation(
                     "level": pivot["price"], "wick_extreme": float(row["low"]),
                     "reclaim_close": float(row["close"]),
                     "pivot_time_ms": pivot["time_ms"],
-                    "sweep_time_ms": int(row["open_time_ms"]),
+                    "sweep_time_ms": row["open_time_ms"],
                     "candle_index": index,
                 })
                 break
@@ -179,9 +199,10 @@ def analyze_liquidity_sweep_confirmation(
         end = timestamp + trade_window_ms
         interval_trades = []
         for trade in trades:
-            try:
-                trade_time = int(trade.get("trade_time_ms", -1))
-            except (TypeError, ValueError, OverflowError):
+            if not isinstance(trade, dict):
+                continue
+            trade_time = _integer(trade.get("trade_time_ms"))
+            if trade_time is None:
                 continue
             if timestamp <= trade_time <= end:
                 interval_trades.append(trade)
@@ -232,12 +253,12 @@ def analyze_liquidity_sweep_confirmation(
             "timestamp_ms": oi["timestamp_ms"],
             "sum_open_interest": oi.get("sum_open_interest"),
             "sum_open_interest_value": oi.get("sum_open_interest_value"),
-            "alignment_lag_ms": abs(int(oi["timestamp_ms"]) - timestamp),
+            "alignment_lag_ms": abs(oi["timestamp_ms"] - timestamp),
         }
         funding_context = None if funding is None else {
             "funding_time_ms": funding["funding_time_ms"],
             "funding_rate": funding.get("funding_rate"),
-            "alignment_lag_ms": abs(int(funding["funding_time_ms"]) - timestamp),
+            "alignment_lag_ms": abs(funding["funding_time_ms"] - timestamp),
         }
         equal_side = "BUY_SIDE" if expected == "SELL" else "SELL_SIDE"
         relevant_zones = equal_highs if equal_side == "BUY_SIDE" else equal_lows
