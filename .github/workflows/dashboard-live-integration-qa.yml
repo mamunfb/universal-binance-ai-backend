@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - feat/institutional-dashboard-design
+      - feat/institutional-dashboard-task-governance
     paths:
       - "dashboard/**"
       - "backend/app/config.py"
