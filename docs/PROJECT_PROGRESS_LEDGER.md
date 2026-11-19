@@ -1,5 +1,5 @@
 # Project Progress Ledger
-Last updated: 2026-11-19 — WP-09 combined CI run #1970 verified
+Last updated: 2026-11-19 — WP-09 combined CI run #1971 verified
 Repository: `mamunfb/universal-binance-ai-backend`
 Governing policy: [PROJECT_EXECUTION_GOVERNANCE.md](PROJECT_EXECUTION_GOVERNANCE.md)
 
@@ -77,7 +77,7 @@ Reopened package/dependents (if any) and reason:
 **Default branch:** `main`; observed HEAD `0e3b921ab83e18d4999c1eac87f45285a0f27b26`  
 **Active branch:** `feat/institutional-dashboard-task-governance`  
 **Base dashboard source:** `e9d89e2014c5298093a3c9b88f6727657663c21f`  
-**Latest combined-suite commit at this checkpoint:** `0797881c14d02d46ca958298265faf644766a711`  
+**Latest combined-suite commit at this checkpoint:** `23afefd7445ff0a6ecb62d58ed7bf7be0b96d4c9`  
 **Working-tree visibility:** unavailable through the GitHub repository connector; no claim is made about uncommitted local changes.
 
 ### WP-00 completion evidence
@@ -99,7 +99,7 @@ Reopened package/dependents (if any) and reason:
 - Live integration Run `44443354893` completed its configuration check, but the live Chromium job was skipped because `DASHBOARD_PREVIEW_URL` and `RENDER_BACKEND_URL` were missing. The QA credential prerequisite also remains unconfigured. Do not call this live integration success.
 - Physical-device testing, manual TalkBack/VoiceOver, production performance and long-session memory-leak evidence remain unverified. The Lighthouse/CPU/heap tests use a local static server and mocked data.
 
-- Combined Backend + Dashboard CI Run #1970 / `44443985260`, commit `0797881c14d02d46ca958298265faf644766a711`: **success, 687 passed in 13.60s**. The actual runner log confirms Playwright Chromium installation, dashboard HTML validation (2 local script references), `node --check` for `dashboard/app.js`, `dashboard/chart.js` and `tests/dashboard_live_integration.cjs`, followed by the complete `python -m pytest -q` suite. The standalone Python-only step was skipped because the combined step ran the full suite. No runtime source changes were made in this evidence-only checkpoint.\n\n### Other known package findings
+- Combined Backend + Dashboard CI Run #1970 / `44443985260`, commit `0797881c14d02d46ca958298265faf644766a711`: **success, 687 passed in 13.60s**. The actual runner log confirms Playwright Chromium installation, dashboard HTML validation (2 local script references), `node --check` for `dashboard/app.js`, `dashboard/chart.js` and `tests/dashboard_live_integration.cjs`, followed by the complete `python -m pytest -q` suite. The standalone Python-only step was skipped because the combined step ran the full suite. No runtime source changes were made in this evidence-only checkpoint.\n\n- Combined Backend + Dashboard CI Run #1971 / `44444904102`, commit `23afefd7445ff0a6ecb62d58ed7bf7be0b96d4c9`: **success, 687 passed in 10.80s**. Actual runner logs confirm Playwright Chromium installation, dashboard HTML validation (2 script references), syntax checks for `dashboard/app.js`, `dashboard/chart.js`, and `tests/dashboard_live_integration.cjs`, and full Python test suite.\n- Live Integration Run #1972 / `44444903951` completed its URL-configuration-check job successfully, but the live Chromium job was **skipped** because repository variables `DASHBOARD_PREVIEW_URL` and `RENDER_BACKEND_URL` are not configured. The updated live test no longer needs a bearer secret for its negative-auth/CORS smoke check, but still requires both URLs. Positive authenticated success remains intentionally untested until a least-privilege QA credential is designed.\n\n### Other known package findings
 
 - WP-01 remains UNASSESSED. Dashboard workflows are now wired to this branch, but a complete CI/CD architecture audit has not been performed.
 - WP-06 remains UNASSESSED. Latest scheduled scan Run `44436848791` on `main` failed with Binance Spot HTTP 451 and Futures upstream-unavailable responses. This is an upstream access blocker for that run, not proof of an internal scanner defect; do not bypass legal/geographic restrictions.
@@ -109,7 +109,7 @@ Reopened package/dependents (if any) and reason:
 
 ### Next exact action
 
-1. Continue WP-09 by verifying the live integration prerequisites through an approved, least-privilege QA setup; do not create/change repository secrets, Render settings or CORS without explicit authorization.
+1. Continue WP-09 by supplying/confirming exact staging dashboard and backend URLs for the secretless CORS/invalid-token smoke test; do not create/change repository variables, secrets, Render settings or CORS without explicit authorization. Positive authenticated success remains blocked on a least-privilege QA credential.
 2. Complete physical-device responsive/keyboard testing and manual assistive-technology checks when a real device and tester are available.
 3. Preserve the distinction between local/mock QA evidence and live/staging/production evidence.
 4. Reopen WP-00 only if a concrete branch, PR, CI or baseline discrepancy is discovered.
