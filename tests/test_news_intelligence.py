@@ -1,4 +1,5 @@
 import httpx
+from datetime import datetime, timezone
 
 from app.providers.news_rss import RSSNewsProvider, map_news_to_symbols, parse_feed, parse_feed_sources
 from app.services.news_intelligence import collect_news_intelligence
@@ -52,10 +53,16 @@ async def test_collect_news_marks_items_unverified_and_reports_coverage():
     assert fetched["successful_sources"] == 1
     assert len(fetched["items"]) == 1
 
-    # Service-level behavior uses the provider interface and retains conservative status.
+    # The service-level assertion is about verification/mapping, not date filtering.
+    # Make the fixture fresh relative to the test clock so the test remains deterministic.
+    fresh_items = [
+        {**item, "published_at": datetime.now(timezone.utc).isoformat()}
+        for item in fetched["items"]
+    ]
+
     class FakeProvider:
         async def collect(self, sources):
-            return {"items": fetched["items"], "successful_sources": 1,
+            return {"items": fresh_items, "successful_sources": 1,
                     "failed_sources": 0, "failures": []}
 
     result = await collect_news_intelligence(
