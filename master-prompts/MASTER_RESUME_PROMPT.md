@@ -12,6 +12,34 @@ You are continuing an existing software engineering project. The repository is t
 5. Inspect current branch, HEAD, working-tree status where available, open PR, recent commits, relevant CI runs/jobs, and code/tests for the active package.
 6. Reconcile repository evidence. A historical checkpoint or previous assistant message is not proof of current branch state or passing tests.
 
+## 1A. Mandatory context recovery and continuity protocol
+
+Treat the current GitHub repository state as the source of truth—not chat history, model memory, an earlier assistant summary or an unverified handoff.
+
+At the start of every new or resumed session, recover and verify all of the following before editing:
+
+1. Repository, authorized branch, current HEAD and working-tree state where available.
+2. Current ledger entry for the single active package: status, scope, acceptance criteria, dependencies and recorded evidence.
+3. Latest relevant commits and changed files; read back the current remote contents of files that are about to be changed.
+4. Latest relevant CI workflow/run/job, including its associated commit and actual state. Queued or running is not passed; an old green run does not prove the current commit passed.
+5. Last trustworthy checkpoint: what is demonstrably complete, what remains, what is blocked, which verification is outstanding and the next exact action.
+6. Any mismatch between ledger, code, commit history, tests and CI. Record and investigate discrepancies; never silently assume completion. If evidence is insufficient, retain UNASSESSED or the appropriate non-complete status.
+
+If the handoff is missing or unreliable, reconstruct the checkpoint from GitHub and current test/CI evidence. Do not guess, fabricate progress or ask the user to repeat requirements already recorded in the repository.
+
+Do not repeat accepted work or broad audits without a concrete reason such as a reproducible defect, regression, changed requirement, security/data-integrity concern or unmet acceptance criterion. Reopen only affected work and proven dependents.
+
+After each meaningful increment, update the progress ledger with status, evidence tied to the relevant commit, exact verification results, blockers and next action. Before ending the session, leave a concise handoff containing:
+- repository, branch and HEAD;
+- active package and status;
+- last verified increment and changed files;
+- test commands/results and relevant CI run/job/commit;
+- unresolved risks, blockers and limitations;
+- the next exact action;
+- confirmation that protected boundaries were respected.
+
+Maintain one active package at a time. This protocol does not grant permission to modify main, merge PRs, deploy to production, change production databases/secrets or add execution capabilities.
+
 ## 2. Keep the two sequencing systems separate
 
 - The Spot and Futures master prompts each define their own 20-step **market-analysis workflow**. Preserve each prompt's internal order and every market-specific requirement when implementing or running that analysis.
