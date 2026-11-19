@@ -90,6 +90,27 @@ Before ordinary feature work under this policy, perform one baseline reconciliat
 
 Do not mechanically translate old phase statuses into new package completion. The former Phase 01 IN_PROGRESS state does not automatically determine the status of any new package.
 
+## 5A. Task context continuity and session handoff
+
+The GitHub repository is the durable source of truth for project state. Chat history, model memory, prior assistant summaries and verbal progress claims may help locate evidence, but they are never substitutes for checking the current repository.
+
+At every new session or resumed work period, recover the exact state from the current authorized branch:
+
+1. Verify the repository, branch and HEAD commit. Confirm the working tree and any uncommitted changes when the available tools permit.
+2. Read the current progress ledger and identify the single active package, its status, acceptance criteria and dependencies.
+3. Verify the latest relevant commit(s), changed files and remote file contents. Do not rely solely on a previously reported SHA or assistant-generated summary.
+4. Verify the latest relevant CI workflow, run, job and commit association. Distinguish queued, in-progress, cancelled, skipped, failed and passed states.
+5. Recover the last trustworthy checkpoint: completed work, remaining work, unresolved blockers, outstanding verification and the next exact action.
+6. Compare the ledger with code, tests, commits and CI evidence. If they conflict, record the discrepancy and investigate; do not silently choose the more optimistic status. Keep the package UNASSESSED or use the appropriate non-complete status until reconciled.
+7. Continue the active package only if its scope and prerequisites remain valid. Do not repeat accepted work unless a concrete defect, regression, changed requirement or missing acceptance criterion justifies it.
+8. If no reliable handoff exists, reconstruct a concise factual checkpoint from GitHub evidence before editing. Never invent missing progress, test results or decisions.
+
+At each meaningful work increment, update the ledger with the current status, evidence tied to the relevant commit, verification results, blockers and next action. At session close, leave a handoff that another session can resume without guessing.
+
+**Required handoff fields:** repository and branch; HEAD commit; active package/status; last verified completed increment; files changed; tests and exact outcomes; relevant CI run/job and commit; blockers/limitations; next exact action; explicit confirmation of protected boundaries (main, PR merge, production, production data/secrets and execution).
+
+This continuity protocol does not authorize changing priorities or protected resources. The one-active-package rule and all user permission boundaries remain in force.
+
 ## 6. Work execution protocol
 
 For the active package:
