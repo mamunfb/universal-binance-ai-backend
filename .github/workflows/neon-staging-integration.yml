@@ -1,0 +1,132 @@
+name: Neon Staging PostgreSQL Integration
+
+on:
+  push:
+    branches:
+      - fix/binance-public-market-data-endpoints
+    paths:
+      - ".github/workflows/neon-staging-integration.yml"
+      - "backend/**"
+      - "migrations/**"
+      - "tests/**"
+      - "pyproject.toml"
+  workflow_dispatch:
+    inputs:
+      target_confirmation:
+        description: Confirm that the configured Neon connection string points to render-staging-backend (not the default branch).
+        required: true
+        type: choice
+        options:
+          - render-staging-backend
+
+permissions:
+  contents: read
+
+concurrency:
+  group: neon-staging-postgres-integration
+  cancel-in-progress: false
+
+jobs:
+  integration:
+    if: github.ref == 'refs/heads/fix/binance-public-market-data-endpoints'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TEST_DATABASE_URL: ${{ secrets.NEON_STAGING_TEST_DATABASE_URL }}
+      TARGET_CONFIRMATION: ${{ github.event_name == 'push' && 'render-staging-backend' || inputs.target_confirmation }}
+      EXPECTED_NEON_STAGING_HOST: ep-tiny-fog-b3uh421x.c-4.ap-southeast-1.aws.neon.tech
+    steps:
+      - name: Check out the staging-test branch
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install application and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Validate staging database configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${TARGET_CONFIRMATION:-}" != "render-staging-backend" ]]; then
+            echo "::error::Explicit staging-branch confirmation is required."
+            exit 1
+          fi
+          if [[ -z "${TEST_DATABASE_URL:-}" ]]; then
+            echo "::error::Missing repository Actions secret NEON_STAGING_TEST_DATABASE_URL."
+            exit 1
+          fi
+          printf '::add-mask::%s\n' "$TEST_DATABASE_URL"
+          python - <<'PY'
+          import os
+          from urllib.parse import urlparse
+
+          value = os.environ["TEST_DATABASE_URL"]
+          parsed = urlparse(value)
+          if parsed.scheme not in {"postgres", "postgresql"}:
+              raise SystemExit("TEST_DATABASE_URL must use PostgreSQL.")
+          expected_host = os.environ["EXPECTED_NEON_STAGING_HOST"]
+          if parsed.hostname != expected_host:
+              raise SystemExit("TEST_DATABASE_URL does not target the verified render-staging-backend compute endpoint.")
+          if "-pooler" in parsed.hostname:
+              raise SystemExit("Use the direct (non-pooled) Neon staging connection.")
+          if (parsed.path or "").lstrip("/") != "neondb":
+              raise SystemExit("The configured test database must be neondb.")
+          print("Verified exact staging compute host and database; secret value withheld.")
+          PY
+
+      - name: Verify the existing staging schema without modifying it
+        run: |
+          python - <<'PY'
+          import os
+          import psycopg
+
+          expected = {
+              "aggregate_trades",
+              "derivatives_ratio_history",
+              "derivatives_signal_snapshots",
+              "evm_transfer_index_ranges",
+              "evm_transfer_logs",
+              "historical_funding_rates",
+              "historical_klines",
+              "historical_open_interest",
+              "liquidation_events",
+              "market_confluence_snapshots",
+              "market_scan_runs",
+              "order_book_samples",
+          }
+          with psycopg.connect(os.environ["TEST_DATABASE_URL"]) as connection:
+              identity = connection.execute(
+                  "SELECT current_database(), current_setting('server_version')"
+              ).fetchone()
+              if identity[0] != "neondb":
+                  raise SystemExit("Connected database identity did not match neondb.")
+              rows = connection.execute(
+                  """SELECT table_name FROM information_schema.tables
+                     WHERE table_schema = 'public' AND table_type = 'BASE TABLE'"""
+              ).fetchall()
+              actual = {row[0] for row in rows}
+              missing = sorted(expected - actual)
+              if missing:
+                  raise SystemExit("Staging schema is missing expected tables: " + ", ".join(missing))
+              print(f"Connected to {identity[0]} (PostgreSQL {identity[1]}).")
+              print(f"Verified all {len(expected)} expected application tables; no schema changes made.")
+          PY
+
+      - name: Run real PostgreSQL application integration tests
+        run: |
+          pytest -q \
+            tests/test_aggregate_trade_postgres_integration.py \
+            tests/test_derivatives_ratio_postgres_integration.py \
+            tests/test_evm_transfer_postgres_integration.py \
+            tests/test_historical_klines_postgres_integration.py \
+            tests/test_market_confluence_postgres_integration.py \
+            tests/test_derivatives_signal_postgres_integration.py \
+            tests/test_funding_open_interest_postgres_integration.py \
+            tests/test_liquidation_postgres_integration.py \
+            tests/test_order_book_postgres_integration.py

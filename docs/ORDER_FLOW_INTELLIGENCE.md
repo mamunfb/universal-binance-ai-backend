@@ -27,7 +27,7 @@ The MCP tool is `analyze_order_flow_intelligence`.
 
 ## Data prerequisites
 
-The API reads only locally stored aggregate trades from the optional Binance aggregate-trade collector. Enable `AGGREGATE_TRADE_COLLECTOR_ENABLED=true` and configure `AGG_TRADE_COLLECTOR_JOBS` for the requested market and symbol. Collection is disabled by default. Historical data is not backfilled, so the observed window may be incomplete even when the API returns `COMPLETED`.
+The API reads only locally stored aggregate trades from the optional Binance aggregate-trade collector. Enable `AGGREGATE_TRADE_COLLECTOR_ENABLED=true` and configure `AGGREGATE_TRADE_COLLECTOR_JOBS` for the requested market and symbol. Collection is disabled by default. Historical data is not backfilled, so the observed window may be incomplete even when the API returns `COMPLETED`.
 
 ## Limitations
 

@@ -21,11 +21,12 @@ ORDER_BOOK_COLLECTOR_ENABLED=true
 ORDER_BOOK_COLLECTOR_JOBS=[{"market":"USD_M","symbol":"BTCUSDT"}]
 
 AGGREGATE_TRADE_COLLECTOR_ENABLED=true
-AGG_TRADE_COLLECTOR_JOBS=[{"market":"USD_M","symbol":"BTCUSDT"}]
+AGGREGATE_TRADE_COLLECTOR_JOBS=[{"market":"USD_M","symbol":"BTCUSDT"}]
+# Optional SQLite fallback path; DATABASE_URL selects PostgreSQL/Neon when configured.
 AGGREGATE_TRADE_DATABASE_PATH=data/aggregate_trades.sqlite3
 ```
 
-Use persistent storage and one application process per SQLite database. The trade collector stores public aggregate trades and starts from enablement; it does not backfill.
+When DATABASE_URL is configured, both collectors use PostgreSQL/Neon; otherwise they use their configured SQLite fallback paths. SQLite requires persistent disk. Run one collector-owning application process for each configured market/symbol job set to avoid duplicate WebSocket subscriptions and duplicate samples, including when PostgreSQL is shared. The process must remain alive. The trade collector stores public aggregate trades only from enablement onward; it does not backfill.
 
 ## APIs
 

@@ -5,6 +5,8 @@ import json
 import logging
 import math
 import sqlite3
+import psycopg
+from psycopg.rows import dict_row
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -31,23 +33,39 @@ def normalize_aggregate_trade(payload: dict[str, Any], market: str) -> dict[str,
     if payload.get("e") != "aggTrade":
         return None
     try:
-        symbol = str(payload["s"]).upper()
-        trade_id = int(payload["a"])
+        normalized_market = market.upper()
+        if normalized_market not in {"SPOT", "USD_M", "COIN_M"}:
+            return None
+        symbol = str(payload["s"]).strip().upper()
+        if not symbol or len(symbol) > 40:
+            return None
+        raw_trade_id = payload["a"]
+        raw_event_time = payload["E"]
+        raw_trade_time = payload["T"]
+        if any(isinstance(value, bool) for value in (raw_trade_id, raw_event_time, raw_trade_time)):
+            return None
+        trade_id = int(raw_trade_id)
+        event_time_ms = int(raw_event_time)
+        trade_time_ms = int(raw_trade_time)
         price = float(payload["p"])
         quantity = float(payload["q"])
-        event_time_ms = int(payload["E"])
-        trade_time_ms = int(payload["T"])
         buyer_is_maker = payload["m"]
-        if not symbol or price <= 0 or quantity <= 0 or not math.isfinite(price * quantity):
+        notional = price * quantity
+        if (
+            trade_id < 0 or event_time_ms < 0 or trade_time_ms < 0
+            or not math.isfinite(price) or not math.isfinite(quantity)
+            or price <= 0 or quantity <= 0
+            or not math.isfinite(notional) or notional <= 0
+        ):
             return None
         if not isinstance(buyer_is_maker, bool):
             return None
-    except (KeyError, TypeError, ValueError, OverflowError):
+    except (KeyError, TypeError, ValueError, OverflowError, AttributeError):
         return None
     return {
-        "market": market.upper(), "symbol": symbol, "trade_id": trade_id,
+        "market": normalized_market, "symbol": symbol, "trade_id": trade_id,
         "event_time_ms": event_time_ms, "trade_time_ms": trade_time_ms,
-        "price": price, "quantity": quantity, "notional": price * quantity,
+        "price": price, "quantity": quantity, "notional": notional,
         "buyer_is_maker": buyer_is_maker,
         "aggressor_side": "SELL" if buyer_is_maker else "BUY",
         "raw_json": json.dumps(payload, separators=(",", ":")),
@@ -55,8 +73,11 @@ def normalize_aggregate_trade(payload: dict[str, Any], market: str) -> dict[str,
 
 
 class AggregateTradeStore:
-    def __init__(self, database_path: str) -> None:
+    def __init__(self, database_path: str, database_url: str = "") -> None:
         self.database_path = database_path
+        self.database_url = database_url.strip()
+        if self.database_url:
+            return
         Path(database_path).parent.mkdir(parents=True, exist_ok=True)
         with sqlite3.connect(database_path) as db:
             db.execute("""
@@ -75,7 +96,24 @@ class AggregateTradeStore:
                 ON aggregate_trades(market, symbol, trade_time_ms)
             """)
 
+    def _connect_postgres(self):
+        return psycopg.connect(self.database_url, sslmode=("disable" if "sslmode=disable" in self.database_url else "require"), connect_timeout=15, row_factory=dict_row)
+
     def insert(self, row: dict[str, Any]) -> None:
+        if self.database_url:
+            with self._connect_postgres() as db:
+                db.execute("""
+                    INSERT INTO public.aggregate_trades (
+                        market, symbol, trade_id, event_time_ms, trade_time_ms,
+                        price, quantity, notional, buyer_is_maker, aggressor_side, raw_payload
+                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb)
+                    ON CONFLICT(market, symbol, trade_id) DO NOTHING
+                """, (
+                    row["market"], row["symbol"], row["trade_id"], row["event_time_ms"],
+                    row["trade_time_ms"], row["price"], row["quantity"], row["notional"],
+                    row["buyer_is_maker"], row["aggressor_side"], row["raw_json"],
+                ))
+            return
         with sqlite3.connect(self.database_path) as db:
             db.execute("""
                 INSERT OR IGNORE INTO aggregate_trades (
@@ -92,6 +130,24 @@ class AggregateTradeStore:
         self, market: str, symbol: str, limit: int = 5000,
         start_time_ms: int | None = None, end_time_ms: int | None = None,
     ) -> list[dict[str, Any]]:
+        if self.database_url:
+            clauses = ["market=%s", "symbol=%s"]
+            params: list[Any] = [market.upper(), symbol.upper()]
+            if start_time_ms is not None:
+                clauses.append("trade_time_ms >= %s"); params.append(start_time_ms)
+            if end_time_ms is not None:
+                clauses.append("trade_time_ms <= %s"); params.append(end_time_ms)
+            params.append(limit)
+            with self._connect_postgres() as db:
+                rows = db.execute(
+                    "SELECT market, symbol, trade_id, event_time_ms, trade_time_ms, price, quantity, "
+                    "notional, buyer_is_maker, aggressor_side FROM public.aggregate_trades WHERE "
+                    + " AND ".join(clauses) + " ORDER BY trade_time_ms DESC, trade_id DESC LIMIT %s", params,
+                ).fetchall()
+            result = [dict(row) for row in rows]
+            for row in result:
+                row["buyer_is_maker"] = bool(row["buyer_is_maker"])
+            return result
         query = """SELECT market, symbol, trade_id, event_time_ms, trade_time_ms,
                    price, quantity, notional, buyer_is_maker, aggressor_side
                    FROM aggregate_trades WHERE market=? AND symbol=?"""
@@ -112,6 +168,15 @@ class AggregateTradeStore:
         return rows
 
     def count(self, market: str | None = None, symbol: str | None = None) -> int:
+        if self.database_url:
+            query = "SELECT COUNT(*) AS count FROM public.aggregate_trades WHERE 1=1"
+            params: list[Any] = []
+            if market:
+                query += " AND market=%s"; params.append(market.upper())
+            if symbol:
+                query += " AND symbol=%s"; params.append(symbol.upper())
+            with self._connect_postgres() as db:
+                return int(db.execute(query, params).fetchone()["count"])
         query = "SELECT COUNT(*) FROM aggregate_trades WHERE 1=1"
         params: list[Any] = []
         if market:
@@ -135,9 +200,9 @@ class AggregateTradeCollector:
         try:
             raw = json.loads(self.jobs_json)
         except json.JSONDecodeError as exc:
-            raise ValueError("AGG_TRADE_COLLECTOR_JOBS must be valid JSON") from exc
+            raise ValueError("AGGREGATE_TRADE_COLLECTOR_JOBS must be valid JSON") from exc
         if not isinstance(raw, list):
-            raise ValueError("AGG_TRADE_COLLECTOR_JOBS must be a JSON array")
+            raise ValueError("AGGREGATE_TRADE_COLLECTOR_JOBS must be a JSON array")
         jobs, seen = [], set()
         for item in raw:
             if not isinstance(item, dict):
@@ -151,6 +216,11 @@ class AggregateTradeCollector:
                 raise ValueError("Duplicate agg-trade collector job")
             seen.add(key)
             jobs.append({"market": market, "symbol": symbol})
+        if not jobs:
+            raise ValueError(
+                "AGGREGATE_TRADE_COLLECTOR_JOBS must contain at least one job "
+                "when AGGREGATE_TRADE_COLLECTOR_ENABLED=true"
+            )
         return jobs
 
     def start(self) -> None:

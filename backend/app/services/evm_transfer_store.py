@@ -1,18 +1,42 @@
 from __future__ import annotations
 
 import sqlite3
+import psycopg
+from psycopg.rows import dict_row
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from app.providers.evm_rpc import EVMRPCProvider
+from app.providers.evm_rpc import EVMRPCProvider, TRANSFER_TOPIC
+
+
+class _PostgresConnection:
+    """Small adapter translating SQLite-style placeholders for PostgreSQL."""
+    def __init__(self, connection):
+        self.connection = connection
+
+    def __enter__(self):
+        self.connection.__enter__()
+        return self
+
+    def __exit__(self, *args):
+        return self.connection.__exit__(*args)
+
+    def execute(self, query, params=()):
+        return self.connection.execute(query.replace("?", "%s"), params)
+
+    def executemany(self, query, params_seq):
+        return self.connection.cursor().executemany(query.replace("?", "%s"), params_seq)
 
 
 class EVMTransferStore:
     """Persistent, idempotent storage for indexed ERC-20 Transfer logs."""
 
-    def __init__(self, database_path: str) -> None:
+    def __init__(self, database_path: str, database_url: str = "") -> None:
         self.database_path = database_path
+        self.database_url = database_url.strip()
+        if self.database_url:
+            return
         Path(database_path).parent.mkdir(parents=True, exist_ok=True)
         with sqlite3.connect(database_path) as connection:
             connection.execute("""
@@ -47,8 +71,33 @@ class EVMTransferStore:
                 )
             """)
 
+    def _connect(self):
+        if self.database_url:
+            return _PostgresConnection(psycopg.connect(
+                self.database_url, sslmode=("disable" if "sslmode=disable" in self.database_url else "require"), connect_timeout=15,
+                row_factory=dict_row,
+            ))
+        connection = sqlite3.connect(self.database_path)
+        connection.row_factory = sqlite3.Row
+        return connection
+
     def save_chunk(self, chain_id: int, contract: str, start: int, end: int,
                    logs: list[dict[str, Any]]) -> int:
+        # Keep direct store calls consistent across SQLite and PostgreSQL.
+        if isinstance(chain_id, bool) or not isinstance(chain_id, int) or chain_id <= 0:
+            raise ValueError("chain_id must be a positive integer")
+        if (not isinstance(contract, str) or len(contract) != 42 or
+                not contract.startswith("0x")):
+            raise ValueError("contract must be a 20-byte 0x-prefixed EVM address")
+        try:
+            int(contract[2:], 16)
+        except ValueError as exc:
+            raise ValueError("contract must be a valid hexadecimal EVM address") from exc
+        if (isinstance(start, bool) or not isinstance(start, int) or start < 0 or
+                isinstance(end, bool) or not isinstance(end, int) or end < start):
+            raise ValueError("block range must contain non-negative integers with end >= start")
+        if not isinstance(logs, list):
+            raise ValueError("logs must be a list")
         now = datetime.now(timezone.utc).isoformat()
         rows = []
         for log in logs:
@@ -56,8 +105,11 @@ class EVMTransferStore:
                 raise ValueError("RPC returned a non-object log; refusing to mark this block range complete")
             topics = log.get("topics") or []
             tx_hash = log.get("transactionHash")
-            if len(topics) < 3 or not isinstance(tx_hash, str) or len(tx_hash) != 66 or not tx_hash.startswith("0x"):
-                raise ValueError("RPC returned a malformed Transfer log; refusing to mark this block range complete")
+            if (not isinstance(topics, list) or len(topics) < 3 or
+                    not isinstance(topics[0], str) or topics[0].lower() != TRANSFER_TOPIC or
+                    not isinstance(tx_hash, str) or len(tx_hash) != 66 or
+                    not tx_hash.startswith("0x")):
+                raise ValueError("RPC returned a malformed Transfer log or non-Transfer event; refusing to mark this block range complete")
             block_hex, index_hex, data = log.get("blockNumber"), log.get("logIndex"), log.get("data")
             if not all(isinstance(value, str) and value.startswith("0x")
                        for value in (block_hex, index_hex, data)):
@@ -74,8 +126,8 @@ class EVMTransferStore:
             if not (start <= block_number <= end) or raw_value < 0:
                 raise ValueError("RPC Transfer log falls outside the requested range or has a negative amount")
             rows.append((chain_id, contract.lower(), tx_hash.lower(), log_index, block_number,
-                         sender, recipient, str(raw_value), int(bool(log.get("removed"))), now))
-        with sqlite3.connect(self.database_path) as connection:
+                         sender, recipient, str(raw_value), bool(log.get("removed")), now))
+        with self._connect() as connection:
             connection.executemany("""
                 INSERT INTO evm_transfer_logs
                 (chain_id, contract_address, transaction_hash, log_index, block_number,
@@ -98,14 +150,14 @@ class EVMTransferStore:
 
     def history(self, chain_id: int, contract: str, from_block: int, to_block: int,
                 limit: int = 1000) -> list[dict[str, Any]]:
-        with sqlite3.connect(self.database_path) as connection:
+        with self._connect() as connection:
             connection.row_factory = sqlite3.Row
             rows = connection.execute("""
                 SELECT transaction_hash, log_index, block_number, from_address,
                        to_address, amount_raw, removed, indexed_at
                 FROM evm_transfer_logs
                 WHERE chain_id=? AND contract_address=? AND block_number BETWEEN ? AND ?
-                  AND removed=0
+                  AND removed=FALSE
                 ORDER BY block_number DESC, log_index DESC LIMIT ?
             """, (chain_id, contract.lower(), from_block, to_block, limit)).fetchall()
             return [dict(row) for row in rows]
@@ -116,12 +168,12 @@ class EVMTransferStore:
             raise ValueError("decimals must be between 0 and 36")
         if not 1 <= limit <= 200:
             raise ValueError("limit must be between 1 and 200")
-        with sqlite3.connect(self.database_path) as connection:
+        with self._connect() as connection:
             connection.row_factory = sqlite3.Row
             rows = connection.execute("""
                 SELECT from_address, to_address, amount_raw
                 FROM evm_transfer_logs
-                WHERE chain_id=? AND contract_address=? AND block_number BETWEEN ? AND ? AND removed=0
+                WHERE chain_id=? AND contract_address=? AND block_number BETWEEN ? AND ? AND removed=FALSE
             """, (chain_id, contract.lower(), from_block, to_block)).fetchall()
         aggregates: dict[str, dict[str, int]] = {}
         for row in rows:
@@ -148,7 +200,7 @@ class EVMTransferStore:
             "transfer_counted_address_count": len(flows),
             "top_net_receivers": flows[:limit],
             "top_net_senders": sorted(flows, key=lambda item: int(item["net_received_raw"]))[:limit],
-            "warning": "Computed only from logs currently stored in SQLite for the requested range. Results are not complete unless indexed coverage spans the full requested range; address flow is not a holder balance or ownership attribution.",
+            "warning": "Computed only from logs currently stored in the configured database for the requested range. Results are not complete unless indexed coverage spans the full requested range; address flow is not a holder balance or ownership attribution.",
         }
 
     def range_coverage(self, chain_id: int, contract: str, from_block: int,
@@ -184,12 +236,12 @@ class EVMTransferStore:
                              limit: int = 100) -> dict[str, Any]:
         if not 0 <= decimals <= 36:
             raise ValueError("decimals must be between 0 and 36")
-        with sqlite3.connect(self.database_path) as connection:
+        with self._connect() as connection:
             connection.row_factory = sqlite3.Row
             rows = connection.execute("""
                 SELECT from_address, to_address, amount_raw, block_number, transaction_hash
                 FROM evm_transfer_logs
-                WHERE chain_id=? AND contract_address=? AND block_number BETWEEN ? AND ? AND removed=0
+                WHERE chain_id=? AND contract_address=? AND block_number BETWEEN ? AND ? AND removed=FALSE
                 ORDER BY block_number
             """, (chain_id, contract.lower(), from_block, to_block)).fetchall()
         verified = {
@@ -268,17 +320,18 @@ class EVMTransferStore:
             item["address"] for item in registry.get("wallets", [])
             if item.get("label") == "smart_money" and item.get("verification_status") == "verified"
         }
-        with sqlite3.connect(self.database_path) as connection:
+        with self._connect() as connection:
             rows = connection.execute("""
                 SELECT from_address, to_address, amount_raw, block_number
                 FROM evm_transfer_logs
-                WHERE chain_id=? AND contract_address=? AND block_number BETWEEN ? AND ? AND removed=0
+                WHERE chain_id=? AND contract_address=? AND block_number BETWEEN ? AND ? AND removed=FALSE
                 ORDER BY block_number
             """, (chain_id, contract.lower(), from_block, to_block)).fetchall()
         bins: dict[int, dict[str, Any]] = {}
         cumulative_raw = 0
         scale = 10 ** decimals
-        for sender, recipient, amount_text, block in rows:
+        for row in rows:
+            sender, recipient, amount_text, block = tuple(row.values()) if isinstance(row, dict) else row
             raw = int(amount_text)
             net = (raw if recipient in verified else 0) - (raw if sender in verified else 0)
             if not net:
@@ -321,15 +374,16 @@ class EVMTransferStore:
             and item.get("label") in {"exchange", "fund", "market_maker",
                                       "protocol_treasury", "smart_money", "whale"}
         }
-        with sqlite3.connect(self.database_path) as connection:
+        with self._connect() as connection:
             rows = connection.execute("""
                 SELECT from_address, to_address, amount_raw
                 FROM evm_transfer_logs
                 WHERE chain_id=? AND contract_address=?
-                  AND block_number BETWEEN ? AND ? AND removed=0
+                  AND block_number BETWEEN ? AND ? AND removed=FALSE
             """, (chain_id, contract.lower(), from_block, to_block)).fetchall()
         grouped: dict[str, dict[str, Any]] = {}
-        for sender, recipient, amount_text in rows:
+        for row in rows:
+            sender, recipient, amount_text = tuple(row.values()) if isinstance(row, dict) else row
             raw = int(amount_text)
             sender_entry = verified.get(sender)
             recipient_entry = verified.get(recipient)
@@ -368,7 +422,7 @@ class EVMTransferStore:
         }
 
     def coverage(self, chain_id: int, contract: str) -> list[dict[str, Any]]:
-        with sqlite3.connect(self.database_path) as connection:
+        with self._connect() as connection:
             connection.row_factory = sqlite3.Row
             rows = connection.execute("""
                 SELECT from_block, to_block, transfer_count, indexed_at

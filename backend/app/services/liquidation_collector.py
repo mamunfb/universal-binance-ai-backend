@@ -1,7 +1,11 @@
 import asyncio
+import hashlib
 import json
 import logging
+import math
 import sqlite3
+import psycopg
+from psycopg.rows import dict_row
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -12,40 +16,87 @@ logger = logging.getLogger(__name__)
 STREAM_URL = "wss://fstream.binance.com/market/ws/!forceOrder@arr"
 
 
+def _event_fingerprint(event: dict[str, Any]) -> str:
+    raw_payload = json.loads(event["raw_json"])
+    event_fields = {
+        key: event.get(key)
+        for key in (
+            "event_time_ms", "trade_time_ms", "symbol", "pair_symbol", "market_type",
+            "side", "order_type", "status", "average_price", "original_quantity",
+            "last_filled_quantity", "cumulative_filled_quantity",
+            "approx_cumulative_notional",
+        )
+    }
+    canonical = json.dumps(
+        {"raw_payload": raw_payload, "event_fields": event_fields},
+        sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False,
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
 def normalize_force_order(message: dict[str, Any]) -> dict[str, Any] | None:
-    if message.get("e") != "forceOrder" or not isinstance(message.get("o"), dict):
+    if not isinstance(message, dict) or message.get("e") != "forceOrder" or not isinstance(message.get("o"), dict):
         return None
     order = message["o"]
     try:
-        avg_price = float(order.get("ap") or 0)
-        filled_qty = float(order.get("z") or 0)
-        event_time = int(message["E"])
-        trade_time = int(order.get("T") or event_time)
-        if avg_price < 0 or filled_qty < 0:
+        event_time_raw = message["E"]
+        trade_time_raw = order.get("T") or event_time_raw
+        if (isinstance(event_time_raw, bool) or isinstance(trade_time_raw, bool)):
             return None
-    except (TypeError, ValueError, KeyError):
+        event_time = int(event_time_raw)
+        trade_time = int(trade_time_raw)
+        if event_time < 0 or trade_time < 0:
+            return None
+
+        def finite_nonnegative(value: Any, field: str) -> float:
+            number = float(value or 0)
+            if not math.isfinite(number) or number < 0:
+                raise ValueError(f"Invalid liquidation {field}")
+            return number
+
+        avg_price = finite_nonnegative(order.get("ap"), "average price")
+        original_qty = finite_nonnegative(order.get("q"), "original quantity")
+        last_filled_qty = finite_nonnegative(order.get("l"), "last filled quantity")
+        filled_qty = finite_nonnegative(order.get("z"), "cumulative filled quantity")
+        notional = avg_price * filled_qty
+        if not math.isfinite(notional):
+            return None
+
+        symbol = str(order.get("s", "")).strip().upper()
+        if not symbol:
+            return None
+        side = str(order.get("S", "")).strip().upper()
+        if side not in {"BUY", "SELL"}:
+            return None
+        raw_json = json.dumps(message, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
+    except (TypeError, ValueError, KeyError, OverflowError):
         return None
-    return {
+    event = {
         "event_time_ms": event_time,
         "trade_time_ms": trade_time,
-        "symbol": str(order.get("s", "")).upper(),
-        "pair_symbol": str(order.get("ps", "")).upper() or None,
+        "symbol": symbol,
+        "pair_symbol": str(order.get("ps", "")).strip().upper() or None,
         "market_type": message.get("st"),
-        "side": str(order.get("S", "")).upper(),
+        "side": side,
         "order_type": order.get("o"),
         "status": order.get("X"),
         "average_price": avg_price,
-        "original_quantity": float(order.get("q") or 0),
-        "last_filled_quantity": float(order.get("l") or 0),
+        "original_quantity": original_qty,
+        "last_filled_quantity": last_filled_qty,
         "cumulative_filled_quantity": filled_qty,
-        "approx_cumulative_notional": avg_price * filled_qty,
-        "raw_json": json.dumps(message, separators=(",", ":"), ensure_ascii=False),
+        "approx_cumulative_notional": notional,
+        "raw_json": raw_json,
     }
+    event["event_fingerprint"] = _event_fingerprint(event)
+    return event
 
 
 class LiquidationStore:
-    def __init__(self, database_path: str) -> None:
+    def __init__(self, database_path: str, database_url: str = "") -> None:
         self.database_path = database_path
+        self.database_url = database_url.strip()
+        if self.database_url:
+            return
         Path(database_path).parent.mkdir(parents=True, exist_ok=True)
         with sqlite3.connect(database_path) as connection:
             connection.execute("""
@@ -64,28 +115,69 @@ class LiquidationStore:
                     last_filled_quantity REAL,
                     cumulative_filled_quantity REAL,
                     approx_cumulative_notional REAL,
-                    raw_json TEXT NOT NULL
+                    raw_json TEXT NOT NULL,
+                    event_fingerprint TEXT
                 )
             """)
+            columns = {row[1] for row in connection.execute("PRAGMA table_info(liquidation_events)")}
+            if "event_fingerprint" not in columns:
+                connection.execute("ALTER TABLE liquidation_events ADD COLUMN event_fingerprint TEXT")
+            connection.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_liquidation_event_fingerprint "
+                "ON liquidation_events(event_fingerprint)"
+            )
             connection.execute(
                 "CREATE INDEX IF NOT EXISTS idx_liquidation_symbol_time "
                 "ON liquidation_events(symbol, event_time_ms)"
             )
 
+    def _connect_postgres(self):
+        return psycopg.connect(self.database_url, sslmode=("disable" if "sslmode=disable" in self.database_url else "require"), connect_timeout=15, row_factory=dict_row)
+
     def insert(self, event: dict[str, Any]) -> None:
+        event_fingerprint = _event_fingerprint(event)
+        if self.database_url:
+            with self._connect_postgres() as connection:
+                connection.execute("""
+                    INSERT INTO public.liquidation_events (
+                        event_time_ms, trade_time_ms, symbol, pair_symbol, market_type, side,
+                        order_type, status, average_price, original_quantity, last_filled_quantity,
+                        cumulative_filled_quantity, approx_cumulative_notional, raw_payload, event_fingerprint
+                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s)
+                    ON CONFLICT (event_fingerprint) DO NOTHING
+                """, (
+                    event["event_time_ms"], event["trade_time_ms"], event["symbol"],
+                    event.get("pair_symbol"), event.get("market_type"), event.get("side"),
+                    event.get("order_type"), event.get("status"), event.get("average_price"),
+                    event.get("original_quantity"), event.get("last_filled_quantity"),
+                    event.get("cumulative_filled_quantity"), event.get("approx_cumulative_notional"),
+                    event["raw_json"], event_fingerprint,
+                ))
+            return
         columns = (
             "event_time_ms, trade_time_ms, symbol, pair_symbol, market_type, side, "
             "order_type, status, average_price, original_quantity, last_filled_quantity, "
-            "cumulative_filled_quantity, approx_cumulative_notional, raw_json"
+            "cumulative_filled_quantity, approx_cumulative_notional, raw_json, event_fingerprint"
         )
-        values = tuple(event[key] for key in columns.split(", "))
+        values = tuple(event[key] for key in columns.split(", ") if key != "event_fingerprint") + (event_fingerprint,)
         with sqlite3.connect(self.database_path) as connection:
             connection.execute(
-                f"INSERT INTO liquidation_events ({columns}) VALUES ({','.join(['?'] * len(values))})",
+                f"INSERT INTO liquidation_events ({columns}) VALUES ({','.join(['?'] * len(values))}) "
+                "ON CONFLICT(event_fingerprint) DO NOTHING",
                 values,
             )
 
     def recent(self, symbol: str | None = None, limit: int = 100) -> list[dict[str, Any]]:
+        if not 1 <= limit <= 1000:
+            raise ValueError("limit must be between 1 and 1000")
+        if self.database_url:
+            query = "SELECT event_time_ms, trade_time_ms, symbol, pair_symbol, market_type, side, status, average_price, cumulative_filled_quantity, approx_cumulative_notional FROM public.liquidation_events"
+            params: list[Any] = []
+            if symbol:
+                query += " WHERE symbol=%s"; params.append(symbol.upper())
+            query += " ORDER BY event_time_ms DESC, id DESC LIMIT %s"; params.append(limit)
+            with self._connect_postgres() as connection:
+                return [dict(row) for row in connection.execute(query, params).fetchall()]
         query = "SELECT event_time_ms, trade_time_ms, symbol, pair_symbol, market_type, side, status, average_price, cumulative_filled_quantity, approx_cumulative_notional FROM liquidation_events"
         params: tuple[Any, ...] = ()
         if symbol:
@@ -98,6 +190,9 @@ class LiquidationStore:
             return [dict(row) for row in connection.execute(query, params).fetchall()]
 
     def count(self) -> int:
+        if self.database_url:
+            with self._connect_postgres() as connection:
+                return int(connection.execute("SELECT COUNT(*) AS count FROM public.liquidation_events").fetchone()["count"])
         with sqlite3.connect(self.database_path) as connection:
             return int(connection.execute("SELECT COUNT(*) FROM liquidation_events").fetchone()[0])
 

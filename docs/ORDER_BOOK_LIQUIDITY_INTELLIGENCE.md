@@ -26,7 +26,7 @@ A level is flagged when its price-times-quantity notional is at least `wall_mult
 - Visible orders can be changed or cancelled and do not guarantee executable liquidity.
 - Hidden liquidity, participant identity and order intent are not available.
 - Imbalance and microprice are descriptive pressure proxies, not price predictions.
-- Historical liquidity change tracking is not included. A future stream collector would need sequence-aware snapshot/delta synchronization and persistent storage.
+- Historical liquidity change tracking is provided only by the optional stream collector described below; the single-snapshot REST endpoint does not provide history.
 - The endpoint does not submit, modify or cancel orders.
 
 
@@ -43,13 +43,14 @@ The collector is disabled by default. Configure a persistent single-process depl
 ```dotenv
 ORDER_BOOK_COLLECTOR_ENABLED=true
 ORDER_BOOK_COLLECTOR_JOBS=[{"market":"USD_M","symbol":"BTCUSDT"},{"market":"SPOT","symbol":"BTCUSDT"}]
+# Optional SQLite fallback path; DATABASE_URL selects PostgreSQL/Neon when configured.
 ORDER_BOOK_DATABASE_PATH=data/order_book_history.sqlite3
 ORDER_BOOK_SAMPLE_INTERVAL_SECONDS=1
 ORDER_BOOK_SNAPSHOT_LIMIT=1000
 ORDER_BOOK_STORED_LEVELS=20
 ```
 
-Use only symbols valid for the selected market. The database directory must be writable and persist across restarts. Do not run multiple collector processes against the same SQLite file.
+Use only symbols valid for the selected market. When DATABASE_URL is set, samples are stored in the shared PostgreSQL/Neon database; otherwise the configured SQLite path is used and its directory must be writable and persistent. Run one collector-owning process per configured stream job set: multiple API replicas can duplicate WebSocket subscriptions and samples even when they share PostgreSQL. The collector must run on an always-on process; a scale-to-zero or short-lived host cannot provide continuous capture.
 
 ## Synchronization and recovery
 
@@ -81,7 +82,7 @@ Each sample includes event/update identifiers, best bid/ask, midpoint, spread bp
 
 - Collection starts only after the feature is deployed and explicitly enabled; no earlier history is reconstructed.
 - Sampling is periodic (default one second), not every depth event. Short-lived changes between samples may not appear in stored history.
-- SQLite needs persistent disk and one collector-owning application process. Multiple workers can duplicate streams and conflict with SQLite write workloads.
+- With SQLite fallback, persistent disk and one writer are required. With PostgreSQL/Neon, local disk persistence is not required for samples, but a single collector owner is still needed to avoid duplicate streams and samples across replicas.
 - Stream availability, network gaps and exchange limits affect coverage. Status and timestamps must be checked before interpreting history.
 - Order book levels do not identify participants, hidden liquidity, intent, or whether an order will remain available.
 - Liquidity withdrawal is a change in displayed depth, not proof of spoofing or manipulation.

@@ -1,8 +1,8 @@
-name: 15-Minute Spot and Futures Market Scan
+name: 3-Hour Spot and Futures Market Scan
 
 on:
   schedule:
-    - cron: "*/15 * * * *"
+    - cron: "0 */3 * * *"
       timezone: "Asia/Dhaka"
   workflow_dispatch:
 

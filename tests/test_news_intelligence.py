@@ -55,8 +55,8 @@ async def test_collect_news_marks_items_unverified_and_reports_coverage():
     # Service-level behavior uses the provider interface and retains conservative status.
     class FakeProvider:
         async def collect(self, sources):
-            return {"items": fetched["items"], "successful_sources": 1,
-                    "failed_sources": 0, "failures": []}
+            return {"items": [{**fetched["items"][0], "published_at": None}],
+                    "successful_sources": 1, "failed_sources": 0, "failures": []}
 
     result = await collect_news_intelligence(
         FakeProvider(), [{"name": "Example", "url": "https://example.test/rss"}], ["BTC"]

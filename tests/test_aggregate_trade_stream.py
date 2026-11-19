@@ -41,3 +41,51 @@ def test_aggregate_trade_stream_urls():
     assert "wss://stream.binance.com:9443/ws/btcusdt@aggTrade" == aggregate_trade_stream_url("SPOT", "BTCUSDT")
     assert "wss://fstream.binance.com/market/ws/btcusdt@aggTrade" == aggregate_trade_stream_url("USD_M", "BTCUSDT")
     assert "wss://dstream.binance.com/ws/btcusd_perp@aggTrade" == aggregate_trade_stream_url("COIN_M", "BTCUSD_PERP")
+
+
+def test_aggregate_trade_normalization_rejects_invalid_database_values():
+    invalid_cases = [
+        ("SPOT", {"a": -1}),
+        ("SPOT", {"E": -1}),
+        ("SPOT", {"T": -1}),
+        ("UNKNOWN", {}),
+        ("SPOT", {"p": "nan"}),
+        ("SPOT", {"q": "inf"}),
+        ("SPOT", {"p": "1e308", "q": "1e308"}),
+        ("SPOT", {"a": True}),
+        ("SPOT", {"E": False}),
+    ]
+    for market, changes in invalid_cases:
+        payload = sample_trade()
+        payload.update(changes)
+        assert normalize_aggregate_trade(payload, market) is None
+
+
+def test_aggregate_trade_normalization_trims_symbol_and_rejects_empty_symbol():
+    payload = sample_trade()
+    payload["s"] = "  btcusdt  "
+    normalized = normalize_aggregate_trade(payload, "spot")
+    assert normalized is not None
+    assert normalized["symbol"] == "BTCUSDT"
+
+    payload["s"] = "   "
+    assert normalize_aggregate_trade(payload, "SPOT") is None
+
+
+def test_aggregate_trade_collector_rejects_empty_jobs_when_enabled():
+    import pytest
+    from app.services.aggregate_trade_stream import AggregateTradeCollector
+
+    collector = AggregateTradeCollector(store=None, jobs_json="[]")
+    with pytest.raises(ValueError, match="AGGREGATE_TRADE_COLLECTOR_JOBS must contain at least one job"):
+        collector.start()
+
+
+def test_aggregate_trade_collector_accepts_valid_jobs():
+    from app.services.aggregate_trade_stream import AggregateTradeCollector
+
+    collector = AggregateTradeCollector(
+        store=None,
+        jobs_json='[{"market":"usd_m","symbol":"btcusdt"}]',
+    )
+    assert collector._jobs() == [{"market": "USD_M", "symbol": "BTCUSDT"}]

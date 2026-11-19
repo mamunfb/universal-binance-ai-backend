@@ -168,3 +168,35 @@ def test_future_stream_timestamp_is_flagged_without_negative_age(tmp_path):
     assert source["freshness"] == "FUTURE_TIMESTAMP"
     assert source["age_ms"] is None
     assert source["future_skew_ms"] == 12_345
+
+
+def test_quality_query_uses_postgres_when_database_url_is_configured(monkeypatch):
+    from app.services import market_data_quality as module
+
+    calls = []
+
+    class FakeConnection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def execute(self, query, params):
+            calls.append((query, params))
+            return self
+
+        def fetchone(self):
+            return (7, 1_700_000_000_000)
+
+    monkeypatch.setattr(module.psycopg, "connect", lambda *_a, **_kw: FakeConnection())
+    result = MarketDataQualityEngine._query(
+        "unused.sqlite3",
+        "SELECT COUNT(*), MAX(timestamp_ms) FROM historical_open_interest WHERE market=? AND symbol=?",
+        ("USD_M", "BTCUSDT"),
+        "postgresql://example.invalid/test",
+    )
+
+    assert result == (7, 1_700_000_000_000)
+    assert "market=%s AND symbol=%s" in calls[0][0]
+    assert calls[0][1] == ("USD_M", "BTCUSDT")

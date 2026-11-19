@@ -4,6 +4,8 @@ import asyncio
 import json
 import logging
 import sqlite3
+import psycopg
+from psycopg.rows import dict_row
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
@@ -27,8 +29,11 @@ def depth_stream_url(market: str, symbol: str) -> str:
 
 
 class OrderBookHistoryStore:
-    def __init__(self, database_path: str) -> None:
+    def __init__(self, database_path: str, database_url: str = "") -> None:
         self.database_path = database_path
+        self.database_url = database_url.strip()
+        if self.database_url:
+            return
         Path(database_path).parent.mkdir(parents=True, exist_ok=True)
         with sqlite3.connect(database_path) as db:
             db.execute("""
@@ -57,7 +62,28 @@ class OrderBookHistoryStore:
                 ON order_book_samples(market, symbol, event_time_ms)
             """)
 
+    def _connect_postgres(self):
+        return psycopg.connect(self.database_url, sslmode=("disable" if "sslmode=disable" in self.database_url else "require"), connect_timeout=15, row_factory=dict_row)
+
     def insert(self, row: dict[str, Any]) -> None:
+        if self.database_url:
+            with self._connect_postgres() as db:
+                db.execute("""
+                    INSERT INTO public.order_book_samples (
+                        market, symbol, event_time_ms, transaction_time_ms, update_id,
+                        sampled_at, best_bid, best_ask, mid_price, spread_bps,
+                        bid_notional, ask_notional, depth_imbalance, bids, asks
+                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s::jsonb)
+                    ON CONFLICT(market, symbol, update_id) DO NOTHING
+                """, (
+                    row["market"], row["symbol"], row.get("event_time_ms"),
+                    row.get("transaction_time_ms"), row["update_id"], row["sampled_at"],
+                    row["best_bid"], row["best_ask"], row["mid_price"], row["spread_bps"],
+                    row["bid_notional"], row["ask_notional"], row["depth_imbalance"],
+                    json.dumps(row["bids"], separators=(",", ":")),
+                    json.dumps(row["asks"], separators=(",", ":")),
+                ))
+            return
         with sqlite3.connect(self.database_path) as db:
             db.execute("""
                 INSERT OR IGNORE INTO order_book_samples (
@@ -78,6 +104,28 @@ class OrderBookHistoryStore:
         self, market: str, symbol: str, limit: int = 100,
         start_time_ms: int | None = None, end_time_ms: int | None = None,
     ) -> list[dict[str, Any]]:
+        if self.database_url:
+            clauses = ["market=%s", "symbol=%s"]
+            params: list[Any] = [market.upper(), symbol.upper()]
+            if start_time_ms is not None:
+                clauses.append("event_time_ms >= %s"); params.append(start_time_ms)
+            if end_time_ms is not None:
+                clauses.append("event_time_ms <= %s"); params.append(end_time_ms)
+            params.append(limit)
+            with self._connect_postgres() as db:
+                rows = db.execute(
+                    "SELECT market, symbol, event_time_ms, transaction_time_ms, update_id, sampled_at, "
+                    "best_bid, best_ask, mid_price, spread_bps, bid_notional, ask_notional, depth_imbalance, "
+                    "bids, asks FROM public.order_book_samples WHERE " + " AND ".join(clauses) +
+                    " ORDER BY event_time_ms DESC, update_id DESC LIMIT %s", params,
+                ).fetchall()
+            result = []
+            for row in rows:
+                item = dict(row)
+                item["bids"] = item["bids"] if isinstance(item["bids"], list) else json.loads(item["bids"])
+                item["asks"] = item["asks"] if isinstance(item["asks"], list) else json.loads(item["asks"])
+                result.append(item)
+            return result
         query = """SELECT market, symbol, event_time_ms, transaction_time_ms,
                    update_id, sampled_at, best_bid, best_ask, mid_price, spread_bps,
                    bid_notional, ask_notional, depth_imbalance, bids_json, asks_json
@@ -100,6 +148,15 @@ class OrderBookHistoryStore:
         return rows
 
     def count(self, market: str | None = None, symbol: str | None = None) -> int:
+        if self.database_url:
+            query = "SELECT COUNT(*) AS count FROM public.order_book_samples WHERE 1=1"
+            params: list[Any] = []
+            if market:
+                query += " AND market=%s"; params.append(market.upper())
+            if symbol:
+                query += " AND symbol=%s"; params.append(symbol.upper())
+            with self._connect_postgres() as db:
+                return int(db.execute(query, params).fetchone()["count"])
         query = "SELECT COUNT(*) FROM order_book_samples WHERE 1=1"
         params: list[Any] = []
         if market:

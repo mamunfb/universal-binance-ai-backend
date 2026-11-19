@@ -16,12 +16,13 @@ Set these environment variables on an always-on deployment:
 
 ```env
 LIQUIDATION_COLLECTOR_ENABLED=true
+# Optional SQLite fallback path; DATABASE_URL selects PostgreSQL/Neon when configured.
 LIQUIDATION_DATABASE_PATH=data/liquidations.sqlite3
 ```
 
-Install requirements and run one persistent API process. The collector starts with FastAPI lifespan and reconnects with exponential backoff up to 60 seconds. SQLite stores the received snapshots. Ensure the deployment provides persistent disk storage; ephemeral container filesystems lose the database on restart/redeploy.
+Install requirements and run one always-on API process. The collector starts with FastAPI lifespan and reconnects with exponential backoff up to 60 seconds. When DATABASE_URL is configured, received snapshots are stored in PostgreSQL/Neon; otherwise they use the SQLite fallback at LIQUIDATION_DATABASE_PATH. The SQLite fallback requires persistent disk storage because ephemeral container filesystems lose local database files on restart/redeploy.
 
-This is an opt-in background task. It is disabled by default. Do not use a scale-to-zero or short-lived serverless runtime for collection; the process must remain alive. Run only one collector instance against a given SQLite database.
+This is an opt-in background task and is disabled by default. Do not use a scale-to-zero or short-lived serverless runtime; the process must remain alive. Run only one collector-owning process for this all-market stream to avoid duplicate subscriptions and stored snapshots, regardless of whether PostgreSQL or SQLite is used. Shared PostgreSQL/Neon storage does not elect a single owner; multi-instance ownership and fencing are not implemented.
 
 ## Endpoints
 
@@ -35,5 +36,6 @@ The notional field is calculated as average price × cumulative filled quantity 
 - The collector records only messages received while it is connected and running.
 - Disconnects create gaps; reconnect count and last error are exposed in status.
 - No historical backfill is provided.
-- No heatmap or liquidation price clusters are claimed.
-- For production multi-instance deployments, replace SQLite with a managed database and use a single elected stream consumer or a durable message queue.
+- The read-only liquidation-cluster analysis groups locally stored snapshots into approximate price buckets; it does not estimate future liquidation levels or repair missing source events. See `GET /api/v1/analysis/futures/liquidation-clusters/{symbol}`.
+- Exact repeated force-order payloads are deduplicated with a SHA-256 fingerprint. PostgreSQL/Neon deployments must apply `migrations/010_liquidation_event_fingerprint.sql` before running this code. The migration adds a nullable column and unique index; it does not delete, rewrite, or retroactively deduplicate existing rows. SQLite adds the nullable column and index non-destructively when the store opens.
+- PostgreSQL/Neon is supported through DATABASE_URL, but it does not coordinate collector ownership. For multi-instance deployments, use a single elected stream consumer or a durable message queue; simply sharing one database URL across replicas can still duplicate stream capture. See [Collector Ownership and Multi-Instance Safety](COLLECTOR_OWNERSHIP_AND_MULTI_INSTANCE_SAFETY.md).

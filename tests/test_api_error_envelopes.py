@@ -41,10 +41,31 @@ def test_http_exception_detail_is_preserved_as_structured_reason():
     assert body["error"]["details"]["reason"] == "to_block must be >= from_block"
 
 
-def test_successful_response_also_includes_request_id_header():
+def test_successful_response_also_includes_request_id_and_security_headers():
     response = client.get("/api/v1/analysis/futures/liquidations/status")
     assert response.status_code == 200
     assert len(response.headers["X-Request-ID"]) == 32
+    assert response.headers["X-Content-Type-Options"] == "nosniff"
+    assert response.headers["X-Frame-Options"] == "DENY"
+    assert response.headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
+    assert response.headers["Permissions-Policy"] == "camera=(), microphone=(), geolocation=()"
+
+
+def test_dashboard_response_disables_caching_and_prevents_framing():
+    response = client.get("/dashboard")
+    assert response.status_code == 200
+    assert response.headers["Cache-Control"] == "no-store"
+    assert response.headers["Pragma"] == "no-cache"
+    assert response.headers["X-Frame-Options"] == "DENY"
+
+
+def test_unauthorized_early_response_includes_security_headers(monkeypatch):
+    monkeypatch.setattr(settings, "app_env", "development")
+    monkeypatch.setattr(settings, "personal_api_key", "test-owner-key-with-enough-entropy")
+    response = client.get("/api/v1/analysis/futures/liquidations/status")
+    assert response.status_code == 401
+    assert response.headers["X-Content-Type-Options"] == "nosniff"
+    assert response.headers["X-Frame-Options"] == "DENY"
 
 
 
@@ -80,6 +101,30 @@ def test_production_api_fails_closed_without_strong_key(monkeypatch):
     assert response.status_code == 503
     assert response.json()["error"]["code"] == "AUTH_NOT_CONFIGURED"
 
+
+
+def test_production_accepts_strong_owner_key_when_client_key_json_is_invalid(monkeypatch):
+    monkeypatch.setattr(settings, "app_env", "production")
+    monkeypatch.setattr(settings, "personal_api_key", "test-owner-key-with-enough-entropy")
+    monkeypatch.setattr(settings, "ai_client_api_keys", "{invalid-json")
+    response = client.get(
+        "/api/v1/analysis/futures/liquidations/status",
+        headers={"Authorization": "Bearer test-owner-key-with-enough-entropy"},
+    )
+    assert response.status_code == 200
+
+
+def test_production_rejects_partial_client_keys_without_strong_owner_key(monkeypatch):
+    monkeypatch.setattr(settings, "app_env", "production")
+    monkeypatch.setattr(settings, "personal_api_key", "")
+    monkeypatch.setattr(
+        settings,
+        "ai_client_api_keys",
+        '{"chatgpt":"chatgpt-test-key-12345678901234567890123456789012"}',
+    )
+    response = client.get("/api/v1/analysis/futures/liquidations/status")
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "AUTH_NOT_CONFIGURED"
 
 
 def test_each_private_ai_client_can_use_its_own_key(monkeypatch):
@@ -236,3 +281,29 @@ def test_market_evidence_route_aggregates_read_only_sections(monkeypatch):
     assert result["decision"]["buy_sell_signal"] is None
     assert result["section_status"]["multi_timeframe"] == "COMPLETED"
     assert result["section_status"]["spot_futures_basis"] == "COMPLETED"
+
+
+def test_required_database_url_fails_startup_when_missing(monkeypatch):
+    import asyncio
+    from app.main import lifespan
+
+    monkeypatch.setattr(settings, "require_database_url", True)
+    monkeypatch.setattr(settings, "database_url", "   ")
+
+    async def run_lifespan():
+        async with lifespan(app):
+            pass
+
+    try:
+        asyncio.run(run_lifespan())
+    except RuntimeError as exc:
+        assert "DATABASE_URL is required" in str(exc)
+    else:
+        raise AssertionError("Production startup must fail without DATABASE_URL")
+
+
+def test_dashboard_markup_has_no_literal_newline_separator():
+    from pathlib import Path
+    dashboard = Path(__file__).resolve().parents[1] / "dashboard" / "index.html"
+    html = dashboard.read_text(encoding="utf-8")
+    assert r"</div>\n<div>" not in html

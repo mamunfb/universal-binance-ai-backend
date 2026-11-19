@@ -5,9 +5,11 @@ class Settings(BaseSettings):
     app_name: str = "Universal Binance AI Backend"
     app_env: str = "development"
     personal_api_key: str = ""
+    database_url: str = ""
+    require_database_url: bool = False
     ai_client_api_keys: str = "{}"
     log_level: str = "INFO"
-    binance_spot_base_url: str = "https://api.binance.com"
+    binance_spot_base_url: str = "https://data-api.binance.vision"
     http_timeout_seconds: float = 15.0
     liquidation_collector_enabled: bool = False
     liquidation_database_path: str = "data/liquidations.sqlite3"
@@ -21,6 +23,7 @@ class Settings(BaseSettings):
     aggregate_trade_collector_jobs: str = "[]"
     aggregate_trade_database_path: str = "data/aggregate_trades.sqlite3"
     historical_kline_database_path: str = "data/historical_klines.sqlite3"
+    historical_kline_database_url: str = ""
     funding_rate_database_path: str = "data/funding_rates.sqlite3"
     open_interest_database_path: str = "data/open_interest.sqlite3"
     derivatives_signal_database_path: str = "data/derivatives_signals.sqlite3"

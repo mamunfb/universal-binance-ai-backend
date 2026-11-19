@@ -3,12 +3,14 @@ from contextlib import asynccontextmanager
 import hmac
 from datetime import datetime, timezone
 import json
+import logging
+import psycopg
 from typing import Any, Literal
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Query, Body, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
 from pathlib import Path
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -67,20 +69,25 @@ from app.services.cross_chain_wallets import parse_chain_rpc_configs, cross_chai
 from app.services.cross_chain_tokens import parse_chain_token_configs, cross_chain_erc20_snapshot
 from app.services.cross_chain_smart_money import cross_chain_verified_wallet_flows
 
-liquidation_store = LiquidationStore(settings.liquidation_database_path)
+logger = logging.getLogger(__name__)
+
+liquidation_store = LiquidationStore(settings.liquidation_database_path, settings.database_url)
 liquidation_collector = LiquidationCollector(liquidation_store)
-order_book_history_store = OrderBookHistoryStore(settings.order_book_database_path)
+order_book_history_store = OrderBookHistoryStore(settings.order_book_database_path, settings.database_url)
 order_book_collector: OrderBookStreamCollector | None = None
-aggregate_trade_store = AggregateTradeStore(settings.aggregate_trade_database_path)
+aggregate_trade_store = AggregateTradeStore(settings.aggregate_trade_database_path, settings.database_url)
 aggregate_trade_collector: AggregateTradeCollector | None = None
 news_provider = RSSNewsProvider(settings.http_timeout_seconds)
-evm_transfer_store = EVMTransferStore(settings.evm_transfer_database_path)
-historical_kline_store = HistoricalKlineStore(settings.historical_kline_database_path)
-funding_rate_store = FundingRateStore(settings.funding_rate_database_path)
-open_interest_store = OpenInterestStore(settings.open_interest_database_path)
-derivatives_signal_store = DerivativesSignalStore(settings.derivatives_signal_database_path)
-derivatives_ratio_store = DerivativesRatioStore(settings.derivatives_ratio_database_path)
-market_confluence_store = MarketConfluenceStore(settings.market_confluence_database_path)
+evm_transfer_store = EVMTransferStore(settings.evm_transfer_database_path, settings.database_url)
+historical_kline_store = HistoricalKlineStore(
+    settings.historical_kline_database_path,
+    settings.historical_kline_database_url or settings.database_url,
+)
+funding_rate_store = FundingRateStore(settings.funding_rate_database_path, settings.database_url)
+open_interest_store = OpenInterestStore(settings.open_interest_database_path, settings.database_url)
+derivatives_signal_store = DerivativesSignalStore(settings.derivatives_signal_database_path, settings.database_url)
+derivatives_ratio_store = DerivativesRatioStore(settings.derivatives_ratio_database_path, settings.database_url)
+market_confluence_store = MarketConfluenceStore(settings.market_confluence_database_path, settings.database_url)
 market_confluence_performance = MarketConfluencePerformance(market_confluence_store, historical_kline_store)
 historical_collector: HistoricalKlineCollector | None = None
 derivatives_collector: DerivativesHistoryCollector | None = None
@@ -89,63 +96,84 @@ derivatives_collector: DerivativesHistoryCollector | None = None
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     global historical_collector, derivatives_collector, order_book_collector, aggregate_trade_collector
-    if settings.liquidation_collector_enabled:
-        liquidation_collector.start()
-    if settings.order_book_collector_enabled:
-        order_book_collector = OrderBookStreamCollector(
-            store=order_book_history_store,
-            spot_provider_factory=get_spot_provider,
-            futures_provider_factory=get_futures_provider,
-            jobs_json=settings.order_book_collector_jobs,
-            sample_interval_seconds=settings.order_book_sample_interval_seconds,
-            snapshot_limit=settings.order_book_snapshot_limit,
-            stored_levels=settings.order_book_stored_levels,
+    if settings.require_database_url and not settings.database_url.strip():
+        raise RuntimeError(
+            "DATABASE_URL is required for this deployment; configure the Neon PostgreSQL connection "
+            "before starting the production service."
         )
-        order_book_collector.start()
-    if settings.aggregate_trade_collector_enabled:
-        aggregate_trade_collector = AggregateTradeCollector(
-            store=aggregate_trade_store,
-            jobs_json=settings.aggregate_trade_collector_jobs,
-        )
-        aggregate_trade_collector.start()
-    if settings.derivatives_collector_enabled:
-        derivatives_collector = DerivativesHistoryCollector(
-            funding_store=funding_rate_store,
-            open_interest_store=open_interest_store,
-            provider_factory=get_futures_provider,
-            jobs_json=settings.derivatives_collector_jobs,
-            poll_seconds=settings.derivatives_collector_poll_seconds,
-            funding_limit=settings.derivatives_collector_funding_limit,
-            open_interest_limit=settings.derivatives_collector_open_interest_limit,
-        )
-        derivatives_collector.start()
-    if settings.historical_collector_enabled:
-        historical_collector = HistoricalKlineCollector(
-            store=historical_kline_store,
-            spot_provider_factory=get_spot_provider,
-            futures_provider_factory=get_futures_provider,
-            jobs_json=settings.historical_collector_jobs,
-            poll_seconds=settings.historical_collector_poll_seconds,
-            initial_limit=settings.historical_collector_initial_limit,
-        )
-        historical_collector.start()
+    # Include startup in the protected region: if a later collector fails to
+    # initialize, every collector already started in this lifespan is stopped.
     try:
+        if settings.liquidation_collector_enabled:
+            liquidation_collector.start()
+        if settings.order_book_collector_enabled:
+            order_book_collector = OrderBookStreamCollector(
+                store=order_book_history_store,
+                spot_provider_factory=get_spot_provider,
+                futures_provider_factory=get_futures_provider,
+                jobs_json=settings.order_book_collector_jobs,
+                sample_interval_seconds=settings.order_book_sample_interval_seconds,
+                snapshot_limit=settings.order_book_snapshot_limit,
+                stored_levels=settings.order_book_stored_levels,
+            )
+            order_book_collector.start()
+        if settings.aggregate_trade_collector_enabled:
+            aggregate_trade_collector = AggregateTradeCollector(
+                store=aggregate_trade_store,
+                jobs_json=settings.aggregate_trade_collector_jobs,
+            )
+            aggregate_trade_collector.start()
+        if settings.derivatives_collector_enabled:
+            derivatives_collector = DerivativesHistoryCollector(
+                funding_store=funding_rate_store,
+                open_interest_store=open_interest_store,
+                provider_factory=get_futures_provider,
+                jobs_json=settings.derivatives_collector_jobs,
+                poll_seconds=settings.derivatives_collector_poll_seconds,
+                funding_limit=settings.derivatives_collector_funding_limit,
+                open_interest_limit=settings.derivatives_collector_open_interest_limit,
+            )
+            derivatives_collector.start()
+        if settings.historical_collector_enabled:
+            historical_collector = HistoricalKlineCollector(
+                store=historical_kline_store,
+                spot_provider_factory=get_spot_provider,
+                futures_provider_factory=get_futures_provider,
+                jobs_json=settings.historical_collector_jobs,
+                poll_seconds=settings.historical_collector_poll_seconds,
+                initial_limit=settings.historical_collector_initial_limit,
+            )
+            historical_collector.start()
         yield
     finally:
-        if order_book_collector is not None:
-            await order_book_collector.stop()
-            order_book_collector = None
-        if aggregate_trade_collector is not None:
-            await aggregate_trade_collector.stop()
-            aggregate_trade_collector = None
-        if derivatives_collector is not None:
-            await derivatives_collector.stop()
-            derivatives_collector = None
-        if settings.historical_collector_enabled and historical_collector is not None:
-            await historical_collector.stop()
-            historical_collector = None
+        # Attempt every cleanup even if one collector's stop operation fails.
+        cleanup_targets = [
+            ("order-book", order_book_collector),
+            ("aggregate-trade", aggregate_trade_collector),
+            ("derivatives", derivatives_collector),
+            ("historical", historical_collector),
+        ]
+        for collector_name, collector in cleanup_targets:
+            if collector is None:
+                continue
+            try:
+                await collector.stop()
+            except Exception:
+                logger.exception("Failed to stop %s collector during application shutdown", collector_name)
+            finally:
+                if collector_name == "order-book":
+                    order_book_collector = None
+                elif collector_name == "aggregate-trade":
+                    aggregate_trade_collector = None
+                elif collector_name == "derivatives":
+                    derivatives_collector = None
+                elif collector_name == "historical":
+                    historical_collector = None
         if settings.liquidation_collector_enabled:
-            await liquidation_collector.stop()
+            try:
+                await liquidation_collector.stop()
+            except Exception:
+                logger.exception("Failed to stop liquidation collector during application shutdown")
 
 
 app = FastAPI(
@@ -170,6 +198,21 @@ def _error_payload(
     if request_id:
         payload["request_id"] = request_id
     return payload
+
+
+def _apply_security_headers(response, request: Request):
+    """Apply conservative browser security headers to every application response."""
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault(
+        "Permissions-Policy", "camera=(), microphone=(), geolocation=()"
+    )
+    if request.url.path == "/dashboard":
+        # The dashboard accepts a private Bearer key in a form field; avoid caching it.
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Pragma"] = "no-cache"
+    return response
 
 
 @app.middleware("http")
@@ -197,11 +240,8 @@ async def request_tracking_middleware(request: Request, call_next):
                 for name in ("chatgpt", "gemini", "manus", "claude", "perplexity")
             )
         )
-        if production and (
-            client_keys is None
-            or not has_valid_client_keys
-            and len(configured_key) < 32
-        ):
+        has_valid_owner_key = isinstance(configured_key, str) and len(configured_key) >= 32
+        if production and not (has_valid_owner_key or has_valid_client_keys):
             response = JSONResponse(
                 status_code=503,
                 content=_error_payload(
@@ -211,7 +251,7 @@ async def request_tracking_middleware(request: Request, call_next):
                 ),
             )
             response.headers["X-Request-ID"] = request_id
-            return response
+            return _apply_security_headers(response, request)
 
         if configured_key or client_keys:
             authorization = request.headers.get("authorization", "")
@@ -240,12 +280,12 @@ async def request_tracking_middleware(request: Request, call_next):
                     headers={"WWW-Authenticate": "Bearer"},
                 )
                 response.headers["X-Request-ID"] = request_id
-                return response
+                return _apply_security_headers(response, request)
             request.state.ai_client = matched_client
 
     response = await call_next(request)
     response.headers["X-Request-ID"] = request_id
-    return response
+    return _apply_security_headers(response, request)
 
 
 @app.exception_handler(RequestValidationError)
@@ -1036,6 +1076,69 @@ async def evm_token_activity(
         raise HTTPException(status_code=502, detail={"status": "FAILED", "error": "ONCHAIN_PROVIDER_UNAVAILABLE", "error_type": type(exc).__name__}) from exc
 
 
+@app.get("/", response_class=HTMLResponse, include_in_schema=False)
+async def root_status_page() -> str:
+    """Serve a lightweight service landing page; does not imply database health."""
+    return """<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101827">
+  <title>Universal Binance AI Backend</title>
+  <style>
+    :root{color-scheme:dark;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif}
+    *{box-sizing:border-box}body{margin:0;background:#0b1220;color:#e5edf8;min-height:100vh}
+    main{width:min(760px,92%);margin:8vh auto;padding:28px}
+    .panel{background:#121d30;border:1px solid #263650;border-radius:18px;padding:28px}
+    .eyebrow{color:#8ca8ca;font-size:12px;letter-spacing:.14em;text-transform:uppercase}
+    h1{font-size:clamp(27px,6vw,42px);line-height:1.12;margin:12px 0}
+    p{color:#b5c3d7;line-height:1.65}.status{display:inline-flex;align-items:center;gap:9px;
+      border:1px solid #276749;background:#123526;color:#9ae6b4;border-radius:999px;
+      padding:8px 13px;font-size:14px}.dot{width:8px;height:8px;border-radius:50%;background:#48bb78}
+    nav{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-top:24px}
+    a{display:block;text-decoration:none;color:#dceaff;border:1px solid #334967;border-radius:12px;
+      padding:15px;background:#17263c}a:hover{border-color:#79a9e8;background:#1c304d}
+    a strong{display:block;margin-bottom:5px}small{color:#91a6c2}
+    footer{margin-top:20px;color:#7185a2;font-size:12px}
+  </style>
+</head>
+<body><main><section class="panel">
+  <div class="eyebrow">Service landing page · v0.1.0</div>
+  <h1>Universal Binance AI Backend</h1>
+  <p>Research-only crypto market data API for Binance Spot and Futures, technical analysis,
+  derivatives intelligence and optional data collection.</p>
+  <div class="status"><span class="dot"></span> Application process is responding</div>
+  <nav>
+    <a href="/docs"><strong>API Documentation</strong><small>Explore available endpoints</small></a>
+    <a href="/health"><strong>Process Health</strong><small>Check application response</small></a>
+    <a href="/openapi.json"><strong>OpenAPI Schema</strong><small>View machine-readable API schema</small></a>
+  </nav>
+  <footer>Note: Process health does not verify database or exchange connectivity. Check each dependency separately.</footer>
+</section></main></body></html>"""
+
+
+@app.get("/api/v1/system/database/health", tags=["system"])
+def database_connection_health() -> dict[str, str]:
+    """Verify the configured PostgreSQL connection with a read-only query."""
+    if not settings.database_url.strip():
+        raise HTTPException(
+            status_code=503,
+            detail="Database connection is not configured.",
+        )
+    try:
+        with psycopg.connect(settings.database_url, connect_timeout=5) as connection:
+            result = connection.execute("SELECT 1").fetchone()
+            if not result or result[0] != 1:
+                raise RuntimeError("Database health query returned an unexpected result.")
+    except Exception:
+        raise HTTPException(
+            status_code=503,
+            detail="Database connection check failed.",
+        ) from None
+    return {"status": "ok", "database": "available", "check": "SELECT 1"}
+
+
 @app.get("/health", tags=["system"])
 async def health() -> dict[str, str]:
     return {"status": "ok", "service": settings.app_name, "environment": settings.app_env}
@@ -1401,7 +1504,7 @@ async def aggregate_trade_collector_status() -> dict:
         return {
             "status": "DISABLED", "enabled": False,
             "stored_trade_count": aggregate_trade_store.count(),
-            "message": "Set AGGREGATE_TRADE_COLLECTOR_ENABLED=true and configure AGG_TRADE_COLLECTOR_JOBS.",
+            "message": "Set AGGREGATE_TRADE_COLLECTOR_ENABLED=true and configure AGGREGATE_TRADE_COLLECTOR_JOBS.",
         }
     if aggregate_trade_collector is None:
         return {"status": "STARTING", "enabled": True}
@@ -2373,6 +2476,7 @@ async def inspect_market_data_quality(
         settings.derivatives_ratio_database_path,
         settings.aggregate_trade_database_path,
         settings.order_book_database_path,
+        settings.database_url,
     )
     try:
         report = await asyncio.to_thread(
@@ -2413,7 +2517,7 @@ async def inspect_historical_kline_coverage(
     start_time_ms: int = Query(..., ge=0),
     end_time_ms: int = Query(..., ge=0),
 ) -> dict:
-    engine = HistoricalCoverageEngine(settings.historical_kline_database_path)
+    engine = HistoricalCoverageEngine(settings.historical_kline_database_path, database_url=settings.database_url)
     try:
         return await asyncio.to_thread(
             engine.inspect, market, symbol, interval, start_time_ms, end_time_ms

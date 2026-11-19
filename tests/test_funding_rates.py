@@ -63,3 +63,14 @@ def test_funding_history_validates_bounds_and_limit(tmp_path):
         store.history("USD_M", "BTCUSDT", 20, 10)
     with pytest.raises(ValueError, match="limit"):
         store.history("USD_M", "BTCUSDT", limit=5001)
+
+@pytest.mark.parametrize("row", [
+    event(timestamp=True),
+    event(rate=True),
+    event(mark=True),
+])
+def test_funding_store_rejects_boolean_values(tmp_path, row):
+    store = FundingRateStore(str(tmp_path / "funding.sqlite3"))
+    with pytest.raises(ValueError):
+        store.save("USD_M", "BTCUSDT", [row])
+    assert store.history("USD_M", "BTCUSDT")["returned_count"] == 0

@@ -169,3 +169,204 @@ def test_dashboard_displays_observed_regime_transitions_and_manual_adaptation_st
     assert "regime_transition_analysis" in html
     assert "signal_adaptation_status" in html
     assert "Pre-transition outcomes closing at or after the change are excluded" in html
+
+
+def test_dashboard_has_one_html_escape_helper_and_guards_numeric_rendering():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert html.count("const escapeHtml=") == 1
+    assert "const safeFixed=" in html
+    assert "const safeIsoTimestamp=" in html
+    assert "escapeHtml(safeIsoTimestamp(x.analyzed_at_ms))" in html
+
+
+def test_dashboard_validates_price_path_data_before_safe_svg_rendering():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "Price-path response contains invalid candle or reference-price values" in html
+    assert "values.every(v=>Number.isFinite(v)&&v>0)" in html
+    assert "setSafeHtml($('pricePath')" in html
+    assert "safeFixed(r.actual_market_change_percent,3)" in html
+
+
+def test_dashboard_uses_guarded_formatter_for_all_api_numeric_fields():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    script = html.split("<script>", 1)[1].split("</script>", 1)[0]
+    assert script.count(".toFixed(") == 1
+    assert "safeFixed((g.early||{}).positive_fraction*100,1)" in script
+    assert "safeFixed((t.post_transition||{}).positive_fraction*100,1)" in script
+
+
+def test_dashboard_guards_unexpected_api_response_shapes():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "const isRecord=value=>value!==null&&typeof value==='object'&&!Array.isArray(value)" in html
+    assert "Analysis API returned an unexpected response shape" in html
+    assert "Quality API returned an unexpected response shape" in html
+    assert "Performance API returned an unexpected response shape" in html
+    assert "(Array.isArray(latest.evidence)?latest.evidence:[]).filter(isRecord)" in html
+
+
+def test_dashboard_uses_nonnegative_safe_integer_formatter_for_counts():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "Number.isSafeInteger(n)&&n>=0?String(n):'—'" in html
+    assert "safeCount(h.sample_size)" in html
+    assert "safeCount(row.non_overlapping_directional_sample_size)" in html
+    assert "safeCount(cm.true_positive??0)" in html
+
+
+def test_dashboard_guards_nested_performance_report_objects_and_arrays():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "isRecord(h.signal_quality)?h.signal_quality:{}" in html
+    assert "Object.entries(isRecord(h.signal_quality_by_regime)?h.signal_quality_by_regime:{})" in html
+    assert "Object.entries(isRecord(groups)?groups:{}).filter(([,g])=>isRecord(g))" in html
+    assert "Object.entries(isRecord(horizon.rankings)?horizon.rankings:{}).filter(([,ranking])=>isRecord(ranking))" in html
+    assert "(Array.isArray(ranking.ranked)?ranking.ranked:[]).filter(isRecord)" in html
+
+
+def test_dashboard_escapes_all_remaining_dynamic_performance_labels_and_counts():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "safeCount(ranking.minimum_sample_size)" in html
+    assert "safeCount(f.test_matured_outcome_count)" in html
+    assert "safeCount(x.non_overlapping_directional_sample_size)" in html
+    assert "escapeHtml(x.horizon)" in html
+    assert "escapeHtml(x.bias)" in html
+    assert "Array.isArray(w.folds)?w.folds:[]" in html
+    assert "Array.isArray(q.flags)?q.flags:[]" in html
+
+
+def test_dashboard_svg_reference_label_uses_safe_max_and_numeric_formatting():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "safeFixed(Math.max(12,ry-6),2)" in html
+    assert "Math.maxsafeFixed" not in html
+
+
+def test_dashboard_handles_non_json_api_responses_without_masking_http_status():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "API returned a non-JSON response (HTTP '+r.status+')" in html
+
+
+def test_dashboard_filters_malformed_history_and_collector_entries():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "(Array.isArray(r.snapshots)?r.snapshots:[]).filter(isRecord).map(x=>" in html
+    assert "(Array.isArray(x.last_results)?x.last_results:[]).filter(isRecord)" in html
+
+
+def test_dashboard_guards_nested_regime_transition_api_data():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "isRecord(h.regime_bias_breakdown)&&isRecord(h.regime_bias_breakdown.market_regime)" in html
+    assert "isRecord(x.regime_transition_analysis)&&isRecord(x.regime_transition_analysis.dimensions)" in html
+    assert "(Array.isArray(d.transitions)?d.transitions:[]).filter(isRecord)" in html
+
+
+def test_dashboard_validates_snapshot_save_response_shape():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "Snapshot API returned an unexpected response shape" in html
+
+
+def test_dashboard_has_live_spot_and_futures_market_scanner_controls():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    for identifier in (
+        'id="scannerPanel"', 'id="scannerMarket"', 'id="scannerQuote"',
+        'id="scannerMinVolume"', 'id="scannerPerpetual"', 'id="scanMarkets"',
+        'id="scannerStatus"', 'id="scannerSummary"', 'id="scannerWarnings"',
+        'id="scannerResults"',
+    ):
+        assert identifier in html
+    assert "/api/v1/markets/spot/scan?" in html
+    assert "/api/v1/markets/futures/" in html
+    assert "Showing '+shown.length+' of '+rows.length+' matched rows" in html
+
+
+def test_dashboard_scanner_escapes_remote_values_and_discloses_scan_limitations():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "escapeHtml(label)" in html
+    assert "escapeHtml(value)" in html
+    assert "escapeHtml(x)" in html
+    assert "result.coverage_warning" in html
+    assert "result.stage1_missing_metrics" in html
+    assert "rows.slice(0,100)" in html
+
+
+def test_dashboard_has_live_research_readiness_and_provider_health_panel():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    for identifier in (
+        'id="readinessPanel"', 'id="refreshReadiness"', 'id="readinessStatus"',
+        'id="readinessMarket"', 'id="readinessCapabilities"',
+        'id="readinessPhases"', 'id="readinessLimitations"',
+    ):
+        assert identifier in html
+    assert "call('/api/v1/research/preflight')" in html
+    assert "call('/api/v1/research/phase-readiness')" in html
+    assert "preflight.trading_enabled" in html
+    assert "preflight.limitations" in html
+
+
+def test_dashboard_readiness_escapes_provider_and_phase_data():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "escapeHtml(label)" in html
+    assert "escapeHtml(x.status||'UNKNOWN')" in html
+    assert "escapeHtml(x.error_type)" in html
+    assert "escapeHtml(x.phase_number??'—')" in html
+    assert "escapeHtml(x.phase_name??'Unnamed phase')" in html
+    assert "escapeHtml(x.readiness??'UNKNOWN')" in html
+    assert "escapeHtml(x.gap??'No gap detail reported')" in html
+    assert "escapeHtml(x)" in html
+
+
+def test_dashboard_quality_summary_counts_actual_statuses_and_shows_limitations():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert 'id="qualityLimitations"' in html
+    assert "const counts=Object.create(null)" in html
+    assert "Object.entries(counts).map(([state,count])=>['Status '+state,count])" in html
+    assert "Array.isArray(r.limitations)&&r.limitations.length" in html
+    assert "r.limitations.map(item=>'<li>'+escapeHtml(item)" in html
+
+
+def test_dashboard_quality_handles_missing_candle_object_and_unknown_status():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "const candle=asRecord(sources.historical_klines)" in html
+    assert "candle.status??'UNKNOWN'" in html
+    assert "candle.freshness??'UNKNOWN'" in html
+    assert "typeof x.status==='string'?x.status:'UNKNOWN'" in html
+
+
+def test_dashboard_quality_summary_counts_freshness_separately_from_source_status():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "const counts=Object.create(null),freshnessCounts=Object.create(null)" in html
+    assert "freshnessCounts[freshness]=(freshnessCounts[freshness]||0)+1" in html
+    assert "Object.entries(freshnessCounts).map(([state,count])=>['Freshness '+state,count])" in html
+
+
+def test_dashboard_shows_phase_readiness_summary_and_execution_disclaimer():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert 'id="readinessSummary"' in html
+    assert "phase.status??'UNKNOWN'" in html
+    assert "safeCount(phase.phase_count)" in html
+    assert "safeCount(phase.completed_phase_count)" in html
+    assert "phase.execution_claim===false?'NO':'NOT REPORTED'" in html
+    assert "escapeHtml(phase.important_rule)" in html
+    assert "phases.length?'<div style=\"overflow-x:auto\">" in html
+
+
+def test_dashboard_readiness_clears_stale_data_and_checks_phase_count():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "$('readinessSummary').innerHTML='';$('readinessMarket').innerHTML=''" in html
+    assert "phase.phase_count!==phases.length" in html
+    assert "Phase count does not match the returned phase list" in html
+
+
+def test_dashboard_readiness_keeps_independent_endpoint_results_on_partial_failure():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "Promise.allSettled([" in html
+    assert "preflightResult.status==='fulfilled'" in html
+    assert "phaseResult.status==='fulfilled'" in html
+    assert "if(preflight){" in html
+    assert "if(phase){" in html
+    assert "Partial readiness result — " in html
+    assert "phase_readiness:phase||{error:" in html
+
+
+def test_dashboard_quality_refresh_clears_stale_report_on_loading_and_failure():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    assert "$('qualityLimitations').innerHTML='';" in html
+    assert "$('qualityRaw').textContent='Loading quality report…';" in html
+    assert "$('qualityRaw').textContent='Quality report unavailable: '+e.message" in html
+    assert "$('qualitySources').innerHTML='';$('qualityLimitations').innerHTML='';$('qualityCollectors').innerHTML='';" in html
