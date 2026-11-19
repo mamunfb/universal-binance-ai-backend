@@ -169,3 +169,40 @@ def test_dashboard_displays_observed_regime_transitions_and_manual_adaptation_st
     assert "regime_transition_analysis" in html
     assert "signal_adaptation_status" in html
     assert "Pre-transition outcomes closing at or after the change are excluded" in html
+
+
+def test_dashboard_sanitizes_all_api_derived_html_render_targets():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    for target in (
+        "metrics", "evidence", "snapshots", "snapshotSelect", "pricePath",
+        "qualitySummary", "qualitySources", "qualityCollectors", "outcomes",
+    ):
+        assert f"$('" + target + "').innerHTML=sanitizeHtml(" in html
+    assert "const sanitizeHtml=markup=>" in html
+    assert "document.createElement('template')" in html
+    assert "const tags=new Set(" in html
+    assert "const attrs=new Set(" in html
+    assert "const styleProps=new Set(" in html
+    assert "el.removeAttribute(attr.name)" in html
+    assert "el.remove()" in html
+
+
+def test_dashboard_sanitizer_does_not_allow_scriptable_elements_or_event_attributes():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    sanitizer = html.split("const sanitizeHtml=markup=>", 1)[1].split("\nconst renderCollector", 1)[0]
+    assert "'script'" not in sanitizer
+    assert "'iframe'" not in sanitizer
+    assert "'img'" not in sanitizer
+    assert "'onerror'" not in sanitizer
+    assert "'onclick'" not in sanitizer
+    assert "'href'" not in sanitizer
+    assert "return template.innerHTML" in sanitizer
+
+
+def test_dashboard_sanitizer_restricts_svg_paint_values():
+    html = (Path(__file__).resolve().parents[1] / "dashboard" / "index.html").read_text()
+    sanitizer = html.split("const sanitizeHtml=markup=>", 1)[1].split("\nconst renderCollector", 1)[0]
+    assert "const paintAttrs=new Set(['fill','stroke'])" in sanitizer
+    assert "paintAttrs.has(name)" in sanitizer
+    assert "currentcolor|transparent" in sanitizer
+    assert "url(" not in sanitizer
