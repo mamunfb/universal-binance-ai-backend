@@ -1049,3 +1049,17 @@ Limits: API fault cases use deterministic route mocks, not the live backend. Scr
 - The deployed Render service must also have `CORS_ALLOWED_ORIGINS` configured with the exact HTTPS origin of the Cloudflare Pages Preview. The backend parser rejects wildcard origins, paths, credentials and remote HTTP. The live test intentionally checks the exact origin in the OPTIONS response; setting only GitHub Actions Variables does not configure backend CORS.
 - Security limitation: the current authentication middleware does not provide endpoint-scoped permissions for these Bearer keys. Do not create or expose a broadly privileged production key solely for this browser test without reviewing the access implications. Never put a key in a URL, commit, workflow YAML or chat; use GitHub Actions Secret storage. Keep the existing Render service and production settings unchanged until the owner explicitly approves a configuration change.
 - Consequently, the live test prerequisites are: (1) a real feature-branch HTTPS dashboard preview, (2) the exact preview origin already allowed by the intended backend's CORS configuration, (3) the matching accepted Bearer credential stored as the Actions secret, and (4) the two endpoint URLs stored as Actions Variables. Missing any one means the live browser result remains unverified.
+
+
+## Current governance-branch QA checkpoint — 2026-11-19
+
+- Active continuation branch: `feat/institutional-dashboard-task-governance`.
+- Baseline source commit: `e9d89e2014c5298093a3c9b88f6727657663c21f`; latest full backend/dashboard test commit: `750b2c64ded70b3504e2cb51206fb7022837d457`.
+- Backend + Dashboard CI: **687 passed**, run #1969 / `44443701895`.
+- Dashboard frontend: **119 tests passed**, run `44443339378`.
+- Standalone Chromium browser QA: **20 passed, 0 failed, 0 skipped**, run `44443343939`.
+- Dashboard performance QA: successful, three simulated-mobile Lighthouse reports plus CPU/heap profiling; artifact `14492516424`.
+- Live Cloudflare Pages → Render integration: **not verified**; the live browser job was skipped because the required Actions URL variables were absent.
+- Remaining manual evidence: physical Android/iOS, manual TalkBack/VoiceOver or equivalent assistive-technology testing, and a real deployed cross-origin integration test.
+- Backend runtime source and dashboard runtime source were not changed by this governance transfer or the test-fixture correction. The only test source change was `tests/test_news_intelligence.py`, to make the news fixture timestamp relative to the test clock.
+- No main update, PR merge, deployment, production database/secret change or execution capability change occurred.

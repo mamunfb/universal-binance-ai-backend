@@ -1855,3 +1855,42 @@ The feature branch head `65a635ea773be752188695b3476ffe18469a45db` was verified 
 **Remaining evidence gates:** This run does not refresh the standalone Node-based 20-test browser workflow or Lighthouse/performance artifact. The live Cloudflare Pages → Render integration test remains unverified: its workflow's required Actions variables `DASHBOARD_PREVIEW_URL` and `RENDER_BACKEND_URL` have not been configured, so the live cross-origin browser job was skipped in the previously inspected Run #27. A successful general CI run is not a successful live integration run.
 
 **Change control:** This update records CI evidence only. No `main` update, PR creation/merge, production or staging deployment, Render configuration/secret change, repository variable change, or CORS relaxation was performed.
+
+
+## 86. Governance-branch QA continuation and current evidence (2026-11-19)
+
+The dashboard workstream now continues on `feat/institutional-dashboard-task-governance`, created from the previously verified dashboard feature-branch source commit `e9d89e2014c5298093a3c9b88f6727657663c21f`. The governance branch's changes are limited to governance/documentation, workflow branch filters, and one test-fixture correction. The comparison against `feat/institutional-dashboard-design` shows 16 commits ahead and 0 behind; no `dashboard/**` runtime file or `backend/app/**` runtime source file changed in that comparison.
+
+**Backend + dashboard CI — current full-suite result**
+- Run #1969, run ID `44443701895`, tested commit `750b2c64ded70b3504e2cb51206fb7022837d457`: **success**.
+- The full Python + Chromium pytest step completed with **687 passed in 11.89s**.
+- Dashboard HTML/script-reference validation and JavaScript syntax checks passed.
+- The separate Python-only step was skipped by workflow condition because the combined feature-branch step ran the full suite once.
+- An earlier run on commit `612c0054049bc93eeb8d8fdf6c3da53cdbab7816` had 686 passed and one failure in `tests/test_news_intelligence.py::test_collect_news_marks_items_unverified_and_reports_coverage`. The fixed RSS fixture date was older than the test's seven-day window, so the service correctly returned no fresh item and the test indexed an empty list. Commit `750b2c64ded70b3504e2cb51206fb7022837d457` changes only that test fixture: its service-level fake provider now supplies a timestamp relative to the test clock. No backend runtime source was changed for this correction.
+
+**Dashboard frontend checks**
+- Run ID `44443339378`, commit `a9cf7066c39cf3a27f5de9a34b3349746841393b`: **success**.
+- 110 dashboard contract tests and 9 accessibility contract tests passed (119 total); chart fixtures and JavaScript syntax checks passed.
+
+**Standalone Chromium browser QA**
+- Run ID `44443343939`, commit `5c93d29bb9d2950378cf24d2a16c14f28553845e`: **success**.
+- **20 passed, 0 failed, 0 skipped**. The run used the isolated Chromium browser QA workflow; it is automated browser evidence, not a physical-device or live-backend test.
+
+**Dashboard performance QA**
+- Run ID `44443349312`, source commit `1ef19349364abd0cedad7b4044c5fb1bfee2ab56`: **success**.
+- Three local simulated-mobile Lighthouse reports (390 × 844) scored **100, 99 and 100** for Performance. FCP samples: **904, 1,363 and 905 ms**; LCP: **1,504, 1,705 and 1,505 ms**; TBT: **0 ms** in all three; CLS: **0.0000238, 0 and 0.0000238**. The performance preset does not provide an Accessibility category score.
+- CPU-throttled 1,000-row mocked scanner fixture:
+  - 1× CPU: render **67 ms**, sort **39 ms**, search **169 ms**, pagination **69 ms**, five repeated cycles **2,385 ms**, post-GC heap delta **78,108 bytes**, DOM delta **+5**.
+  - 4× CPU: render **101 ms**, sort **91 ms**, search **182 ms**, pagination **142 ms**, five repeated cycles **3,293 ms**, post-GC heap delta **63,336 bytes**, DOM delta **+2**.
+  - Twelve sampled in-app navigation actions closed the sidebar as expected; no browser page errors were recorded.
+- Raw artifact ID: `14492516424`; SHA-256: `05ef76b8063e903be0f5d5f74264459f6ed22c3d6e71c05f75f0ea1585e72a32`.
+- These results use a local static QA server and deterministic mocked data. They do **not** establish production network performance, Cloudflare transfer/compression behavior, physical-device performance, long-session memory stability or absence of a long-term memory leak. The dashboard runtime files were unchanged in the subsequent governance/test-only commits, but the performance run's exact tested source commit remains `1ef193...`.
+
+**Live integration gate**
+- Run ID `44443354893` completed at workflow level, but its `Live cross-origin Chromium smoke test` job was **skipped**.
+- The configuration job explicitly reported missing repository Actions variables `DASHBOARD_PREVIEW_URL` and `RENDER_BACKEND_URL`. The live workflow also requires the approved QA bearer-token secret.
+- Therefore Cloudflare Pages → Render live integration is **not verified**. No Actions variables/secrets, Render settings, CORS allowlists or deployment settings were created or changed.
+
+**Change control**
+- No `main` update, PR creation/merge, production or staging deployment, database change, production secret change or trading/execution capability change was made.
+- The new dashboard governance branch has its own workflow branch filters so backend/dashboard, frontend, browser, performance and live-integration workflows can run there. The live workflow's successful configuration check must not be described as a successful live integration test.

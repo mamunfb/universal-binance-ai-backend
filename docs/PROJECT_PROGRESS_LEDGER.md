@@ -15,7 +15,7 @@ Statuses: `UNASSESSED`, `NOT_STARTED`, `IN_PROGRESS`, `BLOCKED`, `VERIFICATION`,
 
 | ID | Work package | Status | Evidence / next action |
 |---|---|---|---|
-| WP-00 | Baseline repository audit and migration | IN_PROGRESS | Checkpoint recorded below. Branch/PR/CI relationships and latest scan failure identified; full code/work-package reconciliation remains open |
+| WP-00 | Baseline repository audit and migration | COMPLETED | Branch lineage, PR state, current CI evidence, historical audit records and package-level follow-up gates reconciled in the checkpoint below |
 | WP-01 | CI/CD and build reliability | UNASSESSED | Verify latest workflows, runner execution, build reproducibility and billing/runner blockers |
 | WP-02 | Backend architecture and API foundations | UNASSESSED | Map current architecture/contracts; inspect only current relevant evidence |
 | WP-03 | Database, persistence and data integrity | UNASSESSED | Reconcile schemas, persistence, migrations, idempotency and recovery evidence |
@@ -24,7 +24,7 @@ Statuses: `UNASSESSED`, `NOT_STARTED`, `IN_PROGRESS`, `BLOCKED`, `VERIFICATION`,
 | WP-06 | Market-data infrastructure | UNASSESSED | Review source coverage, rate limits, timestamps, freshness and failure accounting |
 | WP-07 | News, on-chain, tokenomics and AI research intelligence | UNASSESSED | Map provider coverage, verification, provenance and limitations |
 | WP-08 | Risk, safety and research guardrails | UNASSESSED | Verify market separation, uncertainty, risk calculations and research-only boundaries |
-| WP-09 | Frontend and institutional dashboard | UNASSESSED | Reconcile dashboard implementation and outstanding browser/mobile/accessibility evidence |
+| WP-09 | Frontend and institutional dashboard | IN_PROGRESS | Frontend 119 tests, standalone Chromium 20 tests, Lighthouse/CPU/heap run and 687-test combined suite verified; live integration and physical-device/assistive-technology gates remain open |
 | WP-10 | Authentication and application security | UNASSESSED | Verify current auth, secrets handling, dependency/security checks |
 | WP-11 | Cross-system integration | UNASSESSED | Review REST, dashboard, MCP and AI-client contracts |
 | WP-12 | Full QA and performance | UNASSESSED | Separate local/mock evidence from live/staging/device evidence |
@@ -33,10 +33,12 @@ Statuses: `UNASSESSED`, `NOT_STARTED`, `IN_PROGRESS`, `BLOCKED`, `VERIFICATION`,
 
 ## Active task
 
-- Active package: **WP-00 — Baseline repository audit and migration**
+- Active package: **WP-09 — Frontend and institutional dashboard**
 - Status: **IN_PROGRESS**
-- Next action: reconcile the dashboard feature branch, old audit branch and governance branch against current code/CI evidence; then map findings into WP-01–WP-14.
-- Do not mark WP-00 complete merely because this ledger was created or because branch/CI metadata has been collected.
+- Reason: automated frontend, browser, performance and combined backend/dashboard checks now have current runner evidence; live cross-origin integration and physical-device/manual assistive-technology evidence remain outstanding.
+- Next action: resolve the approved live integration prerequisites (exact HTTPS dashboard preview URL, backend URL, and an appropriately scoped QA credential) without changing production secrets/CORS or using a broadly privileged key; then complete physical-device and manual assistive-technology checks when a real device is available.
+- WP-00 baseline reconciliation is completed. Do not reopen it unless a concrete discrepancy or regression is found.
+
 
 ## Completion evidence record template
 
@@ -68,48 +70,47 @@ Reopened package/dependents (if any) and reason:
 - Historical implementation findings and dated test records: [MASTER_PROMPT_IMPLEMENTATION_AUDIT.md](MASTER_PROMPT_IMPLEMENTATION_AUDIT.md). Historical phase locks in that file are not active workflow rules.
 - Historical complete scope: [UNIVERSAL_PROJECT_SCOPE_AND_EXECUTION_CONTROL.md](UNIVERSAL_PROJECT_SCOPE_AND_EXECUTION_CONTROL.md), with the governance-precedence notice at its top.
 
-## Last verified checkpoint — WP-00
+## Last verified checkpoint — WP-09 handoff
 
 **Verification date:** 2026-11-19  
 **Repository:** `mamunfb/universal-binance-ai-backend`  
-**Default branch:** `main`  
-**Main HEAD observed:** `0e3b921ab83e18d4999c1eac87f45285a0f27b26`  
-**Active working branch:** `feat/institutional-dashboard-task-governance`  
-**Base commit observed:** `e9d89e2014c5298093a3c9b88f6727657663c21f` (the verified HEAD of `feat/institutional-dashboard-design` when this continuation branch was created)  
-**Working-tree visibility:** not available through the GitHub repository connector; no claim is made about uncommitted local changes.
+**Default branch:** `main`; observed HEAD `0e3b921ab83e18d4999c1eac87f45285a0f27b26`  
+**Active branch:** `feat/institutional-dashboard-task-governance`  
+**Base dashboard source:** `e9d89e2014c5298093a3c9b88f6727657663c21f`  
+**Latest combined-suite commit:** `750b2c64ded70b3504e2cb51206fb7022837d457`  
+**Working-tree visibility:** unavailable through the GitHub repository connector; no claim is made about uncommitted local changes.
 
-### Branch and PR reconciliation
+### WP-00 completion evidence
 
-- The active working branch was created from the dashboard feature branch's observed HEAD, preserving that feature branch's code baseline while adding governance documents only. No backend source, database, workflow, deployment or secret files were intentionally changed in this governance transfer.
-- At the time of baseline inspection, `feat/institutional-dashboard-design` was 698 commits ahead of `main` and 1 behind, with observed HEAD `e9d89e2014c5298093a3c9b88f6727657663c21f`. This branch is the user's previously active dashboard workstream.
-- The separate source branch `docs/task-based-governance-v2` is 237 commits ahead and 3 behind `main`; it contains the wider implementation history from `work/dual-master-prompt-audit` and is **not a docs-only branch**. It must not be merged or proposed as a governance-only change without reviewing its full diff.
-- Existing PR #1 remains OPEN / DRAFT / NOT MERGED. It targets `main`, but its head is the old `work/dual-master-prompt-audit` branch at `27a575ae81cfad1c00ec6b6c6620576c9b8f6bbd`; its description still describes the retired paired-phase lock. It is not the active working branch and does not prove the new governance has been integrated.
-- No PR was created for `feat/institutional-dashboard-task-governance`. No PR head/base was changed.
+- Reconciled the dashboard feature branch, old paired-phase audit branch, governance source branch, default branch, open PR #1, current workflow runs and the prior Dashboard QA audit.
+- Created this continuation branch from the dashboard feature branch's verified HEAD. Compared with that base, it contains 16 commits and 15 changed files: governance docs/prompts, README links, five workflow branch-filter/condition changes and one test-only fixture correction. No `dashboard/**` runtime files or `backend/app/**` runtime source files changed.
+- SPOT prompt's analytical body was verified unchanged against the dashboard base; both canonical market prompts contain 20 analytical phases. FUTURES prompt and resume/governance documents were added where absent.
+- The old paired-phase ledger is now a retirement pointer. Historical lock instructions remain only in records with superseding notices.
+- The separate source branch `docs/task-based-governance-v2` remains 237 commits ahead and 3 behind `main`; it is not a docs-only branch and must not be merged as a governance-only change. Existing PR #1 remains open/draft on the old branch and was not modified or merged.
+- WP-00 is COMPLETED; its historical evidence is retained above and in the project audit files.
 
-### CI and runtime evidence
+### WP-09 verified evidence
 
-- Dashboard branch commit `e9d89e2014c5298093a3c9b88f6727657663c21f` has successful GitHub Actions runs:
-  - Backend/dashboard run #43816042275: successful; retrievable job log records **687 passed**, and the combined Python + Chromium browser QA step completed successfully.
-  - Dashboard frontend run #43816042291: successful; log records 110 dashboard contract tests and 9 accessibility contract tests (119 total).
-  - These results apply only to that dashboard commit and its workflow environment, not to this new branch's later commits, `main`, live production or physical devices.
-- The dashboard QA audit records that the live Cloudflare Pages → Render cross-origin browser test was skipped because required repository Actions variables `DASHBOARD_PREVIEW_URL` and `RENDER_BACKEND_URL` (and the approved QA credential prerequisite) were not configured. Therefore live integration is **not verified**.
-- The dashboard QA audit also distinguishes simulated local Chromium/Lighthouse/CPU/heap evidence from production performance and physical-device testing. The latest standalone performance artifact is not a fresh benchmark of the observed dashboard HEAD. Physical Android/iOS and manual TalkBack/VoiceOver testing remain unverified.
-- Latest scheduled scan run #44436848791 on `main` commit `0e3b921ab83e18d4999c1eac87f45285a0f27b26` failed after the job ran. Its log reports Binance Spot `exchangeInfo` HTTP 451; USDⓈ-M and COIN-M returned `UPSTREAM_UNAVAILABLE`; all three markets reported zero eligible/scanned symbols. This is a confirmed upstream-access blocker for that run, not proof of an internal scanner defect. Do not attempt to bypass geographic/legal access restrictions; investigate only through permitted provider/access routes.
-- The 9 most recent scheduled scan runs returned failure in the workflow-runs listing; the latest run's detailed log above confirms the HTTP 451 / upstream-unavailable outcome.
-- The governance source branch HEAD had no CI status checks or PR-triggered workflow runs returned. The new branch's documentation changes have not been test-executed; no test result is claimed for them.
+- Combined Backend + Dashboard CI Run #1969 / `44443701895`, commit `750b2c64ded70b3504e2cb51206fb7022837d457`: **success, 687 passed in 11.89s**. Dashboard HTML/script checks and JS syntax passed. The standalone Python-only step was skipped because the combined feature-branch step ran the full suite.
+- Dashboard frontend Run `44443339378`: **119 tests passed** (110 contract + 9 accessibility), chart fixtures and JS syntax passed.
+- Standalone Chromium browser Run `44443343939`: **20 passed, 0 failed, 0 skipped**.
+- Performance Run `44443349312`, commit `1ef19349364abd0cedad7b4044c5fb1bfee2ab56`: successful. Lighthouse mobile Performance scores 100/99/100; FCP 904/1363/905 ms; LCP 1504/1705/1505 ms; TBT 0 ms; CLS 0.0000238/0/0.0000238. CPU/heap fixture details and artifact ID `14492516424` are recorded in `DASHBOARD_QA_AUDIT.md`.
+- Backend run `44443399825` initially failed with 686 passed and one stale-date fixture failure. The test-only correction is in commit `750b2c64...`; the subsequent complete suite passed 687 tests. No backend runtime source was changed.
+- Live integration Run `44443354893` completed its configuration check, but the live Chromium job was skipped because `DASHBOARD_PREVIEW_URL` and `RENDER_BACKEND_URL` were missing. The QA credential prerequisite also remains unconfigured. Do not call this live integration success.
+- Physical-device testing, manual TalkBack/VoiceOver, production performance and long-session memory-leak evidence remain unverified. The Lighthouse/CPU/heap tests use a local static server and mocked data.
 
-### Baseline conclusions and open items
+### Other known package findings
 
-- The task-based governance, progress ledger, resume prompt, retired-ledger pointer and engineering-boundary notes are present in the source governance branch and are being transferred onto the dashboard workstream.
-- The dashboard branch's existing QA audit, implementation status and design specification were read. They document strong automated test evidence but also explicitly retain live integration, physical-device, manual assistive-technology and fresh performance verification gates.
-- SPOT and FUTURES analytical prompts remain separate. The 20-step analytical workflows must remain intact. The Futures prompt was not present on the dashboard feature branch before this transfer and is being added from the canonical governance source.
-- Historical lock language remains in historical scope/audit records with top-level notices that supersede it. It is retained for traceability and is not an active engineering gate.
-- Main is unchanged by this work. No PR was merged, no production deployment was performed, and no production database/secrets or trading/execution controls were changed.
-- WP-01 through WP-14 remain `UNASSESSED` until their own evidence is reconciled. Do not promote them based on old test counts or branch-level summaries.
+- WP-01 remains UNASSESSED. Dashboard workflows are now wired to this branch, but a complete CI/CD architecture audit has not been performed.
+- WP-06 remains UNASSESSED. Latest scheduled scan Run `44436848791` on `main` failed with Binance Spot HTTP 451 and Futures upstream-unavailable responses. This is an upstream access blocker for that run, not proof of an internal scanner defect; do not bypass legal/geographic restrictions.
+- WP-13 remains UNASSESSED. Live staging integration is not verified because exact preview/backend URLs and QA credential are not configured.
+- WP-14 remains UNASSESSED. Production readiness/deployment has not been authorized or performed.
+- All other packages remain UNASSESSED until their own evidence is reconciled.
 
 ### Next exact action
 
-1. Verify the new branch's final HEAD and read back every transferred governance file.
-2. Compare its changed-file list with the dashboard base to confirm the transfer is documentation-only.
-3. Finish WP-00 by mapping the dashboard QA findings, current workflows and remaining integration/performance gates into the work-package register.
-4. Then assign statuses to WP-01–WP-14 only where current code and commit-specific evidence supports them; keep unknowns `UNASSESSED`.
+1. Continue WP-09 by verifying the live integration prerequisites through an approved, least-privilege QA setup; do not create/change repository secrets, Render settings or CORS without explicit authorization.
+2. Complete physical-device responsive/keyboard testing and manual assistive-technology checks when a real device and tester are available.
+3. Preserve the distinction between local/mock QA evidence and live/staging/production evidence.
+4. Reopen WP-00 only if a concrete branch, PR, CI or baseline discrepancy is discovered.
+
