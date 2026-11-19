@@ -1,5 +1,5 @@
 # Project Progress Ledger
-Last updated: 2026-11-19
+Last updated: 2026-11-19 — WP-00 baseline evidence checkpoint
 Repository: `mamunfb/universal-binance-ai-backend`
 Governing policy: [PROJECT_EXECUTION_GOVERNANCE.md](PROJECT_EXECUTION_GOVERNANCE.md)
 
@@ -15,7 +15,7 @@ Statuses: `UNASSESSED`, `NOT_STARTED`, `IN_PROGRESS`, `BLOCKED`, `VERIFICATION`,
 
 | ID | Work package | Status | Evidence / next action |
 |---|---|---|---|
-| WP-00 | Baseline repository audit and migration | UNASSESSED | Reconcile current HEAD, PR, CI, working-tree visibility, prior audit evidence and map findings into packages |
+| WP-00 | Baseline repository audit and migration | IN_PROGRESS | Checkpoint recorded below. Branch/PR/CI relationships and latest scan failure identified; full code/work-package reconciliation remains open |
 | WP-01 | CI/CD and build reliability | UNASSESSED | Verify latest workflows, runner execution, build reproducibility and billing/runner blockers |
 | WP-02 | Backend architecture and API foundations | UNASSESSED | Map current architecture/contracts; inspect only current relevant evidence |
 | WP-03 | Database, persistence and data integrity | UNASSESSED | Reconcile schemas, persistence, migrations, idempotency and recovery evidence |
@@ -33,10 +33,10 @@ Statuses: `UNASSESSED`, `NOT_STARTED`, `IN_PROGRESS`, `BLOCKED`, `VERIFICATION`,
 
 ## Active task
 
-- Active package: **Not yet assigned**
-- Reason: migration baseline has not yet been reconciled against the current repository HEAD and current CI/PR evidence on this governance branch.
-- Next action: perform WP-00 evidence reconciliation before assigning package statuses.
-- Do not mark WP-00 complete merely because this ledger was created.
+- Active package: **WP-00 — Baseline repository audit and migration**
+- Status: **IN_PROGRESS**
+- Next action: reconcile the dashboard feature branch, old audit branch and governance branch against current code/CI evidence; then map findings into WP-01–WP-14.
+- Do not mark WP-00 complete merely because this ledger was created or because branch/CI metadata has been collected.
 
 ## Completion evidence record template
 
@@ -68,3 +68,45 @@ Reopened package/dependents (if any) and reason:
 - Historical implementation findings and dated test records: [MASTER_PROMPT_IMPLEMENTATION_AUDIT.md](MASTER_PROMPT_IMPLEMENTATION_AUDIT.md). Historical phase locks in that file are not active workflow rules.
 - Historical complete scope: [UNIVERSAL_PROJECT_SCOPE_AND_EXECUTION_CONTROL.md](UNIVERSAL_PROJECT_SCOPE_AND_EXECUTION_CONTROL.md), with the governance-precedence notice at its top.
 
+## Last verified checkpoint — WP-00
+
+**Verification date:** 2026-11-19  
+**Repository:** `mamunfb/universal-binance-ai-backend`  
+**Default branch:** `main`  
+**Main HEAD observed:** `0e3b921ab83e18d4999c1eac87f45285a0f27b26`  
+**Active governance branch:** `docs/task-based-governance-v2`  
+**Governance branch HEAD observed:** `a5779d203ddee55fc48f0f30218f8aa77acef25f`  
+**Working-tree visibility:** not available through the GitHub repository connector; no claim is made about uncommitted local changes.
+
+### Branch and PR reconciliation
+
+- Governance branch is 12 commits ahead of `work/dual-master-prompt-audit` and 0 commits behind that source branch.
+- Against `main`, governance branch is **237 commits ahead and 3 behind**, with merge base `dfef59340c08fd20ba858efb78016ff8ff4e3997`. It is therefore **not a docs-only branch**; it contains the wider implementation history from the old audit branch. Do not open or merge it into `main` as a governance-only change without first isolating/reviewing the full diff.
+- Existing PR #1 remains OPEN / DRAFT / NOT MERGED. It targets `main`, but its head is the old `work/dual-master-prompt-audit` branch at `27a575ae81cfad1c00ec6b6c6620576c9b8f6bbd`; its description still describes the retired paired-phase lock. It is not the current governance branch and must not be treated as proof that the new governance has been integrated.
+- The dashboard feature branch `feat/institutional-dashboard-design` is separate. Its observed HEAD is `e9d89e2014c5298093a3c9b88f6727657663c21f`; comparison with `main` reported 698 commits ahead and 1 behind. It is not an ancestor of the governance branch. The relationship between these workstreams remains to be reconciled before choosing an integration target.
+- No PR was created for `docs/task-based-governance-v2`.
+
+### CI and runtime evidence
+
+- The governance branch HEAD has no commit status checks returned and no PR-triggered workflow runs returned. Documentation changes have not been test-executed on this branch.
+- Dashboard branch commit `e9d89e2014c5298093a3c9b88f6727657663c21f` has successful GitHub Actions runs:
+  - Backend/dashboard run #43816042275: successful; job log records **687 passed** and the Chromium/browser QA step completed successfully.
+  - Dashboard frontend run #43816042291: successful; log records 110 dashboard contract tests and 9 accessibility contract tests (119 total).
+  - These results apply only to that dashboard commit and its workflow environment, not to the governance branch HEAD, `main` HEAD, live production or physical devices.
+- Latest scheduled scan run #44436848791 on `main` commit `0e3b921ab83e18d4999c1eac87f45285a0f27b26` failed. The job ran, installed dependencies and reached the market scan. Its log reports Binance Spot `exchangeInfo` HTTP 451; USDⓈ-M and COIN-M returned `UPSTREAM_UNAVAILABLE`; all three markets reported zero eligible/scanned symbols. This is a confirmed upstream-access blocker for that run, not proof of an internal scanner defect. Do not attempt to bypass geographic/legal access restrictions; preserve the explicit failure state and investigate only through permitted provider/access routes.
+- The 9 most recent scheduled scan runs returned failure in the workflow-runs listing; the latest run's detailed log above confirms the HTTP 451 / upstream-unavailable outcome.
+
+### Baseline conclusions and open items
+
+- The task-based governance, progress ledger, resume prompt, retired-ledger pointer and boundary notes are present on the governance branch and were read back from GitHub.
+- SPOT and FUTURES analytical prompts remain separate. The governance boundary note was added to each; their underlying analytical requirements must remain unchanged.
+- Historical lock language remains in historical scope/audit records with top-level notices that supersede it. It is retained for traceability and is not an active engineering gate.
+- Main is unchanged by this work. No PR was merged, no production deployment was performed, and no production database/secrets or trading/execution controls were changed.
+- WP-01 through WP-14 remain `UNASSESSED` until their own evidence is reconciled. Do not promote them based on old test counts or branch-level summaries.
+
+### Next exact action
+
+1. Inspect the dashboard branch's current tree, workflow definitions, relevant QA audit and current code state against its observed HEAD.
+2. Reconcile its relationship to the old audit branch and the governance branch; identify which implementation branch the user intends to continue from.
+3. Decide whether a separate docs-only integration branch is needed so governance changes can be reviewed without accidentally bundling hundreds of unrelated commits.
+4. Continue WP-00 mapping; only then assign evidence-based statuses to the remaining work packages.
