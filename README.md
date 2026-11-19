@@ -36,6 +36,15 @@ Binance public APIs -> provider adapters and normalization -> analysis services 
 
 Futures coverage is based on exchangeInfo symbols marked TRADING and the selected quote asset. Scanner responses include coverage counts and data failures. See docs/FUTURES_API.md, docs/DERIVATIVES_API.md, docs/SPOT_FUTURES_BASIS_API.md, docs/MARKET_EVIDENCE_API.md, docs/MULTI_TIMEFRAME_API.md, docs/LIQUIDATION_COLLECTOR.md, docs/PRICE_LEVELS_API.md, and docs/VOLUME_STRUCTURE_API.md.
 
+## Current engineering governance
+
+Software work is tracked as dependency-aware work packages, with one active package at a time. Completion requires relevant verification and recorded evidence; a confirmed regression reopens only the affected package and necessary dependents. There is no paired SPOT/FUTURES development-phase lock. The 20-step workflows inside the two market master prompts remain analytical requirements, not engineering gates.
+
+- [Project execution governance](docs/PROJECT_EXECUTION_GOVERNANCE.md)
+- [Project progress ledger](docs/PROJECT_PROGRESS_LEDGER.md)
+- [Session resume instructions](master-prompts/MASTER_RESUME_PROMPT.md)
+- [Historical paired-phase ledger (retired)](docs/PAIRED_PHASE_LEDGER.md)
+
 ## Repository layout
 - backend/ — API and application services
 - providers/ — exchange and external data-source adapters
