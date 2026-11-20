@@ -1360,12 +1360,14 @@ async def usdm_continuous_klines(
         if len(matches) != 1:
             raise HTTPException(status_code=404, detail="USD-M contract symbol was not found in current exchange metadata")
         contract = matches[0]
-        if contract.get("status") != "TRADING":
+        if (contract.get("status") or contract.get("contractStatus")) != "TRADING":
             raise HTTPException(status_code=422, detail="USD-M contract is not currently trading")
         pair = contract.get("pair")
         contract_type = contract.get("contractType")
         if not isinstance(pair, str) or not pair.strip():
             raise HTTPException(status_code=502, detail="Binance exchange metadata did not provide a valid contract pair")
+        if not isinstance(contract_type, str) or contract_type not in {"PERPETUAL", "CURRENT_QUARTER", "NEXT_QUARTER", "TRADIFI_PERPETUAL"}:
+            raise HTTPException(status_code=502, detail="Binance exchange metadata did not provide a supported contract type")
         rows = await provider.continuous_klines(pair, contract_type, interval, limit)
     except HTTPException:
         raise
@@ -1384,7 +1386,7 @@ async def usdm_continuous_klines(
 async def usdm_klines(
     symbol: str,
     interval: Literal[
-        "1s", "1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h",
+        "1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h",
         "6h", "8h", "12h", "1d", "3d", "1w", "1M"
     ] = "1h",
     limit: int = Query(default=500, ge=1, le=1500),
