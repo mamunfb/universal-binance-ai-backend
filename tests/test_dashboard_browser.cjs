@@ -804,6 +804,9 @@ test("visible pointer targets are inventoried against WCAG 2.2 24px minimum for 
       });
       assert.ok(inventory.visibleInteractiveCount > 0,
         width + "px " + state + " should inventory visible interactive controls");
+      assert.ok(!inventory.candidates.some(item => item.id === "banner-settings"),
+        width + "px " + state + " Configure connection target is below 24px: " +
+          JSON.stringify(inventory.candidates.find(item => item.id === "banner-settings")));
       reports.push({viewport: width, state, visibleInteractiveCount: inventory.visibleInteractiveCount,
         undersizedCandidatesForSpacingReview: inventory.candidates});
     };
