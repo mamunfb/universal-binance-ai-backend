@@ -2242,3 +2242,13 @@ The backend URL contract test was stale after the implementation changed its inp
 - Independently verify the exact current Dashboard preview origin and Staging CORS_ALLOWED_ORIGINS value before modifying either configuration. Preserve exact-origin allowlisting; never use wildcard CORS.
 - Review JavaScript module/route usage and CSS loading dependencies before deciding whether to split/defer scripts or alter stylesheet loading.
 - Physical Android/TalkBack testing remains outstanding and requires a real device.
+## 105. CI Run #2045 execution evidence — 2026-11-20
+
+- Workflow run `44690700924` completed with conclusion `success` for commit `14fb7e414dd05dcf9fb9578a6f6a87808773df24`.
+- The job log explicitly records `python -m pytest -q` and `694 passed in 11.25s`. The feature-branch workflow condition runs the full pytest suite; the separate Python-only step is intentionally skipped on this branch, while the feature-branch full-suite step executes.
+- The full-suite path installs Playwright and Chromium before running pytest. `tests/test_dashboard_browser.py` contains real Chromium browser checks for initial runtime errors, viewport overflow at 360/390/768/1280 widths, and mobile navigation Escape/focus restoration. The 694-test aggregate pass therefore includes the configured Python browser tests; no separate per-file count was printed in the log.
+- Dashboard HTML and both referenced scripts were validated. Node syntax checks passed for `dashboard/app.js`, `dashboard/chart.js`, and `tests/dashboard_live_integration.cjs`.
+- Cloudflare Pages check for the same commit completed successfully. This establishes a successful Pages build/check, not a live backend integration/CORS pass.
+- Render Staging was rechecked: service is not suspended, Auto Deploy is off, and its current live deploy still runs commit `6fff1228936d3d507c2dc130f71d329946c42095`. Compared with the current QA branch head, Staging is 70 commits behind (0 behind in the reverse direction). No deploy or environment/config change was performed.
+- Live CORS remains unverified for the current preview + current branch pair. The historical failure used a stale preview origin; the exact Render `CORS_ALLOWED_ORIGINS` value remains unavailable through the inspected service metadata.
+- Scope: no Production deployment, PR merge, Render deployment/restart, environment variable, secret, CORS allowlist, database, or trading setting was changed.
