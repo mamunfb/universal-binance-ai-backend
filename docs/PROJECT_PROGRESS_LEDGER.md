@@ -274,3 +274,8 @@ Reopened package/dependents (if any) and reason:
 - Next: verify current preview URL and exact Staging CORS allowlist. No Render environment change or Staging deploy performed because this would change Staging configuration and explicit approval has not been given. Never use wildcard CORS.
 - Details in QA Audit Section 98. WP-09 remains active; local Chromium pass does not clear this live integration blocker.
 - Follow-up source inspection: the Staging deployed baseline `6fff122...` includes exact-origin CORS middleware reading `CORS_ALLOWED_ORIGINS`; its empty-list behavior is explicitly covered by a test and emits no allow-origin header. Therefore an empty/non-matching Staging value is a strong explanation, but the actual Render environment value remains unverified. See QA Audit Section 98.
+
+### WP-09 static contrast follow-up — 2026-11-20
+
+- Reviewed CSS color pairs for the axe-incomplete sidebar and brand-mark elements. Computed source-level ratios: default nav labels 8.82637:1; nav group labels 4.58817:1; active nav 11.87471:1; hover nav 15.13284:1; brand-mark U at the light gradient endpoint 3.67875:1 (21px bold); sidebar footer secondary text 6.25853:1.
+- The inspected text pairs exceed the applicable WCAG 2.2 SC 1.4.3 thresholds (4.5:1 ordinary text; 3:1 large text). These are static CSS calculations only, not rendered/physical-device conformance evidence. No CSS change warranted from these pairs. Details and W3C source in QA Audit Section 99.
