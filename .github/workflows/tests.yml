@@ -62,15 +62,18 @@ jobs:
           html = Path("dashboard/index.html").read_text(encoding="utf-8")
           assert "<!doctype html>" in html.lower(), "Dashboard HTML doctype is missing"
           assert 'class="app-shell"' in html, "Dashboard shell is missing"
-          scripts = re.findall(r'<script\b[^>]*src=["\']([^"\']+)["\'][^>]*>', html, flags=re.I)
-          assert "./chart.js" in scripts, "dashboard/chart.js is not referenced"
-          assert "./app.js" in scripts, "dashboard/app.js is not referenced"
-          for script in scripts:
-              if script.startswith(("http://", "https://")):
+          scripts = re.findall(r'<script\\b[^>]*src=["\\']([^"\\']+)["\\'][^>]*>', html, flags=re.I)
+          stylesheets = re.findall(r'<link\\b[^>]*href=["\\']([^"\\']+\\.css)["\\'][^>]*>', html, flags=re.I)
+          assert "/dashboard-assets/chart.js" in scripts, "dashboard chart.js asset route is not referenced"
+          assert "/dashboard-assets/app.js" in scripts, "dashboard app.js asset route is not referenced"
+          assert "/dashboard-assets/app.css" in stylesheets, "dashboard app.css asset route is not referenced"
+          for asset in [*scripts, *stylesheets]:
+              if asset.startswith(("http://", "https://")):
                   continue
-              path = Path("dashboard") / script
-              assert path.is_file(), f"Referenced dashboard script is missing: {script}"
-          print(f"Validated dashboard HTML and {len(scripts)} script references")
+              relative_asset = asset.removeprefix("/dashboard-assets/")
+              path = Path("dashboard") / relative_asset
+              assert path.is_file(), f"Referenced dashboard asset is missing: {asset}"
+          print(f"Validated dashboard HTML, {len(scripts)} scripts and {len(stylesheets)} stylesheets")
           PY
 
       - name: Check dashboard JavaScript syntax
