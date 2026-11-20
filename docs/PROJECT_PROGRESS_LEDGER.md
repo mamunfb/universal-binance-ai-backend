@@ -284,3 +284,9 @@ Reopened package/dependents (if any) and reason:
 
 - Added a reproducible manual test protocol in QA Audit Section 100 for physical Android Chrome + TalkBack: navigation landmarks/labels, mobile menu expanded state, focus entry/return, icon-only control announcements, status/error announcements, orientation/text scaling, and safe credential-free testing.
 - This is a test plan only. No physical-device/TalkBack execution is claimed. WP-09 remains active until a device tester records Pass/Fail/Not tested evidence.
+
+### CORS regression assertion CI evidence — 2026-11-20
+
+- Commit `98bba7a84d229af2fe1b6308f965fc1dd7bc069c`: invalid Bearer-token test now asserts HTTP 401, exact CORS allow-origin, and Bearer challenge header.
+- Backend/dashboard CI run `44677460067`: SUCCESS; full Python suite **694 passed in 11.71s**; Dashboard HTML/script and JS syntax checks passed.
+- Live CORS run `44677460013` was still running; Chromium installation in progress; no live CORS result yet. Configuration-check job skipped. No Staging config/deploy changes.
