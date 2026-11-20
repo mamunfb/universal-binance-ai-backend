@@ -190,6 +190,31 @@ class BinanceFuturesProvider:
             raise ValueError("Unexpected order book response")
         return data
 
+    async def continuous_klines(
+        self, pair: str, contract_type: str, interval: str = "1s", limit: int = 500,
+    ) -> list[list[Any]]:
+        """Fetch USDⓈ-M continuous-contract candles (not symbol-specific klines)."""
+        if self.market != "USD_M":
+            raise ValueError("continuous klines are supported only for USD_M")
+        if not pair or not pair.strip():
+            raise ValueError("pair must not be empty")
+        allowed_contract_types = {"PERPETUAL", "CURRENT_QUARTER", "NEXT_QUARTER", "TRADIFI_PERPETUAL"}
+        normalized_type = contract_type.strip().upper()
+        if normalized_type not in allowed_contract_types:
+            raise ValueError("unsupported USD_M continuous contract type")
+        if interval != "1s":
+            raise ValueError("continuous klines currently support only the 1s chart interval")
+        if not 1 <= limit <= 1500:
+            raise ValueError("limit must be between 1 and 1500")
+        params: dict[str, Any] = {
+            "pair": pair.strip().upper(), "contractType": normalized_type,
+            "interval": interval, "limit": limit,
+        }
+        data = await self._get("/fapi/v1/continuousKlines", params)
+        if not isinstance(data, list):
+            raise ValueError("Unexpected Binance USD_M continuous kline response")
+        return data
+
     async def klines(
         self, symbol: str, interval: str = "1h", limit: int = 500,
         start_time_ms: int | None = None, end_time_ms: int | None = None,
