@@ -2037,3 +2037,18 @@ Read-only comparison of current `main` with `fix/backend-dashboard-static-assets
 - Before integration, the product policy must be settled: either keep the UI Spot-only and revise the misleading USDⓈ-M tooltip / avoid carrying unused USDⓈ-M `1s` API support, or intentionally enable USDⓈ-M `1s` and update the UI gating plus browser regression test. Do not infer a live-provider guarantee from fake-provider tests.
 - No code, `main`, PR, deployment, database, secret, or hosted configuration was changed.
 
+
+
+## 94. USDⓈ-M 1-second Dashboard timeframe enablement (2026-11-21)
+
+Following the product decision to expose the 1-second chart timeframe on USDⓈ-M as well as Spot, the isolated asset branch was updated:
+
+- `dashboard/app.js`: the 1s chart control is now disabled only for COIN-M. Spot and USDⓈ-M both expose it. The tooltip now states that the interval is available for Spot and USDⓈ-M, without claiming that USDⓈ-M lacks it.
+- When changing from Spot to USDⓈ-M while 1s is selected, the Dashboard preserves 1s. When changing to COIN-M, it disables 1s and safely resets the selected timeframe to 1m. Switching back to USDⓈ-M or Spot re-enables the control.
+- `tests/test_dashboard_browser.cjs`: the browser regression test now checks Spot enabled, USDⓈ-M enabled with 1s preserved, COIN-M disabled with safe reset, and re-enablement on return to USDⓈ-M/Spot.
+- The existing branch USDⓈ-M Kline route already accepts `1s`; the earlier fake-provider contract test verifies forwarding of that interval. Binance's official USDⓈ-M REST documentation lists `1s` as a supported interval: https://developers.binance.info/en/docs/catalog/core-trading-derivatives-trading-usd-s-m-futures/api/rest-api/market-data
+- COIN-M remains intentionally disabled in the Dashboard and its branch API contract remains unchanged.
+
+**Verification status:** Both source files were fetched again after the writes and the updated function/test assertions were confirmed in the branch. At the time of this audit update, the combined commit status query returned no status checks; the updated browser test has not yet been executed on this new commit. No live Binance API request was made, so actual provider behavior remains to be verified by a live, non-trading read-only integration check.
+
+**Change control:** Changes are limited to `dashboard/app.js`, `tests/test_dashboard_browser.cjs`, and this audit entry on `fix/backend-dashboard-static-assets`. No `main` update, branch integration, PR creation/merge, deployment, database, secret, hosted configuration, or trading/execution change was made.
