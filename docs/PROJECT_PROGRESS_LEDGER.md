@@ -177,3 +177,11 @@ Reopened package/dependents (if any) and reason:
 - This source review found no confirmed Dashboard auth-code defect. The later Staging 401 log entries are consistent with missing/invalid backend Bearer authentication, but the specific request's token/session state is not available, so the cause of those individual requests cannot be proven from logs alone.
 - No runtime code, CORS configuration, repository variable, secret, Render setting or deployment was changed in this clarification.
 - Next action remains: configure the two exact HTTPS GitHub Actions URL variables through the authorized repository settings workflow, run the secretless live CORS/invalid-token smoke test, then obtain explicit approval before deploying the tested diagnostic commit to Staging.
+
+
+### WP-09 source-review increment — 2026-11-20
+
+- Reviewed the active Dashboard HTML, JavaScript and CSS for mobile layout and keyboard navigation. Source inspection confirms responsive breakpoints, labelled navigation/status/scroll regions, closed-sidebar `inert` handling, focus entry/return, Escape close, Tab / Shift+Tab wrapping, visible focus styles and reduced-motion CSS.
+- This is static source evidence only. It does not replace fresh browser viewport tests, physical Android/iOS device checks, or TalkBack/VoiceOver verification. No confirmed defect was found in this source-only pass.
+- Detailed file blob identifiers, review scope, limitations and the next manual test matrix are recorded in `docs/DASHBOARD_QA_AUDIT.md`, Section 87.
+- No runtime source, backend, workflow, secret, CORS, Render setting, deployment, database, `main` or PR state changed.
