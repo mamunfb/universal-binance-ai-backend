@@ -317,3 +317,63 @@ async def test_coinm_open_interest_and_history_use_coinm_contract_schema(monkeyp
         "/futures/data/openInterestHist",
         {"pair": "BTCUSD", "period": "1h", "limit": 20, "contractType": "PERPETUAL"},
     )]
+
+@pytest.mark.parametrize(
+    ("contract_type", "expected_contract_type"),
+    [
+        ("PERPETUAL", "PERPETUAL"),
+        ("CURRENT_QUARTER", "CURRENT_QUARTER"),
+        ("NEXT_QUARTER", "NEXT_QUARTER"),
+        ("TRADIFI_PERPETUAL", "TRADIFI_PERPETUAL"),
+        ("current_quarter", "CURRENT_QUARTER"),
+    ],
+)
+async def test_usdm_continuous_klines_accept_supported_contract_types(
+    monkeypatch, contract_type, expected_contract_type
+):
+    clients = []
+
+    def client_factory(**kwargs):
+        client = FakeAsyncClient(**kwargs)
+        clients.append(client)
+        return client
+
+    monkeypatch.setattr("app.providers.binance_futures.httpx.AsyncClient", client_factory)
+    provider = BinanceFuturesProvider("USD_M")
+
+    await provider.continuous_klines("btcusdt", contract_type)
+
+    assert clients[0].calls == [(
+        "/fapi/v1/continuousKlines",
+        {
+            "pair": "BTCUSDT",
+            "contractType": expected_contract_type,
+            "interval": "1s",
+            "limit": 500,
+        },
+    )]
+
+
+@pytest.mark.parametrize(
+    ("contract_type", "interval", "limit", "error_match"),
+    [
+        ("DELIVERY", "1s", 500, "contract type"),
+        ("", "1s", 500, "contract type"),
+        ("PERPETUAL", "1m", 500, "interval"),
+        ("PERPETUAL", "1s", 0, "limit"),
+        ("PERPETUAL", "1s", 1501, "limit"),
+    ],
+)
+async def test_usdm_continuous_klines_reject_unsupported_parameters_before_network(
+    monkeypatch, contract_type, interval, limit, error_match
+):
+    def fail_if_called(**_kwargs):
+        raise AssertionError("network client must not be created for invalid continuous-kline parameters")
+
+    monkeypatch.setattr("app.providers.binance_futures.httpx.AsyncClient", fail_if_called)
+    provider = BinanceFuturesProvider("USD_M")
+
+    with pytest.raises(ValueError, match=error_match):
+        await provider.continuous_klines(
+            "BTCUSDT", contract_type, interval=interval, limit=limit
+        )
