@@ -9,6 +9,7 @@
     liquidations:"Liquidation Intelligence",news:"News & Catalysts",onchain:"On-Chain Intelligence",performance:"Signals & Performance",risk:"Risk Monitoring",reports:"Reports",reliability:"Data Reliability",settings:"Settings"
   };
   const state = {base:"", token:"", market:"SPOT", symbol:"BTCUSDT", timeframe:"1h", displayTimezone:"Asia/Dhaka", lastScan:null, lastScanDetails:null, lastHealth:null, lastAnalysis:null};
+  let dashboardChartsPromise=null;
   let activeScanSequence=0;
   let activeScanController=null;
   let activeEvidenceSequence=0;
@@ -272,8 +273,21 @@
   }
   function syncTimeframeAvailability(){const spotOnly=state.market!=="SPOT";const strip=$("analysis-timeframes");if(!strip)return;const oneSecond=Array.from(strip.querySelectorAll("button")).find(button=>button.textContent==="1s");if(oneSecond){oneSecond.disabled=spotOnly;oneSecond.title=spotOnly?"Binance USDⓈ-M and COIN-M Futures do not provide the Spot 1-second kline interval":"Binance Spot 1-second interval";}if(spotOnly&&state.timeframe==="1s"){state.timeframe="1m";$("global-timeframe").value="1m";strip.querySelectorAll("button").forEach(button=>{const active=button.textContent===state.timeframe;button.classList.toggle("active",active);button.setAttribute("aria-pressed",String(active));});}}
   function syncAnalysisHeader(){state.symbol=$("global-symbol").value.trim().toUpperCase()||"BTCUSDT";state.market=$("global-market").value;state.timeframe=$("global-timeframe").value;syncTimeframeAvailability();setText("analysis-title",state.symbol+" · "+state.market);setText("analysis-subtitle","Timeframe "+state.timeframe+" · "+state.market+" · Research-only analysis");}
+  function ensureDashboardCharts(){
+    if(window.DashboardCharts)return Promise.resolve(window.DashboardCharts);
+    if(dashboardChartsPromise)return dashboardChartsPromise;
+    dashboardChartsPromise=new Promise((resolve,reject)=>{
+      const script=document.createElement("script");
+      script.src="./chart.js";
+      script.async=true;
+      script.onload=()=>window.DashboardCharts?resolve(window.DashboardCharts):reject(new Error("Chart bundle loaded without exposing its API."));
+      script.onerror=()=>{dashboardChartsPromise=null;reject(new Error("Unable to load the technical chart bundle."));};
+      document.head.append(script);
+    });
+    return dashboardChartsPromise;
+  }
   function cancelAnalysisRequests(){
-    activeEvidenceSequence++;window.DashboardCharts.invalidate();
+    activeEvidenceSequence++;window.DashboardCharts?.invalidate();
     if(activeMarketEvidenceController){activeMarketEvidenceController.abort();activeMarketEvidenceController=null;}
   }
   function invalidateChartView(message="Selection changed. Run analysis to load matching candles.") {
@@ -283,7 +297,7 @@
     setText("analysis-output","No chart response for the current selection.");
   }
   async function loadMarketEvidence() {
-    syncAnalysisHeader();const requestSequence=++activeEvidenceSequence;window.DashboardCharts.invalidate();
+    syncAnalysisHeader();const requestSequence=++activeEvidenceSequence;window.DashboardCharts?.invalidate();
     if(activeMarketEvidenceController)activeMarketEvidenceController.abort();
     const controller=new AbortController();activeMarketEvidenceController=controller;
     setText("chart-state","Loading market evidence · previous chart and evidence retained");
@@ -301,8 +315,11 @@
     syncAnalysisHeader();const requestSequence=++activeEvidenceSequence;
     if(activeMarketEvidenceController){activeMarketEvidenceController.abort();activeMarketEvidenceController=null;}
     setText("chart-state","Loading candles · previous chart retained");
-    let data;try{data=await window.DashboardCharts.load(api,state.market,state.symbol,state.timeframe);}
-    catch(error){if(requestSequence!==activeEvidenceSequence)return{status:"SUPERSEDED"};setText("chart-state","Chart request failed · previous chart retained");setText("technical-summary","Request failed: "+metadataText(error?.message,"Unknown error",160));throw error;}
+    let data;try{
+      const charts=await ensureDashboardCharts();
+      if(requestSequence!==activeEvidenceSequence)return{status:"SUPERSEDED"};
+      data=await charts.load(api,state.market,state.symbol,state.timeframe);
+    }catch(error){if(requestSequence!==activeEvidenceSequence)return{status:"SUPERSEDED"};setText("chart-state","Chart request failed · previous chart retained");setText("technical-summary","Request failed: "+metadataText(error?.message,"Unknown error",160));throw error;}
     if(requestSequence!==activeEvidenceSequence||data?.status==="SUPERSEDED")return{status:"SUPERSEDED"};
     state.lastAnalysis=data;toast("Verified candle chart and descriptive indicators loaded.","success");return data;
   }
@@ -371,7 +388,7 @@
     });
     setText("readiness-state",reason);setText("readiness-output",reason);
     setText("quality-state",reason);setText("quality-output",reason);
-    window.DashboardCharts.invalidate();
+    window.DashboardCharts?.invalidate();
     const chartHost=$("chart-placeholder");if(chartHost)chartHost.replaceChildren(document.createTextNode(reason));
     setText("chart-state",reason);setText("technical-summary",reason);setText("analysis-output",reason);
   }
