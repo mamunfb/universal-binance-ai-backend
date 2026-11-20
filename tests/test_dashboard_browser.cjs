@@ -773,3 +773,32 @@ test("the latest research-readiness request wins when an older endpoint responds
   assert.deepEqual(pageErrors, []);
   await context.close();
 });
+
+
+test("one-second chart timeframe is available only for Spot markets", async () => {
+  const {context, page, pageErrors} = await newPage(1280);
+  const oneSecond = page.locator("#analysis-timeframes button").filter({hasText: /^1s$/});
+
+  await page.locator("#global-market").selectOption("SPOT");
+  assert.equal(await oneSecond.isDisabled(), false,
+    "Spot should expose the one-second chart interval");
+
+  await page.locator("#global-timeframe").selectOption("1s");
+  assert.equal(await page.locator("#global-timeframe").inputValue(), "1s");
+
+  await page.locator("#global-market").selectOption("USD_M");
+  assert.equal(await oneSecond.isDisabled(), true,
+    "USD-M should disable the Spot-only one-second chart interval");
+  assert.equal(await page.locator("#global-timeframe").inputValue(), "1m",
+    "switching away from Spot must reset a selected one-second interval safely");
+
+  await page.locator("#global-market").selectOption("COIN_M");
+  assert.equal(await oneSecond.isDisabled(), true,
+    "COIN-M should disable the Spot-only one-second chart interval");
+
+  await page.locator("#global-market").selectOption("SPOT");
+  assert.equal(await oneSecond.isDisabled(), false,
+    "returning to Spot should restore the one-second chart interval");
+  assert.deepEqual(pageErrors, []);
+  await context.close();
+});
