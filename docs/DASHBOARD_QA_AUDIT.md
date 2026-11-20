@@ -2112,3 +2112,22 @@ Interpretation:
 - These source-level color pairs explain why the scrollable sidebar and short logo glyph were incomplete rather than measured contrast violations. They do not replace a visual review of the rendered sidebar, other states, zoom, user overrides, or physical-device checks.
 - Decorative navigation glyphs are hidden from assistive technology with `aria-hidden="true"`; the links retain text labels. Their visual non-text contrast is a separate consideration from text contrast.
 - No CSS change was made: no concrete contrast failure was found in these inspected pairs. W3C reference: https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum
+## 100. Physical Android and TalkBack validation protocol (2026-11-20)
+
+Physical-device testing remains a manual acceptance item; CI's Playwright and axe-core runs do not emulate TalkBack. Use the current feature preview URL only after confirming it loads in the device browser. Do not enter a backend Bearer token or any Binance credential during this accessibility-only pass.
+
+**Test setup and evidence**
+1. Open the current feature-branch Cloudflare Pages preview in Chrome on a physical Android device. Record device model, Android version, Chrome version, viewport/orientation, and test date in the QA evidence (do not record personal account information).
+2. Enable TalkBack from Android Settings → Accessibility → TalkBack, or use the device's configured accessibility shortcut. Exact menu labels can differ by Android/OEM version.
+3. With the Dashboard disconnected and no credentials entered, navigate by swipe right/left through the page. Confirm the page title, navigation landmark/label, active navigation item, headings, controls, status announcements, and visible text are announced meaningfully.
+4. Open the mobile navigation. Confirm the menu control exposes an understandable name and expanded/collapsed state; focus moves into the opened navigation; each link is announced with a useful name; selecting a link changes the view and does not leave focus stranded behind the menu.
+5. Close the navigation using its visible close control and, where supported, Android Back. Confirm focus returns to the menu control and the hidden navigation is no longer traversed.
+6. Move through the Dashboard with TalkBack and verify icon-only controls are not announced as raw Unicode glyphs. Check the mobile menu and refresh controls in particular. Confirm each has a meaningful spoken label and visible focus/selection state.
+7. Verify connection status and error messages are announced when they appear. Do not test by supplying secrets; use only the disconnected state and safe invalid/empty-input validation.
+8. Rotate portrait/landscape and repeat the navigation/focus checks. Check 320–480 CSS-pixel-equivalent narrow layouts where available, text scaling, and zoom without horizontal page overflow.
+9. Disable TalkBack after testing. Record each result as Pass / Fail / Not tested with a short observation; capture screenshots only where they contain no credentials or personal information.
+
+**Acceptance and reporting**
+- Any unlabeled control, raw glyph announcement, lost focus, inaccessible menu state, silent status/error update, keyboard/touch navigation trap, or clipped essential content is a defect to reproduce and document.
+- Do not mark physical-device/TalkBack validation complete based on desktop emulation, Playwright, axe-core, or this checklist alone. A user/device tester must perform the steps and provide the observed results.
+- This protocol is a test plan only; no physical Android/TalkBack execution is claimed.
