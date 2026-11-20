@@ -201,3 +201,11 @@ Reopened package/dependents (if any) and reason:
 - HEAD is 9 commits ahead / 0 behind the known tested source commit `c8655bf79c408ca460337463c8bb8ffea64af258`; only three documentation files differ. This does not substitute for a fresh browser run.
 - The available GitHub connection here supports read/status operations but not workflow dispatch. No repository settings or variables changed.
 - Detailed evidence boundary added to QA Audit Section 89. WP-09 remains active pending actual browser run evidence and physical-device/manual screen-reader validation.
+
+
+### WP-09 touch-target and contrast coverage review — 2026-11-20
+
+- Static CSS review found compact controls at 31px height, icon buttons at 33px height / 34px min-width, and nav links at 34px min-height. These are declarations, not rendered measurements or proof of a standards failure.
+- Existing browser and Python accessibility tests do not contain a dedicated rendered target-size inventory or computed color-contrast assertions.
+- No code/style defect confirmed; no runtime changes made. Next: add a focused Playwright rendered-bounds audit and contrast report, then investigate only reproducible failures. No browser execution or physical-device evidence is claimed.
+- Full details and evidence limits: `docs/DASHBOARD_QA_AUDIT.md`, Section 90.
