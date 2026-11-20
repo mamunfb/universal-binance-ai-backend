@@ -2177,3 +2177,11 @@ The Dashboard backend URL validation gap was addressed in source and browser-tes
 - These are code and test additions only. A successful execution of the new Playwright cases has not yet been independently verified; do not mark the regression tests as passed until the relevant workflow has a real runner, executed test steps, and retrievable logs.
 - Live CORS remains a separate blocker. No GitHub Actions variables, Render environment variables, secrets, CORS allowlist, database, production resources, or trading configuration were changed.
 - No PR merge or Production deployment was performed. No Render Staging configuration change or deployment was initiated as part of this URL-validation work.
+
+### URL validation browser fixture correction — 2026-11-20
+
+Follow-up source review found the two new successful cross-origin health fixtures needed an explicit `Access-Control-Allow-Origin: *` response header, matching the existing isolated browser-test convention. Added that header to both fixture routes so the tests exercise URL validation rather than failing prematurely on browser CORS enforcement.
+
+- Fixture correction commit: `367be0ab08878b0b8a89a45897e00a4249c64114`.
+- This wildcard exists only in the local Playwright mock response; it is not a backend or Render CORS configuration and does not authorize any live origin.
+- The new Playwright tests remain unexecuted/unverified. The latest commit status query returned no status checks; no passing CI run is claimed.
