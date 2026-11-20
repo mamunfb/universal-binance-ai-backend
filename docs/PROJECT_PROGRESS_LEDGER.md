@@ -248,3 +248,10 @@ Reopened package/dependents (if any) and reason:
 - Target inventory across 5 widths × mobile nav closed/open: zero undersized candidates; previous `#banner-settings` 17px-height finding no longer present.
 - Contrast scans: zero violations on desktop and mobile closed/open; each scan has one incomplete item requiring review.
 - See QA Audit Section 95. WP-09 remains active pending incomplete contrast review, physical device/TalkBack, and live integration evidence.
+
+
+### WP-09 contrast incomplete diagnostics — 2026-11-20
+
+- Added selector and axe check detail logging for `color-contrast` incomplete results; zero-violation assertion remains unchanged.
+- Source commit `7dfcb08f249211477fc15fc1b1884e630ed17c87`; awaiting Browser QA execution to inspect the incomplete item.
+- See QA Audit Section 96.
