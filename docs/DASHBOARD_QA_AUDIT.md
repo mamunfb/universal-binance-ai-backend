@@ -2030,3 +2030,12 @@ Updated browser test source commit: `2ca64bf2e7baa6dea98eac4b4d8ba8c9d896e37a`. 
 **Verification boundary**
 - The fix and regression assertion have been committed to the authorized feature branch, but they have not yet been run by Chromium. Run #66 tested the immediately preceding source state, before this correction.
 - A new Browser QA run is required before marking the target-size finding resolved. No physical-device/TalkBack, live CORS, or production evidence is implied.
+
+
+## 95. Post-fix Chromium verification (2026-11-20)
+
+- Browser QA run #68, run ID `44675942662`, commit `4e7853fbffe73a375fd37e2f7fb2edf39bab819e`: completed success.
+- Chromium job `Chromium responsive, keyboard and API fault tests`: success. Node test summary: 22 tests, 22 passed, 0 failed; duration 30.384 seconds.
+- Target-size inventory at 320, 360, 390, 480 and 900 CSS px, with mobile navigation closed/open: all 10 states reported zero candidates below 24px. The prior `#banner-settings` 118.75×17px candidate is no longer present after the `.text-btn` min-height/padding fix.
+- Dedicated axe-core contrast scans (mobile closed/open and desktop) report zero violations in all three states. Each state still reports one axe `incomplete` item. This is not a violation and not a confirmed pass for that unevaluated item; follow-up is to capture the incomplete node/reason and determine whether manual contrast review is required.
+- Scope remains local static Dashboard with mocked API under Chromium CI. No live CORS/backend integration, physical device, TalkBack, or production evidence is implied.
