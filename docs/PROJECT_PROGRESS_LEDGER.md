@@ -1,5 +1,5 @@
 # Project Progress Ledger
-Last updated: 2026-11-20 — USDⓈ-M diagnostic implementation committed; CI and Staging verification pending
+Last updated: 2026-11-20 — USDⓈ-M diagnostics and audit documentation committed; CI and Staging verification pending
 Repository: `mamunfb/universal-binance-ai-backend`
 Governing policy: [PROJECT_EXECUTION_GOVERNANCE.md](PROJECT_EXECUTION_GOVERNANCE.md)
 
@@ -135,7 +135,7 @@ Reopened package/dependents (if any) and reason:
 - Commits: provider diagnostics `6f8eafc95ce09cfbbea378878a384591b680db61`; preflight classification `e0324f79a902c652ff5bec6dfa4b525dbb75c1e1`; initial tests `7d026e8470f5dae2f6fa66ddcaf0927eaf7fc0fe`; test harness correction `5fd593cb01189d3957026ed0865a0527f3d5318a`; workflow coverage `8956b8167b5a057a5492c4fed591d7d15f0176e6`.
 - Render Staging remains deployed at commit `6fff1228936d3d507c2dc130f71d329946c42095`; auto-deploy is disabled. No Staging deploy was triggered, and no Production resource was changed.
 - Render application logs show successful health and preflight HTTP requests, but no upstream USDⓈ-M error body/status was logged. Therefore the original Render-side root cause remains **unconfirmed**.
-- Current branch HEAD after these changes: `8956b8167b5a057a5492c4fed591d7d15f0176e6`. The branch is three commits ahead of the staging baseline `6fff122`; the changes affect provider diagnostics, preflight reporting, regression tests, and workflow path filters only.
+- Code/workflow checkpoint: `8956b8167b5a057a5492c4fed591d7d15f0176e6`. Documentation commits: `5c8565d375f63a4a7785f63c712631a181a298a1` and `79ec669c9b67ce33325793f717f3014de3613c00`. Current branch HEAD: `79ec669c9b67ce33325793f717f3014de3613c00`. The branch is seven commits ahead of the Staging baseline `6fff122`; changes affect provider diagnostics, preflight reporting, regression tests, workflow path filters, and audit documentation only.
 - Local execution was unavailable because the execution container could not resolve GitHub to retrieve the repository. No local test pass is claimed.
 
 ### Next gates
