@@ -1341,6 +1341,45 @@ async def futures_funding_info(market: Literal["USD_M", "COIN_M"]) -> dict:
     }
 
 
+@app.get("/api/v1/markets/futures/usdm/continuous-klines/{symbol}", tags=["markets"])
+async def usdm_continuous_klines(
+    symbol: str,
+    interval: Literal["1s"] = "1s",
+    limit: int = Query(default=500, ge=1, le=1500),
+) -> dict:
+    normalized_symbol = symbol.strip().upper()
+    if not normalized_symbol:
+        raise HTTPException(status_code=422, detail="symbol must not be empty")
+    provider = get_futures_provider("USD_M")
+    try:
+        exchange_info = await provider.exchange_info()
+        matches = [
+            item for item in exchange_info.get("symbols", [])
+            if isinstance(item, dict) and str(item.get("symbol", "")).upper() == normalized_symbol
+        ]
+        if len(matches) != 1:
+            raise HTTPException(status_code=404, detail="USD-M contract symbol was not found in current exchange metadata")
+        contract = matches[0]
+        if contract.get("status") != "TRADING":
+            raise HTTPException(status_code=422, detail="USD-M contract is not currently trading")
+        pair = contract.get("pair")
+        contract_type = contract.get("contractType")
+        if not isinstance(pair, str) or not pair.strip():
+            raise HTTPException(status_code=502, detail="Binance exchange metadata did not provide a valid contract pair")
+        rows = await provider.continuous_klines(pair, contract_type, interval, limit)
+    except HTTPException:
+        raise
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail={"status": "FAILED", "error": type(exc).__name__}) from exc
+    return {
+        "status": "COMPLETED", "source": "Binance USD-M Futures continuous-contract public REST API",
+        "symbol": normalized_symbol, "pair": pair, "contract_type": contract_type,
+        "interval": interval, "count": len(rows), "klines": rows,
+    }
+
+
 @app.get("/api/v1/markets/futures/usdm/klines/{symbol}", tags=["markets"])
 async def usdm_klines(
     symbol: str,
