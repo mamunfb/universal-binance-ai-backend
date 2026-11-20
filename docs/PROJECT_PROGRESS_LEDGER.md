@@ -264,3 +264,12 @@ Reopened package/dependents (if any) and reason:
 - Incomplete results are now understood: mobile icon-only controls use non-BMP glyphs that axe cannot evaluate as text; desktop sidebar items are partially obscured/clipped in the scrollable nav region; the short logo mark is too brief for axe to classify. These are evaluation limitations/manual review items, not demonstrated contrast violations and not evidence that all contrast requirements pass.
 - No additional runtime change warranted from this diagnostic alone. Details and limitations recorded in QA Audit Section 97.
 - WP-09 remains active pending manual visual review, physical Android/TalkBack validation, and live cross-origin integration evidence. No Staging deployment, Production change, main modification, or PR merge.
+
+### WP-09 live CORS integration failure — Run #34 — 2026-11-20
+
+- Live integration workflow Run #34 / ID `44675929713` failed: browser response lacked the required exact `Access-Control-Allow-Origin` header (`null`).
+- Workflow used older Dashboard URL `https://7e74d124.universal-binance-ai-backend.pages.dev/`; current recorded feature preview is `https://feat-institutional-dashboard-qitb.universal-binance-ai-backend.pages.dev/`.
+- Render Staging logs show OPTIONS HTTP 200 and invalid-Bearer GET HTTP 401, but the browser could not read the response because the exact CORS allow-origin header was absent.
+- Likely causes: stale Actions variable and/or Staging `CORS_ALLOWED_ORIGINS` missing the exact current origin. Underlying env setting not confirmed from service metadata; do not claim exact root cause yet.
+- Next: verify current preview URL and exact Staging CORS allowlist. No Render environment change or Staging deploy performed because this would change Staging configuration and explicit approval has not been given. Never use wildcard CORS.
+- Details in QA Audit Section 98. WP-09 remains active; local Chromium pass does not clear this live integration blocker.
