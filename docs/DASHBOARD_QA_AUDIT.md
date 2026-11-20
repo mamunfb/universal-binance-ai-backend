@@ -1917,3 +1917,27 @@ A targeted static source review was performed on the active governance branch. T
 4. Record screenshots, browser/device versions, exact viewport dimensions, and actual pass/fail observations. Keep simulated viewport results separate from physical-device evidence.
 
 **Change control:** No dashboard runtime code, backend code, workflow, Actions variables/secrets, CORS, Render configuration, deployment, database, `main`, or PR state was changed in this source review.
+
+
+## 88. Browser QA workflow and test-coverage source review (2026-11-20)
+
+Inspected the active branch's browser QA workflow and its test source. This confirms test coverage is authored and wired; it does **not** establish that the workflow ran successfully on the latest branch head.
+
+**Workflow**
+- `.github/workflows/dashboard-browser-qa.yml`, blob `3f35ed37139b6ffbbf540bb587525eadcd4b50ee`.
+- Push trigger includes `feat/institutional-dashboard-task-governance` and dashboard/test/workflow paths; manual `workflow_dispatch` is also enabled.
+- Job installs pinned Playwright 1.56.1 and axe-core 4.10.3, installs Chromium, and runs `node --test tests/test_dashboard_browser.cjs`.
+
+**Test source**
+- `tests/test_dashboard_browser.cjs`, blob `10bb737a39f5a4cfe4f4c36bf418f7ed45a977ac`, contains 20 browser test cases.
+- Responsive page/body overflow checks cover viewport widths 320, 344, 360, 390, 480, 760, 768, 900, 1100 and 1280 CSS px.
+- Mobile navigation checks cover first Tab focus, visible focus indicator, sidebar open/closed inert state, Tab/Shift+Tab wrapping, Escape close, focus restoration, and viewport changes between mobile and desktop.
+- axe-core automated WCAG 2.1 A/AA checks are included for desktop and for mobile with navigation both closed and open.
+- Additional mocked-browser checks cover HTTP 503, malformed/empty/invalid JSON, network failure, request timeout, request cancellation, stale response ordering, text-only rendering of backend error content, cookie omission/no-store behavior, and 1,000-row table pagination/search/keyboard sorting.
+
+**Evidence boundary**
+- These are local Chromium tests against a local static Dashboard server with mocked backend routes. The mock route examples return permissive CORS headers; they do not prove actual Cloudflare Pages → Render CORS behavior. That is a separate live workflow.
+- axe-core automation is not a substitute for human screen-reader review. No physical Android/TalkBack or iOS/VoiceOver evidence is established by this workflow.
+- A current successful run of this workflow on the latest branch head has not been verified in this review. Do not infer it from the presence of the workflow or its test source.
+
+**Next verification:** obtain a real successful browser QA run on the current dashboard source commit, then perform manual device/assistive-technology checks when available. Do not change workflow, runtime source, CORS, credentials or deployment settings merely to manufacture evidence.
