@@ -325,3 +325,11 @@ Reopened package/dependents (if any) and reason:
 - Performance Run #46 Lighthouse cold-load passed, but profiler failed because its old resource assertion required chart.js on initial load. Profiler updated to validate initial absence and subsequent on-demand load; Performance Run #47 queued/in progress.
 - Live integration Run #38 failed because its configured DASHBOARD_URL remains stale (`https://7e74d124.universal-binance-ai-backend.pages.dev/`); browser received no ACAO header. Current live CORS allowlist not exposed. No URL variable or Render config changed.
 - Current branch head e48bb642fb270320fc59a924d8879252f87675b3 is 81 commits ahead and 0 behind the latest visible Staging deploy commit 6fff1228936d3d507c2dc130f71d329946c42095. Staging deployment remains untouched.
+
+### WP-09 Performance QA Run #48 completed — 2026-11-20
+
+- Performance Run #48 / ID 44692311070 passed on commit 5499f9a2e090c055d3c67a89f230012e86245de4. Raw job log confirms all three mobile Lighthouse audits and CPU-throttled browser/heap profiling succeeded; artifact 14608719186 uploaded successfully.
+- Lighthouse mobile local-QA scores: 99/100/100; FCP 901–903 ms; LCP 1,501–1,528 ms; TBT 0–133.5 ms; CLS 0–0.0000325. Unused-JS estimate remains 38 KiB. Not live Staging/Production measurements.
+- Profiler confirms app.js only on initial load (48,118 transfer bytes); chart.js is fetched only on technical-chart demand (23,963 transfer bytes). Two CPU throttle samples (1×/4×) recorded scanner metrics, post-GC heap deltas 9,688 / 4,892 bytes, DOM deltas +5 / 0, and no page errors. This is not a sustained leak test or physical-device benchmark.
+- QA audit Section 108 records the raw metrics, artifact identity, interpretation, and evidence limits. Audit update commit: 0b39cbc5809a4065cd75ff8af6f2cae37e5cfef9.
+- No Staging/Production deployment/restart, merge, main change, secrets/env/CORS, database, or trading configuration changed. WP-09 remains active for live CORS integration and physical Android/TalkBack validation.
