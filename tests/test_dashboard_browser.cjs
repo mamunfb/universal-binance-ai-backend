@@ -834,9 +834,17 @@ test("dedicated WCAG text-contrast scan reports desktop and mobile navigation st
         summary: node.failureSummary
       }))
     }));
+    const incomplete = results.incomplete
+      .filter(item => item.id === "color-contrast")
+      .flatMap(item => item.nodes.map(node => ({
+        target: node.target,
+        summary: node.failureSummary,
+        checks: [...(node.any || []), ...(node.all || []), ...(node.none || [])]
+          .map(check => ({id: check.id, message: check.message, data: check.data}))
+      })));
     console.log("WCAG text contrast", state, JSON.stringify({
       passes: results.passes.filter(item => item.id === "color-contrast").length,
-      incomplete: results.incomplete.filter(item => item.id === "color-contrast").length,
+      incomplete,
       violations
     }));
     assert.deepEqual(violations, [], state + " text contrast violations");
