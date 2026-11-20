@@ -878,3 +878,14 @@ The USDⓈ-M provider endpoint was checked against Binance's current official do
 - The separate live cross-origin integration is not proven by this Python/JavaScript validation job. Existing missing URL variables / least-privilege QA credential constraints remain open.
 - Render Staging was not deployed and remains on its previous known commit; no Production, database, secrets, trading, or order-execution changes were made.
 - Next gate: obtain explicit authorization before deploying this tested commit to the existing Render Staging service, then run the protected preflight and capture the real USDⓈ-M upstream status/body. Do not mark the USDⓈ-M root cause fixed until this live Staging evidence exists.
+
+
+## Staging access and deployment gate review — 2026-11-20
+
+- Re-inspected the existing Render Staging service configuration: service `srv-dbvpa24s728c739re7c0`, branch `feat/institutional-dashboard-task-governance`, `autoDeploy=no`; latest deployed commit remains `6fff1228936d3d507c2dc130f71d329946c42095`.
+- Render request logs show successful `GET /health` responses (HTTP 200), and an earlier `GET /api/v1/research/preflight` response (HTTP 200) on the currently deployed baseline.
+- Later requests to protected `/api/v1/research/phase-readiness` returned HTTP 401 at 04:04:24Z and 04:08:45Z. This confirms the API-key middleware is active for API routes when a valid Bearer credential is not supplied. No credential value was accessed, copied, or exposed.
+- The `/api/v1/research/preflight` route is under `/api/` and is therefore subject to the same middleware. Existing authenticated Dashboard session / least-privilege QA access is needed to obtain a current protected preflight response.
+- The user said to continue after being asked about Staging deployment, but did not explicitly answer “yes” to the specific deployment authorization question. Therefore no Render deployment was triggered. Auto Deploy remains off.
+- No Render environment variables, secrets, CORS settings, database settings, Production resources, or trading capabilities were changed.
+- Next gate remains explicit authorization to deploy the tested Feature Branch commit to this Staging service, followed by authenticated preflight using existing least-privilege QA access. A successful `/health` response alone does not verify Binance USDⓈ-M connectivity.
