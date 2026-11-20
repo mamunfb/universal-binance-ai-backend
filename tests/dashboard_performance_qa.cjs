@@ -11,10 +11,12 @@ const {chromium}=require("playwright");
    const cdp=await context.newCDPSession(page);await cdp.send("Performance.enable");await cdp.send("HeapProfiler.enable");await cdp.send("Emulation.setCPUThrottlingRate",{rate});
    const errors=[],apiEvents=[];page.on("pageerror",e=>errors.push(e.message));page.on("requestfailed",r=>apiEvents.push({type:"requestfailed",url:r.url(),error:r.failure()?.errorText}));page.on("response",r=>{if(r.url().startsWith("https://qa.invalid/"))apiEvents.push({type:"response",url:r.url(),status:r.status()});});
    const fixtureRows=Array.from({length:1000},(_,i)=>({symbol:"COIN"+String(i).padStart(4,"0")+"USDT",base_asset:"COIN"+String(i).padStart(4,"0"),quote_asset:"USDT",last_price:(i+1).toFixed(4),quote_volume_24h:String((1000-i)*1250),price_change_percent_24h:String((i%21)-10),status:"TRADING"}));
+   const candleStart=Date.UTC(2025,0,1),candleRows=Array.from({length:250},(_,i)=>{const open=100+i*0.1,close=open+0.2;return[candleStart+i*3600000,String(open),String(Math.max(open,close)+0.5),String(open-0.5),String(close),String(1000+i),candleStart+i*3600000+3599999];});
    await page.route("https://qa.invalid/**",async route=>{
     const url=new URL(route.request().url());
     if(url.pathname==="/health")return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({status:"ok"})});
     if(url.pathname==="/api/v1/markets/spot/scan")return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({status:"ok",source:"deterministic QA fixture",eligible_count:1000,scanned_count:1000,failed_count:0,matched_count:1000,symbols:fixtureRows})});
+    if(url.pathname.startsWith("/api/v1/markets/spot/klines/"))return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({status:"ok",source:"deterministic QA fixture",klines:candleRows})});
     return route.fulfill({status:404,contentType:"application/json",body:JSON.stringify({detail:"Unmocked QA route"})});
    });
    const start=Date.now();const response=await page.goto("http://127.0.0.1:4173/",{waitUntil:"domcontentloaded"});const loadMs=Date.now()-start;
