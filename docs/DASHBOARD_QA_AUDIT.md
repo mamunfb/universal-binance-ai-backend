@@ -1992,3 +1992,14 @@ Inspected `dashboard/app.css`, `dashboard/index.html`, `tests/test_dashboard_bro
 - Source was updated on the feature branch; no browser runner result has yet been retrieved. Do not claim these new tests passed until a real GitHub Actions job executes them.
 - The target-size inventory is a review report, not a full automated WCAG conformance evaluator. Human review of spacing and exceptions remains required.
 - No CSS/runtime/backend source, workflow configuration, CORS, secrets, deployment, database, `main`, or PR state changed.
+
+
+## 92. Target inventory robustness refinement (2026-11-20)
+
+Reviewed the new target-size inventory after its first implementation and corrected two measurement-scope details:
+- Controls inside an `inert` ancestor are excluded, so closed mobile navigation items are not incorrectly counted as active pointer targets.
+- The inventory checks rendered controls throughout the document, not only those intersecting the initial viewport. It still excludes non-rendered/hidden elements using layout rectangles, computed display/visibility/opacity, and zero-size checks.
+- It now asserts that each viewport/state has at least one visible interactive control, preventing a vacuous empty inventory from appearing useful.
+- It records controls below 24px in either dimension for manual WCAG 2.2 SC 2.5.8 spacing/exception review; it does not automatically classify them as failures.
+
+Updated test blob: `tests/test_dashboard_browser.cjs` `7ec146931d37691af65e17b87dde1ee01d6c910f` (22 test cases total). This remains source-level verification only; no browser run result has been obtained for this change.
