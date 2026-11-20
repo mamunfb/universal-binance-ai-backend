@@ -240,3 +240,11 @@ Reopened package/dependents (if any) and reason:
 - CSS fix: `.text-btn` now has min-height 24px and 2px vertical padding. Added regression assertion that rejects this control if it remains below 24px.
 - Fix commits: CSS `739d5ebc969e2ae2a4553baed8fea84fd507e702`; browser test `4e7853fbffe73a375fd37e2f7fb2edf39bab819e`.
 - The 22/22 result predates the fix; awaiting a new Chromium run for post-fix proof. See QA Audit Section 94.
+
+
+### WP-09 post-fix Browser QA verified — 2026-11-20
+
+- Browser workflow run #68 / ID `44675942662`, commit `4e7853fbffe73a375fd37e2f7fb2edf39bab819e`: Chromium job success; 22/22 passed, 0 failed.
+- Target inventory across 5 widths × mobile nav closed/open: zero undersized candidates; previous `#banner-settings` 17px-height finding no longer present.
+- Contrast scans: zero violations on desktop and mobile closed/open; each scan has one incomplete item requiring review.
+- See QA Audit Section 95. WP-09 remains active pending incomplete contrast review, physical device/TalkBack, and live integration evidence.
