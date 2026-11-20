@@ -834,3 +834,34 @@ The Spot scanner, Futures Boolean filter, dashboard HTML rendering, market-data 
 - GitHub Actions run `42973159109` completed SUCCESS on commit `e08ae423149f4f49341a5b1c86d15911110fc653`: Ruff passed, dashboard JavaScript syntax passed, and pytest reported **673 passed, 2 warnings**.
 - This verifies the tested concurrent writer and rollback cases; it is not a comprehensive long-duration load test or multi-process production database qualification. The store still relies on SQLite's default connection timeout and does not configure WAL mode explicitly.
 - Complete route-level EVM API audit, chain-specific RPC result audit, and live-provider/deployment verification remain open. Paired Phase 01 statuses remain unchanged.
+
+
+## USDⓈ-M provider diagnostics — 2026-11-20
+
+The USDⓈ-M provider endpoint was checked against Binance's current official documentation: `GET /fapi/v1/exchangeInfo` at `https://fapi.binance.com`. The endpoint path and base URL in `backend/app/providers/binance_futures.py` match.
+
+### Diagnostic implementation
+
+- HTTP status errors now carry bounded, structured diagnostics: status code, URL stripped of query parameters, response text capped at 512 characters, `Retry-After`, and the allow-listed `X-MBX-USED-WEIGHT-1M` response header.
+- The preflight probe reports a failure category instead of collapsing every failure into only an exception type.
+- Response headers are allow-listed; cookies and arbitrary headers are excluded. Raw exception messages and request query strings are not exposed.
+- Automatic retries are intentionally not enabled in this diagnostic checkpoint. HTTP 418/429/451 must not be blindly retried; retry behavior requires status-aware policy and evidence.
+- Regression cases cover 403, 418, 429, 451, 500, 503 and body truncation. These changes are committed, but a CI execution on the resulting HEAD has not yet been verified.
+- The Render Staging service remains on its previous deployed commit; no staging or production deployment was made.
+
+### Evidence and limitations
+
+- Provider implementation commit: `6f8eafc95ce09cfbbea378878a384591b680db61`.
+- Preflight classification commit: `e0324f79a902c652ff5bec6dfa4b525dbb75c1e1`.
+- Regression test correction: `5fd593cb01189d3957026ed0865a0527f3d5318a`.
+- Workflow test-path coverage: `8956b8167b5a057a5492c4fed591d7d15f0176e6`.
+- Branch HEAD: `8956b8167b5a057a5492c4fed591d7d15f0176e6`.
+- The original Render-side upstream response status/body is still unavailable. The root cause is not established. A previous successful preflight HTTP response does not mean the USDⓈ-M probe succeeded internally.
+- The current code change improves observability; it does not claim that USDⓈ-M connectivity has been restored.
+
+### Remaining verification
+
+1. Confirm CI runner execution and inspect the new test results.
+2. Deploy to Staging only after CI evidence is verified and only with explicit deployment authorization.
+3. Re-run the protected preflight endpoint and capture the structured USDⓈ-M error details.
+4. Continue the independent Spot/USDⓈ-M/COIN-M market-data audit after the failure class is known.
