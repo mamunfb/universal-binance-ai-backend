@@ -1959,3 +1959,27 @@ A focused source review of the feature-branch Dashboard HTML/JavaScript and CORS
 - No actual frontend URL, backend URL, Bearer token, repository Actions variable, or secret was added or exposed during this source audit.
 
 **Deployment implication:** A same-origin Dashboard served at `/dashboard` can call its backend without cross-origin CORS. A Cloudflare Pages frontend calling a separate backend requires an explicitly approved origin and an executed live cross-origin smoke test before claiming integration success.
+
+
+## 90. Dashboard API request/response contract review (2026-11-20)
+
+A read-only review traced the Dashboard's request construction and response handling against the current `main` route definitions and service implementations.
+
+**Candle chart contract**
+- `dashboard/chart.js` selects one of the Spot, USD-M, or COIN-M Kline routes, sends `interval` and `limit=1000`, and requires a JSON object containing a `klines` array before rendering.
+- The three `main` Kline handlers return the expected top-level `status`, `source`, `symbol`, `interval`, `count`, and `klines` fields. This confirms source-level response-shape compatibility for supported intervals.
+- The chart client offers `1s` among its supported timeframe values, but the current `main` Spot, USD-M, and COIN-M route interval Literals do not accept `1s`. The feature branch intentionally gates the 1s UI control to Spot and carries the required Spot interval contract change. A main-based port must include that Spot-only API change and its regression test; otherwise selecting 1s will receive validation failure. USD-M and COIN-M remain unavailable for 1s in the UI.
+
+**Market evidence contract**
+- The Dashboard calls `GET /api/v1/analysis/market-evidence/{symbol}`, accepts only a JSON object, and displays the returned `summary`/ `status` plus the full evidence payload.
+- The current `main` route delegates to `build_market_evidence_snapshot`; its tests cover completed/incomplete evidence sections and explicitly assert `NO_TRADE_DECISION`, null buy/sell signal, and null probability.
+- The frontend correctly treats this endpoint as an evidence summary, not as candle data. The candle chart is loaded independently from the Kline endpoints.
+
+**Market-data quality contract**
+- The quality form sends `market`, `symbol`, `interval`, and `lookback_hours`. Its interval choices match the backend route's allowed interval set; its lookback validation matches the backend's 1–2160 hour bound.
+- The backend quality engine reports stored-data availability, freshness, coverage and collector status. Its tests explicitly distinguish `NO_DATA`, `DEGRADED`, `STALE`, and `NOT_MEASURABLE`; a successful HTTP response must not be interpreted as proof that live streams are healthy or complete.
+- The Dashboard currently renders the quality report as structured JSON, so no undocumented response-field assumptions were found in this path.
+
+**Evidence classification**
+- This review is static source inspection plus review of existing unit tests. It is not a live HTTP test against Binance, a running backend, Cloudflare Pages, or Render.
+- No code, `main`, PR, deployment, database, secret, or hosted configuration was changed. The integration-branch approval gate recorded in section 88 remains in force.
