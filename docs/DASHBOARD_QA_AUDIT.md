@@ -2039,3 +2039,8 @@ Updated browser test source commit: `2ca64bf2e7baa6dea98eac4b4d8ba8c9d896e37a`. 
 - Target-size inventory at 320, 360, 390, 480 and 900 CSS px, with mobile navigation closed/open: all 10 states reported zero candidates below 24px. The prior `#banner-settings` 118.75×17px candidate is no longer present after the `.text-btn` min-height/padding fix.
 - Dedicated axe-core contrast scans (mobile closed/open and desktop) report zero violations in all three states. Each state still reports one axe `incomplete` item. This is not a violation and not a confirmed pass for that unevaluated item; follow-up is to capture the incomplete node/reason and determine whether manual contrast review is required.
 - Scope remains local static Dashboard with mocked API under Chromium CI. No live CORS/backend integration, physical device, TalkBack, or production evidence is implied.
+
+
+## 96. Contrast incomplete-result diagnostics (2026-11-20)
+
+The post-fix Browser QA run reported zero axe-core `color-contrast` violations in desktop and mobile states, but one `incomplete` result in each state. The prior test logged only the count, which did not identify what required manual review. Updated the test to log each incomplete node's target selector, failure summary, and axe check IDs/messages/data. This is diagnostic-only; it does not relax or alter the zero-violation assertion. Await a new Chromium run to inspect the actual incomplete item. Source commit: `7dfcb08f249211477fc15fc1b1884e630ed17c87`.
