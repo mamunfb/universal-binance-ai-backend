@@ -1894,3 +1894,28 @@ The dashboard workstream now continues on `feat/institutional-dashboard-task-gov
 **Change control**
 - No `main` update, PR creation/merge, production or staging deployment, database change, production secret change or trading/execution capability change was made.
 - The new dashboard governance branch has its own workflow branch filters so backend/dashboard, frontend, browser, performance and live-integration workflows can run there. The live workflow's successful configuration check must not be described as a successful live integration test.
+
+
+## 87. Dashboard static-asset branch CI and browser verification (2026-11-20)
+
+The isolated branch `fix/backend-dashboard-static-assets` was verified at commit `91f9f838fa23d365d54f5bf270ec8c9c15a64dcf`.
+
+**Backend + Dashboard CI**
+- Run ID: `44775319606`; job ID: `136423532206`; conclusion: **success**.
+- Dashboard HTML validation: **success**; 2 script references and 1 stylesheet reference were validated.
+- Dashboard JavaScript syntax validation: **success**.
+- Python test suite: **684 passed in 4.93s**; no failures.
+
+**Standalone Chromium browser QA**
+- Run ID: `44775319567`; job ID: `136423451505`; conclusion: **success**.
+- Node browser harness: **21 passed, 0 failed, 0 skipped**.
+- The new regression test verifies that the 1-second chart timeframe is enabled for Spot, disabled for USD-M and COIN-M, and that switching from Spot while 1s is selected safely resets the selected timeframe to 1m.
+
+**Asset access and API authentication contract**
+- The branch test `tests/test_dashboard_asset_routes.py` verifies `/dashboard`, CSS, and JavaScript assets return successfully without browser Bearer authentication, while an unauthenticated `/api/v1/research/phase-readiness` request remains HTTP 401.
+- This is automated TestClient evidence for the branch implementation; it is not a live deployment or external-browser test against a hosted backend.
+
+**Integration and change-control limitations**
+- The live Cloudflare Pages → Render integration workflow was not part of these two runs. Live cross-origin integration remains unverified until the approved preview/backend URLs and QA credentials are available and the live smoke test actually executes.
+- A fresh comparison of `main` against this branch reports a divergent history (732 commits ahead, 1 behind; merge base `527afbb3f2aff7c76db32fb3593302e2cc3ccab5`) and a broad 42-file comparison. The ahead count reflects the branch's full history relative to that merge base; it must not be described as 732 newly added static-asset commits. Integration therefore requires a deliberate, separately reviewed scope/branch strategy rather than a direct merge.
+- No `main` update, PR creation/merge, production or staging deployment, database change, secret/configuration change, or CORS relaxation was performed.
