@@ -768,3 +768,66 @@ test("the latest research-readiness request wins when an older endpoint responds
   assert.deepEqual(pageErrors, []);
   await context.close();
 });
+
+
+test("visible pointer targets are inventoried against WCAG 2.2 24px minimum for manual spacing review", async () => {
+  const reports = [];
+  for (const width of [320, 360, 390, 480, 900]) {
+    const {context, page, pageErrors} = await newPage(width, 844);
+    const candidates = await page.evaluate(() => {
+      const selector = 'button,input:not([type="hidden"]),select,textarea,a[href],[role="button"],[role="link"],[tabindex]:not([tabindex="-1"])';
+      const elements = [...new Set(document.querySelectorAll(selector))];
+      return elements.filter(el => {
+        const style = getComputedStyle(el);
+        return el.getClientRects().length > 0 && style.display !== "none" &&
+          style.visibility !== "hidden" && Number(style.opacity) > 0;
+      }).map(el => {
+        const rect = el.getBoundingClientRect();
+        return {
+          tag: el.tagName.toLowerCase(),
+          id: el.id || null,
+          label: (el.getAttribute("aria-label") || el.innerText || el.getAttribute("title") || "").trim().slice(0, 80),
+          width: Math.round(rect.width * 100) / 100,
+          height: Math.round(rect.height * 100) / 100
+        };
+      }).filter(item => item.width < 24 || item.height < 24);
+    });
+    reports.push({viewport: width, undersizedCandidatesForSpacingReview: candidates});
+    assert.ok(candidates.length >= 0);
+    assert.deepEqual(pageErrors, [], width + "px runtime errors");
+    await context.close();
+  }
+  console.log("WCAG 2.2 target-size candidate inventory (manual spacing/exception review required):",
+    JSON.stringify(reports));
+});
+
+test("dedicated WCAG text-contrast scan reports desktop and mobile navigation states", async () => {
+  const {context, page, pageErrors} = await newPage(390, 844);
+  await page.addScriptTag({path: require.resolve("axe-core")});
+  const scan = async state => {
+    const results = await page.evaluate(async () => window.axe.run(document, {
+      runOnly: {type: "rule", values: ["color-contrast"]}
+    }));
+    const violations = results.violations.map(item => ({
+      id: item.id,
+      nodes: item.nodes.map(node => ({
+        target: node.target,
+        summary: node.failureSummary
+      }))
+    }));
+    console.log("WCAG text contrast", state, JSON.stringify({
+      passes: results.passes.filter(item => item.id === "color-contrast").length,
+      incomplete: results.incomplete.filter(item => item.id === "color-contrast").length,
+      violations
+    }));
+    assert.deepEqual(violations, [], state + " text contrast violations");
+  };
+
+  await scan("mobile navigation closed");
+  await page.locator("#mobile-menu").click();
+  await scan("mobile navigation open");
+  await page.setViewportSize({width: 1280, height: 900});
+  await scan("desktop");
+  assert.deepEqual(pageErrors, []);
+  await context.close();
+});
