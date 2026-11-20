@@ -28,7 +28,31 @@ class BinanceFuturesProvider:
             headers={"User-Agent": "universal-binance-ai-backend/0.1.0"},
         ) as client:
             response = await client.get(path, params=params)
-            response.raise_for_status()
+            try:
+                response.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                failed_response = exc.response
+                try:
+                    request_url = str(failed_response.request.url).split("?", 1)[0]
+                except (AttributeError, RuntimeError):
+                    request_url = None
+                try:
+                    response_body = " ".join((failed_response.text or "").split())[:512]
+                except (AttributeError, UnicodeError):
+                    response_body = ""
+                safe_headers = {
+                    key: failed_response.headers[key]
+                    for key in ("retry-after", "x-mbx-used-weight-1m")
+                    if key in failed_response.headers
+                }
+                exc.diagnostics = {
+                    "http_status": failed_response.status_code,
+                    "request_url": request_url,
+                    "response_body": response_body or None,
+                    "retry_after": safe_headers.get("retry-after"),
+                    "rate_limit_headers": safe_headers,
+                }
+                raise
             return response.json()
 
     async def price_ticker(self, symbol: str) -> dict[str, Any]:
