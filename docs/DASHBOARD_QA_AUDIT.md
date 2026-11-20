@@ -2065,3 +2065,25 @@ The post-fix Browser QA run reported zero axe-core `color-contrast` violations i
 - No additional runtime CSS or application code change is justified by these diagnostics alone. The next useful check is a targeted manual visual review of the logo and scrollable sidebar content, plus screen-reader/TalkBack testing on a physical Android device.
 - Scope is local static Dashboard with mocked API under Chromium CI. It does not establish live Cloudflare-to-Render CORS, physical-device accessibility, TalkBack, or production behavior.
 - WP-09 remains active until outstanding live integration and physical assistive-technology evidence is obtained.
+
+## 98. Live CORS integration run #34 — exact-origin failure (2026-11-20)
+
+**Execution evidence**
+- Dashboard live integration workflow run #34, run ID `44675929713`, feature commit `739d5ebc969e2ae2a4553baed8fea84fd507e702`.
+- Job `Live cross-origin Chromium smoke test` failed in `tests/dashboard_live_integration.cjs` at the assertion requiring the browser response to expose the exact Dashboard origin.
+- Workflow environment logged Dashboard URL `https://7e74d124.universal-binance-ai-backend.pages.dev/` and backend URL `https://universal-binance-ai-backend-staging-qa.onrender.com`.
+- Browser assertion expected `Access-Control-Allow-Origin: https://7e74d124.universal-binance-ai-backend.pages.dev` but observed `null`.
+- Render Staging app logs at 2026-11-20 04:40:51Z show `OPTIONS /api/v1/research/phase-readiness` returned HTTP 200 and the subsequent GET returned HTTP 401. The invalid Bearer token was rejected as intended, but the browser could not read the response because the exact allow-origin header was absent.
+- The currently recorded branch preview is `https://feat-institutional-dashboard-qitb.universal-binance-ai-backend.pages.dev/`, which differs from the older Dashboard URL supplied to this workflow run.
+- Render Staging's latest inspected deploy remains commit `6fff1228936d3d507c2dc130f71d329946c42095`; service Auto Deploy remains disabled. No Staging deployment or environment-variable change was performed.
+
+**Diagnosis and limits**
+- Confirmed: the live browser test did not receive the required exact `Access-Control-Allow-Origin` response header for the Dashboard origin used by Run #34.
+- Confirmed: the configured Dashboard URL in this run is an older preview URL than the current feature-branch preview URL.
+- Likely configuration causes include a stale Dashboard preview URL in the repository Actions variable and/or the Render Staging `CORS_ALLOWED_ORIGINS` setting not containing the exact active Dashboard origin. The Render service environment values are not exposed by the inspected service metadata, so the precise underlying setting has not been confirmed.
+- HTTP 200 for OPTIONS alone does not prove that the exact origin was allowed; the browser assertion correctly failed when the response header was absent. HTTP 401 for the intentionally invalid token is expected only if the browser is permitted to read that response.
+
+**Next safe action**
+- Before another live run, verify the current exact Cloudflare Pages preview URL and the Render Staging `CORS_ALLOWED_ORIGINS` value. The allowlist must contain only the exact approved HTTPS origin(s); do not use `*`.
+- Updating Render environment variables would cause a Staging configuration/deployment change and is not authorized by the standing instruction. No such change was made. No API key or token was requested or exposed.
+- WP-09 remains active. Local Chromium browser QA success does not override this live integration failure. No production, main, database, secret, or PR state was changed.
