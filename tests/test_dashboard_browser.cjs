@@ -780,9 +780,13 @@ test("visible pointer targets are inventoried against WCAG 2.2 24px minimum for 
         const elements = [...new Set(document.querySelectorAll(selector))];
         const visible = elements.filter(el => {
           const style = getComputedStyle(el);
+          const sidebar = el.closest(".sidebar");
+          const mobileSidebarClosed = sidebar &&
+            window.matchMedia("(max-width: 900px)").matches &&
+            !sidebar.classList.contains("open");
           if (!el.getClientRects().length || style.display === "none" ||
               style.visibility === "hidden" || Number(style.opacity) === 0 ||
-              el.closest("[inert]")) return false;
+              el.closest("[inert]") || mobileSidebarClosed) return false;
           const rect = el.getBoundingClientRect();
           return rect.width > 0 && rect.height > 0;
         });
