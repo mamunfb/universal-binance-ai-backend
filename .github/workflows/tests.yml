@@ -62,8 +62,8 @@ jobs:
           html = Path("dashboard/index.html").read_text(encoding="utf-8")
           assert "<!doctype html>" in html.lower(), "Dashboard HTML doctype is missing"
           assert 'class="app-shell"' in html, "Dashboard shell is missing"
-          scripts = re.findall(r'<script\\b[^>]*src=["\\']([^"\\']+)["\\'][^>]*>', html, flags=re.I)
-          stylesheets = re.findall(r'<link\\b[^>]*href=["\\']([^"\\']+\\.css)["\\'][^>]*>', html, flags=re.I)
+          scripts = re.findall('<script[^>]+src="([^"]+)"', html, flags=re.I)
+          stylesheets = re.findall('<link[^>]+href="([^"]+[.]css)"', html, flags=re.I)
           assert "/dashboard-assets/chart.js" in scripts, "dashboard chart.js asset route is not referenced"
           assert "/dashboard-assets/app.js" in scripts, "dashboard app.js asset route is not referenced"
           assert "/dashboard-assets/app.css" in stylesheets, "dashboard app.css asset route is not referenced"
