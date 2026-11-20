@@ -15,13 +15,18 @@ let browser;
 before(async () => {
   server = http.createServer((req, res) => {
     const pathname = decodeURIComponent(new URL(req.url, "http://127.0.0.1").pathname);
-    const file = path.resolve(root, "." + pathname);
-    if (file !== root && !file.startsWith(root + path.sep)) {
+    let target;
+    if (pathname === "/" || pathname === "/dashboard" || pathname === "/dashboard/") {
+      target = path.join(root, "index.html");
+    } else if (pathname.startsWith("/dashboard-assets/")) {
+      target = path.resolve(root, "." + pathname.slice("/dashboard-assets".length));
+    } else {
+      target = path.resolve(root, "." + pathname);
+    }
+    if (target !== root && !target.startsWith(root + path.sep)) {
       res.writeHead(403).end("Forbidden");
       return;
     }
-    let target = file;
-    if (pathname === "/") target = path.join(root, "index.html");
     fs.readFile(target, (error, body) => {
       if (error) {
         res.writeHead(404).end("Not found");
