@@ -198,6 +198,8 @@ class BinanceFuturesProvider:
             raise ValueError("continuous klines are supported only for USD_M")
         if not pair or not pair.strip():
             raise ValueError("pair must not be empty")
+        if not isinstance(contract_type, str):
+            raise ValueError("contract_type must be a supported string")
         allowed_contract_types = {"PERPETUAL", "CURRENT_QUARTER", "NEXT_QUARTER", "TRADIFI_PERPETUAL"}
         normalized_type = contract_type.strip().upper()
         if normalized_type not in allowed_contract_types:
