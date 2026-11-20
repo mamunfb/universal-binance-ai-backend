@@ -1950,3 +1950,25 @@ Inspected the active branch's browser QA workflow and its test source. This conf
 - The HEAD comparison against the known tested source commit `c8655bf79c408ca460337463c8bb8ffea64af258` shows 9 commits ahead, 0 behind, with changes limited to three QA/governance documentation files. This supports that the Dashboard runtime and browser test source have not changed since that tested source commit, but it does not create a new browser-QA run or prove that the dedicated browser workflow passed.
 - The connected GitHub capability available in this session exposes repository reads and status inspection, but no workflow-dispatch action. No attempt was made to alter GitHub Actions variables, workflow permissions, or repository settings.
 - Status: browser workflow/test source reviewed; latest-head browser run not evidenced by the status query; physical device and human assistive-technology validation remain outstanding.
+
+
+## 90. Touch-target and visual-contrast coverage review (2026-11-20)
+
+Inspected `dashboard/app.css`, `dashboard/index.html`, `tests/test_dashboard_browser.cjs`, and `tests/test_dashboard_accessibility.py` on the active branch.
+
+**Observed source dimensions**
+- Primary compact controls declare 31px control height; icon buttons declare 33px height and 34px minimum width; navigation links declare 34px minimum height.
+- These source declarations alone do not establish the rendered target dimensions for every interactive element, especially at each responsive breakpoint or after content wrapping.
+- Existing browser tests verify focus visibility, keyboard operation, overflow, and axe-core WCAG 2.1 A/AA rules. The Python accessibility contract checks labels, names, landmarks, focus CSS, and responsive declarations.
+
+**Coverage gap**
+- Neither inspected test suite contains a dedicated rendered bounding-box audit for interactive target sizes.
+- Neither inspected test suite asserts measured foreground/background contrast ratios for the Dashboard's visual states.
+- No source defect is confirmed by this inspection. The CSS dimensions cited above are not, by themselves, evidence of a WCAG failure; exact rendered size and applicable exceptions need evaluation.
+
+**Next QA action**
+- Add a focused Playwright audit that inventories visible interactive controls at mobile widths and records bounding boxes, then review any targets below the applicable WCAG 2.2 target-size threshold and exceptions before changing styles.
+- Run a contrast audit on actual computed foreground/background pairs for default, hover, active, disabled, and status states. Do not treat axe's existing automated scan as a substitute for a dedicated contrast report or manual review.
+- Keep these as test/QA work until a reproducible failing target or contrast pair is identified; do not change production styles based only on source-level estimates.
+
+**Evidence boundary:** static source/test inspection only; no browser runner was executed and no physical-device result is claimed.
