@@ -774,26 +774,30 @@ test("visible pointer targets are inventoried against WCAG 2.2 24px minimum for 
   const reports = [];
   for (const width of [320, 360, 390, 480, 900]) {
     const {context, page, pageErrors} = await newPage(width, 844);
-    const candidates = await page.evaluate(() => {
-      const selector = 'button,input:not([type="hidden"]),select,textarea,a[href],[role="button"],[role="link"],[tabindex]:not([tabindex="-1"])';
-      const elements = [...new Set(document.querySelectorAll(selector))];
-      return elements.filter(el => {
-        const style = getComputedStyle(el);
-        return el.getClientRects().length > 0 && style.display !== "none" &&
-          style.visibility !== "hidden" && Number(style.opacity) > 0;
-      }).map(el => {
-        const rect = el.getBoundingClientRect();
-        return {
-          tag: el.tagName.toLowerCase(),
-          id: el.id || null,
-          label: (el.getAttribute("aria-label") || el.innerText || el.getAttribute("title") || "").trim().slice(0, 80),
-          width: Math.round(rect.width * 100) / 100,
-          height: Math.round(rect.height * 100) / 100
-        };
-      }).filter(item => item.width < 24 || item.height < 24);
-    });
-    reports.push({viewport: width, undersizedCandidatesForSpacingReview: candidates});
-    assert.ok(candidates.length >= 0);
+    const collect = async state => {
+      const candidates = await page.evaluate(() => {
+        const selector = 'button,input:not([type="hidden"]),select,textarea,a[href],[role="button"],[role="link"],[tabindex]:not([tabindex="-1"])';
+        const elements = [...new Set(document.querySelectorAll(selector))];
+        return elements.filter(el => {
+          const style = getComputedStyle(el);
+          return el.getClientRects().length > 0 && style.display !== "none" &&
+            style.visibility !== "hidden" && Number(style.opacity) > 0;
+        }).map(el => {
+          const rect = el.getBoundingClientRect();
+          return {
+            tag: el.tagName.toLowerCase(),
+            id: el.id || null,
+            label: (el.getAttribute("aria-label") || el.innerText || el.getAttribute("title") || "").trim().slice(0, 80),
+            width: Math.round(rect.width * 100) / 100,
+            height: Math.round(rect.height * 100) / 100
+          };
+        }).filter(item => item.width < 24 || item.height < 24);
+      });
+      reports.push({viewport: width, state, undersizedCandidatesForSpacingReview: candidates});
+    };
+    await collect("navigation closed");
+    await page.locator("#mobile-menu").click();
+    await collect("navigation open");
     assert.deepEqual(pageErrors, [], width + "px runtime errors");
     await context.close();
   }
