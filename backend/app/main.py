@@ -9,6 +9,7 @@ from uuid import uuid4
 from fastapi import FastAPI, HTTPException, Query, Body, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -156,6 +157,13 @@ app = FastAPI(
         "Research-only crypto market data API with Binance Spot/Futures market data, "
         "technical analysis, derivatives snapshots, and optional liquidation collection."
     ),
+)
+
+# Dashboard HTML and static assets are intentionally public; API routes retain Bearer auth.
+app.mount(
+    "/dashboard-assets",
+    StaticFiles(directory=Path(__file__).resolve().parents[2] / "dashboard"),
+    name="dashboard-assets",
 )
 
 def _error_payload(
