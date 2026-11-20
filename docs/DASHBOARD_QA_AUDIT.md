@@ -1983,3 +1983,25 @@ A read-only review traced the Dashboard's request construction and response hand
 **Evidence classification**
 - This review is static source inspection plus review of existing unit tests. It is not a live HTTP test against Binance, a running backend, Cloudflare Pages, or Render.
 - No code, `main`, PR, deployment, database, secret, or hosted configuration was changed. The integration-branch approval gate recorded in section 88 remains in force.
+
+
+## 91. Browser credential lifetime and DOM-output security review (2026-11-21)
+
+A read-only review inspected the Dashboard connection flow, request helper, credential-clear action, and dynamic DOM rendering.
+
+**Credential handling observed**
+- Backend URL and Bearer token are assigned to the in-memory `state` object only after the user applies connection settings. No `localStorage` or `sessionStorage` use was found in `dashboard/app.js`.
+- The UI states that connection details are held in page memory. The explicit clear-credentials action empties the in-memory URL/token, clears the corresponding input fields, invalidates in-flight requests, and clears connection-scoped data.
+- API calls attach the token only as an Authorization Bearer header, set `credentials: "omit"`, and use `cache: "no-store"`.
+- Remote backend URLs must use HTTPS. HTTP is accepted only for localhost, 127.0.0.1, or [::1]. URL credentials, query strings, and fragments are rejected.
+- This is a source-level review; it does not prove browser memory erasure, prevent browser extensions or developer tools from observing page state, or validate a real cross-origin connection.
+
+**DOM output observed**
+- The only `innerHTML` assignment found in `dashboard/app.js` clears the scan-summary container with an empty string.
+- Dynamic JSON output and status labels use `textContent`; scan-summary rows are created as DOM elements and their values are assigned through `textContent`.
+- No `insertAdjacentHTML` or `outerHTML` use was found in this script. The `esc` helper is present for escaped string interpolation where used.
+- This narrows the inspected script's direct HTML-injection surface but is not a complete browser penetration test or a review of third-party browser extensions.
+
+**Evidence classification and scope**
+- Findings are based on static inspection of the feature-branch JavaScript and backend middleware source.
+- No credentials were entered, transmitted, or exposed during this review. No code, `main`, PR, deployment, database, secret, or hosted configuration was changed.
