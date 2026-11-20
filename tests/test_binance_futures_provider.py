@@ -345,9 +345,16 @@ async def test_futures_http_error_response_body_is_truncated(monkeypatch):
     body = "x" * 1000
     response = httpx.Response(502, request=request, text=body)
 
+    class ErrorResponse:
+        def __init__(self):
+            self.response = response
+
+        def raise_for_status(self):
+            self.response.raise_for_status()
+
     class ErrorClient(FakeAsyncClient):
         async def get(self, path, params=None):
-            raise httpx.HTTPStatusError("bad gateway", request=request, response=response)
+            return ErrorResponse()
 
     monkeypatch.setattr(
         "app.providers.binance_futures.httpx.AsyncClient",
