@@ -2067,3 +2067,19 @@ A focused provider-level regression test was added in `tests/test_binance_future
 **Evidence boundary:** The fake HTTP client proves that the application constructs the expected USDⓈ-M request; it does not prove Binance accepted the request or returned live 1-second candles. A live read-only exchange request remains outstanding.
 
 **Change control:** Only `tests/test_binance_futures_provider.py` and this audit document were updated on `fix/backend-dashboard-static-assets`. No `main`, PR, deployment, database, secret, hosted configuration, or trading/execution behavior was changed.
+
+
+## 96. USDⓈ-M 1-second REST endpoint documentation discrepancy (2026-11-21)
+
+A follow-up check found an important qualification to Sections 93–95:
+
+- Binance's USDⓈ-M Common Definition lists `1s` in its general Kline interval enum: https://developers.binance.com/zh-CN/docs/products/derivatives-trading-usds-futures/common-definition
+- The current USDⓈ-M REST Market Data reference separately documents `GET /fapi/v1/klines`; its displayed interval enum begins at `1m` and does not visibly list `1s`. In the same reference, the separate `GET /fapi/v1/continuousKlines` interval enum explicitly includes `1s`: https://developers.binance.me/en/docs/catalog/core-trading-derivatives-trading-usd-s-m-futures/api/rest-api/market-data
+- Therefore the general enum is not sufficient evidence that the Dashboard's current symbol-specific `/fapi/v1/klines` request accepts `1s`. The existing route/provider tests prove only that the application forwards the value; they do not prove exchange acceptance.
+- A read-only direct request to `https://fapi.binance.com/fapi/v1/klines?symbol=BTCUSDT&interval=1s&limit=2` could not be retrieved through the available web request path. No live API response was obtained, and no claim of live USDⓈ-M 1s support is made.
+
+**Current implementation state:** The feature branch still exposes 1s in the Dashboard for Spot and USDⓈ-M, and keeps it disabled for COIN-M. This is a branch-only implementation awaiting endpoint-level verification. Before any release, either verify the symbol-specific REST endpoint accepts 1s for representative USDⓈ-M symbols, or implement and test the documented continuous-Kline route with an explicit contract-type policy (for example, PERPETUAL only). Do not silently substitute continuous-contract data for a symbol-specific contract.
+
+**Next gate:** No further assertion of live USDⓈ-M 1s availability, no integration into `main`, and no deployment until the endpoint discrepancy is resolved. Existing fake-client tests remain useful request-construction tests only.
+
+**Change control:** This section is documentation-only on `fix/backend-dashboard-static-assets`. No application code, `main`, PR, deployment, database, secret, hosted configuration, or trading/execution behavior was changed in this step.
