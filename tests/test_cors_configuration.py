@@ -126,6 +126,8 @@ def test_protected_api_rejects_invalid_bearer_key(private_api_key):
     )
 
     assert response.status_code == 401
+    assert response.headers["access-control-allow-origin"] == "https://dashboard.example"
+    assert response.headers["www-authenticate"] == "Bearer"
 
 
 def test_protected_api_accepts_valid_bearer_key_for_allowed_origin(private_api_key):
