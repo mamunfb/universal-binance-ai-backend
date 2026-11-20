@@ -135,6 +135,7 @@ test("backend root URL validation accepts root origins and normalizes multiple t
     await page.route("https://backend.test/health", route => route.fulfill({
       status: 200,
       contentType: "application/json",
+      headers: {"access-control-allow-origin": "*"},
       body: JSON.stringify({status: "ok"})
     }));
     await page.locator("#backend-url").fill(input);
@@ -153,6 +154,7 @@ test("backend URL API paths are rejected without a request or changing the prior
     await page.route("https://backend.test/health", route => route.fulfill({
       status: 200,
       contentType: "application/json",
+      headers: {"access-control-allow-origin": "*"},
       body: JSON.stringify({status: "ok"})
     }));
     const backendRequests = [];
