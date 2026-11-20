@@ -290,3 +290,10 @@ Reopened package/dependents (if any) and reason:
 - Commit `98bba7a84d229af2fe1b6308f965fc1dd7bc069c`: invalid Bearer-token test now asserts HTTP 401, exact CORS allow-origin, and Bearer challenge header.
 - Backend/dashboard CI run `44677460067`: SUCCESS; full Python suite **694 passed in 11.71s**; Dashboard HTML/script and JS syntax checks passed.
 - Live CORS run `44677460013` was still running; Chromium installation in progress; no live CORS result yet. Configuration-check job skipped. No Staging config/deploy changes.
+
+### Live CORS failure reconfirmed with Chromium run — 2026-11-20
+
+- Run `44677460013` completed: Chromium setup succeeded; live browser test failed because `Access-Control-Allow-Origin` was `null` instead of exact old dashboard origin `https://7e74d124.universal-binance-ai-backend.pages.dev`.
+- Workflow environment confirms the repository Actions variable still uses the older preview URL. Current feature preview known from prior QA is `https://feat-institutional-dashboard-qitb.universal-binance-ai-backend.pages.dev/`; this run did not test it.
+- Exact-origin CORS allowlist source behavior is consistent with missing/mismatched `CORS_ALLOWED_ORIGINS`, but the actual Render env value remains unverified. Do not call it confirmed empty.
+- Required configuration corrections (Actions Preview URL and Render Staging exact-origin allowlist) have not been made. No Staging environment edit/redeploy, no Production changes, no merge. WP-09 remains blocked on authorized configuration and rerun.
