@@ -775,6 +775,41 @@ test("the latest research-readiness request wins when an older endpoint responds
 });
 
 
+test("USD-M one-second chart requests use the continuous-contract endpoint", async () => {
+  const {context, page, pageErrors} = await newPage(1280);
+  await page.addInitScript(() => {
+    window.__chartRequests = [];
+    const originalFetch = window.fetch.bind(window);
+    window.fetch = (input, init = {}) => {
+      const url = typeof input === "string" ? input : input.url;
+      if (url.includes("/api/v1/markets/futures/usdm/")) window.__chartRequests.push(url);
+      return originalFetch(input, init);
+    };
+  });
+  await page.reload({waitUntil: "networkidle"});
+  await page.locator("#global-market").selectOption("USD_M");
+  await page.locator("#global-symbol").fill("BTCUSDT");
+  await page.locator("#global-timeframe").selectOption("1s");
+  await page.route("https://backend.test/health", route => route.fulfill({
+    status: 200, contentType: "application/json",
+    headers: {"access-control-allow-origin": "*"}, body: JSON.stringify({status: "ok"})
+  }));
+  await page.locator('.nav-link[data-page="settings"]').click();
+  await page.locator("#backend-url").fill("https://backend.test");
+  await page.locator("#test-connection").click();
+  await page.getByText("Backend health endpoint responded successfully.").waitFor();
+  await page.locator('.nav-link[data-page="coin-analysis"]').click();
+  await page.route("https://backend.test/api/v1/markets/futures/usdm/continuous-klines/BTCUSDT**", route => route.fulfill({
+    status: 200, contentType: "application/json",
+    headers: {"access-control-allow-origin": "*"},
+    body: JSON.stringify({status: "COMPLETED", symbol: "BTCUSDT", pair: "BTCUSDT", contract_type: "PERPETUAL", interval: "1s", klines: [[1700000000000,"1","2","0.5","1.5","10"]]})
+  }));
+  await page.locator("#load-coin-analysis").click();
+  await page.waitForFunction(() => window.__chartRequests.some(url => url.includes("/continuous-klines/BTCUSDT?interval=1s")));
+  assert.deepEqual(pageErrors, []);
+  await context.close();
+});
+
 test("one-second chart timeframe is available for Spot and USD-M, but not COIN-M", async () => {
   const {context, page, pageErrors} = await newPage(1280);
   const oneSecond = page.locator("#analysis-timeframes button").filter({hasText: /^1s$/});
