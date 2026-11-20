@@ -209,3 +209,11 @@ Reopened package/dependents (if any) and reason:
 - Existing browser and Python accessibility tests do not contain a dedicated rendered target-size inventory or computed color-contrast assertions.
 - No code/style defect confirmed; no runtime changes made. Next: add a focused Playwright rendered-bounds audit and contrast report, then investigate only reproducible failures. No browser execution or physical-device evidence is claimed.
 - Full details and evidence limits: `docs/DASHBOARD_QA_AUDIT.md`, Section 90.
+
+
+### WP-09 target-size and contrast browser audits added — 2026-11-20
+
+- Added two Playwright cases to `tests/test_dashboard_browser.cjs`: rendered interactive-target candidate inventory at 320/360/390/480/900px with mobile navigation closed/open, and dedicated axe-core text-contrast scans for mobile closed/open plus desktop.
+- Target-size candidates below 24px are reported for manual spacing/exception review, not automatically failed; WCAG 2.2 SC 2.5.8 includes exceptions. Existing broad axe WCAG 2.1 A/AA scan already includes color contrast; the new test makes that result separately visible. Standards and exact details in QA Audit Section 91.
+- Test source updated, but no execution result retrieved yet. WP-09 remains active; do not report tests passing until a real runner result is verified.
+- No runtime CSS, backend, workflow configuration, secrets, CORS, deployment, database, `main`, or PR state changed.
