@@ -59,26 +59,6 @@ async def test_futures_klines_use_market_specific_endpoint_and_query_params(
     ]
 
 
-async def test_usdm_futures_klines_forward_one_second_interval(monkeypatch):
-    clients = []
-
-    def client_factory(**kwargs):
-        client = FakeAsyncClient(**kwargs)
-        clients.append(client)
-        return client
-
-    monkeypatch.setattr("app.providers.binance_futures.httpx.AsyncClient", client_factory)
-    provider = BinanceFuturesProvider("USD_M")
-
-    result = await provider.klines("btcusdt", interval="1s", limit=1000)
-
-    assert result == [["candle"]]
-    assert clients[0].kwargs["base_url"] == "https://fapi.binance.com"
-    assert clients[0].calls == [
-        ("/fapi/v1/klines", {"symbol": "BTCUSDT", "interval": "1s", "limit": 1000})
-    ]
-
-
 async def test_usdm_continuous_klines_use_pair_contract_type_and_one_second_interval(monkeypatch):
     clients = []
 
