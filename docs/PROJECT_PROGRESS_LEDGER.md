@@ -279,3 +279,8 @@ Reopened package/dependents (if any) and reason:
 
 - Reviewed CSS color pairs for the axe-incomplete sidebar and brand-mark elements. Computed source-level ratios: default nav labels 8.82637:1; nav group labels 4.58817:1; active nav 11.87471:1; hover nav 15.13284:1; brand-mark U at the light gradient endpoint 3.67875:1 (21px bold); sidebar footer secondary text 6.25853:1.
 - The inspected text pairs exceed the applicable WCAG 2.2 SC 1.4.3 thresholds (4.5:1 ordinary text; 3:1 large text). These are static CSS calculations only, not rendered/physical-device conformance evidence. No CSS change warranted from these pairs. Details and W3C source in QA Audit Section 99.
+
+### WP-09 physical Android/TalkBack protocol prepared — 2026-11-20
+
+- Added a reproducible manual test protocol in QA Audit Section 100 for physical Android Chrome + TalkBack: navigation landmarks/labels, mobile menu expanded state, focus entry/return, icon-only control announcements, status/error announcements, orientation/text scaling, and safe credential-free testing.
+- This is a test plan only. No physical-device/TalkBack execution is claimed. WP-09 remains active until a device tester records Pass/Fail/Not tested evidence.
