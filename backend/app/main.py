@@ -1070,7 +1070,22 @@ async def _preflight_probe(name: str, operation) -> dict:
         symbols = payload.get("symbols", []) if isinstance(payload, dict) else []
         return {"name": name, "status": "AVAILABLE", "symbol_count": len(symbols)}
     except Exception as exc:
-        return {"name": name, "status": "UNAVAILABLE", "error_type": type(exc).__name__}
+        result = {
+            "name": name,
+            "status": "UNAVAILABLE",
+            "error_type": type(exc).__name__,
+        }
+        diagnostics = getattr(exc, "diagnostics", None)
+        if isinstance(diagnostics, dict):
+            result.update(diagnostics)
+            result["failure_category"] = "HTTP_RESPONSE_ERROR"
+        elif type(exc).__name__.endswith("Timeout"):
+            result["failure_category"] = "NETWORK_TIMEOUT"
+        elif type(exc).__name__ in {"ConnectError", "NetworkError", "RemoteProtocolError"}:
+            result["failure_category"] = "NETWORK_CONNECTION_OR_PROTOCOL_ERROR"
+        else:
+            result["failure_category"] = "UNCLASSIFIED_PROVIDER_ERROR"
+        return result
 
 
 @app.get("/api/v1/research/preflight", tags=["research"])
