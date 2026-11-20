@@ -2,7 +2,7 @@ name: Backend and dashboard tests
 
 on:
   push:
-    branches: [main, feat/institutional-dashboard-design, feat/institutional-dashboard-task-governance]
+    branches: [main, feat/institutional-dashboard-design, feat/institutional-dashboard-task-governance, fix/backend-dashboard-static-assets]
   pull_request:
     branches: [main]
 
