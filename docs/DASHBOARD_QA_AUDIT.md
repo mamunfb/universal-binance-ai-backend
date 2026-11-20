@@ -2174,7 +2174,7 @@ The Dashboard backend URL validation gap was addressed in source and browser-tes
 - Browser regression-test commit: `fc19959a724773720417bb49b634f77fb11d30c7`.
 
 **Verification status**
-- These are code and test additions only. A successful execution of the new Playwright cases has not yet been independently verified; do not mark the regression tests as passed until the relevant workflow has a real runner, executed test steps, and retrievable logs.
+- At the time of this original checkpoint, execution had not yet been verified. A later feature-branch Browser QA run `44689486250` (Run #72, commit `367be0ab08878b0b8a89a45897e00a4249c64114`) executed all 24 Playwright tests, including the URL-validation cases, with **24 passed, 0 failed**. See the later CI evidence checkpoint below.
 - Live CORS remains a separate blocker. No GitHub Actions variables, Render environment variables, secrets, CORS allowlist, database, production resources, or trading configuration were changed.
 - No PR merge or Production deployment was performed. No Render Staging configuration change or deployment was initiated as part of this URL-validation work.
 
@@ -2198,3 +2198,25 @@ The GitHub Actions job payload and decoded job log for workflow run `44677460013
 - The audit separately records the then-current feature preview as `https://feat-institutional-dashboard-qitb.universal-binance-ai-backend.pages.dev/`; the log confirms that the run used the older URL.
 - This confirms a stale URL was used by that run. It does not, by itself, prove whether Render's `CORS_ALLOWED_ORIGINS` also lacked the active origin; that environment value remains unobserved.
 - No repository variable, secret, Render environment value, CORS rule, or deployment was changed during this re-verification.
+
+
+## 103. URL validation fix, Browser QA and full Python suite — 2026-11-20
+
+The backend URL contract test was stale after the implementation changed its input variable from `url` to `rawUrl`. The assertion was updated to match the current source. A follow-up syntax issue in the assertion line was corrected immediately; the final assertion was re-read from the committed file and verified to be syntactically complete.
+
+**Commits**
+- `01989af6ade62706b8eaa9e50d388878ce3d1252` — align HTTPS contract assertion with `rawUrl`.
+- `de12d2793214995896c163a766316e345b3d41b5` — correct the assertion-line syntax.
+- Final verified assertion: `self.assertIn("let parsed;try{parsed=new URL(rawUrl);}", self.js)`.
+
+**CI evidence**
+- Backend and Dashboard workflow Run #2042, run ID `44690158008`, on commit `de12d2793214995896c163a766316e345b3d41b5`, completed successfully. Its executed combined Python/Chromium step reported **694 passed in 10.58s**. The separate Python-only step was skipped because the combined step ran the suite; this is not a skipped test suite.
+- The same backend run successfully validated Dashboard HTML and its two script references, JavaScript syntax for `app.js`, `chart.js`, and the live integration test, then ran the full Python and Chromium QA step.
+- Dashboard Frontend workflow Run #66, run ID `44690157956`, on the same final commit, completed successfully. JavaScript syntax, chart fixtures, and Dashboard Python contract tests all passed.
+- Dashboard Browser QA Run #72, run ID `44689486250`, on commit `367be0ab08878b0b8a89a45897e00a4249c64114`, completed successfully with **24 tests, 24 passed, 0 failed**. This includes the newly added root-origin URL validation, invalid API-path rejection, no-request assertion, and preservation of the prior connection state.
+- Dashboard Performance QA Run #44, run ID `44689379704`, on commit `152fcc701b75516a58d736290ca77ec02b7d9431`, completed successfully and uploaded artifact ID `14607464294` (232,840 bytes). The profiling log records a 390×844 viewport, 1×/4× CPU profiles, repeated navigation samples, and heap/DOM snapshots. Example measured GC heap deltas were 75,024 bytes (1×) and 42,876 bytes (4×); DOM deltas were 5 and 2 nodes respectively. These are single-run local QA measurements, not proof of production performance or absence of long-lived leaks. Lighthouse emitted warnings that all-frames FCP/LCP simulated metrics are not implemented in Lantern; the JSON reports were nevertheless generated and uploaded. No Lighthouse score claim is made here.
+
+**Current blockers and boundaries**
+- The live CORS failure recorded in section 102 remains unresolved. The historical run used a stale Dashboard preview origin and received no readable `Access-Control-Allow-Origin` header. The current Actions variable and actual Render Staging `CORS_ALLOWED_ORIGINS` value have not been independently inspected or changed.
+- Physical Android/TalkBack validation remains a manual device test; Playwright and axe-core do not replace it.
+- No GitHub Actions variable, secret, Render environment variable, CORS allowlist, database, trading setting, or Production resource was changed. No PR merge, rebase, or Production deployment was performed.
