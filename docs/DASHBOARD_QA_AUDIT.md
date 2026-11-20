@@ -2044,3 +2044,24 @@ Updated browser test source commit: `2ca64bf2e7baa6dea98eac4b4d8ba8c9d896e37a`. 
 ## 96. Contrast incomplete-result diagnostics (2026-11-20)
 
 The post-fix Browser QA run reported zero axe-core `color-contrast` violations in desktop and mobile states, but one `incomplete` result in each state. The prior test logged only the count, which did not identify what required manual review. Updated the test to log each incomplete node's target selector, failure summary, and axe check IDs/messages/data. This is diagnostic-only; it does not relax or alter the zero-violation assertion. Await a new Chromium run to inspect the actual incomplete item. Source commit: `7dfcb08f249211477fc15fc1b1884e630ed17c87`.
+
+
+## 97. Chromium run #69 and contrast incomplete-result findings (2026-11-20)
+
+**Execution evidence**
+- Dashboard browser QA run #69, run ID `44676189087`, commit `7dfcb08f249211477fc15fc1b1884e630ed17c87`.
+- Job `Chromium responsive, keyboard and API fault tests`: completed `success`; `Run isolated dashboard browser tests`: completed `success`.
+- Node test summary: 22 tests passed, 0 failed.
+- Target-size inventory: all 10 tested viewport/navigation states (320, 360, 390, 480 and 900 CSS px; navigation closed/open) reported zero candidates below 24 CSS px.
+- Dedicated axe-core contrast scans reported zero violations in mobile navigation closed, mobile navigation open, and desktop states.
+
+**Actual incomplete diagnostics**
+- Mobile closed/open: axe could not evaluate `#mobile-menu` and `#refresh-page` because their visible content consists only of non-BMP Unicode icon characters (`nonBmp`). These are icon-only controls; this diagnostic is not evidence of a contrast failure. Their accessible names and visible focus behavior are covered by separate browser checks, but human visual review remains useful.
+- Desktop: several sidebar navigation items and a group label were reported as partially obscured because the sidebar navigation is a scrollable/clipped region and those elements were not fully visible in the current rendered/scroll state. Axe therefore could not determine their background colors; this is an evaluation limitation, not a measured contrast ratio failure.
+- Desktop: `.brand-mark` contains a very short single-character mark, so axe could not determine whether it represents text requiring contrast evaluation (`shortTextContent`). This is a logo/mark review item, not a demonstrated contrast failure.
+- The diagnostic output contained zero `color-contrast` violations. The incomplete results must not be re-labelled as violations, but they also do not establish contrast compliance for the unevaluated content.
+
+**Disposition**
+- No additional runtime CSS or application code change is justified by these diagnostics alone. The next useful check is a targeted manual visual review of the logo and scrollable sidebar content, plus screen-reader/TalkBack testing on a physical Android device.
+- Scope is local static Dashboard with mocked API under Chromium CI. It does not establish live Cloudflare-to-Render CORS, physical-device accessibility, TalkBack, or production behavior.
+- WP-09 remains active until outstanding live integration and physical assistive-technology evidence is obtained.
