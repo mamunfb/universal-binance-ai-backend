@@ -128,6 +128,57 @@ test("mobile sidebar opens, traps keyboard focus, closes with Escape and restore
   await context.close();
 });
 
+test("backend root URL validation accepts root origins and normalizes multiple trailing slashes", async () => {
+  for (const input of ["https://backend.test", "https://backend.test/", "https://backend.test////"]) {
+    const {context, page, pageErrors} = await newPage(1280);
+    await page.locator('.nav-link[data-page="settings"]').click();
+    await page.route("https://backend.test/health", route => route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({status: "ok"})
+    }));
+    await page.locator("#backend-url").fill(input);
+    await page.locator("#test-connection").click();
+    await page.getByText("Backend health endpoint responded successfully.").waitFor();
+    assert.equal(await page.locator("#connection-label").innerText(), "Backend reachable", input);
+    assert.deepEqual(pageErrors, [], input + " browser errors");
+    await context.close();
+  }
+});
+
+test("backend URL API paths are rejected without a request or changing the prior connection state", async () => {
+  for (const invalidInput of ["https://backend.test/api", "https://backend.test/api/"]) {
+    const {context, page, pageErrors} = await newPage(1280);
+    await page.locator('.nav-link[data-page="settings"]').click();
+    await page.route("https://backend.test/health", route => route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({status: "ok"})
+    }));
+    const backendRequests = [];
+    page.on("request", request => {
+      if (new URL(request.url()).origin === "https://backend.test") backendRequests.push(request.url());
+    });
+    await page.locator("#backend-url").fill("https://backend.test");
+    await page.locator("#test-connection").click();
+    await page.getByText("Backend health endpoint responded successfully.").waitFor();
+    assert.equal(await page.locator("#connection-label").innerText(), "Backend reachable");
+
+    backendRequests.length = 0;
+    const previousHealthStatus = await page.locator("#health-status").innerText();
+    await page.locator("#backend-url").fill(invalidInput);
+    await page.locator("#test-connection").click();
+    await page.locator(".toast.error").filter({hasText: "root origin without an API path"}).waitFor();
+    assert.deepEqual(backendRequests, [], invalidInput + " must not issue a backend request");
+    assert.equal(await page.locator("#connection-label").innerText(), "Backend reachable",
+      invalidInput + " must preserve the prior connection state");
+    assert.equal(await page.locator("#health-status").innerText(), previousHealthStatus,
+      invalidInput + " must preserve the previous health status");
+    assert.deepEqual(pageErrors, []);
+    await context.close();
+  }
+});
+
 test("backend health success updates connection status without page errors", async () => {
   const {context, page, pageErrors} = await newPage(1280);
   await page.locator('.nav-link[data-page="settings"]').click();
