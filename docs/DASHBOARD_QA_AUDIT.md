@@ -2220,3 +2220,25 @@ The backend URL contract test was stale after the implementation changed its inp
 - The live CORS failure recorded in section 102 remains unresolved. The historical run used a stale Dashboard preview origin and received no readable `Access-Control-Allow-Origin` header. The current Actions variable and actual Render Staging `CORS_ALLOWED_ORIGINS` value have not been independently inspected or changed.
 - Physical Android/TalkBack validation remains a manual device test; Playwright and axe-core do not replace it.
 - No GitHub Actions variable, secret, Render environment variable, CORS allowlist, database, trading setting, or Production resource was changed. No PR merge, rebase, or Production deployment was performed.
+
+## 104. Raw Lighthouse review and Render Staging commit drift — 2026-11-20
+
+**Raw Lighthouse artifact inspection**
+- Downloaded and inspected workflow artifact 14607464294 (dashboard-performance-152fcc701b75516a58d736290ca77ec02b7d9431, 232,840 bytes). It contains browser-profile.json and three Lighthouse 12.8.2 mobile JSON reports.
+- All three Lighthouse reports target the local QA origin http://127.0.0.1:4173/, not Cloudflare Pages, Render Staging, or Production. They are simulated mobile audits with 390×844 viewport and device scale factor 1.
+- All three reports show Performance category score 100. FCP is approximately 903 ms in all samples; LCP is approximately 1,504 ms, 1,653 ms, and 1,601 ms; TBT is 0 ms, 0 ms, and 48 ms; CLS is approximately 0.0000325 in all three.
+- Despite the category score, each report flags unused JavaScript with estimated savings of approximately 59 KiB: app.js 37,711 bytes (about 80.45% of 46,873 bytes) and chart.js 23,138 bytes (about 97.85% of 23,647 bytes). Each also flags render-blocking app.css, with estimated savings around 98–109 ms (reported wasted time around 151–152 ms).
+- Interpretation: these are local static-server / simulated / mock-data audit findings, not live user-experience or production performance measurements. The unused-JS and render-blocking CSS findings are optimization candidates; no code change is made until route/module usage and CSS loading dependencies are reviewed. Do not treat a score of 100 as proof that no optimization is needed.
+
+**Render Staging deployment identity check**
+- Render Staging service universal-binance-ai-backend-staging-qa (srv-dbvpa24s728c739re7c0) remains not_suspended, with Auto Deploy off and deployment trigger manual.
+- Latest visible Staging deploy dep-dbvri5nf3r2c73ftg1vg is live and succeeded at 2026-11-20T03:06:24Z, but its deployed commit is 6fff1228936d3d507c2dc130f71d329946c42095 (docs: fix escaped newlines in WP-09 progress ledger).
+- Current QA branch head at this checkpoint is 8fa3c1a89749c74efca88377f75c9f0735933679. GitHub compare API reports the branch is 68 commits ahead, 0 behind the deployed Staging commit. The intervening changes include backend source (backend/app/main.py, backend/app/providers/binance_futures.py), Dashboard source (dashboard/app.js, dashboard/app.css), tests, workflows and QA documentation.
+- Therefore Staging is live but is not running the current branch head. Current feature-branch CI evidence must not be represented as live Staging verification. The old live CORS run also cannot establish current-branch live behavior.
+- Staging deployment was not triggered. Auto Deploy was not enabled. No Render environment variables, GitHub Actions variables, secrets, CORS allowlist, database, Production resource, or trading setting was changed. Updating Staging to the current branch requires separate explicit authorization.
+
+**Next verification gates**
+- Obtain approval before deploying the current reviewed branch to Staging; then verify the deployed commit SHA before running live cross-origin Chromium QA.
+- Independently verify the exact current Dashboard preview origin and Staging CORS_ALLOWED_ORIGINS value before modifying either configuration. Preserve exact-origin allowlisting; never use wildcard CORS.
+- Review JavaScript module/route usage and CSS loading dependencies before deciding whether to split/defer scripts or alter stylesheet loading.
+- Physical Android/TalkBack testing remains outstanding and requires a real device.
