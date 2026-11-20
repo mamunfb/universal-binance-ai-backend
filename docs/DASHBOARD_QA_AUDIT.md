@@ -2091,3 +2091,24 @@ The post-fix Browser QA run reported zero axe-core `color-contrast` violations i
 - The Staging-deployed baseline commit `6fff1228936d3d507c2dc130f71d329946c42095` contains the same `configure_cors_middleware(app, settings.cors_allowed_origins)` registration and exact-origin parser in `backend/app/config.py`.
 - The setting is `cors_allowed_origins`, supplied by the `CORS_ALLOWED_ORIGINS` environment variable under the Pydantic settings configuration. The parser produces an empty allowlist when the setting is empty; Starlette then emits no `Access-Control-Allow-Origin` for a remote browser origin. Existing `tests/test_cors_configuration.py::test_empty_cors_configuration_does_not_grant_cross_origin_access` verifies that behavior.
 - This makes an empty or non-matching Staging `CORS_ALLOWED_ORIGINS` value a strong, code-consistent explanation for the observed missing header. It remains unconfirmed because the current Render environment value is not available from the inspected service metadata. A stale Dashboard URL is independently confirmed from the workflow log.
+## 99. Static CSS contrast follow-up for axe incomplete sidebar/logo nodes (2026-11-20)
+
+Following Run #69, inspected the exact foreground/background declarations for the desktop sidebar nodes that axe could not evaluate because of scroll-container clipping, plus the short brand mark. Ratios below were computed from the CSS hex colors using the WCAG relative-luminance contrast formula; this is a static source-level calculation, not a rendered browser or full-page conformance result.
+
+| Text/state | Foreground | Background | Computed ratio |
+|---|---:|---:|---:|
+| Default navigation labels | `#a8b7ce` | `#0d1728` | 8.82637:1 |
+| Navigation group labels (9px bold) | `#6f829f` | `#0d1728` | 4.58817:1 |
+| Active navigation label | `#ffffff` | `#1c3761` | 11.87471:1 |
+| Hover navigation label | `#ffffff` | `#172640` | 15.13284:1 |
+| Default navigation icons (decorative) | `#829bc1` | `#0d1728` | 6.32973:1 |
+| Active navigation icons (decorative) | `#8fb6ff` | `#1c3761` | 5.82602:1 |
+| Brand mark U, gradient light endpoint | `#e8eef9` | `#4077dd` | 3.67875:1 |
+| Brand mark U, gradient dark endpoint | `#e8eef9` | `#19386f` | 9.81675:1 |
+| Sidebar footer secondary text | `#94a5bf` | `#13243a` | 6.25853:1 |
+
+Interpretation:
+- W3C WCAG 2.2 SC 1.4.3 requires 4.5:1 for ordinary text and 3:1 for large text (14pt bold / 18pt regular). The 9px bold navigation group label computes to 4.58817:1, above the 4.5:1 threshold. The 21px bold brand mark computes to at least 3.67875:1 at the lighter gradient endpoint; it is also a logo mark and exceeds the 3:1 large-text comparison.
+- These source-level color pairs explain why the scrollable sidebar and short logo glyph were incomplete rather than measured contrast violations. They do not replace a visual review of the rendered sidebar, other states, zoom, user overrides, or physical-device checks.
+- Decorative navigation glyphs are hidden from assistive technology with `aria-hidden="true"`; the links retain text labels. Their visual non-text contrast is a separate consideration from text contrast.
+- No CSS change was made: no concrete contrast failure was found in these inspected pairs. W3C reference: https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum
