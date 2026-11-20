@@ -37,9 +37,9 @@ class DashboardContractTests(unittest.TestCase):
         cls.ids = parser.ids
 
     def test_local_assets_are_present_and_referenced(self) -> None:
-        self.assertIn('./app.css', self.html)
-        self.assertIn('./chart.js', self.html)
-        self.assertIn('./app.js', self.html)
+        self.assertIn('/dashboard-assets/app.css', self.html)
+        self.assertIn('/dashboard-assets/chart.js', self.html)
+        self.assertIn('/dashboard-assets/app.js', self.html)
         for name in ("app.css", "chart.js", "app.js"):
             self.assertTrue((DASHBOARD / name).is_file(), name)
 
@@ -51,7 +51,7 @@ class DashboardContractTests(unittest.TestCase):
         parser = _Ids()
         parser.feed(self.html)
         self.assertEqual(parser.duplicates, [])
-        self.assertLess(self.html.index('src="./chart.js"'), self.html.index('src="./app.js"'))
+        self.assertLess(self.html.index('src="/dashboard-assets/chart.js"'), self.html.index('src="/dashboard-assets/app.js"'))
 
     def test_complete_timeframe_set_is_present(self) -> None:
         expected = {"1m", "3m", "5m", "15m", "30m", "1h", "2h", "3h", "4h", "6h", "8h", "12h", "1D", "3D", "1W", "1M"}
