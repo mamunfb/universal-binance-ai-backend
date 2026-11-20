@@ -165,3 +165,15 @@ Reopened package/dependents (if any) and reason:
 - Do not expose or request a key in chat. Use the existing Dashboard session or least-privilege QA credential path for protected preflight.
 - No staging deploy was triggered because the latest user response did not explicitly approve the specific deployment action. No service configuration or secret was changed.
 - Root cause of USDⓈ-M remains unconfirmed pending deployment of the tested diagnostic code and authenticated protected preflight.
+
+
+### Dashboard authentication boundary clarification — 2026-11-20
+
+- Read back the active branch's Dashboard settings UI, request helper, API middleware, CORS configuration, preflight route and live Chromium test.
+- The Dashboard explicitly asks for a **Backend Bearer Token** and keeps the URL/token in page memory for the current page session. API requests send that token as `Authorization: Bearer ...` and use `credentials: "omit"`.
+- The `api_credentials_required: false` field in the research preflight response refers to the public Binance market-data provider endpoints not requiring Binance API credentials. It does **not** mean the backend's protected `/api/*` routes are unauthenticated. When a private API key is configured, the request-tracking middleware still requires a valid private Bearer token.
+- CORS middleware is intentionally outside the auth middleware so browser `OPTIONS` preflight can succeed without a Bearer token. This does not bypass authentication for the subsequent `GET` request.
+- The live Chromium workflow intentionally sends an invalid token and expects HTTP 401 plus the exact allowed CORS origin. It does not test a valid-token success path; the positive authenticated test requires a separately scoped QA credential.
+- This source review found no confirmed Dashboard auth-code defect. The later Staging 401 log entries are consistent with missing/invalid backend Bearer authentication, but the specific request's token/session state is not available, so the cause of those individual requests cannot be proven from logs alone.
+- No runtime code, CORS configuration, repository variable, secret, Render setting or deployment was changed in this clarification.
+- Next action remains: configure the two exact HTTPS GitHub Actions URL variables through the authorized repository settings workflow, run the secretless live CORS/invalid-token smoke test, then obtain explicit approval before deploying the tested diagnostic commit to Staging.
