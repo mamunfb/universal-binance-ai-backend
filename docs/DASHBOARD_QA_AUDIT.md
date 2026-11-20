@@ -2052,3 +2052,18 @@ Following the product decision to expose the 1-second chart timeframe on USDⓈ-
 **Verification status:** Both source files were fetched again after the writes and the updated function/test assertions were confirmed in the branch. At the time of this audit update, the combined commit status query returned no status checks; the updated browser test has not yet been executed on this new commit. No live Binance API request was made, so actual provider behavior remains to be verified by a live, non-trading read-only integration check.
 
 **Change control:** Changes are limited to `dashboard/app.js`, `tests/test_dashboard_browser.cjs`, and this audit entry on `fix/backend-dashboard-static-assets`. No `main` update, branch integration, PR creation/merge, deployment, database, secret, hosted configuration, or trading/execution change was made.
+
+
+## 95. USDⓈ-M 1-second provider request regression coverage (2026-11-21)
+
+A focused provider-level regression test was added in `tests/test_binance_futures_provider.py`:
+
+- The test constructs the USDⓈ-M provider with a fake HTTP client and calls `klines("btcusdt", interval="1s", limit=1000)`.
+- It asserts the USDⓈ-M base URL, `/fapi/v1/klines` path, normalized `BTCUSDT` symbol, exact `interval=1s` query value, and requested limit.
+- This complements the route-level fake-provider contract test and the Dashboard browser test. Together, these source tests cover UI enablement, route forwarding, and provider HTTP request construction without sending an exchange request.
+
+**CI status:** The new test was committed as `8dc47728be6527dd5da6c3de376b1a2cf17fa24c`. The combined commit-status endpoint returned no status entries when checked. The repository's browser-QA workflow is configured to run on this branch when `dashboard/**` or `tests/test_dashboard_browser.cjs` changes; the backend/dashboard workflow is configured for pushes to this branch. The provider-test-only commit is not covered by the browser workflow's path filter. No successful CI run is claimed for this new test yet.
+
+**Evidence boundary:** The fake HTTP client proves that the application constructs the expected USDⓈ-M request; it does not prove Binance accepted the request or returned live 1-second candles. A live read-only exchange request remains outstanding.
+
+**Change control:** Only `tests/test_binance_futures_provider.py` and this audit document were updated on `fix/backend-dashboard-static-assets`. No `main`, PR, deployment, database, secret, hosted configuration, or trading/execution behavior was changed.
