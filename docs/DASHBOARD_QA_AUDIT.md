@@ -2131,3 +2131,10 @@ Physical-device testing remains a manual acceptance item; CI's Playwright and ax
 - Any unlabeled control, raw glyph announcement, lost focus, inaccessible menu state, silent status/error update, keyboard/touch navigation trap, or clipped essential content is a defect to reproduce and document.
 - Do not mark physical-device/TalkBack validation complete based on desktop emulation, Playwright, axe-core, or this checklist alone. A user/device tester must perform the steps and provide the observed results.
 - This protocol is a test plan only; no physical Android/TalkBack execution is claimed.
+## 101. Invalid Bearer CORS regression assertion and CI evidence (2026-11-20)
+
+Added an explicit assertion to `test_protected_api_rejects_invalid_bearer_key`: the deliberately invalid Bearer token response must be HTTP 401, include the exact configured `Access-Control-Allow-Origin`, and include `WWW-Authenticate: Bearer`. This closes a local regression-test gap; it does not change runtime code or CORS policy.
+
+GitHub Actions Backend and dashboard tests run `44677460067` on commit `98bba7a84d229af2fe1b6308f965fc1dd7bc069c` completed successfully. The combined Python/browser step ran the full Python suite: **694 passed in 11.71s**. Dashboard HTML/script references and Node syntax checks also passed. The separate Python-only step was skipped because the combined step already executed the full suite.
+
+Live cross-origin run `44677460013` was still in progress at the time of this audit update; Chromium installation had not completed, and the live browser verification step had not started. No live CORS pass is claimed. The configuration-check job was skipped by workflow logic. Staging environment values remain unverified; no Staging configuration or deployment was changed.
