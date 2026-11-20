@@ -317,3 +317,11 @@ Reopened package/dependents (if any) and reason:
 - Code review confirms production rejects startup requests with 503 if strong key configuration is missing; when API key config is enabled, unmatched/missing Bearer credentials return 401. CORS uses exact configured origins, with no wildcard and no credentials. Unit tests cover allowed/unlisted origins, preflight, empty allowlist, and Bearer auth paths.
 - Render service metadata does not reveal runtime values for APP_ENV, PERSONAL_API_KEY, AI_CLIENT_API_KEYS, or CORS_ALLOWED_ORIGINS. Actual Staging auth/CORS status cannot be confirmed from current evidence.
 - Render Staging is live/not suspended, Auto Deploy off; latest visible live deploy still runs 6fff1228936d3d507c2dc130f71d329946c42095, not this tested branch head. No deployment or config change performed. Physical Android/TalkBack QA remains outstanding.
+### Lazy chart loading and QA follow-up — 2026-11-20
+
+- Removed eager chart.js loading from initial HTML; added one-time on-demand loader in app.js and browser regression coverage for first-load absence + one request after Coin Analysis is invoked.
+- Frontend Run #69 succeeded (110 contract tests + 9 accessibility contract tests). Backend Run #2055 succeeded: 695 passed in 10.76s, including configured Chromium tests; HTML/script validation and JS syntax passed.
+- Browser QA Run #74 passed 24/24 on commit 615b309 (pre-latest test-only corrections).
+- Performance Run #46 Lighthouse cold-load passed, but profiler failed because its old resource assertion required chart.js on initial load. Profiler updated to validate initial absence and subsequent on-demand load; Performance Run #47 queued/in progress.
+- Live integration Run #38 failed because its configured DASHBOARD_URL remains stale (`https://7e74d124.universal-binance-ai-backend.pages.dev/`); browser received no ACAO header. Current live CORS allowlist not exposed. No URL variable or Render config changed.
+- Current branch head e48bb642fb270320fc59a924d8879252f87675b3 is 81 commits ahead and 0 behind the latest visible Staging deploy commit 6fff1228936d3d507c2dc130f71d329946c42095. Staging deployment remains untouched.
