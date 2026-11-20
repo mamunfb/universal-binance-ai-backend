@@ -2010,3 +2010,23 @@ Updated test blob: `tests/test_dashboard_browser.cjs` `7ec146931d37691af65e17b87
 A further review found that a CSS-translated mobile sidebar can retain layout rectangles while being visually off-canvas. The target inventory now explicitly excludes sidebar descendants when the viewport is at or below the 900px mobile breakpoint and the sidebar lacks its `open` class. When the menu is open, its controls remain included. This prevents closed-menu links from being reported as currently visible targets while preserving whole-document inventory for other rendered controls.
 
 Updated browser test source commit: `2ca64bf2e7baa6dea98eac4b4d8ba8c9d896e37a`. The 22 tests have not yet been executed in a confirmed Chromium run; no pass claim is made.
+
+
+## 94. Chromium run #66 evidence and connection action target-size fix (2026-11-20)
+
+**Execution evidence**
+- GitHub Actions workflow: Dashboard browser QA, run #66, run ID `44675656453`, commit `2ca64bf2e7baa6dea98eac4b4d8ba8c9d896e37a`.
+- Job `Chromium responsive, keyboard and API fault tests`: completed `success`; step `Run isolated dashboard browser tests`: completed `success`.
+- Node test summary: 22 tests, 22 passed, 0 failed; duration 30.575 seconds.
+- Dedicated contrast scans: mobile navigation closed/open and desktop each reported no violations; each reported one incomplete item, which is not a pass/fail finding and needs manual/automated follow-up as appropriate.
+- Target-size inventory found one candidate across all tested viewport/navigation states: `#banner-settings` (`Configure connection`), 118.75px wide × 17px high. The inventory itself is report-only; the result is a concrete below-24px candidate requiring correction/retest, not a standalone WCAG conformance verdict.
+
+**Root cause and correction**
+- Root cause: the only `.text-btn` in the Dashboard was the `Configure connection` button. Its CSS had no minimum height or vertical padding, so Chromium rendered a 17px-high pointer target.
+- Fix: `dashboard/app.css` now sets `min-height:24px; padding:2px 4px` on `.text-btn`.
+- Regression assertion: the target inventory test now fails if `#banner-settings` appears among below-24px candidates at any tested viewport or navigation state.
+- Source commits: CSS `739d5ebc969e2ae2a4553baed8fea84fd507e702`; test `4e7853fbffe73a375fd37e2f7fb2edf39bab819e`.
+
+**Verification boundary**
+- The fix and regression assertion have been committed to the authorized feature branch, but they have not yet been run by Chromium. Run #66 tested the immediately preceding source state, before this correction.
+- A new Browser QA run is required before marking the target-size finding resolved. No physical-device/TalkBack, live CORS, or production evidence is implied.
