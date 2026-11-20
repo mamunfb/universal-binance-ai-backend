@@ -1972,3 +1972,23 @@ Inspected `dashboard/app.css`, `dashboard/index.html`, `tests/test_dashboard_bro
 - Keep these as test/QA work until a reproducible failing target or contrast pair is identified; do not change production styles based only on source-level estimates.
 
 **Evidence boundary:** static source/test inspection only; no browser runner was executed and no physical-device result is claimed.
+
+
+## 91. Target-size inventory and dedicated contrast scan added (2026-11-20)
+
+**Root cause / gap addressed:** the existing suite covered responsive overflow, keyboard navigation and axe-core WCAG scans, but did not produce a dedicated inventory of rendered pointer-target bounding boxes for manual WCAG 2.2 target-size/spacing review. A dedicated contrast-only report was also not present, although the existing broad axe WCAG 2.1 A/AA scan already includes the color-contrast rule. Section 90's wording that no contrast assertions existed was too broad; this section clarifies that the broad axe scan already checked contrast.
+
+**Change**
+- Updated `tests/test_dashboard_browser.cjs` (current blob `0c4ca177bc8304a47dbccadc30144136fedd2333`) with two Playwright cases.
+- Target inventory runs at 320, 360, 390, 480 and 900 CSS px, with mobile navigation both closed and open. It records visible interactive controls whose rendered bounding-box width or height is below 24 CSS px for manual review. It deliberately does not automatically fail these candidates: WCAG 2.2 SC 2.5.8 has a spacing exception and other exceptions, so a bounding-box shortfall alone is not a conformance failure.
+- Dedicated axe-core `color-contrast` scans run for mobile navigation closed/open and desktop, logging pass/incomplete/violation summaries and failing on reported violations.
+- Existing browser workflow already watches `tests/test_dashboard_browser.cjs`; no workflow configuration change was needed.
+
+**Standards basis**
+- WCAG 2.2 SC 2.5.8 uses a 24 × 24 CSS px minimum target size with exceptions, including a spacing exception. <https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum>
+- WCAG 2.2 SC 1.4.3 requires 4.5:1 for normal text and 3:1 for large text, subject to stated exceptions. <https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum>
+
+**Verification boundary**
+- Source was updated on the feature branch; no browser runner result has yet been retrieved. Do not claim these new tests passed until a real GitHub Actions job executes them.
+- The target-size inventory is a review report, not a full automated WCAG conformance evaluator. Human review of spacing and exceptions remains required.
+- No CSS/runtime/backend source, workflow configuration, CORS, secrets, deployment, database, `main`, or PR state changed.
