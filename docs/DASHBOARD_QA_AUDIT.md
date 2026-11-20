@@ -2126,3 +2126,17 @@ CI evidence retrieved from GitHub Actions:
 **Live API boundary:** A direct read-only attempt to access `https://fapi.binance.com/fapi/v1/exchangeInfo` from the current verification environment returned HTTP 451 (Unavailable For Legal Reasons). Thus, official endpoint contract and fake-provider tests are verified, but a live Binance response for a real symbol has not been confirmed from this environment.
 
 **Change control:** No main branch update, PR creation, merge, deployment, database, secrets, hosted configuration, or order execution behavior was performed.
+
+## 100. USDⓈ-M continuous-Kline contract validation coverage (2026-11-21)
+
+Expanded tests/test_binance_futures_provider.py to cover the complete contract-type allowlist documented for USDⓈ-M continuous Klines:
+
+- Positive request-construction coverage for PERPETUAL, CURRENT_QUARTER, NEXT_QUARTER, and TRADIFI_PERPETUAL, including lowercase normalization.
+- Negative pre-network coverage for unsupported/empty contract types, unsupported intervals, and limits outside 1–1500. The tests assert that the HTTP client is not created for invalid parameters.
+- No provider runtime behavior was changed in this step; this is regression-test hardening around the existing allowlist and request validation.
+
+**CI evidence:** Backend and dashboard tests run #2098, run ID 44806286600, head SHA 5400349fcccd7027fd5ac42bf6d5cf674de9fc28, completed with conclusion **success**. Job 136531035027 reported **700 passed in 5.06s**. Dashboard HTML/script-reference validation and JavaScript syntax validation also succeeded. The workflow's dedicated Chromium browser QA step was skipped; browser routing remains separately evidenced by successful Dashboard browser QA run #81 (22/22) on SHA 437da318d9726b74d4cb6ebfd0c0592364a70ae2.
+
+**Evidence boundary:** These are automated fake-client/provider and application tests. They do not constitute a live Binance API response. The live API verification limitation recorded in Section 99 remains open.
+
+**Change control:** The test and audit updates are confined to fix/backend-dashboard-static-assets. No main, PR, merge, deployment, database, secret, hosted configuration, or trading/execution behavior was changed.
