@@ -1894,3 +1894,26 @@ The dashboard workstream now continues on `feat/institutional-dashboard-task-gov
 **Change control**
 - No `main` update, PR creation/merge, production or staging deployment, database change, production secret change or trading/execution capability change was made.
 - The new dashboard governance branch has its own workflow branch filters so backend/dashboard, frontend, browser, performance and live-integration workflows can run there. The live workflow's successful configuration check must not be described as a successful live integration test.
+
+
+## 87. Mobile navigation and keyboard-accessibility source review (2026-11-20)
+
+A targeted static source review was performed on the active governance branch. This is code-inspection evidence only; it is not a fresh browser run, physical-device test, or assistive-technology test.
+
+**Files and exact source revisions inspected**
+- `dashboard/index.html`, blob `2de60798887d7d197e324137493b8bd6055346c0`: viewport metadata, labelled primary navigation, mobile-menu button with `aria-controls` / `aria-expanded`, status/live regions, and labelled horizontally scrollable market-result regions.
+- `dashboard/app.js`, blob `959b05d56c0be199e460cd6de61b1bf73b95ba1c`: responsive sidebar state, `inert` handling while the mobile sidebar is closed, focus transfer into the open sidebar, focus return to the menu button on close, Escape-to-close, and Tab / Shift+Tab focus wrapping while the mobile sidebar is open.
+- `dashboard/app.css`, blob `eb065d53873cabf88e4636927ddbf8e936fb6ec8`: responsive breakpoints at 1100px, 900px, 520px, 480px and 360px; visible keyboard-focus outlines for navigation, buttons, inputs, table regions and timeframe controls; reduced-motion override.
+
+**Static review result**
+- The source contains explicit responsive layout rules and mobile navigation keyboard handling.
+- The inspected code provides a focus-wrap mechanism for the open mobile sidebar and marks the closed mobile sidebar inert.
+- No confirmed defect was established by this source-only review. Do not interpret this as proof that all controls, screen-reader announcements, focus order, zoom/reflow, touch targets, or real-device layouts meet accessibility requirements.
+
+**Remaining verification**
+1. Run a fresh browser test across representative viewport widths, including 360px, 390px, 480px, 520px, 900px and desktop; verify there is no unintended page-level horizontal overflow.
+2. Exercise mobile menu open/close, Escape, Tab and Shift+Tab, navigation focus, resize while open, and keyboard access to horizontally scrollable tables.
+3. Perform physical Android testing and TalkBack review; test iOS/VoiceOver if an appropriate device is available.
+4. Record screenshots, browser/device versions, exact viewport dimensions, and actual pass/fail observations. Keep simulated viewport results separate from physical-device evidence.
+
+**Change control:** No dashboard runtime code, backend code, workflow, Actions variables/secrets, CORS, Render configuration, deployment, database, `main`, or PR state was changed in this source review.
