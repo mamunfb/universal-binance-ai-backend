@@ -775,14 +775,21 @@ test("visible pointer targets are inventoried against WCAG 2.2 24px minimum for 
   for (const width of [320, 360, 390, 480, 900]) {
     const {context, page, pageErrors} = await newPage(width, 844);
     const collect = async state => {
-      const candidates = await page.evaluate(() => {
+      const inventory = await page.evaluate(() => {
         const selector = 'button,input:not([type="hidden"]),select,textarea,a[href],[role="button"],[role="link"],[tabindex]:not([tabindex="-1"])';
         const elements = [...new Set(document.querySelectorAll(selector))];
-        return elements.filter(el => {
+        const visible = elements.filter(el => {
           const style = getComputedStyle(el);
-          return el.getClientRects().length > 0 && style.display !== "none" &&
-            style.visibility !== "hidden" && Number(style.opacity) > 0;
-        }).map(el => {
+          if (!el.getClientRects().length || style.display === "none" ||
+              style.visibility === "hidden" || Number(style.opacity) === 0 ||
+              el.closest("[inert]")) return false;
+          const rect = el.getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0 &&
+            rect.right > 0 && rect.bottom > 0 &&
+            rect.left < document.documentElement.clientWidth &&
+            rect.top < document.documentElement.clientHeight;
+        });
+        const candidates = visible.map(el => {
           const rect = el.getBoundingClientRect();
           return {
             tag: el.tagName.toLowerCase(),
@@ -792,8 +799,12 @@ test("visible pointer targets are inventoried against WCAG 2.2 24px minimum for 
             height: Math.round(rect.height * 100) / 100
           };
         }).filter(item => item.width < 24 || item.height < 24);
+        return {visibleInteractiveCount: visible.length, candidates};
       });
-      reports.push({viewport: width, state, undersizedCandidatesForSpacingReview: candidates});
+      assert.ok(inventory.visibleInteractiveCount > 0,
+        width + "px " + state + " should inventory visible interactive controls");
+      reports.push({viewport: width, state, visibleInteractiveCount: inventory.visibleInteractiveCount,
+        undersizedCandidatesForSpacingReview: inventory.candidates});
     };
     await collect("navigation closed");
     await page.locator("#mobile-menu").click();
