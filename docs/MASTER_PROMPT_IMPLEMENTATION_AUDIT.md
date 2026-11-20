@@ -855,7 +855,7 @@ The USDⓈ-M provider endpoint was checked against Binance's current official do
 - Preflight classification commit: `e0324f79a902c652ff5bec6dfa4b525dbb75c1e1`.
 - Regression test correction: `5fd593cb01189d3957026ed0865a0527f3d5318a`.
 - Workflow test-path coverage: `8956b8167b5a057a5492c4fed591d7d15f0176e6`.
-- Branch HEAD: `8956b8167b5a057a5492c4fed591d7d15f0176e6`.
+- Code/workflow checkpoint: `8956b8167b5a057a5492c4fed591d7d15f0176e6`; documentation commits: `5c8565d375f63a4a7785f63c712631a181a298a1` and `79ec669c9b67ce33325793f717f3014de3613c00`. Current branch HEAD: `79ec669c9b67ce33325793f717f3014de3613c00`.
 - The original Render-side upstream response status/body is still unavailable. The root cause is not established. A previous successful preflight HTTP response does not mean the USDⓈ-M probe succeeded internally.
 - The current code change improves observability; it does not claim that USDⓈ-M connectivity has been restored.
 
