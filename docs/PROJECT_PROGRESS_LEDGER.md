@@ -224,3 +224,10 @@ Reopened package/dependents (if any) and reason:
 - Refined Playwright target-size inventory to exclude controls inside inert ancestors, include rendered controls throughout the document (not just initial viewport intersection), and assert a non-empty interactive inventory for each viewport/navigation state.
 - Updated test source blob `7ec146931d37691af65e17b87dde1ee01d6c910f`; 22 browser test cases remain.
 - This is a source change only; no actual browser execution or CI pass is claimed. Details in QA Audit Section 92.
+
+
+### WP-09 closed mobile navigation inventory correction — 2026-11-20
+
+- Target-size inventory excludes sidebar descendants at widths <=900px when the sidebar is closed/off-canvas; open navigation remains included.
+- Browser test source commit: `2ca64bf2e7baa6dea98eac4b4d8ba8c9d896e37a` (22 test cases; execution not yet verified).
+- See QA Audit Section 93. No runtime CSS or application behavior changed.
