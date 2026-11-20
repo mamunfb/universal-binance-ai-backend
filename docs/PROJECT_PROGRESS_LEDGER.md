@@ -255,3 +255,12 @@ Reopened package/dependents (if any) and reason:
 - Added selector and axe check detail logging for `color-contrast` incomplete results; zero-violation assertion remains unchanged.
 - Source commit `7dfcb08f249211477fc15fc1b1884e630ed17c87`; awaiting Browser QA execution to inspect the incomplete item.
 - See QA Audit Section 96.
+
+### WP-09 Chromium run #69 and contrast diagnostic disposition — 2026-11-20
+
+- Browser QA run #69 / ID `44676189087`, commit `7dfcb08f249211477fc15fc1b1884e630ed17c87`: Chromium job succeeded; 22/22 browser tests passed, 0 failed.
+- Target inventory across five viewport widths × mobile navigation closed/open: zero candidates below 24 CSS px in all 10 states.
+- Dedicated axe contrast scans: zero violations for mobile closed/open and desktop.
+- Incomplete results are now understood: mobile icon-only controls use non-BMP glyphs that axe cannot evaluate as text; desktop sidebar items are partially obscured/clipped in the scrollable nav region; the short logo mark is too brief for axe to classify. These are evaluation limitations/manual review items, not demonstrated contrast violations and not evidence that all contrast requirements pass.
+- No additional runtime change warranted from this diagnostic alone. Details and limitations recorded in QA Audit Section 97.
+- WP-09 remains active pending manual visual review, physical Android/TalkBack validation, and live cross-origin integration evidence. No Staging deployment, Production change, main modification, or PR merge.
