@@ -2003,3 +2003,10 @@ Reviewed the new target-size inventory after its first implementation and correc
 - It records controls below 24px in either dimension for manual WCAG 2.2 SC 2.5.8 spacing/exception review; it does not automatically classify them as failures.
 
 Updated test blob: `tests/test_dashboard_browser.cjs` `7ec146931d37691af65e17b87dde1ee01d6c910f` (22 test cases total). This remains source-level verification only; no browser run result has been obtained for this change.
+
+
+## 93. Closed off-canvas navigation exclusion (2026-11-20)
+
+A further review found that a CSS-translated mobile sidebar can retain layout rectangles while being visually off-canvas. The target inventory now explicitly excludes sidebar descendants when the viewport is at or below the 900px mobile breakpoint and the sidebar lacks its `open` class. When the menu is open, its controls remain included. This prevents closed-menu links from being reported as currently visible targets while preserving whole-document inventory for other rendered controls.
+
+Updated browser test source commit: `2ca64bf2e7baa6dea98eac4b4d8ba8c9d896e37a`. The 22 tests have not yet been executed in a confirmed Chromium run; no pass claim is made.
