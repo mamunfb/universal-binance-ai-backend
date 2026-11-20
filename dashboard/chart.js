@@ -235,7 +235,7 @@ async function load(api,market,symbol,timeframe){
  const interval=intervalFor(tf),requestSequence=++activeLoadSequence;
  if(activeLoadController)activeLoadController.abort();
  const controller=new AbortController();activeLoadController=controller;
- let response;try{response=await api(route+encodeURIComponent(symbol)+"?interval="+encodeURIComponent(interval)+"&limit=1000",{signal:controller.signal});}catch(error){if(requestSequence!==activeLoadSequence)return{status:"SUPERSEDED",market,symbol,requested_timeframe:tf};throw error;}finally{if(activeLoadController===controller)activeLoadController=null;}
+ const requestPath=market==="USD_M"&&tf==="1s"?"/api/v1/markets/futures/usdm/continuous-klines/"+encodeURIComponent(symbol):route+encodeURIComponent(symbol);let response;try{response=await api(requestPath+"?interval="+encodeURIComponent(interval)+"&limit=1000",{signal:controller.signal});}catch(error){if(requestSequence!==activeLoadSequence)return{status:"SUPERSEDED",market,symbol,requested_timeframe:tf};throw error;}finally{if(activeLoadController===controller)activeLoadController=null;}
  if(requestSequence!==activeLoadSequence)return{status:"SUPERSEDED",market,symbol,requested_timeframe:tf};
  if(response===null||typeof response!=="object"||Array.isArray(response))throw new Error("Candle endpoint returned an invalid response shape. Expected a JSON object; previous chart was preserved.");
  if(!Array.isArray(response.klines))throw new Error("Candle endpoint did not provide a klines array; previous chart was preserved.");
