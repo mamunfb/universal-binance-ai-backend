@@ -2185,3 +2185,16 @@ Follow-up source review found the two new successful cross-origin health fixture
 - Fixture correction commit: `367be0ab08878b0b8a89a45897e00a4249c64114`.
 - This wildcard exists only in the local Playwright mock response; it is not a backend or Render CORS configuration and does not authorize any live origin.
 - The new Playwright tests remain unexecuted/unverified. The latest commit status query returned no status checks; no passing CI run is claimed.
+
+### Live CORS failure log re-verification — 2026-11-20
+
+The GitHub Actions job payload and decoded job log for workflow run `44677460013` were re-read directly.
+
+- Job `136092585525`, **Live cross-origin Chromium smoke test**, completed with conclusion `failure`.
+- Chromium installation succeeded and the live test executed; this was not a runner-allocation or missing-browser failure.
+- The workflow log shows `DASHBOARD_URL=https://7e74d124.universal-binance-ai-backend.pages.dev/` and `BACKEND_URL=https://universal-binance-ai-backend-staging-qa.onrender.com`.
+- The browser assertion received `Access-Control-Allow-Origin: null` but expected `https://7e74d124.universal-binance-ai-backend.pages.dev`.
+- The configuration-check job was skipped because both workflow URL variables were present for this run. The failure therefore occurred in the live browser CORS assertion, not the missing-variable gate.
+- The audit separately records the then-current feature preview as `https://feat-institutional-dashboard-qitb.universal-binance-ai-backend.pages.dev/`; the log confirms that the run used the older URL.
+- This confirms a stale URL was used by that run. It does not, by itself, prove whether Render's `CORS_ALLOWED_ORIGINS` also lacked the active origin; that environment value remains unobserved.
+- No repository variable, secret, Render environment value, CORS rule, or deployment was changed during this re-verification.
