@@ -63,8 +63,10 @@ jobs:
           assert "<!doctype html>" in html.lower(), "Dashboard HTML doctype is missing"
           assert 'class="app-shell"' in html, "Dashboard shell is missing"
           scripts = re.findall(r'<script\b[^>]*src=["\']([^"\']+)["\'][^>]*>', html, flags=re.I)
-          assert "./chart.js" in scripts, "dashboard/chart.js is not referenced"
           assert "./app.js" in scripts, "dashboard/app.js is not referenced"
+          app_js = Path("dashboard/app.js").read_text(encoding="utf-8")
+          assert 'script.src="./chart.js"' in app_js, "dashboard/chart.js is not loaded by the on-demand loader"
+          assert (Path("dashboard") / "chart.js").is_file(), "dashboard/chart.js is missing"
           for script in scripts:
               if script.startswith(("http://", "https://")):
                   continue
