@@ -784,10 +784,7 @@ test("visible pointer targets are inventoried against WCAG 2.2 24px minimum for 
               style.visibility === "hidden" || Number(style.opacity) === 0 ||
               el.closest("[inert]")) return false;
           const rect = el.getBoundingClientRect();
-          return rect.width > 0 && rect.height > 0 &&
-            rect.right > 0 && rect.bottom > 0 &&
-            rect.left < document.documentElement.clientWidth &&
-            rect.top < document.documentElement.clientHeight;
+          return rect.width > 0 && rect.height > 0;
         });
         const candidates = visible.map(el => {
           const rect = el.getBoundingClientRect();
