@@ -231,3 +231,12 @@ Reopened package/dependents (if any) and reason:
 - Target-size inventory excludes sidebar descendants at widths <=900px when the sidebar is closed/off-canvas; open navigation remains included.
 - Browser test source commit: `2ca64bf2e7baa6dea98eac4b4d8ba8c9d896e37a` (22 test cases; execution not yet verified).
 - See QA Audit Section 93. No runtime CSS or application behavior changed.
+
+
+### WP-09 Chromium run #66 and target-size correction — 2026-11-20
+
+- Browser QA run #66 / ID `44675656453`, commit `2ca64bf2e7baa6dea98eac4b4d8ba8c9d896e37a`: Chromium job succeeded; 22/22 tests passed, 0 failed.
+- Target inventory found `#banner-settings` at 118.75×17 CSS px across tested states. Root cause was `.text-btn` lacking minimum height/padding.
+- CSS fix: `.text-btn` now has min-height 24px and 2px vertical padding. Added regression assertion that rejects this control if it remains below 24px.
+- Fix commits: CSS `739d5ebc969e2ae2a4553baed8fea84fd507e702`; browser test `4e7853fbffe73a375fd37e2f7fb2edf39bab819e`.
+- The 22/22 result predates the fix; awaiting a new Chromium run for post-fix proof. See QA Audit Section 94.
