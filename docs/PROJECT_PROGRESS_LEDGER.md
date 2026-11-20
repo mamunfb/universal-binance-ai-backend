@@ -145,3 +145,14 @@ Reopened package/dependents (if any) and reason:
 3. Re-run authenticated Staging preflight using the already configured least-privilege QA access, without exposing or changing the token.
 4. Record the real USDⓈ-M HTTP status/body and determine whether the failure is Binance response policy, regional/network transport, timeout, or another provider condition.
 5. Do not mark WP-05/WP-06 complete until real Staging evidence and the broader market-data audit gates are satisfied.
+
+
+### USDⓈ-M diagnostic CI evidence — 2026-11-20
+
+- Current Feature Branch HEAD at verification: `c8655bf79c408ca460337463c8bb8ffea64af258`.
+- GitHub Actions run `44672136612`, job `136075310291`: **SUCCESS**. The actual runner executed the full `python -m pytest -q` suite and reported **694 passed in 12.16s**.
+- The combined QA job also passed Dashboard HTML/script-reference validation and JavaScript syntax checks for `dashboard/app.js`, `dashboard/chart.js`, and `tests/dashboard_live_integration.cjs`. The separate Python-only step was skipped because the combined step ran the full suite.
+- The passing suite includes the new USDⓈ-M HTTP diagnostic tests (403, 418, 429, 451, 500, 503 and response truncation). This is CI test evidence, not a live Binance or Render Staging result.
+- Cloudflare Pages check run `136075418326` succeeded on the same commit and published the Feature Branch Preview: `https://feat-institutional-dashboard-qitb.universal-binance-ai-backend.pages.dev/`.
+- Render Staging was not deployed; its prior deployed commit remains the baseline until a separately authorized Staging deployment. Production, database, secrets, and trading settings remain untouched.
+- USDⓈ-M root-cause investigation remains IN PROGRESS pending a real protected Staging preflight response. Do not infer that the upstream issue is fixed from passing mocked/provider regression tests.
