@@ -217,3 +217,10 @@ Reopened package/dependents (if any) and reason:
 - Target-size candidates below 24px are reported for manual spacing/exception review, not automatically failed; WCAG 2.2 SC 2.5.8 includes exceptions. Existing broad axe WCAG 2.1 A/AA scan already includes color contrast; the new test makes that result separately visible. Standards and exact details in QA Audit Section 91.
 - Test source updated, but no execution result retrieved yet. WP-09 remains active; do not report tests passing until a real runner result is verified.
 - No runtime CSS, backend, workflow configuration, secrets, CORS, deployment, database, `main`, or PR state changed.
+
+
+### WP-09 target inventory robustness refinement — 2026-11-20
+
+- Refined Playwright target-size inventory to exclude controls inside inert ancestors, include rendered controls throughout the document (not just initial viewport intersection), and assert a non-empty interactive inventory for each viewport/navigation state.
+- Updated test source blob `7ec146931d37691af65e17b87dde1ee01d6c910f`; 22 browser test cases remain.
+- This is a source change only; no actual browser execution or CI pass is claimed. Details in QA Audit Section 92.
