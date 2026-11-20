@@ -1945,3 +1945,17 @@ A read-only source comparison was completed between `main` and `fix/backend-dash
 - A direct merge of the existing feature branch is not a safe integration method: the branch history is divergent and its comparison with `main` spans 42 files, including unrelated governance, documentation, tests, workflow, and API changes.
 - The lowest-risk next implementation path is a fresh integration branch based on current `main`, followed by a narrowly scoped port of the Dashboard asset set, static mount, approved CORS behavior only if cross-origin hosting is chosen, and the required Spot 1s API contract. The seven Dashboard API handlers do not need to be copied because they are identical on both branches.
 - Creating that new branch or changing repository refs is deferred pending explicit authorization. No branch was created, no commit was made to `main`, and no PR, merge, deployment, database, secret, or hosted configuration was changed.
+
+
+## 89. Dashboard connection and cross-origin security contract (2026-11-20)
+
+A focused source review of the feature-branch Dashboard HTML/JavaScript and CORS tests confirmed the following integration requirements:
+
+- The Dashboard does not silently assume a backend URL or token. The user must enter a Backend Base URL and Bearer Token and explicitly test the connection.
+- The frontend rejects non-HTTPS remote backend URLs; HTTP is accepted only for localhost, 127.0.0.1, and [::1].
+- API requests send the Bearer token in the Authorization header, set `credentials: "omit"`, and use `cache: "no-store"`. The UI also provides an explicit credential-clear action.
+- Consequently, when the Dashboard is served from a separate origin, the backend's CORS allowlist must contain the exact HTTPS origin of that frontend. The backend CORS contract allows only GET/POST and Authorization/Content-Type headers, does not allow browser credentials, and rejects unlisted origins.
+- The feature-branch CORS suite contains 11 focused tests covering origin parsing, preflight behavior, missing/invalid/valid Bearer credentials, empty allowlists, disallowed methods, and disallowed headers. The backend CI suite passed at commit `91f9f838...`; these tests were included in that 684-test result.
+- No actual frontend URL, backend URL, Bearer token, repository Actions variable, or secret was added or exposed during this source audit.
+
+**Deployment implication:** A same-origin Dashboard served at `/dashboard` can call its backend without cross-origin CORS. A Cloudflare Pages frontend calling a separate backend requires an explicitly approved origin and an executed live cross-origin smoke test before claiming integration success.
