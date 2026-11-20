@@ -2097,3 +2097,17 @@ The endpoint discrepancy from Section 96 was resolved at the source-contract lev
 **Evidence boundary:** This resolves which documented endpoint and contract identity the application will request. Fake-provider tests do not establish a successful live Binance response. Live read-only API verification and CI execution on the resulting commit remain pending.
 
 **Change control:** All changes are confined to `fix/backend-dashboard-static-assets`. No `main`, PR, merge, deployment, database, secret, hosted configuration, or trading/execution behavior was changed.
+
+
+## 98. USDⓈ-M 1-second endpoint boundary hardening (2026-11-21)
+
+A final consistency pass tightened the distinction introduced in Section 97:
+
+- The ordinary symbol-specific USDⓈ-M `/api/v1/markets/futures/usdm/klines/{symbol}` route no longer accepts `1s`. The public 1-second route is the dedicated continuous-contract endpoint only.
+- The generic provider's earlier direct `klines(..., interval="1s")` request-construction test was removed because it could be misread as evidence that the standard `/fapi/v1/klines` endpoint supports 1-second bars. The standard route now has a regression test asserting HTTP 422 and no provider call for `1s`.
+- Continuous-contract route metadata validation now requires a supported, explicit contract type and a non-empty pair. The status check accepts the exchange metadata's `status` field or `contractStatus` fallback; unsupported/missing contract identity fails closed rather than issuing a guessed request.
+- Dashboard tooltip text now explains that USD-M 1-second candles use continuous-contract data resolved from the selected symbol's current exchange metadata. Other USD-M timeframes continue to use the symbol-specific endpoint.
+
+**Verification status:** Source files were re-fetched after writes. GitHub combined commit status currently returns an empty status list for the latest commit, so no CI pass is claimed. The provider/API/browser tests have been authored but not executed in a runner during this session. No live Binance API response has been obtained.
+
+**Change control:** Changes remain on `fix/backend-dashboard-static-assets`. No `main`, PR, merge, deployment, database, secret, hosted configuration, or trading/execution behavior was changed.
