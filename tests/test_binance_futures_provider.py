@@ -287,3 +287,74 @@ async def test_coinm_open_interest_and_history_use_coinm_contract_schema(monkeyp
         "/futures/data/openInterestHist",
         {"pair": "BTCUSD", "period": "1h", "limit": 20, "contractType": "PERPETUAL"},
     )]
+
+
+@pytest.mark.parametrize("status_code", [403, 418, 429, 451, 500, 503])
+async def test_futures_http_errors_expose_bounded_safe_diagnostics(monkeypatch, status_code):
+    import httpx
+
+    class ErrorResponse:
+        def __init__(self):
+            self.status_code = status_code
+            self.request = httpx.Request(
+                "GET", "https://fapi.binance.com/fapi/v1/exchangeInfo?secret=must-not-leak"
+            )
+            self.headers = {
+                "retry-after": "2",
+                "x-mbx-used-weight-1m": "17",
+                "set-cookie": "must-not-leak",
+            }
+            self.text = "  upstream error   detail  "
+
+        def raise_for_status(self):
+            raise httpx.HTTPStatusError(
+                f"HTTP {status_code}", request=self.request, response=httpx.Response(
+                    status_code, request=self.request, headers=self.headers, text=self.text
+                )
+            )
+
+    class ErrorClient(FakeAsyncClient):
+        async def get(self, path, params=None):
+            self.calls.append((path, params))
+            return ErrorResponse()
+
+    monkeypatch.setattr(
+        "app.providers.binance_futures.httpx.AsyncClient",
+        lambda **kwargs: ErrorClient(**kwargs),
+    )
+
+    with pytest.raises(httpx.HTTPStatusError) as caught:
+        await BinanceFuturesProvider("USD_M").exchange_info()
+
+    diagnostics = caught.value.diagnostics
+    assert diagnostics["http_status"] == status_code
+    assert diagnostics["request_url"] == "https://fapi.binance.com/fapi/v1/exchangeInfo"
+    assert diagnostics["response_body"] == "upstream error detail"
+    assert diagnostics["retry_after"] == "2"
+    assert diagnostics["rate_limit_headers"] == {
+        "retry-after": "2", "x-mbx-used-weight-1m": "17"
+    }
+    assert "secret" not in str(diagnostics)
+    assert "set-cookie" not in str(diagnostics)
+
+
+async def test_futures_http_error_response_body_is_truncated(monkeypatch):
+    import httpx
+
+    request = httpx.Request("GET", "https://fapi.binance.com/fapi/v1/exchangeInfo")
+    body = "x" * 1000
+    response = httpx.Response(502, request=request, text=body)
+
+    class ErrorClient(FakeAsyncClient):
+        async def get(self, path, params=None):
+            raise httpx.HTTPStatusError("bad gateway", request=request, response=response)
+
+    monkeypatch.setattr(
+        "app.providers.binance_futures.httpx.AsyncClient",
+        lambda **kwargs: ErrorClient(**kwargs),
+    )
+
+    with pytest.raises(httpx.HTTPStatusError) as caught:
+        await BinanceFuturesProvider("USD_M").exchange_info()
+
+    assert len(caught.value.diagnostics["response_body"]) == 512
