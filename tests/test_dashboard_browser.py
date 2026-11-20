@@ -101,7 +101,8 @@ def test_chart_bundle_is_loaded_only_when_technical_chart_is_requested(dashboard
         assert page.evaluate("typeof window.DashboardCharts") == "undefined"
         assert page.locator('script[src="./chart.js"]').count() == 0
 
-        page.locator("#load-technical").click()
+        page.locator('a[data-page="coin-analysis"]').click()
+        page.locator("#load-coin-analysis").click()
         page.wait_for_function("typeof window.DashboardCharts === 'object'")
         assert len(chart_requests) == 1
         assert page.evaluate("typeof window.DashboardCharts.load") == "function"
