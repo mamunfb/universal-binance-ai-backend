@@ -310,3 +310,10 @@ Reopened package/dependents (if any) and reason:
 - Cloudflare Pages check for this commit succeeded. This is a build/check result, not proof of live backend CORS or production behavior.
 - Render Staging remains live/not suspended, Auto Deploy off, current deploy SHA 6fff1228936d3d507c2dc130f71d329946c42095. Current branch head at CI checkpoint is 14fb7e414dd05dcf9fb9578a6f6a87808773df24, 70 commits ahead. No Staging deployment or config changes performed.
 - Current live CORS remains blocked pending exact preview origin and CORS allowlist verification; Render service metadata does not expose the configured CORS_ALLOWED_ORIGINS value. Physical Android/TalkBack testing also remains outstanding.
+### CI Run #2047 and authentication/CORS review — 2026-11-20
+
+- Run 44690892998 on commit 63f952716ced40b70f7ff7e40811d5874f9cb95f completed successfully. Raw job log: `python -m pytest -q` → 694 passed in 9.90s. Playwright + Chromium installation succeeded; the feature-branch workflow selected the full Python/Chromium suite, including `tests/test_dashboard_browser.py` checks for runtime errors, responsive overflow at 360/390/768/1280, and mobile Escape/focus restoration.
+- Dashboard HTML/script references, Node syntax checks, and Cloudflare Pages check succeeded. This is branch CI/build evidence, not live Staging verification.
+- Code review confirms production rejects startup requests with 503 if strong key configuration is missing; when API key config is enabled, unmatched/missing Bearer credentials return 401. CORS uses exact configured origins, with no wildcard and no credentials. Unit tests cover allowed/unlisted origins, preflight, empty allowlist, and Bearer auth paths.
+- Render service metadata does not reveal runtime values for APP_ENV, PERSONAL_API_KEY, AI_CLIENT_API_KEYS, or CORS_ALLOWED_ORIGINS. Actual Staging auth/CORS status cannot be confirmed from current evidence.
+- Render Staging is live/not suspended, Auto Deploy off; latest visible live deploy still runs 6fff1228936d3d507c2dc130f71d329946c42095, not this tested branch head. No deployment or config change performed. Physical Android/TalkBack QA remains outstanding.
