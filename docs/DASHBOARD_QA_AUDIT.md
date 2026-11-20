@@ -2005,3 +2005,15 @@ A read-only review inspected the Dashboard connection flow, request helper, cred
 **Evidence classification and scope**
 - Findings are based on static inspection of the feature-branch JavaScript and backend middleware source.
 - No credentials were entered, transmitted, or exposed during this review. No code, `main`, PR, deployment, database, secret, or hosted configuration was changed.
+
+## 92. Dashboard API URL construction and request-boundary review (2026-11-21)
+
+Read-only source review of `dashboard/app.js`, `dashboard/chart.js`, and the branch backend request middleware:
+
+- The shared Dashboard API helper constructs requests by removing one trailing slash from the configured backend base URL and appending a caller-supplied path. It uses `fetch` with `credentials: "omit"`, `cache: "no-store"`, an `Accept: application/json` header, and a Bearer Authorization header only when a token is present.
+- The Settings URL validator parses an absolute URL, requires HTTPS for remote hosts, permits HTTP only for localhost, 127.0.0.1, and [::1], and rejects embedded username/password, query, or fragment. It does not reject a non-root pathname on the backend base URL. Consequently, a reverse-proxy path prefix is preserved when the fixed API path is appended; compatibility with any such proxy prefix was not exercised.
+- Dynamic path segments observed in the inspected request builders are encoded with `encodeURIComponent` (market-evidence symbol, quality market/symbol, and chart symbol); quality query parameters use `URLSearchParams`. The Spot quote filter is encoded before inclusion in its query string. Static route paths are selected from fixed market mappings or fixed readiness actions.
+- The backend request-tracking middleware applies Bearer-key enforcement to request paths beginning exactly with `/api/`. Dashboard and asset paths are intentionally outside that prefix. CORS is configured outside the request-tracking middleware so browser OPTIONS preflight is handled before API-key enforcement.
+- This is a source-level route and URL-construction review only. It does not establish that a reverse proxy preserves paths/headers, that a remote browser can reach the backend, or that all malformed/encoded path variants behave as intended. No live request, credential, deployment, or penetration test was performed.
+- No code, `main`, PR, deployment, database, secret, or hosted configuration was changed.
+
