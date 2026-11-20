@@ -156,3 +156,12 @@ Reopened package/dependents (if any) and reason:
 - Cloudflare Pages check run `136075418326` succeeded on the same commit and published the Feature Branch Preview: `https://feat-institutional-dashboard-qitb.universal-binance-ai-backend.pages.dev/`.
 - Render Staging was not deployed; its prior deployed commit remains the baseline until a separately authorized Staging deployment. Production, database, secrets, and trading settings remain untouched.
 - USDⓈ-M root-cause investigation remains IN PROGRESS pending a real protected Staging preflight response. Do not infer that the upstream issue is fixed from passing mocked/provider regression tests.
+
+
+### Staging authorization and protected-preflight gate — 2026-11-20
+
+- Reconfirmed Render Staging is on baseline commit `6fff1228936d3d507c2dc130f71d329946c42095`, branch `feat/institutional-dashboard-task-governance`, with Auto Deploy disabled.
+- Render logs: `GET /health` returned HTTP 200; an earlier protected `GET /api/v1/research/preflight` returned HTTP 200. Subsequent unauthenticated `GET /api/v1/research/phase-readiness` requests returned HTTP 401. The middleware protects `/api/*` routes when no valid Bearer key is presented.
+- Do not expose or request a key in chat. Use the existing Dashboard session or least-privilege QA credential path for protected preflight.
+- No staging deploy was triggered because the latest user response did not explicitly approve the specific deployment action. No service configuration or secret was changed.
+- Root cause of USDⓈ-M remains unconfirmed pending deployment of the tested diagnostic code and authenticated protected preflight.
