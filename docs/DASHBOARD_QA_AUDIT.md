@@ -2111,3 +2111,18 @@ A final consistency pass tightened the distinction introduced in Section 97:
 **Verification status:** Source files were re-fetched after writes. GitHub combined commit status currently returns an empty status list for the latest commit, so no CI pass is claimed. The provider/API/browser tests have been authored but not executed in a runner during this session. No live Binance API response has been obtained.
 
 **Change control:** Changes remain on `fix/backend-dashboard-static-assets`. No `main`, PR, merge, deployment, database, secret, hosted configuration, or trading/execution behavior was changed.
+
+
+## 99. USDⓈ-M 1-second implementation CI verification (2026-11-21)
+
+Official Binance USDⓈ-M REST Market Data documentation was rechecked. Its Continuous Contract Kline endpoint `GET /fapi/v1/continuousKlines` explicitly lists interval `1s`, contract types `PERPETUAL`, `CURRENT_QUARTER`, `NEXT_QUARTER`, and `TRADIFI_PERPETUAL`, and a maximum `limit` of 1500. The same official page documents the required `pair` and `contractType` parameters. Source: https://developers.binance.info/en/docs/catalog/core-trading-derivatives-trading-usd-s-m-futures/api/rest-api/market-data
+
+CI evidence retrieved from GitHub Actions:
+
+- Backend and dashboard tests run #2096, run ID `44803289631`, head SHA `aa3b38cd587be58646db4d7ce5acb480acff0501`: **success**. Job `136522870172` completed all non-skipped steps successfully; Python suite reported `690 passed in 5.16s`; Dashboard HTML validation reported 2 scripts and 1 stylesheet; JavaScript syntax validation succeeded.
+- Dashboard browser QA run #81, run ID `44803281276`, head SHA `437da318d9726b74d4cb6ebfd0c0592364a70ae2`: **success**. Job `136520746974` completed; Node test summary: **22 tests, 22 passed, 0 failed, 0 skipped**. The new test `USD-M one-second chart requests use the continuous-contract endpoint` passed, as did the Spot/USD-M/COIN-M timeframe availability test.
+- Browser QA was executed on `437da318...`, while Backend CI was executed on the later `aa3b38c...`. The relevant chart routing and browser test files were present on the browser-run SHA; the later commit only clarified Dashboard tooltip text and updated this audit. The latest backend commit received the complete Python suite.
+
+**Live API boundary:** A direct read-only attempt to access `https://fapi.binance.com/fapi/v1/exchangeInfo` from the current verification environment returned HTTP 451 (Unavailable For Legal Reasons). Thus, official endpoint contract and fake-provider tests are verified, but a live Binance response for a real symbol has not been confirmed from this environment.
+
+**Change control:** No main branch update, PR creation, merge, deployment, database, secrets, hosted configuration, or order execution behavior was performed.
