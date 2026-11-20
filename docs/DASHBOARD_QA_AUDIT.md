@@ -2017,3 +2017,23 @@ Read-only source review of `dashboard/app.js`, `dashboard/chart.js`, and the bra
 - This is a source-level route and URL-construction review only. It does not establish that a reverse proxy preserves paths/headers, that a remote browser can reach the backend, or that all malformed/encoded path variants behave as intended. No live request, credential, deployment, or penetration test was performed.
 - No code, `main`, PR, deployment, database, secret, or hosted configuration was changed.
 
+## 93. Main-based Dashboard integration manifest and 1-second interval consistency finding (2026-11-21)
+
+Read-only comparison of current `main` with `fix/backend-dashboard-static-assets`:
+
+### Minimal static Dashboard port
+- Current `main` already serves `GET /dashboard` from `dashboard/index.html`; replacing or duplicating that route is unnecessary.
+- Current `main` does not mount `/dashboard-assets`. The feature branch adds a `StaticFiles` mount pointing at the repository's `dashboard/` directory.
+- The branch HTML references exactly three external assets: `/dashboard-assets/app.css`, `/dashboard-assets/chart.js`, and `/dashboard-assets/app.js`.
+- Therefore, a same-origin static Dashboard port requires the branch `dashboard/index.html`, all three referenced asset files, and the `/dashboard-assets` mount. The existing Dockerfile already copies the complete `dashboard/` directory, so no Dockerfile change was identified as necessary by this comparison.
+- The branch includes broader workflow, documentation, test, and unrelated backend changes. These are not automatically part of the minimal static asset port.
+
+### 1-second Kline UI/API inconsistency — integration decision required
+- The branch's USDⓈ-M standard Kline handler accepts `1s` and its regression test verifies that the value is passed to a fake futures provider. This is contract-level test evidence only; it does not prove a live Binance response.
+- Binance's official USDⓈ-M public API parameter reference currently lists `1s` among Kline intervals: https://developers.binance.com/zh-CN/docs/products/derivatives-trading-usds-futures/common-definition
+- However, the branch Dashboard UI disables the `1s` timeframe whenever the selected market is not Spot, and its tooltip says USDⓈ-M and COIN-M do not provide the Spot 1-second interval. The browser test explicitly expects USDⓈ-M `1s` to be disabled.
+- This means the branch's USDⓈ-M API support and UI availability policy disagree, and the tooltip overstates the USDⓈ-M limitation against the official public API enum.
+- COIN-M `1s` remains rejected by the branch route contract test. No live Binance REST calls were made for either futures market.
+- Before integration, the product policy must be settled: either keep the UI Spot-only and revise the misleading USDⓈ-M tooltip / avoid carrying unused USDⓈ-M `1s` API support, or intentionally enable USDⓈ-M `1s` and update the UI gating plus browser regression test. Do not infer a live-provider guarantee from fake-provider tests.
+- No code, `main`, PR, deployment, database, secret, or hosted configuration was changed.
+
