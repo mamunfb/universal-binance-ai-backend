@@ -185,3 +185,11 @@ Reopened package/dependents (if any) and reason:
 - This is static source evidence only. It does not replace fresh browser viewport tests, physical Android/iOS device checks, or TalkBack/VoiceOver verification. No confirmed defect was found in this source-only pass.
 - Detailed file blob identifiers, review scope, limitations and the next manual test matrix are recorded in `docs/DASHBOARD_QA_AUDIT.md`, Section 87.
 - No runtime source, backend, workflow, secret, CORS, Render setting, deployment, database, `main` or PR state changed.
+
+
+### WP-09 browser QA workflow review — 2026-11-20
+
+- Confirmed the branch has a dedicated Chromium browser QA workflow and 20 authored browser tests covering 10 viewport widths, mobile keyboard navigation/focus handling, desktop/mobile axe-core WCAG 2.1 A/AA scans, mocked API failure/cancellation/stale-response behavior, and 1,000-row scanner interactions.
+- This is workflow/test-source inspection, not proof of a successful run on the latest branch head. The tests use a local static server and mocked API routes; live cross-origin CORS remains a separate gate. Automated axe checks do not replace physical-device or human screen-reader testing.
+- Detailed workflow/test blob identifiers and limitations are recorded in `docs/DASHBOARD_QA_AUDIT.md`, Section 88.
+- No runtime code, test code, workflow, credentials, CORS, Render settings, deployment, database, `main` or PR state changed.
