@@ -2138,3 +2138,16 @@ Added an explicit assertion to `test_protected_api_rejects_invalid_bearer_key`: 
 GitHub Actions Backend and dashboard tests run `44677460067` on commit `98bba7a84d229af2fe1b6308f965fc1dd7bc069c` completed successfully. The combined Python/browser step ran the full Python suite: **694 passed in 11.71s**. Dashboard HTML/script references and Node syntax checks also passed. The separate Python-only step was skipped because the combined step already executed the full suite.
 
 Live cross-origin run `44677460013` was still in progress at the time of this audit update; Chromium installation had not completed, and the live browser verification step had not started. No live CORS pass is claimed. The configuration-check job was skipped by workflow logic. Staging environment values remain unverified; no Staging configuration or deployment was changed.
+## 102. Live CORS workflow run 44677460013 — confirmed failure (2026-11-20)
+
+Run `44677460013` on commit `98bba7a84d229af2fe1b6308f965fc1dd7bc069c` completed with the `Live cross-origin Chromium smoke test` job failed. Chromium installation completed successfully; the test itself ran and failed after approximately 21.37 seconds.
+
+Workflow log explicitly supplied `DASHBOARD_URL=https://7e74d124.universal-binance-ai-backend.pages.dev/` and `BACKEND_URL=https://universal-binance-ai-backend-staging-qa.onrender.com`. The browser's actual response header `Access-Control-Allow-Origin` was `null`, while the test expected `https://7e74d124.universal-binance-ai-backend.pages.dev`. This confirms the Actions variable still points at the older preview origin used in earlier failed run #34. The invalid Bearer token's HTTP 401 is the expected auth rejection; the failure is that browser JavaScript cannot read that response because the expected CORS allow-origin header is absent.
+
+Current branch preview URL previously identified during QA is `https://feat-institutional-dashboard-qitb.universal-binance-ai-backend.pages.dev/`; it is different from the stale URL used by this run. This run does not test the current preview origin.
+
+Source review shows `CORS_ALLOWED_ORIGINS` is parsed as an exact-origin allowlist, and an empty or non-matching allowlist emits no `Access-Control-Allow-Origin`. This is consistent with the observed response, but the actual Render Staging environment variable value is not readable from service metadata and remains unconfirmed. Therefore the likely configuration issue is a missing/mismatched exact origin, not a proven empty value.
+
+**Required safe remediation (not performed):** update the Dashboard Preview URL repository Actions variable to the current preview origin, and separately set Render Staging `CORS_ALLOWED_ORIGINS` to the exact current HTTPS origin (plus any explicitly required existing origins), never `*`. Both are configuration changes. No GitHub Actions variable or Render environment value was changed; no Staging deploy/restart was initiated. Live CORS remains blocked pending authorized config correction and a rerun.
+
+Run outcome: `Live cross-origin Chromium smoke test` — FAILURE; `Live URL configuration check` — SKIPPED because required repository variables were present. This is a live Staging browser failure, not a Production test.
