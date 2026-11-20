@@ -1919,3 +1919,29 @@ The isolated branch `fix/backend-dashboard-static-assets` was verified at commit
 - The live Cloudflare Pages → Render integration workflow was not part of these two runs. Live cross-origin integration remains unverified until the approved preview/backend URLs and QA credentials are available and the live smoke test actually executes.
 - A fresh comparison of `main` against this branch reports a divergent history (732 commits ahead, 1 behind; merge base `527afbb3f2aff7c76db32fb3593302e2cc3ccab5`) and a broad 42-file comparison. The ahead count reflects the branch's full history relative to that merge base; it must not be described as 732 newly added static-asset commits. Integration therefore requires a deliberate, separately reviewed scope/branch strategy rather than a direct merge.
 - No `main` update, PR creation/merge, production or staging deployment, database change, secret/configuration change, or CORS relaxation was performed.
+
+
+## 88. Main-branch Dashboard integration dependency audit (2026-11-20)
+
+A read-only source comparison was completed between `main` and `fix/backend-dashboard-static-assets`. No files on `main` were changed.
+
+**Existing main-branch behavior**
+- `backend/app/main.py` already defines `GET /dashboard` and serves `dashboard/index.html`.
+- `Dockerfile` is byte-for-byte identical on `main` and the asset branch and already copies both `backend/` and `dashboard/` into the image.
+- However, `main` does not contain `dashboard/app.js`, `dashboard/chart.js`, or `dashboard/app.css`. Its current `dashboard/index.html` is a different, larger inline document. Replacing that HTML with the feature-branch document without adding the static mount and three assets would leave its referenced files unavailable.
+
+**Dashboard API compatibility**
+- The feature-branch Dashboard JavaScript contains seven explicit API path references: Spot scan, USD-M scan, COIN-M scan, market evidence, market-data quality, research preflight, and research phase readiness.
+- All seven corresponding route handlers exist on `main`; a source-level extraction comparison found those seven handler blocks byte-for-byte identical between `main` and the asset branch.
+- This is a static source comparison, not a live HTTP compatibility test. Runtime behavior, response payloads with live providers, and hosted deployment behavior still require integration testing.
+
+**Backend changes relevant to a future integration**
+- Required to serve the new separate frontend assets: add the branch's `StaticFiles` mount at `/dashboard-assets`, and carry over `dashboard/index.html`, `dashboard/app.js`, `dashboard/chart.js`, and `dashboard/app.css` as one coherent set.
+- The existing `/dashboard` route can remain; its current path already resolves to the Dashboard HTML file.
+- For a Dashboard hosted on a different origin (for example, a Pages preview calling a separately hosted API), the exact frontend origin must be explicitly allowed through the branch's strict CORS configuration. Same-origin access through the backend's `/dashboard` does not require cross-origin CORS. No origin or secret value was configured during this audit.
+- The branch also adds `1s` to Spot and USD-M Kline API interval validation. The Dashboard browser regression test enables the 1s timeframe only for Spot and disables it for both Futures markets. The main-branch Spot Kline route does not yet accept `1s`; therefore, if the Spot 1s chart control is retained in a main-based integration, the Spot interval contract change and its regression test are required. The USD-M API acceptance is a separate backend capability; the current UI intentionally does not expose that interval for USD-M. COIN-M remains unsupported for 1s.
+
+**Integration decision**
+- A direct merge of the existing feature branch is not a safe integration method: the branch history is divergent and its comparison with `main` spans 42 files, including unrelated governance, documentation, tests, workflow, and API changes.
+- The lowest-risk next implementation path is a fresh integration branch based on current `main`, followed by a narrowly scoped port of the Dashboard asset set, static mount, approved CORS behavior only if cross-origin hosting is chosen, and the required Spot 1s API contract. The seven Dashboard API handlers do not need to be copied because they are identical on both branches.
+- Creating that new branch or changing repository refs is deferred pending explicit authorization. No branch was created, no commit was made to `main`, and no PR, merge, deployment, database, secret, or hosted configuration was changed.
