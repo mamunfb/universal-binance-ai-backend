@@ -1,5 +1,5 @@
 # Project Progress Ledger
-Last updated: 2026-11-19 — WP-09 combined CI run #1971 verified
+Last updated: 2026-11-20 — USDⓈ-M diagnostic implementation committed; CI and Staging verification pending
 Repository: `mamunfb/universal-binance-ai-backend`
 Governing policy: [PROJECT_EXECUTION_GOVERNANCE.md](PROJECT_EXECUTION_GOVERNANCE.md)
 
@@ -119,3 +119,29 @@ Reopened package/dependents (if any) and reason:
 3. Preserve the distinction between local/mock QA evidence and live/staging/production evidence.
 4. Reopen WP-00 only if a concrete branch, PR, CI or baseline discrepancy is discovered.
 
+
+
+## USDⓈ-M preflight diagnostics — 2026-11-20
+
+**Scope:** WP-05 / WP-06 diagnostic hardening on `feat/institutional-dashboard-task-governance`. This is an in-progress investigation, not a completed market-data fix.
+
+- Verified the provider's public USDⓈ-M exchange-info request uses `https://fapi.binance.com/fapi/v1/exchangeInfo`. Binance's current official USDⓈ-M Market Data documentation lists the same GET endpoint and request weight 1.
+- Confirmed the previous provider called `response.raise_for_status()` but did not preserve the resulting HTTP status, bounded response body, retry-after, or safe rate-limit header. The preflight probe returned only the exception class.
+- Added bounded diagnostics to caught `httpx.HTTPStatusError`: HTTP status, URL without query parameters, whitespace-normalized response body capped at 512 characters, `Retry-After`, and allow-listed `X-MBX-USED-WEIGHT-1M`. Cookie and arbitrary headers are not exposed.
+- Added preflight failure categories for HTTP response errors, network timeouts, connection/protocol errors, and otherwise unclassified provider failures. No raw exception message or credentials are returned.
+- No automatic retry was added. Statuses such as 418/429/451 must first be observed and handled according to their actual semantics; blindly retrying or routing around access restrictions would be unsafe.
+- Regression tests added for HTTP 403, 418, 429, 451, 500, 503 and response-body truncation. The tests are committed but **have not yet been executed in a confirmed CI runner**.
+- Workflow path filters now include `backend/app/providers/binance_futures.py` and `tests/test_binance_futures_provider.py`, so future provider changes are included in the Dashboard/Backend QA workflow.
+- Commits: provider diagnostics `6f8eafc95ce09cfbbea378878a384591b680db61`; preflight classification `e0324f79a902c652ff5bec6dfa4b525dbb75c1e1`; initial tests `7d026e8470f5dae2f6fa66ddcaf0927eaf7fc0fe`; test harness correction `5fd593cb01189d3957026ed0865a0527f3d5318a`; workflow coverage `8956b8167b5a057a5492c4fed591d7d15f0176e6`.
+- Render Staging remains deployed at commit `6fff1228936d3d507c2dc130f71d329946c42095`; auto-deploy is disabled. No Staging deploy was triggered, and no Production resource was changed.
+- Render application logs show successful health and preflight HTTP requests, but no upstream USDⓈ-M error body/status was logged. Therefore the original Render-side root cause remains **unconfirmed**.
+- Current branch HEAD after these changes: `8956b8167b5a057a5492c4fed591d7d15f0176e6`. The branch is three commits ahead of the staging baseline `6fff122`; the changes affect provider diagnostics, preflight reporting, regression tests, and workflow path filters only.
+- Local execution was unavailable because the execution container could not resolve GitHub to retrieve the repository. No local test pass is claimed.
+
+### Next gates
+
+1. Obtain a confirmed CI run on the current branch and inspect the actual runner logs, including the new provider tests.
+2. After CI passes, deploy the exact feature-branch commit to the existing Staging service only when explicitly authorized; Render auto-deploy is disabled.
+3. Re-run authenticated Staging preflight using the already configured least-privilege QA access, without exposing or changing the token.
+4. Record the real USDⓈ-M HTTP status/body and determine whether the failure is Binance response policy, regional/network transport, timeout, or another provider condition.
+5. Do not mark WP-05/WP-06 complete until real Staging evidence and the broader market-data audit gates are satisfied.
