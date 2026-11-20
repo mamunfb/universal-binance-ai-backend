@@ -2151,3 +2151,29 @@ Source review shows `CORS_ALLOWED_ORIGINS` is parsed as an exact-origin allowlis
 **Required safe remediation (not performed):** update the Dashboard Preview URL repository Actions variable to the current preview origin, and separately set Render Staging `CORS_ALLOWED_ORIGINS` to the exact current HTTPS origin (plus any explicitly required existing origins), never `*`. Both are configuration changes. No GitHub Actions variable or Render environment value was changed; no Staging deploy/restart was initiated. Live CORS remains blocked pending authorized config correction and a rerun.
 
 Run outcome: `Live cross-origin Chromium smoke test` — FAILURE; `Live URL configuration check` — SKIPPED because required repository variables were present. This is a live Staging browser failure, not a Production test.
+
+## URL validation regression coverage implementation — 2026-11-20
+
+The Dashboard backend URL validation gap was addressed in source and browser-test code on `feat/institutional-dashboard-task-governance`.
+
+**Implementation**
+- `dashboard/app.js` now parses the original trimmed URL before changing connection state.
+- Only root-origin pathnames are accepted. A pathname consisting solely of one or more slash characters is normalized to `URL.origin`; API paths such as `/api` and `/api/` are rejected.
+- Validation remains before request invalidation, state assignment, credential application, and clearing connection-scoped data. Therefore a rejected URL should not issue a backend request or replace the previous connection state; this is now asserted by browser tests.
+- Existing HTTPS-for-remote, localhost HTTP exception, and rejection of embedded credentials, query strings, and fragments are retained.
+
+**Browser regression cases added**
+- Accept a valid root URL with no trailing slash and with one trailing slash.
+- Accept multiple trailing slashes and verify the normalized root-origin connection succeeds.
+- Reject `/api` and `/api/`.
+- Assert that rejected API-path URLs issue no request to the backend.
+- Establish a successful prior connection, submit an invalid API-path URL, and assert the prior connection label and health status remain unchanged.
+
+**Change references**
+- Implementation commit: `152fcc701b75516a58d736290ca77ec02b7d9431`.
+- Browser regression-test commit: `fc19959a724773720417bb49b634f77fb11d30c7`.
+
+**Verification status**
+- These are code and test additions only. A successful execution of the new Playwright cases has not yet been independently verified; do not mark the regression tests as passed until the relevant workflow has a real runner, executed test steps, and retrievable logs.
+- Live CORS remains a separate blocker. No GitHub Actions variables, Render environment variables, secrets, CORS allowlist, database, production resources, or trading configuration were changed.
+- No PR merge or Production deployment was performed. No Render Staging configuration change or deployment was initiated as part of this URL-validation work.
