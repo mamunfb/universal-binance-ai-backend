@@ -10,6 +10,8 @@ on:
       - "dashboard/**"
       - "backend/app/config.py"
       - "backend/app/main.py"
+      - "backend/app/providers/binance_futures.py"
+      - "tests/test_binance_futures_provider.py"
       - "tests/test_cors_configuration.py"
       - "tests/dashboard_live_integration.cjs"
       - ".github/workflows/dashboard-live-integration-qa.yml"
