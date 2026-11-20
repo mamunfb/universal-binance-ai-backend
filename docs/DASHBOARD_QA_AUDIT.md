@@ -2083,3 +2083,17 @@ A follow-up check found an important qualification to Sections 93–95:
 **Next gate:** No further assertion of live USDⓈ-M 1s availability, no integration into `main`, and no deployment until the endpoint discrepancy is resolved. Existing fake-client tests remain useful request-construction tests only.
 
 **Change control:** This section is documentation-only on `fix/backend-dashboard-static-assets`. No application code, `main`, PR, deployment, database, secret, hosted configuration, or trading/execution behavior was changed in this step.
+
+
+## 97. USDⓈ-M 1-second continuous-contract routing (2026-11-21)
+
+The endpoint discrepancy from Section 96 was resolved at the source-contract level without treating a continuous-contract series as a symbol-specific series:
+
+- Binance's official USDⓈ-M REST reference documents `GET /fapi/v1/continuousKlines` with required `pair` and `contractType` parameters, and explicitly includes `1s` in that endpoint's interval enum. The same reference's standard `GET /fapi/v1/klines` interval enum begins at `1m`. Source: https://developers.binance.info/en/docs/catalog/core-trading-derivatives-trading-usd-s-m-futures/api/rest-api/market-data
+- The branch now adds a dedicated USDⓈ-M continuous-kline provider method and `/api/v1/markets/futures/usdm/continuous-klines/{symbol}` route. The route resolves the exact selected symbol through current `exchangeInfo`, requires one matching active `TRADING` contract, reads its explicit `pair` and `contractType`, then calls `/fapi/v1/continuousKlines`. Unknown, inactive, ambiguous, or incomplete metadata does not fall back to the symbol-specific endpoint.
+- Dashboard chart loading now selects this dedicated route only when market is USD-M and timeframe is `1s`. Other USD-M timeframes continue to use symbol-specific `/fapi/v1/klines`; Spot `1s` remains on the Spot endpoint; COIN-M `1s` remains disabled.
+- Added provider request-construction tests, API metadata-resolution/error tests, and a browser request-routing regression test. These tests are committed source changes only until an actual test runner executes them.
+
+**Evidence boundary:** This resolves which documented endpoint and contract identity the application will request. Fake-provider tests do not establish a successful live Binance response. Live read-only API verification and CI execution on the resulting commit remain pending.
+
+**Change control:** All changes are confined to `fix/backend-dashboard-static-assets`. No `main`, PR, merge, deployment, database, secret, hosted configuration, or trading/execution behavior was changed.
