@@ -865,3 +865,16 @@ The USDⓈ-M provider endpoint was checked against Binance's current official do
 2. Deploy to Staging only after CI evidence is verified and only with explicit deployment authorization.
 3. Re-run the protected preflight endpoint and capture the structured USDⓈ-M error details.
 4. Continue the independent Spot/USDⓈ-M/COIN-M market-data audit after the failure class is known.
+
+
+## USDⓈ-M diagnostics CI verification — 2026-11-20
+
+- The diagnostic changes and regression tests are now covered by an actual GitHub Actions runner on Feature Branch HEAD `c8655bf79c408ca460337463c8bb8ffea64af258`.
+- Workflow run: `44672136612`; job `136075310291`, “Python tests and dashboard JavaScript validation” — completed SUCCESS.
+- The job installed Python dependencies and Playwright, validated Dashboard HTML and its two local script references, passed `node --check` for `dashboard/app.js`, `dashboard/chart.js`, and `tests/dashboard_live_integration.cjs`, then ran the complete `python -m pytest -q` suite.
+- Actual pytest output: **694 passed in 12.16s**. The standalone “Run Python test suite” step was skipped because the combined feature-branch QA step ran the complete Python suite; the combined step itself succeeded.
+- This includes the USDⓈ-M provider HTTP diagnostic regression tests for 403, 418, 429, 451, 500, 503 and response-body truncation. It verifies the test cases in CI, not live Binance connectivity or the original Render-side upstream failure.
+- Cloudflare Pages check run `136075418326` completed SUCCESS for the same commit and created branch preview: `https://feat-institutional-dashboard-qitb.universal-binance-ai-backend.pages.dev/`. This is a Feature Branch Preview, not a Production deployment.
+- The separate live cross-origin integration is not proven by this Python/JavaScript validation job. Existing missing URL variables / least-privilege QA credential constraints remain open.
+- Render Staging was not deployed and remains on its previous known commit; no Production, database, secrets, trading, or order-execution changes were made.
+- Next gate: obtain explicit authorization before deploying this tested commit to the existing Render Staging service, then run the protected preflight and capture the real USDⓈ-M upstream status/body. Do not mark the USDⓈ-M root cause fixed until this live Staging evidence exists.
