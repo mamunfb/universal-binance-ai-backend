@@ -1,0 +1,93 @@
+name: Backend and dashboard tests
+
+on:
+  push:
+    branches: [main, feat/institutional-dashboard-design, feat/institutional-dashboard-task-governance, fix/backend-dashboard-static-assets]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Python tests and dashboard JavaScript validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          package-manager-cache: false
+
+      - name: Verify runner toolchain
+        run: |
+          python --version
+          node --version
+          python -m pip --version
+
+      - name: Install Python test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,mcp]"
+
+      - name: Install Playwright for feature-branch browser QA
+        if: github.ref == 'refs/heads/feat/institutional-dashboard-design' || github.event.pull_request.head.ref == 'feat/institutional-dashboard-design' || github.ref == 'refs/heads/feat/institutional-dashboard-task-governance' || github.event.pull_request.head.ref == 'feat/institutional-dashboard-task-governance'
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium
+
+      - name: Validate dashboard document and script references
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          html = Path("dashboard/index.html").read_text(encoding="utf-8")
+          assert "<!doctype html>" in html.lower(), "Dashboard HTML doctype is missing"
+          assert 'class="app-shell"' in html, "Dashboard shell is missing"
+          scripts = re.findall('<script[^>]+src="([^"]+)"', html, flags=re.I)
+          stylesheets = re.findall('<link[^>]+href="([^"]+[.]css)"', html, flags=re.I)
+          app_js = Path("dashboard/app.js").read_text(encoding="utf-8")
+          chart_is_lazy_loaded = 'script.src="/dashboard-assets/chart.js"' in app_js
+          assert "/dashboard-assets/chart.js" in scripts or chart_is_lazy_loaded, "dashboard chart.js must be referenced statically or by the on-demand loader"
+          assert "/dashboard-assets/app.js" in scripts, "dashboard app.js asset route is not referenced"
+          assert "/dashboard-assets/app.css" in stylesheets, "dashboard app.css asset route is not referenced"
+          for asset in [*scripts, *stylesheets, "/dashboard-assets/chart.js"]:
+              if asset.startswith(("http://", "https://")):
+                  continue
+              relative_asset = asset.removeprefix("/dashboard-assets/")
+              path = Path("dashboard") / relative_asset
+              assert path.is_file(), f"Referenced dashboard asset is missing: {asset}"
+          print(f"Validated dashboard HTML, {len(scripts)} initial scripts, chart lazy-load reference={chart_is_lazy_loaded}, and {len(stylesheets)} stylesheets")
+          PY
+
+      - name: Check dashboard JavaScript syntax
+        run: |
+          node --check dashboard/app.js
+          node --check dashboard/chart.js
+          node --check tests/dashboard_live_integration.cjs
+
+      - name: Run Python test suite
+        if: github.ref != 'refs/heads/feat/institutional-dashboard-design' && github.event.pull_request.head.ref != 'feat/institutional-dashboard-design' && github.ref != 'refs/heads/feat/institutional-dashboard-task-governance' && github.event.pull_request.head.ref != 'feat/institutional-dashboard-task-governance'
+        run: python -m pytest -q --ignore=tests/test_dashboard_browser.py
+
+      - name: Run full Python and Chromium browser QA on feature branch
+        if: github.ref == 'refs/heads/feat/institutional-dashboard-design' || github.event.pull_request.head.ref == 'feat/institutional-dashboard-design' || github.ref == 'refs/heads/feat/institutional-dashboard-task-governance' || github.event.pull_request.head.ref == 'feat/institutional-dashboard-task-governance'
+        run: python -m pytest -q
