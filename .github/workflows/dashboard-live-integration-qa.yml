@@ -2,6 +2,17 @@ name: Dashboard live integration QA
 
 on:
   workflow_dispatch:
+    inputs:
+      dashboard_url:
+        description: "Exact HTTPS Cloudflare Pages preview URL to test"
+        required: false
+        type: string
+        default: "https://cd54fc2b.universal-binance-ai-backend.pages.dev/"
+      backend_url:
+        description: "Exact HTTPS staging backend URL to test"
+        required: false
+        type: string
+        default: "https://universal-binance-ai-backend-staging-qa.onrender.com"
   push:
     branches:
       - feat/institutional-dashboard-design
@@ -25,7 +36,7 @@ concurrency:
 jobs:
   configuration-required:
     name: Live URL configuration check
-    if: vars.DASHBOARD_PREVIEW_URL == '' || vars.RENDER_BACKEND_URL == ''
+    if: (inputs.dashboard_url || vars.DASHBOARD_PREVIEW_URL) == '' || (inputs.backend_url || vars.RENDER_BACKEND_URL) == ''
     runs-on: ubuntu-24.04
     steps:
       - name: Explain required repository variables
@@ -36,7 +47,7 @@ jobs:
           echo "No wildcard origin, secret, deployment, or production setting is changed by this workflow."
 
   live-cross-origin:
-    if: vars.DASHBOARD_PREVIEW_URL != '' && vars.RENDER_BACKEND_URL != ''
+    if: (inputs.dashboard_url || vars.DASHBOARD_PREVIEW_URL) != '' && (inputs.backend_url || vars.RENDER_BACKEND_URL) != ''
     name: Live cross-origin Chromium smoke test
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -60,6 +71,6 @@ jobs:
 
       - name: Verify live Cloudflare-to-Render browser connection
         env:
-          DASHBOARD_URL: ${{ vars.DASHBOARD_PREVIEW_URL }}
-          BACKEND_URL: ${{ vars.RENDER_BACKEND_URL }}
+          DASHBOARD_URL: ${{ inputs.dashboard_url || vars.DASHBOARD_PREVIEW_URL }}
+          BACKEND_URL: ${{ inputs.backend_url || vars.RENDER_BACKEND_URL }}
         run: node --test tests/dashboard_live_integration.cjs
