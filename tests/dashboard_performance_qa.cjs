@@ -21,9 +21,10 @@ const {chromium}=require("playwright");
    const contentType=response&&response.headers()["content-type"];if(!response||!response.ok()||!contentType||!contentType.includes("text/html"))throw new Error("Dashboard root did not return successful HTML (status="+(response&&response.status())+", content-type="+contentType+")");
    await page.locator(".app-shell").waitFor({state:"visible"});
    const scriptResources=await page.evaluate(()=>performance.getEntriesByType("resource").filter(entry=>entry.initiatorType==="script"&&new URL(entry.name).origin===location.origin).map(entry=>({name:new URL(entry.name).pathname.split("/").pop(),duration_ms:Math.round(entry.duration*100)/100,encoded_body_bytes:entry.encodedBodySize,decoded_body_bytes:entry.decodedBodySize,transfer_bytes:entry.transferSize})).sort((a,b)=>a.name.localeCompare(b.name)));
-   const requiredScripts=["app.js","chart.js"];
+   const requiredScripts=["app.js"];
    const missingScripts=requiredScripts.filter(name=>!scriptResources.some(resource=>resource.name===name&&resource.decoded_body_bytes>0));
-   if(missingScripts.length)throw new Error("Dashboard script resource timing missing or empty: "+JSON.stringify({missing:missingScripts,observed:scriptResources}));
+   if(missingScripts.length)throw new Error("Dashboard initial script resource timing missing or empty: "+JSON.stringify({missing:missingScripts,observed:scriptResources}));
+   if(scriptResources.some(resource=>resource.name==="chart.js"))throw new Error("Chart module was fetched before a technical-chart request: "+JSON.stringify(scriptResources));
    const nav=page.locator("#main-nav .nav-link"),count=await nav.count(),navSamples=[];
    for(let i=0;i<Math.min(count,12);i++){
     const link=nav.nth(i),pageName=await link.getAttribute("data-page");
@@ -31,6 +32,13 @@ const {chromium}=require("playwright");
     const t=Date.now();await link.click();await page.waitForFunction(name=>location.hash==="#"+name,pageName);await page.waitForTimeout(30);
     navSamples.push({page:pageName,duration_ms:Date.now()-t,sidebar_closed:!(await page.locator("#sidebar").evaluate(el=>el.classList.contains("open")))});
    }
+   const chartFirstUseStart=Date.now();
+   await page.locator('#main-nav .nav-link[data-page="coin-analysis"]').click();
+   await page.locator("#load-technical").click();
+   await page.waitForFunction(()=>performance.getEntriesByType("resource").some(entry=>new URL(entry.name).pathname.endsWith("/chart.js")));
+   const chartFirstUseMs=Date.now()-chartFirstUseStart;
+   const chartResource=await page.evaluate(()=>performance.getEntriesByType("resource").filter(entry=>new URL(entry.name).pathname.endsWith("/chart.js")).map(entry=>({duration_ms:Math.round(entry.duration*100)/100,decoded_body_bytes:entry.decodedBodySize,transfer_bytes:entry.transferSize})));
+   if(chartResource.length!==1||chartResource[0].decoded_body_bytes<=0)throw new Error("On-demand chart module resource evidence invalid: "+JSON.stringify(chartResource));
    await page.locator("#mobile-menu").click();
    await page.locator('#main-nav .nav-link[data-page="settings"]').click();
    await page.locator("#backend-url").fill("https://qa.invalid");
@@ -77,7 +85,7 @@ const {chromium}=require("playwright");
    const openSidebarNavigations=navSamples.filter(sample=>!sample.sidebar_closed);
    if(openSidebarNavigations.length)throw new Error("Sidebar remained open after navigation: "+JSON.stringify(openSidebarNavigations));
    if(visibleRows!==100||searchRows!==1)throw new Error("Scanner row-count regression: visible="+visibleRows+", search="+searchRows);
-   results.samples.push({cpu_throttle:rate,initial_navigation_ms:loadMs,script_resources:scriptResources,navigation_samples:navSamples,scanner_fixture:{rows:fixtureRows.length,visible_rows_first_page:visibleRows,scan_render_ms:scanRenderMs,sort_ms:sortMs,search_ms:searchMs,search_visible_rows:searchRows,pagination_ms:paginationMs,repeated_5_cycle_ms:repeatedCyclesMs,heap_used_before_cycles_bytes:baselineMetrics.JSHeapUsedSize,heap_used_after_cycles_bytes:finalMetrics.JSHeapUsedSize,gc_heap_delta_bytes:finalMetrics.JSHeapUsedSize-baselineMetrics.JSHeapUsedSize,dom_nodes_before_cycles:baselineMetrics.Nodes,dom_nodes_after_cycles:finalMetrics.Nodes,dom_nodes_delta:finalMetrics.Nodes-baselineMetrics.Nodes},heap_used_bytes:finalMetrics.JSHeapUsedSize,heap_total_bytes:finalMetrics.JSHeapTotalSize,dom_nodes:finalMetrics.Nodes,page_errors:errors});
+   results.samples.push({cpu_throttle:rate,initial_navigation_ms:loadMs,initial_script_resources:scriptResources,chart_first_use_ms:chartFirstUseMs,chart_resource:chartResource,navigation_samples:navSamples,scanner_fixture:{rows:fixtureRows.length,visible_rows_first_page:visibleRows,scan_render_ms:scanRenderMs,sort_ms:sortMs,search_ms:searchMs,search_visible_rows:searchRows,pagination_ms:paginationMs,repeated_5_cycle_ms:repeatedCyclesMs,heap_used_before_cycles_bytes:baselineMetrics.JSHeapUsedSize,heap_used_after_cycles_bytes:finalMetrics.JSHeapUsedSize,gc_heap_delta_bytes:finalMetrics.JSHeapUsedSize-baselineMetrics.JSHeapUsedSize,dom_nodes_before_cycles:baselineMetrics.Nodes,dom_nodes_after_cycles:finalMetrics.Nodes,dom_nodes_delta:finalMetrics.Nodes-baselineMetrics.Nodes},heap_used_bytes:finalMetrics.JSHeapUsedSize,heap_total_bytes:finalMetrics.JSHeapTotalSize,dom_nodes:finalMetrics.Nodes,page_errors:errors});
    await context.close();
   }
   fs.writeFileSync(path.join(out,"browser-profile.json"),JSON.stringify(results,null,2));process.stdout.write(JSON.stringify(results,null,2)+"\n");
