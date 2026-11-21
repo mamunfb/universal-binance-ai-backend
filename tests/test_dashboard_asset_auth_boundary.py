@@ -73,3 +73,31 @@ def test_production_api_fails_closed_without_key_without_blocking_public_dashboa
     assert asset.status_code == 200
     assert api.status_code == 503
     assert api.json()["error"]["code"] == "AUTH_NOT_CONFIGURED"
+
+
+@pytest.mark.parametrize(
+    "asset_path",
+    [
+        "/dashboard-assets/%2e%2e/backend/app/main.py",
+        "/dashboard-assets/%2E%2E/backend/app/main.py",
+        "/dashboard-assets/..%2f..%2fbackend/app/main.py",
+        "/dashboard-assets/%252e%252e/backend/app/main.py",
+    ],
+)
+def test_dashboard_static_mount_does_not_expose_files_outside_dashboard(
+    monkeypatch, asset_path: str
+):
+    _configure_private_api(monkeypatch)
+
+    response = client.get(asset_path)
+
+    assert response.status_code == 404
+    assert b"from fastapi import FastAPI" not in response.content
+
+
+def test_dashboard_static_mount_does_not_enable_directory_listing(monkeypatch):
+    _configure_private_api(monkeypatch)
+
+    response = client.get("/dashboard-assets/")
+
+    assert response.status_code == 404
