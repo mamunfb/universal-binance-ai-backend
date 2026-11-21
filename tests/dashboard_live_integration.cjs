@@ -69,6 +69,42 @@ test("dashboard origin passes live CORS preflight and backend rejects an invalid
 
     assert.equal(probe.status, 401,
       "Backend must reject the deliberately invalid Bearer token with HTTP 401");
+
+    // A least-privilege staging QA key is optional. Never print or persist it.
+    const qaToken = (process.env.DASHBOARD_QA_BEARER_TOKEN || "").trim();
+    let authenticatedPositiveCheck = "not run; DASHBOARD_QA_BEARER_TOKEN secret is not configured";
+    if (qaToken) {
+      const authenticated = await page.evaluate(async ({backend, token}) => {
+        const response = await fetch(backend + "/api/v1/research/phase-readiness", {
+          method: "GET",
+          headers: {Authorization: "Bearer " + token},
+          credentials: "omit",
+          cache: "no-store"
+        });
+        const payload = await response.json().catch(() => null);
+        return {
+          status: response.status,
+          responseType: response.type,
+          payloadIsObject: Boolean(payload && typeof payload === "object" && !Array.isArray(payload)),
+          phaseCount: payload && typeof payload === "object" ? payload.phase_count : null
+        };
+      }, {backend: backendUrl.origin, token: qaToken});
+
+      assert.equal(authenticated.status, 200,
+        "The separately scoped QA Bearer token must authorize phase-readiness");
+      assert.equal(authenticated.responseType, "cors",
+        "The browser must receive the authenticated cross-origin response");
+      assert.equal(authenticated.payloadIsObject, true,
+        "Authenticated phase-readiness response must be a JSON object");
+      assert.equal(authenticated.phaseCount, 20,
+        "Authenticated phase-readiness response must expose the 20-phase contract");
+      authenticatedPositiveCheck = {
+        status: authenticated.status,
+        responseType: authenticated.responseType,
+        payloadIsObject: authenticated.payloadIsObject,
+        phaseCount: authenticated.phaseCount
+      };
+    }
     assert.equal(probe.responseType, "cors",
       "The browser must receive a readable cross-origin CORS response");
     assert.ok(apiResponses.length > 0,
@@ -98,7 +134,7 @@ test("dashboard origin passes live CORS preflight and backend rejects an invalid
       actualResponseAllowedOrigin: apiHeaders["access-control-allow-origin"],
       preflight: {status: preflight.status(), allowedOrigin: preflightHeaders["access-control-allow-origin"]},
       pageErrors,
-      authenticatedPositiveCheck: "not run; requires a separately scoped QA credential"
+      authenticatedPositiveCheck
     }, null, 2));
   } finally {
     await browser.close();
