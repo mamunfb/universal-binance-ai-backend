@@ -2140,3 +2140,26 @@ Expanded tests/test_binance_futures_provider.py to cover the complete contract-t
 **Evidence boundary:** These are automated fake-client/provider and application tests. They do not constitute a live Binance API response. The live API verification limitation recorded in Section 99 remains open.
 
 **Change control:** The test and audit updates are confined to fix/backend-dashboard-static-assets. No main, PR, merge, deployment, database, secret, hosted configuration, or trading/execution behavior was changed.
+
+
+## 101. Dashboard asset-serving and API authentication boundary regression (2026-11-21)
+
+Added `tests/test_dashboard_asset_auth_boundary.py` on `fix/backend-dashboard-static-assets` to exercise the actual FastAPI application through `TestClient`:
+
+- Dashboard HTML remains publicly reachable when a private API key is configured and references the expected CSS/JavaScript asset URLs.
+- The CSS and both JavaScript assets are served with successful responses and expected media types.
+- The protected liquidation-status API rejects a missing Bearer key with HTTP 401, the `UNAUTHORIZED` error code, and a Bearer challenge, while the Dashboard and asset remain public.
+- In production mode with no owner key and no AI client keys configured, the API fails closed with HTTP 503 / `AUTH_NOT_CONFIGURED`, while public Dashboard HTML and CSS remain available.
+
+The six pytest cases (including the three parametrized asset cases) were executed by GitHub Actions on the exact commit under review:
+
+- Backend and dashboard tests run **#2100**, run ID **44840864549**, head SHA **2f8cdec0155c3284d320a040a3aebbbb75d8712c**: conclusion **success**.
+- Job **136648583915** completed successfully. Its log reports **706 passed in 5.40s**.
+- Dashboard HTML/script-reference validation succeeded; JavaScript syntax checks for `dashboard/app.js`, `dashboard/chart.js`, and `tests/dashboard_live_integration.cjs` succeeded.
+- The workflow's Playwright installation and full Chromium browser step were skipped on this branch by the workflow's branch conditions. This run therefore does not add new browser-QA evidence; the separately documented browser run #81 remains the available browser evidence.
+
+**Finding:** The latest source already mounts `/dashboard-assets` separately from the `/api/` authentication middleware. This work adds direct regression coverage of that boundary; it does not change application runtime behavior and does not establish a live hosted deployment test.
+
+**Evidence boundary:** CI verifies the FastAPI test-client behavior in the GitHub runner. It does not establish the behavior of a deployed Render/Cloudflare environment or confirm a live Binance API response.
+
+**Change control:** The test and audit update remain on `fix/backend-dashboard-static-assets`. No main branch update, PR creation, merge, deployment, database, secret, hosted configuration, or trading/execution behavior was changed.
