@@ -9,6 +9,7 @@ on:
     paths:
       - "dashboard/**"
       - "tests/test_dashboard_browser.cjs"
+      - "tests/test_dashboard_qa_server.cjs"
       - ".github/workflows/dashboard-browser-qa.yml"
   pull_request:
     branches:
@@ -50,4 +51,4 @@ jobs:
         run: npx --no-install playwright install --with-deps chromium
 
       - name: Run isolated dashboard browser tests
-        run: node --test tests/test_dashboard_browser.cjs
+        run: node --test tests/test_dashboard_browser.cjs tests/test_dashboard_qa_server.cjs
