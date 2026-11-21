@@ -9,6 +9,23 @@
     liquidations:"Liquidation Intelligence",news:"News & Catalysts",onchain:"On-Chain Intelligence",performance:"Signals & Performance",risk:"Risk Monitoring",reports:"Reports",reliability:"Data Reliability",settings:"Settings"
   };
   const state = {base:"", token:"", market:"SPOT", symbol:"BTCUSDT", timeframe:"1h", displayTimezone:"Asia/Dhaka", lastScan:null, lastScanDetails:null, lastHealth:null, lastAnalysis:null};
+  let chartModulePromise=null;
+  function ensureDashboardCharts() {
+    if(window.DashboardCharts) return Promise.resolve(window.DashboardCharts);
+    if(chartModulePromise) return chartModulePromise;
+    chartModulePromise=new Promise((resolve,reject)=>{
+      const script=document.createElement("script");
+      script.src="/dashboard-assets/chart.js";
+      script.async=true;
+      script.onload=()=>{
+        if(window.DashboardCharts) resolve(window.DashboardCharts);
+        else { script.remove(); chartModulePromise=null; reject(new Error("Chart module loaded without exposing its API.")); }
+      };
+      script.onerror=()=>{script.remove();chartModulePromise=null;reject(new Error("Chart module could not be loaded. Retry the chart request."));};
+      document.head.append(script);
+    });
+    return chartModulePromise;
+  }
   let activeScanSequence=0;
   let activeScanController=null;
   let activeEvidenceSequence=0;
@@ -273,7 +290,7 @@
   function syncTimeframeAvailability(){const coinmOnly=state.market==="COIN_M";const strip=$("analysis-timeframes");if(!strip)return;const oneSecond=Array.from(strip.querySelectorAll("button")).find(button=>button.textContent==="1s");if(oneSecond){oneSecond.disabled=coinmOnly;oneSecond.title=coinmOnly?"1-second Kline interval is not enabled for COIN-M Futures":state.market==="USD_M"?"USD-M 1-second candles use Binance continuous-contract data resolved from the selected symbol metadata":"1-second Kline interval available for Spot";}if(coinmOnly&&state.timeframe==="1s"){state.timeframe="1m";$("global-timeframe").value="1m";strip.querySelectorAll("button").forEach(button=>{const active=button.textContent===state.timeframe;button.classList.toggle("active",active);button.setAttribute("aria-pressed",String(active));});}}
   function syncAnalysisHeader(){state.symbol=$("global-symbol").value.trim().toUpperCase()||"BTCUSDT";state.market=$("global-market").value;state.timeframe=$("global-timeframe").value;syncTimeframeAvailability();setText("analysis-title",state.symbol+" · "+state.market);setText("analysis-subtitle","Timeframe "+state.timeframe+" · "+state.market+" · Research-only analysis");}
   function cancelAnalysisRequests(){
-    activeEvidenceSequence++;window.DashboardCharts.invalidate();
+    activeEvidenceSequence++;window.DashboardCharts?.invalidate();
     if(activeMarketEvidenceController){activeMarketEvidenceController.abort();activeMarketEvidenceController=null;}
   }
   function invalidateChartView(message="Selection changed. Run analysis to load matching candles.") {
@@ -283,7 +300,7 @@
     setText("analysis-output","No chart response for the current selection.");
   }
   async function loadMarketEvidence() {
-    syncAnalysisHeader();const requestSequence=++activeEvidenceSequence;window.DashboardCharts.invalidate();
+    syncAnalysisHeader();const requestSequence=++activeEvidenceSequence;window.DashboardCharts?.invalidate();
     if(activeMarketEvidenceController)activeMarketEvidenceController.abort();
     const controller=new AbortController();activeMarketEvidenceController=controller;
     setText("chart-state","Loading market evidence · previous chart and evidence retained");
@@ -301,7 +318,7 @@
     syncAnalysisHeader();const requestSequence=++activeEvidenceSequence;
     if(activeMarketEvidenceController){activeMarketEvidenceController.abort();activeMarketEvidenceController=null;}
     setText("chart-state","Loading candles · previous chart retained");
-    let data;try{data=await window.DashboardCharts.load(api,state.market,state.symbol,state.timeframe);}
+    let data;try{const charts=await ensureDashboardCharts();if(requestSequence!==activeEvidenceSequence)return{status:"SUPERSEDED"};data=await charts.load(api,state.market,state.symbol,state.timeframe);}
     catch(error){if(requestSequence!==activeEvidenceSequence)return{status:"SUPERSEDED"};setText("chart-state","Chart request failed · previous chart retained");setText("technical-summary","Request failed: "+metadataText(error?.message,"Unknown error",160));throw error;}
     if(requestSequence!==activeEvidenceSequence||data?.status==="SUPERSEDED")return{status:"SUPERSEDED"};
     state.lastAnalysis=data;toast("Verified candle chart and descriptive indicators loaded.","success");return data;
@@ -371,7 +388,7 @@
     });
     setText("readiness-state",reason);setText("readiness-output",reason);
     setText("quality-state",reason);setText("quality-output",reason);
-    window.DashboardCharts.invalidate();
+    window.DashboardCharts?.invalidate();
     const chartHost=$("chart-placeholder");if(chartHost)chartHost.replaceChildren(document.createTextNode(reason));
     setText("chart-state",reason);setText("technical-summary",reason);setText("analysis-output",reason);
   }
