@@ -843,3 +843,30 @@ test("one-second chart timeframe is available for Spot and USD-M, but not COIN-M
   assert.deepEqual(pageErrors, []);
   await context.close();
 });
+
+
+test("chart module is deferred until first technical-chart request and loads only once", async () => {
+  const {context, page, pageErrors} = await newPage(1280);
+  const initialChartRequests = await page.evaluate(() => performance.getEntriesByType("resource")
+    .filter(entry => new URL(entry.name).pathname.endsWith("/chart.js")).length);
+  assert.equal(initialChartRequests, 0, "Overview must not fetch the chart module");
+  assert.equal(await page.evaluate(() => Boolean(window.DashboardCharts)), false,
+    "Chart API must not be initialized on the initial page load");
+
+  await page.locator('.nav-link[data-page="coin-analysis"]').click();
+  await page.locator("#load-technical").click();
+  await page.waitForFunction(() => Boolean(window.DashboardCharts));
+  await page.waitForFunction(() => performance.getEntriesByType("resource")
+    .some(entry => new URL(entry.name).pathname.endsWith("/chart.js")));
+  assert.equal(await page.evaluate(() => performance.getEntriesByType("resource")
+    .filter(entry => new URL(entry.name).pathname.endsWith("/chart.js")).length), 1,
+    "The chart module must be requested exactly once");
+
+  await page.locator("#load-technical").click();
+  await page.waitForTimeout(50);
+  assert.equal(await page.evaluate(() => performance.getEntriesByType("resource")
+    .filter(entry => new URL(entry.name).pathname.endsWith("/chart.js")).length), 1,
+    "Subsequent chart requests must reuse the loaded module");
+  assert.deepEqual(pageErrors, []);
+  await context.close();
+});
