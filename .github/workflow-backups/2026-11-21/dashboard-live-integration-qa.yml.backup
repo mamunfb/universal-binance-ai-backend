@@ -1,0 +1,77 @@
+name: Dashboard live integration QA
+
+on:
+  workflow_dispatch:
+    inputs:
+      dashboard_url:
+        description: "Exact HTTPS Cloudflare Pages preview URL to test"
+        required: false
+        type: string
+        default: "https://fix-backend-dashboard-static.universal-binance-ai-backend.pages.dev/"
+      backend_url:
+        description: "Exact HTTPS staging backend URL to test"
+        required: false
+        type: string
+        default: "https://universal-binance-ai-backend-staging-qa.onrender.com"
+  push:
+    branches:
+      - feat/institutional-dashboard-design
+      - feat/institutional-dashboard-task-governance
+      - fix/backend-dashboard-static-assets
+    paths:
+      - "dashboard/**"
+      - "backend/app/config.py"
+      - "backend/app/main.py"
+      - "tests/test_cors_configuration.py"
+      - "tests/dashboard_live_integration.cjs"
+      - ".github/workflows/dashboard-live-integration-qa.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dashboard-live-integration-qa
+  cancel-in-progress: false
+
+jobs:
+  configuration-required:
+    name: Live URL configuration check
+    if: (inputs.dashboard_url || vars.DASHBOARD_PREVIEW_URL) == '' || (inputs.backend_url || vars.RENDER_BACKEND_URL) == ''
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Explain required repository variables
+        run: |
+          echo "Live browser test was not run. Configure exact HTTPS repository Actions variables: DASHBOARD_PREVIEW_URL and RENDER_BACKEND_URL."
+          echo "The unauthenticated CORS/auth-rejection probe requires no API key or secret."
+          echo "A positive authenticated API check is intentionally separate and requires a least-privilege QA credential."
+          echo "No wildcard origin, secret, deployment, or production setting is changed by this workflow."
+
+  live-cross-origin:
+    if: (inputs.dashboard_url || vars.DASHBOARD_PREVIEW_URL) != '' && (inputs.backend_url || vars.RENDER_BACKEND_URL) != ''
+    name: Live cross-origin Chromium smoke test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          package-manager-cache: false
+
+      - name: Install pinned Playwright
+        run: npm install --no-save --no-package-lock playwright@1.56.1
+
+      - name: Install Chromium
+        run: npx --no-install playwright install --with-deps chromium
+
+      - name: Verify live Cloudflare-to-Render browser connection
+        env:
+          DASHBOARD_URL: ${{ inputs.dashboard_url || vars.DASHBOARD_PREVIEW_URL }}
+          BACKEND_URL: ${{ inputs.backend_url || vars.RENDER_BACKEND_URL }}
+          DASHBOARD_QA_BEARER_TOKEN: ${{ secrets.DASHBOARD_QA_BEARER_TOKEN }}
+        run: node --test tests/dashboard_live_integration.cjs
