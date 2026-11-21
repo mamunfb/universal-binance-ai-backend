@@ -92,3 +92,23 @@ The `render-staging-backend` branch was inspected using a read-only branch descr
 **Important:** `render-staging-backend` is a plausible QA/staging database target because of its name, but this inspection alone does not prove that `DATABASE_URL` or the hourly market scan is intended to use it. Do not create or set `DATABASE_URL` until the target branch and intended workload are confirmed. The default `main` branch must not be selected for QA merely because it is the default.
 
 No connection string was retrieved. No database rows or schema were modified. No branch, compute, role, or credential was created, changed, or deleted.
+
+
+## Hourly market-scan workflow — execution impact review
+
+The inspected `.github/workflows/hourly-market-scan.yml` is named “15-Minute Spot and Futures Market Scan” and has:
+- A scheduled trigger every 15 minutes, with `Asia/Dhaka` timezone specified.
+- A manual `workflow_dispatch` trigger.
+- A required repository Actions Secret named `DATABASE_URL`.
+- A Python execution step running `scripts/hourly_market_scan.py`.
+
+The script reads `DATABASE_URL`, connects to PostgreSQL with SSL required, and performs database writes:
+- `CREATE TABLE IF NOT EXISTS market_scan_runs`
+- `CREATE INDEX IF NOT EXISTS idx_market_scan_runs_completed_at`
+- `INSERT INTO market_scan_runs` for each run
+
+It explicitly does not prune historical rows. Therefore, running this workflow is not a read-only connectivity test: it collects live Spot, USD-M and COIN-M market data and writes a new scan-run record to the configured database. Do not dispatch it until the database target is confirmed and the write is intended.
+
+The staging branch description already showed a `market_scan_runs` table and its corresponding index. This is consistent with the script's persistence model, but it still does not prove that the workflow's intended `DATABASE_URL` must point to that branch. Confirm the intended target before creating the secret.
+
+No market scan was executed during this review.
