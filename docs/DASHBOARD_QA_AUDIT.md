@@ -2163,3 +2163,66 @@ The six pytest cases (including the three parametrized asset cases) were execute
 **Evidence boundary:** CI verifies the FastAPI test-client behavior in the GitHub runner. It does not establish the behavior of a deployed Render/Cloudflare environment or confirm a live Binance API response.
 
 **Change control:** The test and audit update remain on `fix/backend-dashboard-static-assets`. No main branch update, PR creation, merge, deployment, database, secret, hosted configuration, or trading/execution behavior was changed.
+
+
+## 102. Dashboard local QA asset routing correction and full verification (2026-11-21)
+
+The local QA server used by Lighthouse and CPU/heap profiling was not mapping the Dashboard's public asset URL prefix to the repository's actual asset directory. Dashboard HTML requests `/dashboard-assets/<file>`, while the files are stored directly under `dashboard/`. The previous QA server joined the full URL path to the Dashboard root, producing an incorrect `dashboard/dashboard-assets/` lookup.
+
+### Implementation correction
+
+- `tests/serve_dashboard_qa.cjs` now explicitly maps `/dashboard-assets/<file>` to `dashboard/<file>`.
+- The local QA server serves the Dashboard document at `/`, `/dashboard`, and `/dashboard/`.
+- It preserves path containment checks, rejects decoded traversal outside the Dashboard root with HTTP 403, returns HTTP 404 for the asset directory itself (no directory listing), and returns HTTP 400 for malformed percent-encoding.
+- CSS and JavaScript assets receive explicit MIME types, `Cache-Control: no-store`, and `X-Content-Type-Options: nosniff`.
+- The server exports a factory so the same request handler can be tested on an ephemeral port without binding the fixed performance port.
+
+### Regression coverage and CI
+
+Added `tests/test_dashboard_qa_server.cjs` with six tests covering:
+- `app.css`, `chart.js`, and `app.js` each return HTTP 200, the expected MIME type, and byte-for-byte contents from the actual `dashboard/` files.
+- Dashboard HTML is served at the local QA root.
+- The asset directory does not expose a listing.
+- An encoded traversal attempt outside the Dashboard root is rejected with HTTP 403.
+
+The Browser QA workflow now runs both the existing browser suite and this local QA server regression suite. The Performance QA workflow now also runs on `fix/backend-dashboard-static-assets`, executes the server regression tests before browser tooling installation, and only attempts CPU/heap profiling when both browser tooling and Chromium installation succeeded.
+
+Exact-commit evidence for `7cc96a79881171e5161c9c1b63df112c177d8535`:
+
+- Backend and dashboard tests run **#2110**, run ID **44844029358**: **success**; **711 passed in 3.51s**. Dashboard HTML asset references and JavaScript syntax checks also succeeded. The workflow's full Chromium step remains separately covered by Browser QA.
+- Dashboard browser QA run **#84**, run ID **44844029351**: **success**; **28 tests passed, 0 failed**. This includes the 22 existing responsive, accessibility, navigation, API-fault, and chart-routing tests plus all six new local asset-server tests.
+- Dashboard performance QA run **#52**, run ID **44844029391**: **success**. All three mobile Lighthouse JSON reports and the CPU/heap browser profile were generated and uploaded as artifact **14682146595** (`dashboard-performance-7cc96a79881171e5161c9c1b63df112c177d8535`).
+
+### Measured local performance evidence
+
+All three Lighthouse samples observed the HTML and all three Dashboard assets with HTTP 200 and their expected MIME types.
+
+| Sample | Performance score | FCP | LCP | TBT | CLS |
+|---|---:|---:|---:|---:|---:|
+| 1 | 86 | 1,051 ms | 2,090 ms | 508 ms | 0 |
+| 2 | 100 | 902 ms | 1,696 ms | 0 ms | 0 |
+| 3 | 100 | 904 ms | 1,504 ms | 0 ms | 0.0000238 |
+
+The median Performance score was 100; median FCP 904 ms; median LCP 1,696 ms; median TBT 0 ms; and median CLS 0.0000238. These are local simulated-mobile measurements, not live hosted or physical-device results. Sample 1 is a material outlier: it recorded 508 ms TBT, including a 394 ms long task attributed to `app.js` and a 231 ms task attributed to the document. Its unused-JavaScript audit estimated approximately 60.8 KiB of potential savings across `app.js` and `chart.js`. This remains a performance optimization opportunity; it was not changed as part of the asset-server fix.
+
+CPU/heap profile on a 390x844 viewport with a deterministic 1,000-row fixture:
+
+| Metric | CPU 1x | CPU 4x |
+|---|---:|---:|
+| Initial navigation | 140 ms | 53 ms |
+| Scanner render | 67 ms | 96 ms |
+| Sort | 38 ms | 90 ms |
+| Search | 155 ms | 170 ms |
+| Pagination | 68 ms | 141 ms |
+| Five repeated interaction cycles | 2,402 ms | 3,167 ms |
+| Post-GC heap delta | 31,024 bytes | 50,528 bytes |
+| DOM node delta | +5 | +5 |
+
+The profiler verified 100 visible rows from the 1,000-row fixture, one visible row after a unique-symbol search, and the expected 100-row/600-cell DOM state before heap measurements. The performance workflow currently collects these measurements but does not enforce numeric performance budgets; the single 508 ms TBT outlier and unused-JavaScript estimate should be considered in a separate optimization task.
+
+### Change control and evidence limits
+
+- Changes are confined to `tests/serve_dashboard_qa.cjs`, `tests/test_dashboard_qa_server.cjs`, the Browser QA workflow, the Performance QA workflow, and this audit document on `fix/backend-dashboard-static-assets`.
+- No application Dashboard asset, backend runtime route, market-data provider, order/trading behavior, database, secret, or hosted configuration was changed.
+- No update to `main`, PR creation/merge, or Production deployment was performed.
+- Pushes to the feature branch can trigger Cloudflare Pages Preview through the repository's existing integration. The current Preview URL could not be independently reached from this verification environment, so this audit does not claim live hosted asset verification.
