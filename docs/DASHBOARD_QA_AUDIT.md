@@ -2355,3 +2355,21 @@ Both profiles completed with no page errors, rendered 100 visible rows from the 
 - Live Integration QA #41: still failed the exact-origin CORS response-header assertion for the configured Dashboard Preview and staging backend; no hosted CORS configuration was changed.
 
 This is local simulated-mobile evidence only, not physical-device QA or confirmation of the latest Cloudflare Preview. No merge, Production deployment, database/secrets/hosted configuration change, backend runtime change, or trading/order behavior change was made.
+
+
+## 107. Live Cloudflare-to-Render CORS retest (2026-11-21)
+
+The corrected live integration harness commit `3cdd8626c202f8d661203a3a2408b485ed8e4587` was validated by Dashboard Live Integration QA run **#42**, run ID **44846865707**: **success**. The Chromium job executed the live test against the configured Dashboard Preview origin `https://7e74d124.universal-binance-ai-backend.pages.dev` and staging backend `https://universal-binance-ai-backend-staging-qa.onrender.com`.
+
+The job log confirms:
+- Invalid Bearer request: HTTP **401**, Fetch response type **cors**, JSON payload object.
+- Actual GET response `Access-Control-Allow-Origin`: exact Dashboard Preview origin.
+- Explicit OPTIONS preflight: HTTP **200**, exact allowed origin.
+- Browser page errors: **0**.
+- Authenticated positive check: not run; requires a separately scoped QA credential.
+
+This resolves the earlier false-negative/test-harness issue for the configured origin. It verifies unauthenticated cross-origin behavior and preflight, not successful authenticated API access or every API route.
+
+Backend/Dashboard CI run **#2125**, run ID **44846865588**, on the same commit completed successfully: **711 passed in 6.75s**. Dashboard HTML/asset reference validation and JavaScript syntax checks for `dashboard/app.js`, `dashboard/chart.js`, and `tests/dashboard_live_integration.cjs` passed. The workflow explicitly skipped feature-branch full Chromium browser QA in this run; rely on the separately completed Browser QA #87 (29 passed) for that evidence.
+
+No backend runtime/CORS policy, hosted configuration, Render environment, secrets, database, `main`, PR merge state, production deployment, or trading/order behavior was changed. Cloudflare Preview's exact deployed commit and live asset-response mapping are not established by these two runs.
