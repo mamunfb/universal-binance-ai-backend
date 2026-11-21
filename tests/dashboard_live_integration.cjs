@@ -50,7 +50,7 @@ test("dashboard origin passes live CORS preflight and backend rejects an invalid
         }
       }
     );
-    const preflightHeaders = await preflight.allHeaders();
+    const preflightHeaders = await preflight.headers();
 
     const probe = await page.evaluate(async backend => {
       const response = await fetch(backend + "/api/v1/research/phase-readiness", {
