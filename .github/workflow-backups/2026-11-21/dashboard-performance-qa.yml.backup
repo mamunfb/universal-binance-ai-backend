@@ -1,0 +1,104 @@
+name: Dashboard performance QA
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feat/institutional-dashboard-design
+      - feat/institutional-dashboard-task-governance
+      - fix/backend-dashboard-static-assets
+    paths:
+      - "dashboard/**"
+      - "tests/dashboard_performance_qa.cjs"
+      - "tests/serve_dashboard_qa.cjs"
+      - "tests/test_dashboard_qa_server.cjs"
+      - ".github/workflows/dashboard-performance-qa.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dashboard-performance-qa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  performance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          package-manager-cache: false
+      - name: Test Dashboard QA server asset routing
+        run: node --test tests/test_dashboard_qa_server.cjs
+      - name: Install pinned browser tooling
+        id: browser_tooling
+        run: npm install --no-save --no-package-lock playwright@1.56.1 lighthouse@12.8.2
+      - name: Install Chromium
+        id: chromium
+        run: npx --no-install playwright install --with-deps chromium
+      - name: Run mobile Lighthouse cold-load audits
+        id: lighthouse
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/performance
+          node tests/serve_dashboard_qa.cjs > /tmp/dashboard-qa-lighthouse-server.log 2>&1 &
+          server_pid=$!
+          cleanup() {
+            kill "$server_pid" 2>/dev/null || true
+            wait "$server_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          ready=0
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:4173/ > /dev/null; then ready=1; break; fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then
+            cat /tmp/dashboard-qa-lighthouse-server.log
+            exit 1
+          fi
+          for sample in 1 2 3; do
+            npx --no-install lighthouse http://127.0.0.1:4173/ --preset=perf --form-factor=mobile --screenEmulation.mobile=true --screenEmulation.width=390 --screenEmulation.height=844 --screenEmulation.deviceScaleFactor=1 --throttling-method=simulate --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage --no-proxy-server --proxy-bypass-list=<-loopback>" --output=json --output-path="artifacts/performance/lighthouse-mobile-$sample.json"
+          done
+      - name: Run CPU-throttled browser and heap profiling
+        if: always() && steps.browser_tooling.outcome == 'success' && steps.chromium.outcome == 'success'
+        run: |
+          set -euo pipefail
+          node tests/serve_dashboard_qa.cjs > /tmp/dashboard-qa-profiler-server.log 2>&1 &
+          server_pid=$!
+          cleanup() {
+            kill "$server_pid" 2>/dev/null || true
+            wait "$server_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          ready=0
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:4173/ > /dev/null; then ready=1; break; fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then
+            cat /tmp/dashboard-qa-profiler-server.log
+            exit 1
+          fi
+          node tests/dashboard_performance_qa.cjs
+      - name: Preserve Lighthouse failure as job failure
+        if: always() && steps.lighthouse.outcome == 'failure'
+        run: |
+          echo "Lighthouse failed; CPU/heap profiling and artifact upload were still attempted."
+          exit 1
+      - name: Upload raw performance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-performance-${{ github.sha }}
+          path: artifacts/performance/
+          if-no-files-found: warn
+          retention-days: 14
