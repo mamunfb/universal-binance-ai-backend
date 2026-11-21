@@ -26,3 +26,23 @@ These changes are test-only. No backend runtime code, CORS allowlist, secrets, r
 ## Next validation
 
 Run the backend/dashboard suite (including `tests/test_cors_configuration.py` and the JavaScript syntax check) and the live integration workflow. Inspect the actual job steps/logs. A live pass must show: OPTIONS 200 with the exact origin, GET 401 for the invalid token with the exact origin, browser Fetch response type `cors`, and no browser page errors. Keep the authenticated-positive request out of scope unless a dedicated QA token is separately authorized and stored as a masked Actions secret.
+
+
+## Retest result — 2026-11-21
+
+The latest corrected harness was executed successfully.
+
+- Live Integration QA run **#42**, run ID **44846865707**, job **136668614596**: **success**.
+- Dashboard origin: `https://7e74d124.universal-binance-ai-backend.pages.dev`.
+- Backend origin: `https://universal-binance-ai-backend-staging-qa.onrender.com`.
+- Invalid Bearer GET: HTTP **401**, Fetch response type **cors**, JSON payload object.
+- Captured actual GET response header `Access-Control-Allow-Origin`: exact Dashboard origin.
+- Explicit OPTIONS preflight: HTTP **200**, exact allowed origin.
+- Browser page errors: **0**.
+- Authenticated positive check: not run; no separately scoped QA credential was supplied for this test.
+
+The first failing assertion was a test-observation issue: page JavaScript could not read the non-safelisted response header. The corrected Playwright harness inspects the actual network response and a direct OPTIONS probe, and now passes against the configured live endpoints. This confirms the tested origin's unauthenticated CORS/preflight path; it does not establish authenticated API success or coverage of every route.
+
+Backend/Dashboard CI run **#2125**, run ID **44846865588**, also passed on commit `3cdd8626c202f8d661203a3a2408b485ed8e4587` with **711 passed in 6.75s**. The feature-branch full Chromium suite was skipped in that workflow; separate Browser QA #87 recorded 29 passed.
+
+No backend runtime code, CORS allowlist, Render or Cloudflare configuration, secrets, database, production deployment, `main`, PR merge state, or trading/order behavior was changed.
