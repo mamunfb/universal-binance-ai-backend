@@ -1,0 +1,49 @@
+name: 15-Minute Spot and Futures Market Scan
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+      timezone: "Asia/Dhaka"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: market-scan
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install scanner and PostgreSQL driver
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[postgres]"
+
+      - name: Verify database secret is configured
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::Add your Neon PostgreSQL connection string as the repository Actions secret DATABASE_URL."
+            exit 1
+          fi
+
+      - name: Scan Spot, USD-M and COIN-M markets
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          APP_ENV: "development"
+          LOG_LEVEL: "INFO"
+        run: python scripts/hourly_market_scan.py
