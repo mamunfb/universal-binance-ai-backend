@@ -64,16 +64,18 @@ jobs:
           assert 'class="app-shell"' in html, "Dashboard shell is missing"
           scripts = re.findall('<script[^>]+src="([^"]+)"', html, flags=re.I)
           stylesheets = re.findall('<link[^>]+href="([^"]+[.]css)"', html, flags=re.I)
-          assert "/dashboard-assets/chart.js" in scripts, "dashboard chart.js asset route is not referenced"
+          app_js = Path("dashboard/app.js").read_text(encoding="utf-8")
+          chart_is_lazy_loaded = 'script.src="/dashboard-assets/chart.js"' in app_js
+          assert "/dashboard-assets/chart.js" in scripts or chart_is_lazy_loaded, "dashboard chart.js must be referenced statically or by the on-demand loader"
           assert "/dashboard-assets/app.js" in scripts, "dashboard app.js asset route is not referenced"
           assert "/dashboard-assets/app.css" in stylesheets, "dashboard app.css asset route is not referenced"
-          for asset in [*scripts, *stylesheets]:
+          for asset in [*scripts, *stylesheets, "/dashboard-assets/chart.js"]:
               if asset.startswith(("http://", "https://")):
                   continue
               relative_asset = asset.removeprefix("/dashboard-assets/")
               path = Path("dashboard") / relative_asset
               assert path.is_file(), f"Referenced dashboard asset is missing: {asset}"
-          print(f"Validated dashboard HTML, {len(scripts)} scripts and {len(stylesheets)} stylesheets")
+          print(f"Validated dashboard HTML, {len(scripts)} initial scripts, chart lazy-load reference={chart_is_lazy_loaded}, and {len(stylesheets)} stylesheets")
           PY
 
       - name: Check dashboard JavaScript syntax
