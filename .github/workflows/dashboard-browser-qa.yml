@@ -10,6 +10,7 @@ on:
       - "dashboard/**"
       - "tests/test_dashboard_browser.cjs"
       - "tests/test_dashboard_qa_server.cjs"
+      - "tests/serve_dashboard_qa.cjs"
       - ".github/workflows/dashboard-browser-qa.yml"
   pull_request:
     branches:
