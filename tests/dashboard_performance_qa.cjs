@@ -33,6 +33,7 @@ const {chromium}=require("playwright");
     navSamples.push({page:pageName,duration_ms:Date.now()-t,sidebar_closed:!(await page.locator("#sidebar").evaluate(el=>el.classList.contains("open")))});
    }
    const chartFirstUseStart=Date.now();
+   await page.locator("#mobile-menu").click();
    await page.locator('#main-nav .nav-link[data-page="coin-analysis"]').click();
    await page.locator("#load-technical").click();
    await page.waitForFunction(()=>performance.getEntriesByType("resource").some(entry=>new URL(entry.name).pathname.endsWith("/chart.js")));
