@@ -25,18 +25,32 @@ test("dashboard origin passes live CORS preflight and backend rejects an invalid
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   const pageErrors = [];
-  const preflightResponses = [];
   const apiResponses = [];
   page.on("pageerror", error => pageErrors.push(error.message));
   page.on("response", response => {
     if (!response.url().startsWith(backendUrl.origin + "/api/v1/research/phase-readiness")) return;
-    if (response.request().method() === "OPTIONS") preflightResponses.push(response);
     if (response.request().method() === "GET") apiResponses.push(response);
   });
 
   try {
     const response = await page.goto(dashboardUrl.href, { waitUntil: "domcontentloaded", timeout: 45000 });
     assert.ok(response && response.ok(), `Dashboard navigation failed: HTTP ${response?.status()}`);
+
+    // Issue an explicit protocol-level preflight probe. Chromium may satisfy a
+    // browser fetch from its preflight cache, so do not require a network OPTIONS
+    // response event from the page context to prove the server's preflight contract.
+    const preflight = await page.request.fetch(
+      backendUrl.origin + "/api/v1/research/phase-readiness",
+      {
+        method: "OPTIONS",
+        headers: {
+          Origin: dashboardUrl.origin,
+          "Access-Control-Request-Method": "GET",
+          "Access-Control-Request-Headers": "authorization"
+        }
+      }
+    );
+    const preflightHeaders = await preflight.allHeaders();
 
     const probe = await page.evaluate(async backend => {
       const response = await fetch(backend + "/api/v1/research/phase-readiness", {
@@ -65,11 +79,6 @@ test("dashboard origin passes live CORS preflight and backend rejects an invalid
       "The actual API response must allow the exact dashboard origin");
     assert.equal(probe.payloadIsObject, true,
       "Unauthorized response must retain the JSON error envelope");
-    assert.ok(preflightResponses.length > 0,
-      "Browser did not issue an OPTIONS preflight for the Authorization header");
-
-    const preflight = preflightResponses[preflightResponses.length - 1];
-    const preflightHeaders = await preflight.allHeaders();
     assert.equal(preflight.status(), 200, "Authorization preflight did not return HTTP 200");
     assert.equal(preflightHeaders["access-control-allow-origin"], dashboardUrl.origin,
       "Preflight did not allow the exact dashboard origin");
