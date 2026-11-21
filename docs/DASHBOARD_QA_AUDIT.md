@@ -2311,3 +2311,47 @@ The browser received HTTP 401 for the deliberately invalid Bearer token, so the 
 ### Change control
 
 All application, test, workflow, and audit changes remain on `fix/backend-dashboard-static-assets`. No `main` update, PR creation/merge, Production deployment, database or secret change, backend runtime change, or trading/order behavior change was performed. Cloudflare Preview deployment of the latest commit and direct live asset responses remain unverified.
+
+
+## 106. Lazy chart loading performance remeasurement (2026-11-21)
+
+Performance QA run **#56**, run ID **44845502144**, exact code SHA `d087da19ab6756dc8677c669687576a8b024ea9e`, completed **successfully**. The local QA asset-routing check, pinned browser tooling, Chromium installation, all three Lighthouse cold-load audits, CPU-throttled browser profiling, heap profiling, and raw artifact upload all completed. Artifact **14682902459**: `dashboard-performance-d087da19ab6756dc8677c669687576a8b024ea9e`.
+
+### Initial-load Lighthouse measurements
+
+| Sample | Performance score | FCP | LCP | TBT | CLS |
+|---|---:|---:|---:|---:|---:|
+| 1 | 73 | 1,006 ms | 2,134 ms | 1,504 ms | 0 |
+| 2 | 100 | 902 ms | 1,502 ms | 0 ms | 0.0000238 |
+| 3 | 100 | 903 ms | 1,503 ms | 0 ms | 0.0000238 |
+
+Median score **100**, FCP **903 ms**, LCP **1,503 ms**, TBT **0 ms**, CLS **0.0000238**. Against the prior baseline's median LCP of 1,696 ms, the new median was approximately **193 ms lower** in this local simulated-mobile run. The two non-outlier samples both scored 100 with zero TBT; sample 1 is a substantial outlier and prevents claiming a stable TBT improvement.
+
+The initial script-resource audit observed only `app.js` (48,138 transferred bytes); `chart.js` was absent from the initial-load resource list. The chart module loaded on first use and its resource measured **24,098 transferred bytes**. The profiler recorded first-use elapsed time of **208 ms at CPU 1x** and **236 ms at CPU 4x**. This is the explicit user-interaction cost of deferring the chart module.
+
+Sample 1 still reported approximately **38 KiB** of unused JavaScript in `app.js`. Its trace recorded 1,504 ms TBT, with long tasks attributed to the document (664 ms), unattributable work (432 ms), and `app.js` (317 ms). Main-thread breakdown included about 1,381 ms Style & Layout and 570 ms Script Evaluation. Samples 2 and 3 had zero TBT. Further app.js startup and layout profiling remains warranted; the high first sample is not evidence that lazy chart loading itself caused a stable regression.
+
+### CPU/heap interaction profile
+
+| Metric | CPU 1x | CPU 4x |
+|---|---:|---:|
+| Initial navigation | 38 ms | 163 ms |
+| First chart module use | 208 ms | 236 ms |
+| Scanner render (1,000-row fixture) | 69 ms | 122 ms |
+| Sort | 121 ms | 188 ms |
+| Search | 162 ms | 176 ms |
+| Pagination | 89 ms | 137 ms |
+| Five repeated interaction cycles | 2,571 ms | 3,656 ms |
+| Post-GC heap delta | 45,628 bytes | 42,256 bytes |
+| DOM node delta | +5 | -3 |
+
+Both profiles completed with no page errors, rendered 100 visible rows from the 1,000-row fixture, and returned one row for the unique-symbol search. Compared with the previous run, interaction timings varied and did not show a consistent across-the-board speedup; the initial-load transfer reduction and median LCP change are the clearest positive results, while chart first-use latency and the remaining `app.js` main-thread work are tradeoffs to monitor.
+
+### Verification summary
+
+- Browser QA #87: 29/29 passed.
+- Backend and Dashboard tests #2123: 711 passed in 4.28s.
+- Performance QA #56: success; raw artifact uploaded and inspected.
+- Live Integration QA #41: still failed the exact-origin CORS response-header assertion for the configured Dashboard Preview and staging backend; no hosted CORS configuration was changed.
+
+This is local simulated-mobile evidence only, not physical-device QA or confirmation of the latest Cloudflare Preview. No merge, Production deployment, database/secrets/hosted configuration change, backend runtime change, or trading/order behavior change was made.
