@@ -38,7 +38,7 @@ class DashboardContractTests(unittest.TestCase):
 
     def test_local_assets_are_present_and_referenced(self) -> None:
         self.assertIn('/dashboard-assets/app.css', self.html)
-        self.assertIn('/dashboard-assets/chart.js', self.html)
+        self.assertIn('script.src="/dashboard-assets/chart.js"', self.js)
         self.assertIn('/dashboard-assets/app.js', self.html)
         for name in ("app.css", "chart.js", "app.js"):
             self.assertTrue((DASHBOARD / name).is_file(), name)
@@ -47,11 +47,14 @@ class DashboardContractTests(unittest.TestCase):
         references = set(re.findall(r'\$\("([^"]+)"\)', self.js))
         self.assertFalse(references - self.ids, sorted(references - self.ids))
 
-    def test_html_ids_are_unique_and_chart_script_loads_before_app(self) -> None:
+    def test_html_ids_are_unique_and_chart_script_is_loaded_on_demand(self) -> None:
         parser = _Ids()
         parser.feed(self.html)
         self.assertEqual(parser.duplicates, [])
-        self.assertLess(self.html.index('src="/dashboard-assets/chart.js"'), self.html.index('src="/dashboard-assets/app.js"'))
+        self.assertIn('src="/dashboard-assets/app.js"', self.html)
+        self.assertNotIn('src="/dashboard-assets/chart.js"', self.html)
+        self.assertIn('function ensureDashboardCharts()', self.js)
+        self.assertIn('script.src="/dashboard-assets/chart.js"', self.js)
 
     def test_complete_timeframe_set_is_present(self) -> None:
         expected = {"1m", "3m", "5m", "15m", "30m", "1h", "2h", "3h", "4h", "6h", "8h", "12h", "1D", "3D", "1W", "1M"}
@@ -95,7 +98,7 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn('status:"SUPERSEDED"', self.chart_js)
         self.assertIn("function invalidate(){activeLoadSequence++;if(activeLoadController)", self.chart_js)
         self.assertIn("activeLoadController.abort()", self.chart_js)
-        self.assertIn("window.DashboardCharts.invalidate()", self.js)
+        self.assertIn("window.DashboardCharts?.invalidate()", self.js)
         self.assertIn("invalidateChartView();", self.js)
         self.assertIn('if(requestSequence!==activeLoadSequence)return{status:"SUPERSEDED",market,symbol,requested_timeframe:tf}', self.chart_js)
         self.assertIn("activeEvidenceSequence=0", self.js)
@@ -312,7 +315,7 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn("let activeHealthSequence=0", self.js)
         self.assertIn("const requestSequence=activeHealthSequence", self.js)
         self.assertIn('if(requestSequence!==activeHealthSequence)return{status:"SUPERSEDED"}', self.js)
-        self.assertIn("activeEvidenceSequence++;window.DashboardCharts.invalidate()", self.js)
+        self.assertIn("activeEvidenceSequence++;window.DashboardCharts?.invalidate()", self.js)
         self.assertIn('catch(error){if(requestSequence!==activeEvidenceSequence)return{status:"SUPERSEDED"}', self.js)
 
     def test_spot_quote_filter_invalidates_pending_scan(self) -> None:
@@ -634,7 +637,8 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn('setText("chart-state","Loading candles · previous chart retained")', technical_body)
         self.assertIn('setText("chart-state","Chart request failed · previous chart retained")', technical_body)
         self.assertIn('metadataText(error?.message,"Unknown error",160)', technical_body)
-        self.assertLess(technical_body.index("await window.DashboardCharts.load"), technical_body.index('state.lastAnalysis=data'))
+        self.assertLess(technical_body.index("await ensureDashboardCharts()"), technical_body.index('state.lastAnalysis=data'))
+        self.assertIn("await charts.load(api,state.market,state.symbol,state.timeframe)", technical_body)
         self.assertIn('if(requestSequence!==activeEvidenceSequence||data?.status==="SUPERSEDED")return{status:"SUPERSEDED"}', technical_body)
 
     def test_recent_metadata_and_evidence_contracts_are_discoverable_before_main_guard(self) -> None:
@@ -680,7 +684,7 @@ class DashboardContractTests(unittest.TestCase):
     def test_market_evidence_refresh_preserves_previous_payload_until_success(self) -> None:
         evidence_body = self.js.split("async function loadMarketEvidence() {", 1)[1].split("async function loadTechnical()", 1)[0]
         self.assertIn('setText("chart-state","Loading market evidence · previous chart and evidence retained")', evidence_body)
-        self.assertIn('window.DashboardCharts.invalidate();', evidence_body)
+        self.assertIn('window.DashboardCharts?.invalidate();', evidence_body)
         self.assertNotIn('invalidateChartView("Market evidence endpoint does not provide candle chart data.")', evidence_body)
         self.assertLess(evidence_body.index("await api(path,{signal:controller.signal})"), evidence_body.index('showJson("analysis-output",data)'))
         self.assertIn('showJson("analysis-output",data)', evidence_body)
