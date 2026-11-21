@@ -6,6 +6,7 @@ on:
     branches:
       - feat/institutional-dashboard-design
       - feat/institutional-dashboard-task-governance
+      - fix/backend-dashboard-static-assets
     paths:
       - "dashboard/**"
       - "backend/app/config.py"
