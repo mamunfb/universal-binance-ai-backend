@@ -34,7 +34,11 @@ function createDashboardQaServer() {
     }
 
     const target = path.resolve(root, relativePath);
-    if (target === root || !target.startsWith(root + path.sep)) {
+    if (target === root) {
+      res.writeHead(404, { "cache-control": "no-store" }).end("Not found");
+      return;
+    }
+    if (!target.startsWith(root + path.sep)) {
       res.writeHead(403, { "cache-control": "no-store" }).end("Forbidden");
       return;
     }
