@@ -15,8 +15,11 @@ def test_dashboard_html_and_assets_are_public_but_api_stays_protected(monkeypatc
     assert dashboard.status_code == 200
     assert dashboard.headers["content-type"].startswith("text/html")
     assert 'href="/dashboard-assets/app.css"' in dashboard.text
-    assert 'src="/dashboard-assets/chart.js"' in dashboard.text
+    assert 'src="/dashboard-assets/chart.js"' not in dashboard.text
     assert 'src="/dashboard-assets/app.js"' in dashboard.text
+    app_script = client.get("/dashboard-assets/app.js")
+    assert app_script.status_code == 200
+    assert 'script.src="/dashboard-assets/chart.js"' in app_script.text
 
     css = client.get("/dashboard-assets/app.css")
     chart = client.get("/dashboard-assets/chart.js")
