@@ -26,12 +26,12 @@ test("dashboard origin passes live CORS preflight and backend rejects an invalid
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   const pageErrors = [];
   const preflightResponses = [];
+  const apiResponses = [];
   page.on("pageerror", error => pageErrors.push(error.message));
   page.on("response", response => {
-    if (response.request().method() === "OPTIONS" &&
-        response.url().startsWith(backendUrl.origin + "/api/v1/research/phase-readiness")) {
-      preflightResponses.push(response);
-    }
+    if (!response.url().startsWith(backendUrl.origin + "/api/v1/research/phase-readiness")) return;
+    if (response.request().method() === "OPTIONS") preflightResponses.push(response);
+    if (response.request().method() === "GET") apiResponses.push(response);
   });
 
   try {
@@ -48,15 +48,21 @@ test("dashboard origin passes live CORS preflight and backend rejects an invalid
       const payload = await response.json().catch(() => null);
       return {
         status: response.status,
-        allowedOrigin: response.headers.get("access-control-allow-origin"),
+        responseType: response.type,
         payloadIsObject: Boolean(payload && typeof payload === "object" && !Array.isArray(payload))
       };
     }, backendUrl.origin);
 
     assert.equal(probe.status, 401,
       "Backend must reject the deliberately invalid Bearer token with HTTP 401");
-    assert.equal(probe.allowedOrigin, dashboardUrl.origin,
-      "The browser response must expose the exact dashboard origin");
+    assert.equal(probe.responseType, "cors",
+      "The browser must receive a readable cross-origin CORS response");
+    assert.ok(apiResponses.length > 0,
+      "Playwright did not observe the cross-origin API response");
+    const apiResponse = apiResponses[apiResponses.length - 1];
+    const apiHeaders = await apiResponse.allHeaders();
+    assert.equal(apiHeaders["access-control-allow-origin"], dashboardUrl.origin,
+      "The actual API response must allow the exact dashboard origin");
     assert.equal(probe.payloadIsObject, true,
       "Unauthorized response must retain the JSON error envelope");
     assert.ok(preflightResponses.length > 0,
@@ -79,7 +85,8 @@ test("dashboard origin passes live CORS preflight and backend rejects an invalid
       dashboardOrigin: dashboardUrl.origin,
       backendOrigin: backendUrl.origin,
       viewport: "390x844",
-      invalidBearerProbe: probe,
+      invalidBearerProbe: {status: probe.status, responseType: probe.responseType, payloadIsObject: probe.payloadIsObject},
+      actualResponseAllowedOrigin: apiHeaders["access-control-allow-origin"],
       preflight: {status: preflight.status(), allowedOrigin: preflightHeaders["access-control-allow-origin"]},
       pageErrors,
       authenticatedPositiveCheck: "not run; requires a separately scoped QA credential"
