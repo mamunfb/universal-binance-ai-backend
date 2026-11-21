@@ -38,8 +38,10 @@ jobs:
       - name: Test Dashboard QA server asset routing
         run: node --test tests/test_dashboard_qa_server.cjs
       - name: Install pinned browser tooling
+        id: browser_tooling
         run: npm install --no-save --no-package-lock playwright@1.56.1 lighthouse@12.8.2
       - name: Install Chromium
+        id: chromium
         run: npx --no-install playwright install --with-deps chromium
       - name: Run mobile Lighthouse cold-load audits
         id: lighthouse
@@ -67,7 +69,7 @@ jobs:
             npx --no-install lighthouse http://127.0.0.1:4173/ --preset=perf --form-factor=mobile --screenEmulation.mobile=true --screenEmulation.width=390 --screenEmulation.height=844 --screenEmulation.deviceScaleFactor=1 --throttling-method=simulate --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage --no-proxy-server --proxy-bypass-list=<-loopback>" --output=json --output-path="artifacts/performance/lighthouse-mobile-$sample.json"
           done
       - name: Run CPU-throttled browser and heap profiling
-        if: always()
+        if: always() && steps.browser_tooling.outcome == 'success' && steps.chromium.outcome == 'success'
         run: |
           set -euo pipefail
           node tests/serve_dashboard_qa.cjs > /tmp/dashboard-qa-profiler-server.log 2>&1 &
