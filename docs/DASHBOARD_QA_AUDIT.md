@@ -2284,3 +2284,30 @@ Implementation commits on `fix/backend-dashboard-static-assets`:
 The changes were pushed to the feature branch and are expected to trigger the configured Browser QA and Performance QA workflows through their existing path filters. At the time this audit section was written, new workflow results had not yet been independently retrieved; therefore no passing test or improved Lighthouse score is claimed for this optimization yet. Compare the new raw artifact with the previous baseline (three Lighthouse samples: scores 86/100/100, median LCP 1,696 ms; CPU/heap profile) before deciding whether the optimization is beneficial. Chart first-use latency is a tradeoff and must be reviewed alongside the initial-load savings.
 
 No main branch update, PR creation/merge, Production deployment, database/secrets/hosted configuration change, or backend runtime change was performed. Cloudflare Preview deployment and live-origin asset responses remain unverified from this environment.
+
+
+## 105. Lazy chart loading CI follow-up and live CORS result (2026-11-21)
+
+### Browser and backend CI
+
+- Dashboard Browser QA run **#87**, run ID **44845247885**, commit `999df2ae37a4ee5dd4bcea588f8b365caddaa969`: **success**. The job log confirms **29 passed, 0 failed**, including the new lazy-load regression and the six local QA asset-routing tests.
+- Backend and dashboard tests run **#2123**, run ID **44845502209**, commit `d087da19ab6756dc8677c669687576a8b024ea9e`: **success**. The job log confirms **711 passed in 4.28s**; Dashboard HTML validation accepted one initial script plus the dynamic chart loader reference, and `node --check` succeeded for `dashboard/app.js`, `dashboard/chart.js`, and the live integration test.
+- The first backend attempt after removing the static chart script exposed eight stale Python contract assertions that expected an HTML `chart.js` tag or direct non-optional chart API calls. Those assertions and the public-asset HTML checks were updated to validate the on-demand loader while retaining direct public retrieval tests for `/dashboard-assets/chart.js`. The successful #2123 run includes those updates.
+
+### Performance QA status
+
+- Performance QA run **#55**, run ID **44845253574**, commit `cce2008b7ece7ed295bfa1dbb161f2f13e6d7b3c`: all three Lighthouse mobile cold-load audits completed and raw reports were uploaded as artifact **14682218603**. The CPU/heap profiler then failed because its explicit Coin Analysis navigation attempted to click a mobile sidebar link while the sidebar was closed/outside the viewport.
+- Updated the profiler to open the mobile navigation before its explicit first-use chart request. Performance QA run **#56**, run ID **44845502144**, commit `d087da19ab6756dc8677c669687576a8b024ea9e`, is the retry for that correction. Its final Lighthouse and CPU/heap results must be inspected before claiming performance improvement; no numeric improvement is claimed in this audit entry.
+
+### Live Cloudflare-to-Render integration result
+
+Dashboard Live Integration QA run **#41**, run ID **44845244905**, failed at the exact-origin CORS assertion. Its configured environment values were:
+
+- Dashboard Preview: `https://7e74d124.universal-binance-ai-backend.pages.dev/`
+- Staging backend: `https://universal-binance-ai-backend-staging-qa.onrender.com`
+
+The browser received HTTP 401 for the deliberately invalid Bearer token, so the unauthenticated rejection behavior was observed. However, the response did not expose `Access-Control-Allow-Origin` for the exact Dashboard origin (header read as null), so the browser-side cross-origin assertion failed. This establishes a live CORS integration failure for the configured origin, but does not by itself identify whether the cause is the staging allowlist, middleware ordering, or error-response handling. No Render environment variable, CORS allowlist, secret, or hosted configuration was changed.
+
+### Change control
+
+All application, test, workflow, and audit changes remain on `fix/backend-dashboard-static-assets`. No `main` update, PR creation/merge, Production deployment, database or secret change, backend runtime change, or trading/order behavior change was performed. Cloudflare Preview deployment of the latest commit and direct live asset responses remain unverified.
