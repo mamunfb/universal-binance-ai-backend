@@ -6,10 +6,12 @@ on:
     branches:
       - feat/institutional-dashboard-design
       - feat/institutional-dashboard-task-governance
+      - fix/backend-dashboard-static-assets
     paths:
       - "dashboard/**"
       - "tests/dashboard_performance_qa.cjs"
       - "tests/serve_dashboard_qa.cjs"
+      - "tests/test_dashboard_qa_server.cjs"
       - ".github/workflows/dashboard-performance-qa.yml"
 
 permissions:
@@ -33,6 +35,8 @@ jobs:
         with:
           node-version: "22"
           package-manager-cache: false
+      - name: Test Dashboard QA server asset routing
+        run: node --test tests/test_dashboard_qa_server.cjs
       - name: Install pinned browser tooling
         run: npm install --no-save --no-package-lock playwright@1.56.1 lighthouse@12.8.2
       - name: Install Chromium
