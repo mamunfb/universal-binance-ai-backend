@@ -71,3 +71,24 @@ This statement applies only to these inspected file contents.
 - `NEON_STAGING_TEST_DATABASE_URL` was not found in these six workflow files. This does not establish whether it is referenced elsewhere in the repository.
 - No workflow has been executed as part of this inventory.
 - No Secret or Variable has been created, updated, or deleted as part of this inventory.
+
+
+## Neon QA database discovery (read-only inspection)
+
+A Neon project matching the repository was found:
+- Project name: `universal-binance-ai-backend`
+- Project ID: `super-cake-99451662`
+- Region: `aws-ap-southeast-1`
+- PostgreSQL: 17
+- Project permission: ADMIN
+
+The project currently reports three branches:
+- `main` — default branch, ID `br-damp-brook-b36a0bbm`
+- `render-staging-backend` — non-default branch, ID `br-royal-thunder-b3ispxh9`
+- `mcp-migration-2026-11-13T17-30-18` — non-default branch, ID `br-divine-sea-b3gsjfrq`
+
+The `render-staging-backend` branch was inspected using a read-only branch description. It is ready, non-default, and contains the `neondb` database with application tables including `aggregate_trades`, `historical_klines`, `market_scan_runs`, `order_book_samples`, and other market/derivatives/EVM tables.
+
+**Important:** `render-staging-backend` is a plausible QA/staging database target because of its name, but this inspection alone does not prove that `DATABASE_URL` or the hourly market scan is intended to use it. Do not create or set `DATABASE_URL` until the target branch and intended workload are confirmed. The default `main` branch must not be selected for QA merely because it is the default.
+
+No connection string was retrieved. No database rows or schema were modified. No branch, compute, role, or credential was created, changed, or deleted.
