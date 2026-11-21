@@ -24,8 +24,11 @@ def test_dashboard_html_remains_public_when_api_authentication_is_configured(mon
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/html")
     assert "/dashboard-assets/app.css" in response.text
-    assert "/dashboard-assets/chart.js" in response.text
+    assert "/dashboard-assets/chart.js" not in response.text
     assert "/dashboard-assets/app.js" in response.text
+    app_script = client.get("/dashboard-assets/app.js")
+    assert app_script.status_code == 200
+    assert 'script.src="/dashboard-assets/chart.js"' in app_script.text
 
 
 @pytest.mark.parametrize(
