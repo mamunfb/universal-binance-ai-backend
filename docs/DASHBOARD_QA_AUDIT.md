@@ -2226,3 +2226,31 @@ The profiler verified 100 visible rows from the 1,000-row fixture, one visible r
 - No application Dashboard asset, backend runtime route, market-data provider, order/trading behavior, database, secret, or hosted configuration was changed.
 - No update to `main`, PR creation/merge, or Production deployment was performed.
 - Pushes to the feature branch can trigger Cloudflare Pages Preview through the repository's existing integration. The current Preview URL could not be independently reached from this verification environment, so this audit does not claim live hosted asset verification.
+
+
+## 103. Lighthouse TBT/unused-JavaScript investigation and live-QA branch trigger (2026-11-21)
+
+### Lighthouse trace review
+
+Re-inspected the raw Lighthouse 12.8.2 JSON artifacts from Performance QA run #52 (artifact 14682146595), rather than relying only on the summarized scores.
+
+- Sample 1 reported approximately 510 ms TBT in the raw JSON (the earlier rounded audit summary records 508 ms). Its long-task audit attributed 394 ms and 142 ms tasks to `app.js`, and a 231 ms task to the document. The main-thread breakdown recorded about 346 ms script evaluation and 441 ms style/layout work.
+- Samples 2 and 3 both recorded 0 ms TBT and no long tasks. This makes the high-TBT result an intermittent sample, not evidence of a repeatable regression.
+- The unused-JavaScript audit consistently estimated about 37.5 KiB unused in `app.js` (approximately 80% of its 46.9 KiB transfer) and 23.3 KiB unused in `chart.js` (approximately 98% of its 23.8 KiB transfer) during the initial Overview load.
+- `dashboard/index.html` currently loads both scripts with `defer`. `app.js` eagerly initializes navigation and controls; chart operations are referenced from technical-analysis handlers and cancellation/invalidation paths. In particular, `cancelAnalysisRequests()` currently calls `window.DashboardCharts.invalidate()` unconditionally, including during initial navigation. Therefore, removing the eager chart script tag without first making chart initialization/invalidation safe would introduce a runtime error. No application JavaScript was changed in this investigation.
+
+### Next optimization experiment
+
+A separate, measured change should introduce safe on-demand chart module loading (including an explicit loading promise and safe invalidation before the module is loaded), then rerun the same three-sample Lighthouse suite and all browser/chart interaction tests. Compare median and per-sample TBT, LCP, transferred bytes, and chart first-use latency. Do not interpret Lighthouse unused-byte estimates as proof that every reported byte can be removed; much of `app.js` is event-driven functionality needed after navigation or user interaction.
+
+### Live integration QA workflow trigger correction
+
+The existing `.github/workflows/dashboard-live-integration-qa.yml` supported manual dispatch and the two dashboard feature branches, but omitted `fix/backend-dashboard-static-assets` from its push branch list. Added the current asset-fix branch so relevant future Dashboard/backend/CORS/live-test changes on this branch can trigger the live integration QA workflow.
+
+The workflow still requires the exact HTTPS repository Actions variables `DASHBOARD_PREVIEW_URL` and `RENDER_BACKEND_URL`. Their configured state is not exposed by the available read-only verification path, so this change does not claim that the live test ran or that the variables exist. The unauthenticated invalid-token/CORS probe does not require a credential; a positive authenticated check remains deliberately separate and requires a scoped QA credential.
+
+### Change control and evidence boundary
+
+- Workflow-only change committed as `515191b40a9c612b96047b712002517a6e1747cd` on `fix/backend-dashboard-static-assets`.
+- No Dashboard runtime JavaScript, backend runtime, production deployment, main branch, PR, database, secret, or hosted configuration was changed.
+- Live Cloudflare Preview asset responses remain unverified from this environment; local Lighthouse and CI results are not substitutes for a live-origin check.
