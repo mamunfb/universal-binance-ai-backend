@@ -2254,3 +2254,33 @@ The workflow still requires the exact HTTPS repository Actions variables `DASHBO
 - Workflow-only change committed as `515191b40a9c612b96047b712002517a6e1747cd` on `fix/backend-dashboard-static-assets`.
 - No Dashboard runtime JavaScript, backend runtime, production deployment, main branch, PR, database, secret, or hosted configuration was changed.
 - Live Cloudflare Preview asset responses remain unverified from this environment; local Lighthouse and CI results are not substitutes for a live-origin check.
+
+
+## 104. On-demand Dashboard chart-module loading experiment (2026-11-21)
+
+### Runtime change
+
+- Removed the eager `/dashboard-assets/chart.js` script tag from `dashboard/index.html`; the initial document now loads only `app.js` as its application JavaScript entry point.
+- Added a shared `ensureDashboardCharts()` loader in `dashboard/app.js`. It appends the local chart script only when the user requests a technical chart, shares one in-flight Promise across concurrent requests, reuses the loaded `window.DashboardCharts` API, and clears/removes a failed script element so a later user retry can attempt loading again.
+- Chart invalidation is now optional before the chart module exists. This is required because navigation and selection changes can invalidate analysis before a chart has ever been requested.
+- The chart request sequence is rechecked after the module load resolves. If the user navigates away or changes selection while the script is loading, the stale request does not proceed to fetch candle data.
+- No chart calculations, market/timeframe routing, candle parsing, backend API contracts, or order/trading behavior were changed.
+
+### Regression and measurement updates
+
+- Added a browser regression asserting that the initial Overview load does not request or initialize `chart.js`, the first technical-chart request loads it, and later requests reuse the same loaded module without another script fetch.
+- Updated the CPU/heap performance profiler to fail if `chart.js` appears in initial-load script resources, then explicitly request the technical-chart module and record first-use elapsed time plus its resource timing/decoded bytes.
+- Existing chart interaction tests remain in the suite, including the USD-M 1-second continuous-contract route test. Full Chromium CI is required to establish that the change passes in the actual browser runner.
+
+Implementation commits on `fix/backend-dashboard-static-assets`:
+
+- `edc0a6a329eb9cfc53ef3a42057be0d84001a091` — lazy loader and safe invalidation in `dashboard/app.js`.
+- `1fec589ab229b83731365ddb5584d19fea14131a` — remove eager chart script from `dashboard/index.html`.
+- `999df2ae37a4ee5dd4bcea588f8b365caddaa969` — add browser lazy-load regression.
+- `cce2008b7ece7ed295bfa1dbb161f2f13e6d7b3c` — assert initial-load omission and collect chart first-use metrics in performance profile.
+
+### Verification status and boundaries
+
+The changes were pushed to the feature branch and are expected to trigger the configured Browser QA and Performance QA workflows through their existing path filters. At the time this audit section was written, new workflow results had not yet been independently retrieved; therefore no passing test or improved Lighthouse score is claimed for this optimization yet. Compare the new raw artifact with the previous baseline (three Lighthouse samples: scores 86/100/100, median LCP 1,696 ms; CPU/heap profile) before deciding whether the optimization is beneficial. Chart first-use latency is a tradeoff and must be reviewed alongside the initial-load savings.
+
+No main branch update, PR creation/merge, Production deployment, database/secrets/hosted configuration change, or backend runtime change was performed. Cloudflare Preview deployment and live-origin asset responses remain unverified from this environment.
