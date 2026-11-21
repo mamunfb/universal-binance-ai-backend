@@ -1,0 +1,64 @@
+name: Dashboard frontend checks
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feat/institutional-dashboard-design
+      - feat/institutional-dashboard-task-governance
+    paths:
+      - "dashboard/**"
+      - "tests/test_dashboard_contract.py"
+      - "tests/test_dashboard_accessibility.py"
+      - "tests/test_dashboard_chart.js"
+      - "docs/DASHBOARD_IMPLEMENTATION_STATUS.md"
+      - ".github/workflows/dashboard-frontend.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "dashboard/**"
+      - "tests/test_dashboard_contract.py"
+      - "tests/test_dashboard_accessibility.py"
+      - "tests/test_dashboard_chart.js"
+      - "docs/DASHBOARD_IMPLEMENTATION_STATUS.md"
+      - ".github/workflows/dashboard-frontend.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dashboard-frontend-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dashboard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          package-manager-cache: false
+
+      - name: Check dashboard JavaScript syntax
+        run: |
+          node --check dashboard/app.js
+          node --check dashboard/chart.js
+
+      - name: Run dashboard chart fixtures
+        run: node --test tests/test_dashboard_chart.js
+
+      - name: Run dashboard Python contract tests
+        run: |
+          python -m unittest discover -s tests -p "test_dashboard_contract.py" -v
+          python -m unittest discover -s tests -p "test_dashboard_accessibility.py" -v
