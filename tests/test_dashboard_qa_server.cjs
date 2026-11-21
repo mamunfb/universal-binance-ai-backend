@@ -67,7 +67,7 @@ test("does not expose a dashboard asset directory listing", async () => {
 });
 
 test("does not allow traversal outside the dashboard root", async () => {
-  const response = await get("/dashboard-assets/%252e%252e/backend/app/main.py");
-  assert.ok([403, 404].includes(response.status));
+  const response = await get("/dashboard-assets/%2e%2e%2f..%2fbackend%2fapp%2fmain.py");
+  assert.equal(response.status, 403);
   assert.doesNotMatch(response.body.toString("utf8"), /FastAPI|from fastapi import/);
 });
